@@ -169,6 +169,7 @@
             border-radius: 4px;
             cursor: pointer;
             transition: border-color 0.3s;
+            position: relative;
         }
         
         .file-upload:hover {
@@ -176,6 +177,23 @@
         }
         
         .file-upload input {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            cursor: pointer;
+        }
+        
+        .file-upload p {
+            margin: 0;
+        }
+        
+        .file-preview {
+            max-width: 100%;
+            max-height: 150px;
+            margin-top: 10px;
             display: none;
         }
         
@@ -297,11 +315,18 @@
                 <li>Kondisi mesin dan rem baik</li>
             </ul>
             
-            <h3>Untuk Mobil (jika ada layanan car)</h3>
+            <h3>Untuk Mobil</h3>
             <ul>
                 <li>Minimal 1300cc</li>
                 <li>AC berfungsi baik</li>
                 <li>Tahun kendaraan maksimal 10 tahun</li>
+            </ul>
+            
+            <h3>Untuk Pickup</h3>
+            <ul>
+                <li>Minimal 1500cc</li>
+                <li>Kondisi bagasi baik</li>
+                <li>Tahun kendaraan maksimal 12 tahun</li>
             </ul>
             
             <button id="startRegistration" class="btn">Mulai Pendaftaran</button>
@@ -345,6 +370,7 @@
                         <option value="">Pilih Jenis Kendaraan</option>
                         <option value="motor">Motor</option>
                         <option value="mobil">Mobil</option>
+                        <option value="pickup">Pickup</option>
                     </select>
                 </div>
                 
@@ -368,7 +394,8 @@
                     <label>Foto KTP</label>
                     <div class="file-upload" id="ktpUpload">
                         <p>Klik untuk upload foto KTP</p>
-                        <input type="file" id="ktpFile" accept="image/*" required>
+                        <input type="file" id="ktpFile" accept="image/*" capture="environment" required>
+                        <img id="ktpPreview" class="file-preview" alt="Preview KTP">
                     </div>
                 </div>
                 
@@ -376,7 +403,8 @@
                     <label>Foto SIM</label>
                     <div class="file-upload" id="simUpload">
                         <p>Klik untuk upload foto SIM</p>
-                        <input type="file" id="simFile" accept="image/*" required>
+                        <input type="file" id="simFile" accept="image/*" capture="environment" required>
+                        <img id="simPreview" class="file-preview" alt="Preview SIM">
                     </div>
                 </div>
                 
@@ -384,7 +412,8 @@
                     <label>Foto STNK</label>
                     <div class="file-upload" id="stnkUpload">
                         <p>Klik untuk upload foto STNK</p>
-                        <input type="file" id="stnkFile" accept="image/*" required>
+                        <input type="file" id="stnkFile" accept="image/*" capture="environment" required>
+                        <img id="stnkPreview" class="file-preview" alt="Preview STNK">
                     </div>
                 </div>
                 
@@ -392,7 +421,8 @@
                     <label>Foto SKCK</label>
                     <div class="file-upload" id="skckUpload">
                         <p>Klik untuk upload foto SKCK</p>
-                        <input type="file" id="skckFile" accept="image/*" required>
+                        <input type="file" id="skckFile" accept="image/*" capture="environment" required>
+                        <img id="skckPreview" class="file-preview" alt="Preview SKCK">
                     </div>
                 </div>
                 
@@ -400,7 +430,8 @@
                     <label>Pas Foto</label>
                     <div class="file-upload" id="photoUpload">
                         <p>Klik untuk upload pas foto</p>
-                        <input type="file" id="photoFile" accept="image/*" required>
+                        <input type="file" id="photoFile" accept="image/*" capture="environment" required>
+                        <img id="photoPreview" class="file-preview" alt="Preview Foto">
                     </div>
                 </div>
                 
@@ -442,7 +473,6 @@
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-storage.js"></script>
     
     <script>
         // Fungsi untuk mendapatkan parameter URL
@@ -453,8 +483,11 @@
             return results === null ? '' : decodeURIComponent(results[1].replace(/\+/g, ' '));
         }
         
-        // Konfigurasi Firebase dari URL
+        // Konfigurasi dari URL
         const firebaseConfigParam = getUrlParameter('firebaseConfig');
+        const imagebbApiKey = getUrlParameter('imagebbKey');
+        const userId = getUrlParameter('userId') || generateUserId();
+        
         let firebaseConfig;
         
         try {
@@ -465,13 +498,43 @@
             document.getElementById('errorMessage').style.display = 'block';
         }
         
+        // Generate random user ID jika tidak ada di URL
+        function generateUserId() {
+            return 'user_' + Math.random().toString(36).substr(2, 9);
+        }
+        
         // Inisialisasi Firebase jika config valid
         if (firebaseConfig && firebaseConfig.apiKey) {
             firebase.initializeApp(firebaseConfig);
-            
-            // Referensi database dan storage
             const database = firebase.database();
-            const storage = firebase.storage();
+            
+            // Fungsi untuk upload gambar ke ImageBB
+            async function uploadImageToImageBB(file) {
+                if (!imagebbApiKey) {
+                    throw new Error('ImageBB API key tidak tersedia');
+                }
+                
+                const formData = new FormData();
+                formData.append('image', file);
+                
+                try {
+                    const response = await fetch(`https://api.imgbb.com/1/upload?key=${imagebbApiKey}`, {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        return data.data.url;
+                    } else {
+                        throw new Error(data.error.message || 'Gagal upload gambar');
+                    }
+                } catch (error) {
+                    console.error('Error uploading image:', error);
+                    throw error;
+                }
+            }
             
             // Simpan data driver ke Firebase
             async function saveDriverData(driverData, files) {
@@ -480,33 +543,27 @@
                     document.getElementById('progressContainer').style.display = 'block';
                     document.getElementById('progressText').textContent = 'Mengupload dokumen...';
                     
-                    // Upload files ke storage
+                    // Upload files ke ImageBB
                     const uploadPromises = [];
                     const fileUrls = {};
+                    let uploadCount = 0;
+                    const totalFiles = Object.keys(files).length;
                     
                     for (const [fieldName, file] of Object.entries(files)) {
                         if (file) {
-                            const storageRef = storage.ref(`driver_documents/${Date.now()}_${file.name}`);
-                            const uploadTask = storageRef.put(file);
-                            
                             uploadPromises.push(
-                                new Promise((resolve, reject) => {
-                                    uploadTask.on('state_changed',
-                                        (snapshot) => {
-                                            // Progress tracking
-                                            const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-                                            document.getElementById('progressBar').style.width = progress + '%';
-                                            document.getElementById('progressText').textContent = `Mengupload ${fieldName}... ${Math.round(progress)}%`;
-                                        },
-                                        (error) => reject(error),
-                                        () => {
-                                            uploadTask.snapshot.ref.getDownloadURL().then((downloadURL) => {
-                                                fileUrls[fieldName] = downloadURL;
-                                                resolve();
-                                            });
-                                        }
-                                    );
-                                })
+                                uploadImageToImageBB(file)
+                                    .then(url => {
+                                        fileUrls[fieldName] = url;
+                                        uploadCount++;
+                                        const progress = Math.round((uploadCount / totalFiles) * 100);
+                                        document.getElementById('progressBar').style.width = progress + '%';
+                                        document.getElementById('progressText').textContent = `Mengupload dokumen... ${progress}%`;
+                                    })
+                                    .catch(error => {
+                                        console.error(`Error uploading ${fieldName}:`, error);
+                                        throw error;
+                                    })
                             );
                         }
                     }
@@ -519,15 +576,16 @@
                         ...driverData,
                         ...fileUrls,
                         registrationDate: new Date().toISOString(),
-                        status: 'pending'
+                        status: 'pending',
+                        userId: userId
                     };
                     
                     // Update progress
                     document.getElementById('progressText').textContent = 'Menyimpan data...';
+                    document.getElementById('progressBar').style.width = '100%';
                     
-                    // Simpan data ke Realtime Database
-                    const newDriverRef = database.ref('drivers').push();
-                    await newDriverRef.set(completeData);
+                    // Simpan data ke Realtime Database di node DriGo/{userID}
+                    await database.ref(`DriGo/${userId}`).set(completeData);
                     
                     // Sembunyikan progress, tampilkan sukses
                     document.getElementById('progressContainer').style.display = 'none';
@@ -604,23 +662,39 @@
             document.getElementById('infoSection').classList.remove('hidden');
         });
         
-        // Style file upload boxes when files are selected
-        const fileUploads = {
-            ktpUpload: 'ktpFile',
-            simUpload: 'simFile',
-            stnkUpload: 'stnkFile',
-            skckUpload: 'skckFile',
-            photoUpload: 'photoFile'
-        };
-        
-        for (const [uploadDiv, fileInput] of Object.entries(fileUploads)) {
-            document.getElementById(fileInput).addEventListener('change', function(e) {
-                if (e.target.files.length > 0) {
-                    document.getElementById(uploadDiv).style.borderColor = '#4CAF50';
-                    document.getElementById(uploadDiv).innerHTML = `<p>${e.target.files[0].name}</p>`;
+        // Preview gambar saat dipilih
+        function setupFilePreview(inputId, previewId) {
+            const input = document.getElementById(inputId);
+            const preview = document.getElementById(previewId);
+            
+            input.addEventListener('change', function() {
+                if (this.files && this.files[0]) {
+                    const reader = new FileReader();
+                    
+                    reader.onload = function(e) {
+                        preview.src = e.target.result;
+                        preview.style.display = 'block';
+                        // Update text di box upload
+                        document.getElementById(inputId.replace('File', 'Upload')).querySelector('p').textContent = 'File dipilih: ' + input.files[0].name;
+                    }
+                    
+                    reader.readAsDataURL(this.files[0]);
                 }
             });
         }
+        
+        // Setup preview untuk semua file input
+        setupFilePreview('ktpFile', 'ktpPreview');
+        setupFilePreview('simFile', 'simPreview');
+        setupFilePreview('stnkFile', 'stnkPreview');
+        setupFilePreview('skckFile', 'skckPreview');
+        setupFilePreview('photoFile', 'photoPreview');
+        
+        // Tambahkan capture="environment" untuk kamera belakang di mobile
+        const fileInputs = document.querySelectorAll('input[type="file"]');
+        fileInputs.forEach(input => {
+            input.setAttribute('capture', 'environment');
+        });
     </script>
 </body>
 </html>
