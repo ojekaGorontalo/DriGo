@@ -16,11 +16,12 @@
             height: 100vh;
             flex-direction: column;
             color: white;
+            text-align: center;
         }
         
         .logo-container {
-            text-align: center;
             animation: fadeIn 1.5s ease-in-out;
+            margin-bottom: 30px;
         }
         
         .logo {
@@ -60,16 +61,43 @@
             background-color: rgba(255, 255, 255, 0.3);
             border-radius: 2px;
             overflow: hidden;
-            margin-top: 20px;
+            margin: 20px auto;
         }
         
         .loading-bar {
             height: 100%;
             width: 0%;
             background-color: white;
-            animation: loading 2.5s ease-in-out forwards;
+            animation: loading 3s ease-in-out forwards;
         }
         
+        .status-message {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            max-width: 80%;
+            display: none;
+        }
+        
+        .login-btn {
+            background-color: #4285F4;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            display: none;
+            margin-top: 20px;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .login-btn i {
+            margin-right: 10px;
+        }
+
         @keyframes fadeIn {
             from { opacity: 0; transform: translateY(20px); }
             to { opacity: 1; transform: translateY(0); }
@@ -93,10 +121,17 @@
         </div>
     </div>
 
-    <!-- Firebase SDK -->
+    <div id="statusMessage" class="status-message"></div>
+    
+    <button id="googleLogin" class="login-btn">
+        <i class="fab fa-google"></i> Login dengan Google
+    </button>
+
+    <!-- Firebase & Font Awesome -->
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/js/all.min.js"></script>
     
     <script>
         // Konfigurasi Firebase
@@ -115,53 +150,96 @@
             firebase.initializeApp(firebaseConfig);
         }
 
+        // Elemen UI
+        const statusMessage = document.getElementById('statusMessage');
+        const googleLoginBtn = document.getElementById('googleLogin');
+        
         // Fungsi untuk mengirim data ke App Inventor
         function sendToAppInventor(data) {
-            const jsonData = JSON.stringify(data);
+            if (window.AppInventor) {
+                window.AppInventor.setWebViewString(JSON.stringify(data));
+                return true;
+            } else if (window.appinventor) {
+                window.appinventor.setWebViewString(JSON.stringify(data));
+                return true;
+            }
+            return false;
+        }
+
+        // Fungsi untuk menampilkan pesan status
+        function showStatusMessage(message) {
+            statusMessage.textContent = message;
+            statusMessage.style.display = 'block';
+            googleLoginBtn.style.display = 'none';
+        }
+
+        // Fungsi untuk menangani login Google
+        function handleGoogleLogin() {
+            const provider = new firebase.auth.GoogleAuthProvider();
             
-            // Coba semua metode yang mungkin
-            if (window.AppInventor && window.AppInventor.setWebViewString) {
-                window.AppInventor.setWebViewString(jsonData);
-                return true;
-            } else if (window.appinventor && window.appinventor.setWebViewString) {
-                window.appinventor.setWebViewString(jsonData);
-                return true;
-            } else {
-                console.log("Debug Mode - Data yang akan dikirim:", data);
-                return false;
+            firebase.auth().signInWithPopup(provider)
+                .then((result) => {
+                    checkUserStatus(result.user.uid);
+                })
+                .catch((error) => {
+                    showStatusMessage("Gagal login: " + error.message);
+                });
+        }
+
+        // Fungsi untuk memeriksa status user
+        async function checkUserStatus(uid) {
+            try {
+                const snapshot = await firebase.database().ref(`/driver_users/${uid}`).once('value');
+                
+                if (!snapshot.exists()) {
+                    showStatusMessage("Lengkapi data Anda untuk memulai");
+                    return;
+                }
+                
+                const userData = snapshot.val();
+                const status = userData.status || "pending";
+                
+                switch(status) {
+                    case "approved":
+                        // Hanya kirim data jika status approved
+                        sendToAppInventor({ uid, status: "approved" });
+                        break;
+                    case "pending":
+                        showStatusMessage("Akun Anda sedang menunggu verifikasi");
+                        break;
+                    case "rejected":
+                        showStatusMessage("Pendaftaran Anda ditolak");
+                        break;
+                    default:
+                        showStatusMessage("Lengkapi data Anda untuk memulai");
+                }
+            } catch (error) {
+                showStatusMessage("Terjadi kesalahan saat memeriksa data");
+                console.error("Error checking user status:", error);
             }
         }
 
-        // Fungsi utama untuk memeriksa status login
-        function checkLoginStatus() {
-            firebase.auth().onAuthStateChanged(async (user) => {
+        // Fungsi utama setelah loading selesai
+        function initializeApp() {
+            firebase.auth().onAuthStateChanged((user) => {
                 if (user) {
-                    // User sudah login
-                    const uid = user.uid;
-                    
-                    try {
-                        // Ambil data dari Realtime Database
-                        const snapshot = await firebase.database().ref(`/driver_users/${uid}`).once('value');
-                        const userData = snapshot.val();
-                        const status = userData?.status || "pending";
-                        
-                        // Kirim data ke Kodular
-                        sendToAppInventor({ uid, status });
-                    } catch (error) {
-                        console.error("Error fetching user data:", error);
-                        sendToAppInventor({ uid: user.uid, status: "error", message: "Gagal memuat data" });
-                    }
+                    checkUserStatus(user.uid);
                 } else {
-                    // User belum login
-                    sendToAppInventor({ status: "belum_login" });
+                    // Tampilkan tombol login
+                    googleLoginBtn.style.display = 'flex';
+                    googleLoginBtn.addEventListener('click', handleGoogleLogin);
+                    
+                    // Untuk debugging di browser
+                    if (!window.AppInventor && !window.appinventor) {
+                        statusMessage.textContent = "Silakan login untuk melanjutkan";
+                        statusMessage.style.display = 'block';
+                    }
                 }
             });
         }
 
-        // Tunggu 3 detik sebelum memeriksa status
-        setTimeout(() => {
-            checkLoginStatus();
-        }, 3000);
+        // Tunggu 3 detik sebelum memulai pengecekan
+        setTimeout(initializeApp, 3000);
     </script>
 </body>
 </html>
