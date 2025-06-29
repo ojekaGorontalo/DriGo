@@ -204,7 +204,12 @@
                 <h3>Aplikasi Ojek Lokal Gorontalo</h3>
                 <p>
                     OloRide adalah aplikasi ojek online pertama yang dikembangkan khusus untuk masyarakat Gorontalo. 
-                    Dengan menjadi driver OloRide, Anda menjadi bagian dari gerakan ekonomi digital lokal.
+                    Dengan menjadi driver OloRide, Anda menjadi bagian dari gerakan ekonomi digital lokal yang mendukung 
+                    pertumbuhan UMKM dan kesejahteraan warga Gorontalo.
+                </p>
+                <p>
+                    Keunggulan kami: komisi rendah, dukungan 24 jam, dan komunitas driver yang solid. 
+                    Aplikasi ini sepenuhnya dikembangkan oleh putra daerah Gorontalo untuk kemajuan bersama.
                 </p>
                 <span class="local-badge">#BanggaProdukLokal</span>
                 
@@ -229,143 +234,44 @@
         </div>
     </div>
 
-    <!-- Firebase SDK -->
-    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
-    
     <script>
-        // Fungsi utama yang akan dijalankan saat halaman dimuat
         document.addEventListener('DOMContentLoaded', function() {
-            // Ambil config dari URL
-            const urlParams = new URLSearchParams(window.location.search);
-            const firebaseConfigParam = urlParams.get('firebaseConfig');
+            const loginBtn = document.getElementById('googleLogin');
+            const loading = document.getElementById('loading');
             
-            try {
-                if (firebaseConfigParam) {
-                    const firebaseConfig = JSON.parse(decodeURIComponent(firebaseConfigParam));
-                    initializeAuth(firebaseConfig);
-                } else if (window.appinventor && window.appinventor.getWebViewString) {
-                    // Alternatif untuk menerima config dari WebViewString
-                    const firebaseConfig = JSON.parse(window.appinventor.getWebViewString());
-                    initializeAuth(firebaseConfig);
-                } else {
-                    throw new Error("Firebase config tidak ditemukan");
-                }
-            } catch (e) {
-                console.error("Error:", e);
-                alert("Terjadi kesalahan: " + e.message);
-            }
-        });
-
-        // Inisialisasi Firebase Auth
-        function initializeAuth(firebaseConfig) {
-            try {
-                // Initialize Firebase
-                if (!firebase.apps.length) {
-                    firebase.initializeApp(firebaseConfig);
-                }
+            loginBtn.addEventListener('click', function() {
+                loading.style.display = 'block';
                 
-                const auth = firebase.auth();
-                const provider = new firebase.auth.GoogleAuthProvider();
-                
-                // Tambahkan scope
-                provider.addScope('email');
-                provider.addScope('profile');
-                
-                // Setup login button
-                document.getElementById('googleLogin').addEventListener('click', function() {
-                    document.getElementById('loading').style.display = 'block';
-                    
-                    // Deteksi environment
-                    if (isMobileWebView()) {
-                        // Gunakan redirect untuk WebView
-                        auth.signInWithRedirect(provider);
-                    } else {
-                        // Gunakan popup untuk browser biasa
-                        auth.signInWithPopup(provider)
-                            .then(handleAuthSuccess)
-                            .catch(handleAuthError);
-                    }
-                });
-                
-                // Handle redirect result
-                auth.getRedirectResult()
-                    .then(handleAuthSuccess)
-                    .catch(handleAuthError);
-                    
-                // Monitor auth state changes
-                auth.onAuthStateChanged(function(user) {
-                    if (user) {
-                        handleAuthSuccess({ user: user });
-                    }
-                });
-                
-            } catch (e) {
-                console.error("Auth init error:", e);
-                document.getElementById('loading').style.display = 'none';
-                alert("Terjadi kesalahan sistem: " + e.message);
-            }
-        }
-        
-        // Fungsi untuk menangani kesalahan auth
-        function handleAuthError(error) {
-            console.error("Auth error:", error);
-            document.getElementById('loading').style.display = 'none';
-            
-            const errorMessage = getErrorMessage(error.code);
-            
-            if (window.appinventor && window.appinventor.setWebViewString) {
-                window.appinventor.setWebViewString(JSON.stringify({
-                    status: "error",
-                    code: error.code,
-                    message: errorMessage
-                }));
-            } else {
-                alert("Error: " + errorMessage);
-            }
-        }
-        
-        // Fungsi untuk menangani keberhasilan auth
-        function handleAuthSuccess(result) {
-            if (result.user) {
-                const user = result.user;
-                const userData = {
-                    status: "success",
-                    user: {
-                        uid: user.uid,
-                        name: user.displayName,
-                        email: user.email,
-                        photo: user.photoURL,
-                        phone: user.phoneNumber
-                    }
+                // Kirim data ke Kodular
+                const response = {
+                    event: "login_initiated",
+                    app: "OloRide",
+                    platform: "google",
+                    timestamp: new Date().getTime(),
+                    device: navigator.userAgent
                 };
                 
-                document.getElementById('loading').style.display = 'none';
-                
                 if (window.appinventor && window.appinventor.setWebViewString) {
-                    window.appinventor.setWebViewString(JSON.stringify(userData));
+                    window.appinventor.setWebViewString(JSON.stringify(response));
                 } else {
-                    alert("Login berhasil!\n" + JSON.stringify(userData.user, null, 2));
+                    console.log("Response:", response);
+                    setTimeout(() => {
+                        alert("Login request sent (debug mode)");
+                        loading.style.display = 'none';
+                    }, 1500);
                 }
+            });
+            
+            // Untuk testing di browser
+            if (!window.appinventor) {
+                console.log("Running in debug mode");
+                document.querySelector('.about-app').innerHTML += `
+                    <div style="margin-top:20px;padding:10px;background:#f0f0f0;border-radius:5px;">
+                        <small>Debug mode aktif - Aplikasi nyata akan mengirim data ke Kodular</small>
+                    </div>
+                `;
             }
-        }
-        
-        // Helper functions
-        function isMobileWebView() {
-            return /Android|iPhone|iPad/i.test(navigator.userAgent) && 
-                  (window.appinventor || window.ReactNativeWebView);
-        }
-        
-        function getErrorMessage(errorCode) {
-            const messages = {
-                "auth/popup-closed-by-user": "Popup login ditutup oleh pengguna",
-                "auth/cancelled-popup-request": "Login dibatalkan",
-                "auth/web-storage-unsupported": "Browser tidak mendukung fitur penyimpanan yang dibutuhkan",
-                "auth/operation-not-allowed": "Metode login tidak diaktifkan",
-                "default": "Terjadi kesalahan saat login"
-            };
-            return messages[errorCode] || messages["default"];
-        }
+        });
     </script>
 </body>
 </html>
