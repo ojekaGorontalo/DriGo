@@ -12,9 +12,6 @@
             --secondary: #607D8B;
             --light: #f5f5f5;
             --dark: #212121;
-            --pending: #FFC107;
-            --approved: #4CAF50;
-            --rejected: #F44336;
         }
         
         * {
@@ -221,7 +218,7 @@
         }
         
         .success-message {
-            background-color: var(--approved);
+            background-color: #4CAF50;
             color: white;
             padding: 15px;
             border-radius: 4px;
@@ -231,37 +228,13 @@
         }
         
         .error-message {
-            background-color: var(--rejected);
+            background-color: #F44336;
             color: white;
             padding: 15px;
             border-radius: 4px;
             text-align: center;
             margin-top: 20px;
             display: none;
-        }
-        
-        .status-badge {
-            display: inline-block;
-            padding: 5px 10px;
-            border-radius: 20px;
-            font-size: 14px;
-            font-weight: 500;
-            margin-top: 10px;
-        }
-        
-        .status-pending {
-            background-color: var(--pending);
-            color: var(--dark);
-        }
-        
-        .status-approved {
-            background-color: var(--approved);
-            color: white;
-        }
-        
-        .status-rejected {
-            background-color: var(--rejected);
-            color: white;
         }
         
         footer {
@@ -288,7 +261,7 @@
     <header>
         <div class="container">
             <div class="logo">OloRide</div>
-            <div class="tagline">DriGo - Driver Gorong</div>
+            <div class="tagline">DriGo - Driver Gorontalo</div>
         </div>
     </header>
     
@@ -306,11 +279,54 @@
                 <li>KTP asli (WNI) atau KITAS/KITAP (WNA)</li>
             </ul>
             
-            <h2>Proses Verifikasi</h2>
+            <h2>Dokumen yang Dibutuhkan</h2>
+            <table>
+                <tr>
+                    <th>Dokumen</th>
+                    <th>Keterangan</th>
+                </tr>
+                <tr>
+                    <td>Foto KTP</td>
+                    <td>Harus jelas dan terlihat seluruh informasi</td>
+                </tr>
+                <tr>
+                    <td>Foto SIM</td>
+                    <td>SIM C/A yang masih berlaku</td>
+                </tr>
+                <tr>
+                    <td>Foto STNK</td>
+                    <td>Bukti kepemilikan kendaraan</td>
+                </tr>
+                <tr>
+                    <td>Foto SKCK</td>
+                    <td>Surat bersih dari kepolisian</td>
+                </tr>
+                <tr>
+                    <td>Pas foto</td>
+                    <td>Ukuran 3x4 atau 4x6 (latar belakang merah/biru)</td>
+                </tr>
+            </table>
+            
+            <h2>Persyaratan Kendaraan</h2>
+            <h3>Untuk Motor</h3>
             <ul>
-                <li><strong>Pending:</strong> Pendaftaran diterima, menunggu verifikasi admin</li>
-                <li><strong>Approved:</strong> Pendaftaran disetujui, driver bisa mulai bekerja</li>
-                <li><strong>Rejected:</strong> Pendaftaran ditolak (akan dikirimkan alasan via email/SMS)</li>
+                <li>Minimal 110cc (disarankan 125cc ke atas)</li>
+                <li>Plat nomor hitam/kuning (tidak diperbolehkan plat merah)</li>
+                <li>Kondisi mesin dan rem baik</li>
+            </ul>
+            
+            <h3>Untuk Mobil</h3>
+            <ul>
+                <li>Minimal 1300cc</li>
+                <li>AC berfungsi baik</li>
+                <li>Tahun kendaraan maksimal 10 tahun</li>
+            </ul>
+            
+            <h3>Untuk Pickup</h3>
+            <ul>
+                <li>Minimal 1500cc</li>
+                <li>Kondisi bagasi baik</li>
+                <li>Tahun kendaraan maksimal 12 tahun</li>
             </ul>
             
             <button id="startRegistration" class="btn">Mulai Pendaftaran</button>
@@ -439,8 +455,6 @@
             <div class="success-message" id="successMessage">
                 <h3>Pendaftaran Berhasil!</h3>
                 <p>Data Anda telah berhasil dikirim. Tim kami akan memverifikasi data Anda dan menghubungi Anda dalam 1-3 hari kerja.</p>
-                <div id="statusBadge" class="status-badge status-pending">Status: PENDING</div>
-                <p id="statusMessage" style="margin-top: 10px;">Admin akan memverifikasi data Anda secepatnya.</p>
             </div>
             
             <div class="error-message" id="errorMessage">
@@ -452,7 +466,7 @@
     
     <footer>
         <div class="container">
-            <p>&copy; 2023 OloRide - DriGo. All rights reserved.</p>
+            <p>&copy; 2025 OloRide - DriGo. All rights reserved.</p>
         </div>
     </footer>
 
@@ -563,9 +577,7 @@
                         ...fileUrls,
                         registrationDate: new Date().toISOString(),
                         status: 'pending',
-                        statusMessage: 'Menunggu verifikasi admin',
-                        userId: userId,
-                        lastUpdated: new Date().toISOString()
+                        userId: userId
                     };
                     
                     // Update progress
@@ -580,14 +592,8 @@
                     document.getElementById('successMessage').style.display = 'block';
                     document.getElementById('driverForm').reset();
                     
-                    // Update status badge
-                    updateStatusBadge('pending', 'Menunggu verifikasi admin');
-                    
                     // Scroll ke success message
                     document.getElementById('successMessage').scrollIntoView({ behavior: 'smooth' });
-                    
-                    // Tambahkan listener untuk perubahan status
-                    setupStatusListener(userId);
                     
                 } catch (error) {
                     console.error('Error saving driver data:', error);
@@ -598,42 +604,6 @@
                     // Scroll ke error message
                     document.getElementById('errorMessage').scrollIntoView({ behavior: 'smooth' });
                 }
-            }
-            
-            // Fungsi untuk update status badge
-            function updateStatusBadge(status, message) {
-                const badge = document.getElementById('statusBadge');
-                const statusMessage = document.getElementById('statusMessage');
-                
-                badge.className = 'status-badge';
-                badge.textContent = `Status: ${status.toUpperCase()}`;
-                
-                if (status === 'pending') {
-                    badge.classList.add('status-pending');
-                    statusMessage.textContent = message || 'Admin akan memverifikasi data Anda secepatnya.';
-                } else if (status === 'approved') {
-                    badge.classList.add('status-approved');
-                    statusMessage.textContent = message || 'Selamat! Pendaftaran Anda telah disetujui.';
-                } else if (status === 'rejected') {
-                    badge.classList.add('status-rejected');
-                    statusMessage.textContent = message || 'Maaf, pendaftaran Anda ditolak.';
-                }
-            }
-            
-            // Setup listener untuk perubahan status
-            function setupStatusListener(userId) {
-                const statusRef = database.ref(`DriGo/${userId}/status`);
-                const statusMessageRef = database.ref(`DriGo/${userId}/statusMessage`);
-                
-                statusRef.on('value', (snapshot) => {
-                    const status = snapshot.val();
-                    if (status) {
-                        statusMessageRef.once('value').then((msgSnapshot) => {
-                            const message = msgSnapshot.val();
-                            updateStatusBadge(status, message);
-                        });
-                    }
-                });
             }
             
             // Handle form submission
@@ -719,6 +689,12 @@
         setupFilePreview('stnkFile', 'stnkPreview');
         setupFilePreview('skckFile', 'skckPreview');
         setupFilePreview('photoFile', 'photoPreview');
+        
+        // Tambahkan capture="environment" untuk kamera belakang di mobile
+        const fileInputs = document.querySelectorAll('input[type="file"]');
+        fileInputs.forEach(input => {
+            input.setAttribute('capture', 'environment');
+        });
     </script>
 </body>
 </html>
