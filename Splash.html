@@ -1,15 +1,15 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="id">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OloRide - DriGo</title>
+    <title>OloRide - Loading</title>
     <style>
         body {
             margin: 0;
             padding: 0;
             font-family: 'Arial', sans-serif;
-            background-color: #FF5722; /* Warna oranye */
+            background-color: #FF5722;
             display: flex;
             justify-content: center;
             align-items: center;
@@ -33,12 +33,11 @@
             align-items: center;
             margin: 0 auto 20px;
             box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-            padding: 10px;
         }
         
         .logo img {
-            width: 100%;
-            height: 100%;
+            width: 80%;
+            height: 80%;
             object-fit: contain;
         }
         
@@ -93,11 +92,75 @@
             <div class="loading-bar"></div>
         </div>
     </div>
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
     
     <script>
-        // Redirect setelah splash screen selesai (3 detik)
-        setTimeout(function() {
-            window.location.href = "home.html"; // Ganti dengan halaman utama Anda
+        // Konfigurasi Firebase
+        const firebaseConfig = {
+            apiKey: "AIzaSyA2o7akfOEXuYJW2ki9vRo9Nh3xtgWwfy0",
+            authDomain: "vinapulsa-e2f53.firebaseapp.com",
+            databaseURL: "https://vinapulsa-e2f53-default-rtdb.firebaseio.com",
+            projectId: "vinapulsa-e2f53",
+            storageBucket: "vinapulsa-e2f53.firebasestorage.app",
+            messagingSenderId: "366583025741",
+            appId: "1:366583025741:android:3f24413b7d01f9b2524c04"
+        };
+
+        // Inisialisasi Firebase
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+        }
+
+        // Fungsi untuk mengirim data ke App Inventor
+        function sendToAppInventor(data) {
+            const jsonData = JSON.stringify(data);
+            
+            // Coba semua metode yang mungkin
+            if (window.AppInventor && window.AppInventor.setWebViewString) {
+                window.AppInventor.setWebViewString(jsonData);
+                return true;
+            } else if (window.appinventor && window.appinventor.setWebViewString) {
+                window.appinventor.setWebViewString(jsonData);
+                return true;
+            } else {
+                console.log("Debug Mode - Data yang akan dikirim:", data);
+                return false;
+            }
+        }
+
+        // Fungsi utama untuk memeriksa status login
+        function checkLoginStatus() {
+            firebase.auth().onAuthStateChanged(async (user) => {
+                if (user) {
+                    // User sudah login
+                    const uid = user.uid;
+                    
+                    try {
+                        // Ambil data dari Realtime Database
+                        const snapshot = await firebase.database().ref(`/driver_users/${uid}`).once('value');
+                        const userData = snapshot.val();
+                        const status = userData?.status || "pending";
+                        
+                        // Kirim data ke Kodular
+                        sendToAppInventor({ uid, status });
+                    } catch (error) {
+                        console.error("Error fetching user data:", error);
+                        sendToAppInventor({ uid: user.uid, status: "error", message: "Gagal memuat data" });
+                    }
+                } else {
+                    // User belum login
+                    sendToAppInventor({ status: "belum_login" });
+                }
+            });
+        }
+
+        // Tunggu 3 detik sebelum memeriksa status
+        setTimeout(() => {
+            checkLoginStatus();
         }, 3000);
     </script>
 </body>
