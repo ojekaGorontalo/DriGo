@@ -10,6 +10,8 @@
   <!-- Mapbox GL -->
   <script src='https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js'></script>
   <link href='https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css' rel='stylesheet' />
+  <!-- OneSignal SDK (standar) -->
+  <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
   <style>
     /* ==================== CSS (LENGKAP, TIDAK DIUBAH) ==================== */
     :root {
@@ -714,52 +716,76 @@
       console.error('❌ Error inisialisasi Firebase:', error);
     }
 
-    // ==================== ONE SIGNAL VIA MEDIAN (sama seperti index.html) ====================
-    let oneSignalCheckInterval = null;
-    function stopOneSignalCheck() {
-      if (oneSignalCheckInterval) {
-        clearInterval(oneSignalCheckInterval);
-        oneSignalCheckInterval = null;
-      }
-    }
-    function startOneSignalCheck() {
-      if (oneSignalCheckInterval) return;
-      oneSignalCheckInterval = setInterval(() => {
-        if (window.median && window.median.onesignal) {
-          window.median.onesignal.onesignalInfo().then(info => {
-            if (info.oneSignalUserId && info.oneSignalSubscribed) {
-              savePlayerIdToFirebase(info.oneSignalUserId);
-              stopOneSignalCheck();
-            }
-          }).catch(()=>{});
-        }
-      }, 3000);
-      setTimeout(()=>{ if(oneSignalCheckInterval) stopOneSignalCheck(); }, 120000);
-    }
-    function savePlayerIdToFirebase(playerId) {
+    // ==================== ONE SIGNAL STANDARD SDK (BARU) ====================
+    // Hapus semua fungsi lama (oneSignalCheckInterval dll) dan ganti dengan kode berikut:
+    let onesignalInitialized = false;
+
+    async function savePlayerIdToFirebase(playerId) {
       if (!currentDriverData || !currentDriverData.driverId) return;
-      database.ref('drivers/' + currentDriverData.driverId).update({
-        playerId: playerId,
-        lastUpdated: firebase.database.ServerValue.TIMESTAMP
-      }).catch(console.error);
-    }
-    function getOneSignalPlayerId() {
-      if (window.median && window.median.onesignal) {
-        window.median.onesignal.onesignalInfo().then(info => {
-          if (info.oneSignalUserId && info.oneSignalSubscribed) {
-            savePlayerIdToFirebase(info.oneSignalUserId);
-          } else {
-            if (window.median.onesignal.register) {
-              window.median.onesignal.register().then(()=>startOneSignalCheck()).catch(()=>startOneSignalCheck());
-            } else {
-              startOneSignalCheck();
-            }
-          }
-        }).catch(()=>startOneSignalCheck());
-      } else {
-        startOneSignalCheck();
+      try {
+        await database.ref('drivers/' + currentDriverData.driverId).update({
+          playerId: playerId,
+          lastUpdated: firebase.database.ServerValue.TIMESTAMP
+        });
+        console.log('✅ Player ID tersimpan di Firebase:', playerId);
+      } catch (err) {
+        console.error('❌ Gagal simpan playerId:', err);
       }
     }
+
+    async function requestNotificationPermission() {
+      if (!window.OneSignalDeferred) return;
+      try {
+        const OneSignal = await window.OneSignalDeferred[0]?.();
+        if (OneSignal) {
+          const isOptedIn = await OneSignal.User.PushSubscription.optedIn;
+          if (!isOptedIn) {
+            await OneSignal.Notifications.requestPermission();
+          }
+          const userId = await OneSignal.User.PushSubscription.id;
+          if (userId) {
+            await savePlayerIdToFirebase(userId);
+          }
+        }
+      } catch (err) {
+        console.error('❌ Gagal minta izin notifikasi:', err);
+      }
+    }
+
+    // Inisialisasi OneSignal (standalone)
+    window.OneSignalDeferred = window.OneSignalDeferred || [];
+    OneSignalDeferred.push(async (OneSignal) => {
+      try {
+        await OneSignal.init({
+          appId: 'c3cf91c1-1539-4011-af7e-01f3e219cd2c', // App ID untuk Jego Driver
+          autoRegister: false,
+          notifyButton: { enable: false },
+          allowLocalhostAsSecureOrigin: true,
+        });
+        console.log('✅ OneSignal init sukses (SDK standar)');
+
+        const isOptedIn = await OneSignal.User.PushSubscription.optedIn;
+        const userId = await OneSignal.User.PushSubscription.id;
+        if (isOptedIn && userId) {
+          await savePlayerIdToFirebase(userId);
+        } else {
+          // Jika driver sudah login, tawarkan izin (dipanggil setelah driver data siap)
+          if (currentDriverData && currentDriverData.driverId) {
+            setTimeout(() => requestNotificationPermission(), 3000);
+          }
+        }
+
+        // Event ketika izin berubah
+        OneSignal.Notifications.addEventListener('permissionChange', async (permission) => {
+          if (permission) {
+            const newUserId = await OneSignal.User.PushSubscription.id;
+            if (newUserId) await savePlayerIdToFirebase(newUserId);
+          }
+        });
+      } catch (err) {
+        console.error('❌ OneSignal init error:', err);
+      }
+    });
 
     // Variabel global
     let ordersRef = null, ordersListener = null;
@@ -1328,8 +1354,12 @@
           document.getElementById('sidebarRating').textContent = currentDriverData.rating.toFixed(1);
           document.getElementById('sidebarTrips').textContent = currentDriverData.perjalanan;
           document.getElementById('sidebarBalance').textContent = `Rp ${currentDriverData.balance.toLocaleString('id-ID')}`;
-          // Panggil OneSignal setelah data driver siap
-          setTimeout(() => { getOneSignalPlayerId(); }, 2000);
+          // Panggil OneSignal setelah data driver siap (jika belum minta izin)
+          setTimeout(() => {
+            if (window.OneSignalDeferred) {
+              requestNotificationPermission();
+            }
+          }, 2000);
           return true;
         } else { showDriverNotRegistered(); return false; }
       } catch (error) {
