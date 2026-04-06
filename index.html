@@ -10,10 +10,10 @@
   <!-- Mapbox GL -->
   <script src='https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js'></script>
   <link href='https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css' rel='stylesheet' />
-  <!-- OneSignal SDK (standar) -->
+  <!-- OneSignal SDK -->
   <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
   <style>
-    /* ==================== CSS LENGKAP (sama seperti sebelumnya, ditambah debug) ==================== */
+    /* ==================== CSS LENGKAP (sama seperti sebelumnya, ditambah debug console) ==================== */
     :root {
       --primary: #FF9800;
       --secondary: #FFB74D;
@@ -130,24 +130,65 @@
     .location-toggle-btn:hover, .autobid-btn:hover, .refresh-btn:hover { background: rgba(255,255,255,0.3); }
     .location-toggle-btn.active, .autobid-btn.active { background: var(--accent); color: var(--dark); }
     .refresh-btn { padding: 8px; }
-    .debug-panel {
+    /* ==================== DEBUG CONSOLE (SCROLLABLE) ==================== */
+    .debug-console {
       position: fixed;
       bottom: 10px;
       right: 10px;
-      background: rgba(0,0,0,0.8);
+      width: 300px;
+      max-width: 90%;
+      background: rgba(0,0,0,0.85);
+      backdrop-filter: blur(8px);
       color: #0f0;
       font-family: monospace;
       font-size: 10px;
-      padding: 6px 10px;
       border-radius: 8px;
-      z-index: 2000;
-      max-width: 260px;
-      text-align: left;
-      pointer-events: none;
-      backdrop-filter: blur(4px);
-      box-shadow: 0 0 8px rgba(0,0,0,0.3);
+      z-index: 9999;
+      box-shadow: 0 0 12px rgba(0,0,0,0.5);
+      pointer-events: auto;
+      transition: 0.2s;
     }
-    .debug-panel span { color: #ffaa00; }
+    .debug-header {
+      padding: 6px 10px;
+      background: #222;
+      border-radius: 8px 8px 0 0;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      color: #ffaa00;
+      font-weight: bold;
+      font-size: 11px;
+    }
+    .debug-header span:first-child { user-select: none; }
+    .debug-header button {
+      background: none;
+      border: none;
+      color: #0f0;
+      cursor: pointer;
+      font-size: 14px;
+      margin-left: 8px;
+    }
+    .debug-content {
+      max-height: 250px;
+      overflow-y: auto;
+      padding: 8px;
+      border-top: 1px solid #333;
+      font-size: 10px;
+      line-height: 1.4;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .debug-content p {
+      margin: 4px 0;
+      border-bottom: 1px solid #222;
+      padding-bottom: 2px;
+    }
+    .debug-content .error { color: #ff6666; }
+    .debug-content .success { color: #66ff66; }
+    .debug-content .info { color: #66aaff; }
+    .debug-content .warning { color: #ffaa66; }
+    .debug-console.collapsed .debug-content { display: none; }
     .container { max-width: 100%; padding: 15px; position: relative; z-index: 1; }
     .orders-list { display: flex; flex-direction: column; gap: 10px; position: relative; z-index: 1; }
     .order-item { background: white; border-radius: 8px; padding: 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.08); display: flex; flex-direction: column; gap: 8px; cursor: pointer; transition: all 0.3s; }
@@ -359,7 +400,8 @@
       .order-time { font-size: 0.48rem; }
       .radar-point { width: 12px; height: 12px; }
       .sweep-dot { width: 10px; height: 10px; }
-      .debug-panel { font-size: 8px; bottom: 5px; right: 5px; max-width: 220px; }
+      .debug-console { width: 260px; font-size: 9px; }
+      .debug-content { max-height: 200px; }
     }
     @media (max-width: 576px) {
       body { padding-bottom: 10px; }
@@ -397,7 +439,7 @@
       .order-time { font-size: 0.48rem; }
       .radar-point { width: 10px; height: 10px; }
       .sweep-dot { width: 8px; height: 8px; }
-      .debug-panel { font-size: 7px; bottom: 3px; right: 3px; max-width: 200px; }
+      .debug-console { width: 240px; font-size: 8px; }
     }
   </style>
 </head>
@@ -649,11 +691,16 @@
     <p>Memuat...</p>
   </div>
 
-  <!-- Debug panel OneSignal -->
-  <div class="debug-panel" id="debugPanel">
-    🔔 OneSignal: <span id="osStatus">Memuat...</span><br>
-    📱 PlayerID: <span id="osPlayerId">-</span><br>
-    ✅ Izin: <span id="osPermission">-</span>
+  <!-- DEBUG CONSOLE SCROLLABLE -->
+  <div class="debug-console" id="debugConsole">
+    <div class="debug-header">
+      <span>🐞 Debug Log</span>
+      <button id="clearDebugBtn">🗑️</button>
+      <button id="toggleDebugBtn">▼</button>
+    </div>
+    <div class="debug-content" id="debugContent">
+      <p class="info">▶️ Memulai debug...</p>
+    </div>
   </div>
 
   <audio id="newOrderSound" preload="auto">
@@ -667,8 +714,30 @@
   </audio>
 
   <script>
+    // ==================== DEBUG LOGGER ====================
+    const debugContent = document.getElementById('debugContent');
+    function addDebugLog(message, type = 'info') {
+      const p = document.createElement('p');
+      p.className = type;
+      const time = new Date().toLocaleTimeString();
+      p.textContent = `[${time}] ${message}`;
+      debugContent.appendChild(p);
+      p.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      console.log(`[DEBUG][${type}] ${message}`);
+      // batasi jumlah log (max 200)
+      while (debugContent.children.length > 200) debugContent.removeChild(debugContent.firstChild);
+    }
+    document.getElementById('clearDebugBtn').onclick = () => { debugContent.innerHTML = ''; addDebugLog('Log dibersihkan', 'info'); };
+    const toggleBtn = document.getElementById('toggleDebugBtn');
+    let debugCollapsed = false;
+    toggleBtn.onclick = () => {
+      debugCollapsed = !debugCollapsed;
+      document.getElementById('debugConsole').classList.toggle('collapsed', debugCollapsed);
+      toggleBtn.textContent = debugCollapsed ? '▲' : '▼';
+    };
+
     // ==================== BERSIHKAN KEY LAMA ====================
-    console.log('🧹 Membersihkan key localStorage lama...');
+    addDebugLog('Membersihkan key localStorage lama...', 'info');
     const oldKeys = [
       'jego_driver_id', 'jego_driver_data', 'jego_driver_status',
       'jeggo_logged_in_driver', 'driverData'
@@ -681,11 +750,11 @@
     function checkLoginStatus() {
       const driverData = localStorage.getItem('jego_logged_in_driver');
       if (!driverData || driverData === '{}') {
-        console.log('❌ Driver belum login');
+        addDebugLog('Driver belum login, redirect ke loginDriver.html', 'error');
         window.location.href = 'loginDriver.html';
         return false;
       }
-      console.log('✅ Driver sudah login');
+      addDebugLog('Driver sudah login', 'success');
       return true;
     }
 
@@ -704,13 +773,12 @@
     try {
       if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
       database = firebase.database();
-      console.log('✅ Firebase berhasil diinisialisasi');
+      addDebugLog('Firebase berhasil diinisialisasi', 'success');
     } catch (error) {
-      console.error('❌ Error inisialisasi Firebase:', error);
+      addDebugLog(`Error inisialisasi Firebase: ${error.message}`, 'error');
     }
 
     // ==================== ONE SIGNAL STANDARD SDK ====================
-    let onesignalInitialized = false;
     let currentPlayerId = null;
 
     async function savePlayerIdToFirebase(playerId) {
@@ -720,62 +788,38 @@
           playerId: playerId,
           lastUpdated: firebase.database.ServerValue.TIMESTAMP
         });
-        console.log('✅ Player ID tersimpan di Firebase:', playerId);
-        // Update debug panel
-        document.getElementById('osPlayerId').innerText = playerId ? playerId.substring(0, 12)+'...' : '-';
+        addDebugLog(`Player ID tersimpan di Firebase: ${playerId.substring(0,12)}...`, 'success');
       } catch (err) {
-        console.error('❌ Gagal simpan playerId:', err);
-        document.getElementById('osPlayerId').innerText = 'Gagal simpan';
+        addDebugLog(`Gagal simpan playerId: ${err.message}`, 'error');
       }
     }
 
     async function requestNotificationPermission() {
-      if (!window.OneSignalDeferred) return;
+      if (!window.OneSignalDeferred) {
+        addDebugLog('OneSignalDeferred tidak tersedia, tidak bisa minta izin', 'error');
+        return;
+      }
       try {
         const OneSignal = await window.OneSignalDeferred[0]?.();
         if (OneSignal) {
           const isOptedIn = await OneSignal.User.PushSubscription.optedIn;
           if (!isOptedIn) {
+            addDebugLog('Meminta izin notifikasi...', 'info');
             await OneSignal.Notifications.requestPermission();
           }
           const userId = await OneSignal.User.PushSubscription.id;
           if (userId) {
             currentPlayerId = userId;
             await savePlayerIdToFirebase(userId);
-            document.getElementById('osPermission').innerText = 'Diizinkan';
+            addDebugLog(`Izin notifikasi diberikan. PlayerID: ${userId.substring(0,12)}...`, 'success');
           } else {
-            document.getElementById('osPermission').innerText = 'Tidak ada ID';
-          }
-        }
-      } catch (err) {
-        console.error('❌ Gagal minta izin notifikasi:', err);
-        document.getElementById('osPermission').innerText = 'Error';
-      }
-    }
-
-    // Update debug panel secara berkala
-    async function updateDebugPanel() {
-      if (!window.OneSignalDeferred) return;
-      try {
-        const OneSignal = await window.OneSignalDeferred[0]?.();
-        if (OneSignal) {
-          const isOptedIn = await OneSignal.User.PushSubscription.optedIn;
-          const userId = await OneSignal.User.PushSubscription.id;
-          document.getElementById('osStatus').innerText = isOptedIn ? 'Terdaftar ✅' : 'Belum izin';
-          document.getElementById('osPermission').innerText = isOptedIn ? 'Diizinkan' : 'Belum diizinkan';
-          if (userId && userId !== currentPlayerId) {
-            currentPlayerId = userId;
-            document.getElementById('osPlayerId').innerText = userId.substring(0,12)+'...';
-            await savePlayerIdToFirebase(userId);
-          } else if (!userId) {
-            document.getElementById('osPlayerId').innerText = '-';
+            addDebugLog('Izin tidak diberikan atau gagal mendapat ID', 'warning');
           }
         } else {
-          document.getElementById('osStatus').innerText = 'SDK belum siap';
+          addDebugLog('Objek OneSignal tidak tersedia', 'error');
         }
-      } catch(e) {
-        console.warn('Debug panel error', e);
-        document.getElementById('osStatus').innerText = 'Error';
+      } catch (err) {
+        addDebugLog(`Gagal minta izin notifikasi: ${err.message}`, 'error');
       }
     }
 
@@ -783,25 +827,23 @@
     window.OneSignalDeferred = window.OneSignalDeferred || [];
     OneSignalDeferred.push(async (OneSignal) => {
       try {
+        addDebugLog('Memulai inisialisasi OneSignal dengan App ID: c3cf91c1-1539-4011-af7e-01f3e219cd2c', 'info');
         await OneSignal.init({
           appId: 'c3cf91c1-1539-4011-af7e-01f3e219cd2c',
           autoRegister: false,
           notifyButton: { enable: false },
           allowLocalhostAsSecureOrigin: true,
         });
-        console.log('✅ OneSignal init sukses (SDK standar)');
-        document.getElementById('osStatus').innerText = 'Init OK';
+        addDebugLog('OneSignal init sukses (SDK standar)', 'success');
 
         const isOptedIn = await OneSignal.User.PushSubscription.optedIn;
         const userId = await OneSignal.User.PushSubscription.id;
         if (isOptedIn && userId) {
           currentPlayerId = userId;
           await savePlayerIdToFirebase(userId);
-          document.getElementById('osPermission').innerText = 'Diizinkan';
-          document.getElementById('osPlayerId').innerText = userId.substring(0,12)+'...';
+          addDebugLog(`Sudah terdaftar. PlayerID: ${userId.substring(0,12)}...`, 'success');
         } else {
-          document.getElementById('osPermission').innerText = 'Belum izin';
-          // Jika driver sudah login, minta izin nanti
+          addDebugLog('Belum terdaftar, akan meminta izin setelah driver login', 'info');
           if (currentDriverData && currentDriverData.driverId) {
             setTimeout(() => requestNotificationPermission(), 3000);
           }
@@ -813,20 +855,15 @@
             if (newUserId) {
               currentPlayerId = newUserId;
               await savePlayerIdToFirebase(newUserId);
-              document.getElementById('osPermission').innerText = 'Diizinkan';
-              document.getElementById('osPlayerId').innerText = newUserId.substring(0,12)+'...';
+              addDebugLog('Izin notifikasi diberikan (perubahan)', 'success');
             }
           } else {
-            document.getElementById('osPermission').innerText = 'Ditolak';
+            addDebugLog('Izin notifikasi dicabut', 'warning');
           }
         });
-
-        // Update debug setiap 5 detik
-        setInterval(updateDebugPanel, 5000);
       } catch (err) {
-        console.error('❌ OneSignal init error:', err);
-        document.getElementById('osStatus').innerText = 'Init Gagal';
-        document.getElementById('osPermission').innerText = 'Error';
+        addDebugLog(`OneSignal init error: ${err.message || err}`, 'error');
+        if (err.stack) addDebugLog(err.stack, 'error');
       }
     });
 
@@ -964,7 +1001,7 @@
             const dist = calculateDistance(driverLocation.latitude, driverLocation.longitude, order.from_lat, order.from_lng);
             if (dist !== null && dist < 3 && !shownPopupOrderIds.has(order.id)) {
               const sound = document.getElementById('newOrderSound');
-              if (sound) sound.play().catch(e => console.log('Audio play gagal:', e));
+              if (sound) sound.play().catch(e => addDebugLog(`Audio play gagal: ${e.message}`, 'warning'));
               showOrderDetail(order, true);
               shownPopupOrderIds.add(order.id);
               sessionStorage.setItem('shownPopupOrderIds', JSON.stringify(Array.from(shownPopupOrderIds)));
@@ -983,7 +1020,7 @@
         const sortedOrders = filteredOrders.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
         renderOrdersList(sortedOrders, ordersList);
       }, (error) => {
-        console.error('❌ Error loading orders:', error);
+        addDebugLog(`Error loading orders: ${error.message}`, 'error');
         ordersList.innerHTML = '<div class="empty-state"><div>⚠️</div><p>Gagal terhubung ke server</p></div>';
       });
     }
@@ -1068,7 +1105,7 @@
                 ratingSpan.textContent = `${avgRating} (${ratingCount})`;
               }
             }
-          }).catch(err => console.error('Gagal ambil data customer:', err));
+          }).catch(err => addDebugLog(`Gagal ambil data customer: ${err.message}`, 'error'));
         }
       });
     }
@@ -1132,9 +1169,9 @@
           fetchMapboxToken().then(() => {
             if (!modalMap) initModalMapbox();
             showRouteOnMapbox(currentOrder);
-          }).catch(console.error);
+          }).catch(err => addDebugLog(`Fetch Mapbox token error: ${err.message}`, 'error'));
         }
-      }).catch(console.error);
+      }).catch(err => addDebugLog(`Error showOrderDetail: ${err.message}`, 'error'));
     }
 
     async function fetchMapboxToken() {
@@ -1142,7 +1179,7 @@
       const token = snapshot.val();
       if (token && typeof token === 'string') {
         mapboxAccessToken = token;
-        console.log('✅ Mapbox token berhasil diambil');
+        addDebugLog('Mapbox token berhasil diambil', 'success');
         return token;
       }
       throw new Error('Token tidak valid');
@@ -1351,9 +1388,12 @@
     }
 
     function startGPSMonitoring() {
-      if (!navigator.geolocation) return;
-      navigator.geolocation.getCurrentPosition(updateDriverLocation, console.error);
-      locationWatchId = navigator.geolocation.watchPosition(updateDriverLocation, console.error);
+      if (!navigator.geolocation) {
+        addDebugLog('Geolocation tidak didukung', 'error');
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(updateDriverLocation, err => addDebugLog(`GPS error: ${err.message}`, 'error'));
+      locationWatchId = navigator.geolocation.watchPosition(updateDriverLocation, err => addDebugLog(`GPS watch error: ${err.message}`, 'error'));
     }
     function updateDriverLocation(position) {
       driverLocation = { latitude: position.coords.latitude, longitude: position.coords.longitude };
@@ -1364,7 +1404,7 @@
           longitude: driverLocation.longitude,
           trackingEnabled: true,
           last_update: new Date().toISOString()
-        }).catch(console.error);
+        }).catch(err => addDebugLog(`Update lokasi gagal: ${err.message}`, 'error'));
       }
     }
 
@@ -1396,16 +1436,20 @@
           document.getElementById('sidebarRating').textContent = currentDriverData.rating.toFixed(1);
           document.getElementById('sidebarTrips').textContent = currentDriverData.perjalanan;
           document.getElementById('sidebarBalance').textContent = `Rp ${currentDriverData.balance.toLocaleString('id-ID')}`;
-          // Minta izin OneSignal setelah driver siap (jika belum)
+          // Minta izin OneSignal setelah driver siap
           setTimeout(() => {
             if (window.OneSignalDeferred) {
               requestNotificationPermission();
+            } else {
+              addDebugLog('OneSignalDeferred belum siap, coba lagi 2 detik', 'warning');
+              setTimeout(() => requestNotificationPermission(), 2000);
             }
           }, 2000);
+          addDebugLog(`Driver data loaded: ${currentDriverData.fullName}`, 'success');
           return true;
         } else { showDriverNotRegistered(); return false; }
       } catch (error) {
-        console.error('❌ Error checking driver data:', error);
+        addDebugLog(`Error checking driver data: ${error.message}`, 'error');
         showDriverNotRegistered(); return false;
       }
     }
@@ -1449,14 +1493,14 @@
             longitude: driverLocation.longitude,
             trackingEnabled: true,
             last_update: new Date().toISOString()
-          }).catch(console.error);
+          }).catch(err => addDebugLog(`Update tracking status gagal: ${err.message}`, 'error'));
         }
       } else {
         if (currentDriverData) {
           database.ref('drivers/' + currentDriverData.driverId).update({
             trackingEnabled: false,
             last_update: new Date().toISOString()
-          }).catch(console.error);
+          }).catch(err => addDebugLog(`Update tracking status gagal: ${err.message}`, 'error'));
         }
       }
     }
@@ -1502,19 +1546,19 @@
         if (order) {
           const activeStatuses = ['accepted', 'on_the_way', 'arrived', 'on_trip'];
           if (activeStatuses.includes(order.status)) {
-            console.log('🔄 Ditemukan order aktif, redirect ke orderAccepted.html');
+            addDebugLog(`Order aktif ditemukan: ${activeOrderId}`, 'info');
             window.location.href = 'orderAccepted.html?id=' + activeOrderId;
             return true;
           } else { localStorage.removeItem('jego_driver_active_order'); }
         } else { localStorage.removeItem('jego_driver_active_order'); }
-      } catch (error) { console.error('Error cek order aktif:', error); }
+      } catch (error) { addDebugLog(`Error cek order aktif: ${error.message}`, 'error'); }
       return false;
     }
 
     document.addEventListener('DOMContentLoaded', async () => {
-      console.log('🚀 Halaman JeGo Driver dimuat');
+      addDebugLog('Halaman JeGo Driver dimuat', 'info');
       if (!checkLoginStatus()) return;
-      try { await fetchMapboxToken(); } catch (err) { console.warn('Mapbox token tidak tersedia'); }
+      try { await fetchMapboxToken(); } catch (err) { addDebugLog(`Mapbox token tidak tersedia: ${err.message}`, 'warning'); }
       if (!checkDriverData()) return;
       const hasActive = await checkDriverActiveOrder();
       if (hasActive) return;
