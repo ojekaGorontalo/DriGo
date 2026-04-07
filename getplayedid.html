@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html>
 <head>
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Debug OneSignal</title>
+  <meta charset="UTF-8">
+  <title>Debug Notifikasi</title>
 </head>
 <body>
 
@@ -14,17 +14,20 @@
 <div id="playerId">-</div>
 
 <h3>Log:</h3>
-<div id="log" style="background:#000;color:#0f0;padding:10px;height:250px;overflow:auto;font-size:12px;"></div>
+<pre id="log"></pre>
 
 <script>
-function log(msg){
-  const el = document.getElementById('log');
-  const time = new Date().toLocaleTimeString();
-  el.innerHTML += "["+time+"] "+msg+"<br>";
-  el.scrollTop = el.scrollHeight;
-  console.log(msg);
+function log(text){
+  const waktu = new Date().toLocaleTimeString();
+  document.getElementById("log").innerHTML += `[${waktu}] ${text}\n`;
 }
 
+// Tunggu Median Ready
+document.addEventListener("deviceready", function(){
+  log("✅ median ready");
+});
+
+// 🔥 FUNCTION UTAMA (UPDATED)
 async function aktifkan(){
   log("START");
 
@@ -38,31 +41,52 @@ async function aktifkan(){
 
     log("✅ onesignal ADA");
 
-    // (optional tapi aman)
+    // 🔐 1. PAKSA CONSENT
     if(median.onesignal.setConsentGiven){
-      log("🔐 set consent...");
+      log("🔐 set consent TRUE...");
       await median.onesignal.setConsentGiven(true);
+      log("✅ consent diberikan");
     }
 
-    log("CALL register...");
+    // 📲 2. REGISTER
+    log("📲 CALL register...");
     await median.onesignal.register();
     log("✅ register SELESAI");
 
-    await new Promise(r => setTimeout(r, 5000));
+    // 🔔 3. REQUEST IZIN NOTIF
+    if(median.onesignal.promptForPushNotificationsWithUserResponse){
+      log("🔔 meminta izin notifikasi...");
+      await median.onesignal.promptForPushNotificationsWithUserResponse();
+      log("✅ izin notifikasi diminta");
+    }
 
-    log("AMBIL INFO...");
-    const info = await median.onesignal.onesignalInfo();
+    // ⏳ 4. TUNGGU
+    log("⏳ menunggu sinkronisasi...");
+    await new Promise(r => setTimeout(r, 8000));
 
-    log("DATA: " + JSON.stringify(info));
-
+    // 🔍 5. AMBIL DATA (RETRY)
+    let info = null;
     let id = null;
 
-    if(info?.userId) id = info.userId;
-    else if(info?.oneSignalUserId) id = info.oneSignalUserId;
-    else if(info?.subscription?.id) id = info.subscription.id;
+    for(let i=0; i<3; i++){
+      log("🔍 cek data ke-" + (i+1));
 
+      info = await median.onesignal.onesignalInfo();
+      log("DATA: " + JSON.stringify(info));
+
+      if(info?.userId) id = info.userId;
+      else if(info?.oneSignalUserId) id = info.oneSignalUserId;
+      else if(info?.subscription?.id) id = info.subscription.id;
+
+      if(id) break;
+
+      log("⏳ Player ID belum ada, tunggu lagi...");
+      await new Promise(r => setTimeout(r, 5000));
+    }
+
+    // 🎯 6. HASIL
     if(id){
-      log("✅ Player ID: " + id);
+      log("🎉 SUCCESS Player ID: " + id);
       document.getElementById("playerId").innerText = id;
     }else{
       log("❌ Player ID tidak ditemukan");
@@ -71,15 +95,6 @@ async function aktifkan(){
   } catch(e){
     log("❌ ERROR: " + e.message);
   }
-}
-
-// bridge ready
-window.median_library_ready = function(){
-  log("✅ median ready");
-};
-
-if(window.median){
-  window.median_library_ready();
 }
 </script>
 
