@@ -24,9 +24,9 @@
         .container {
             background: white;
             border-radius: 28px;
-            max-width: 400px;
+            max-width: 500px;
             width: 100%;
-            padding: 32px 24px;
+            padding: 24px;
             text-align: center;
             box-shadow: 0 20px 35px -10px rgba(0, 0, 0, 0.2);
             animation: fadeInUp 0.5s ease-out;
@@ -44,47 +44,46 @@
         }
 
         .icon {
-            width: 80px;
-            height: 80px;
+            width: 70px;
+            height: 70px;
             background: #FFF3E0;
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            margin: 0 auto 20px;
+            margin: 0 auto 16px;
         }
 
         .icon span {
-            font-size: 48px;
+            font-size: 40px;
         }
 
         h1 {
-            font-size: 24px;
+            font-size: 22px;
             color: #FF9800;
-            margin-bottom: 12px;
+            margin-bottom: 8px;
         }
 
         .subtitle {
             color: #666;
-            font-size: 14px;
-            margin-bottom: 24px;
-            line-height: 1.5;
+            font-size: 13px;
+            margin-bottom: 20px;
         }
 
         .benefits {
             background: #F8F9FA;
             border-radius: 16px;
-            padding: 16px;
+            padding: 12px 16px;
             text-align: left;
-            margin-bottom: 28px;
+            margin-bottom: 24px;
         }
 
         .benefit-item {
             display: flex;
             align-items: center;
-            gap: 12px;
-            margin-bottom: 12px;
-            font-size: 14px;
+            gap: 10px;
+            margin-bottom: 10px;
+            font-size: 13px;
             color: #333;
         }
 
@@ -93,8 +92,8 @@
         }
 
         .benefit-item .check {
-            width: 22px;
-            height: 22px;
+            width: 20px;
+            height: 20px;
             background: #4CAF50;
             border-radius: 50%;
             display: inline-flex;
@@ -107,14 +106,14 @@
 
         .btn {
             width: 100%;
-            padding: 14px;
+            padding: 12px;
             border: none;
             border-radius: 50px;
-            font-size: 16px;
+            font-size: 15px;
             font-weight: bold;
             cursor: pointer;
             transition: all 0.3s ease;
-            margin-bottom: 12px;
+            margin-bottom: 10px;
         }
 
         .btn-primary {
@@ -144,13 +143,65 @@
             transform: none;
         }
 
-        .status-box {
-            margin-top: 16px;
-            padding: 12px;
+        /* Console log area */
+        .log-console {
+            background: #1e1e1e;
             border-radius: 12px;
-            font-size: 13px;
-            background: #F5F5F5;
-            color: #666;
+            margin-top: 20px;
+            padding: 12px;
+            text-align: left;
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+            max-height: 200px;
+            overflow-y: auto;
+            border: 1px solid #333;
+        }
+
+        .log-title {
+            color: #ccc;
+            font-size: 11px;
+            margin-bottom: 8px;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            border-bottom: 1px solid #333;
+            padding-bottom: 5px;
+        }
+
+        .log-content {
+            color: #0f0;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        .log-content p {
+            margin: 4px 0;
+            border-bottom: 1px solid #2a2a2a;
+            padding-bottom: 3px;
+        }
+
+        .log-error {
+            color: #ff6666;
+        }
+
+        .log-success {
+            color: #66ff66;
+        }
+
+        .log-warning {
+            color: #ffaa66;
+        }
+
+        .log-info {
+            color: #66aaff;
+        }
+
+        .status-box {
+            margin-top: 12px;
+            padding: 10px;
+            border-radius: 12px;
+            font-size: 12px;
             display: none;
         }
 
@@ -173,25 +224,9 @@
             color: #1565C0;
         }
 
-        .loading {
-            display: inline-block;
-            width: 16px;
-            height: 16px;
-            border: 2px solid #fff;
-            border-radius: 50%;
-            border-top-color: transparent;
-            animation: spin 0.8s linear infinite;
-            margin-right: 8px;
-            vertical-align: middle;
-        }
-
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-
         .footer {
-            margin-top: 20px;
-            font-size: 11px;
+            margin-top: 16px;
+            font-size: 10px;
             color: #999;
         }
     </style>
@@ -229,115 +264,59 @@
         </button>
 
         <div id="statusBox" class="status-box"></div>
+
+        <!-- Console Log UI -->
+        <div class="log-console">
+            <div class="log-title">
+                📋 Log Proses
+                <button id="clearLogBtn" style="background:none; border:none; color:#0f0; cursor:pointer; margin-left:auto;">Bersihkan</button>
+            </div>
+            <div class="log-content" id="logContent">
+                <p class="log-info">▶️ Memulai halaman request notifikasi...</p>
+            </div>
+        </div>
+
         <div class="footer">
             Notifikasi akan dikirimkan meskipun aplikasi sedang tertutup
         </div>
     </div>
 
     <script>
-        // Ambil data driver dari localStorage (dikirim dari halaman login)
+        // Ambil data driver dari localStorage
         let driverData = null;
         const statusBox = document.getElementById('statusBox');
         const enableBtn = document.getElementById('enableNotificationBtn');
         const skipBtn = document.getElementById('skipBtn');
+        const logContent = document.getElementById('logContent');
+        const clearLogBtn = document.getElementById('clearLogBtn');
 
-        // Fungsi untuk menampilkan status
+        // Fungsi untuk menambahkan log ke UI
+        function addLog(message, type = 'info') {
+            const p = document.createElement('p');
+            p.className = `log-${type}`;
+            const time = new Date().toLocaleTimeString();
+            p.textContent = `[${time}] ${message}`;
+            logContent.appendChild(p);
+            p.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            console.log(`[${type.toUpperCase()}] ${message}`);
+            // Batasi jumlah log
+            while (logContent.children.length > 50) logContent.removeChild(logContent.firstChild);
+        }
+
+        clearLogBtn.onclick = () => {
+            logContent.innerHTML = '';
+            addLog('Log dibersihkan', 'info');
+        };
+
+        // Fungsi untuk menampilkan status box
         function showStatus(message, type = 'info') {
             statusBox.textContent = message;
             statusBox.className = `status-box show ${type}`;
+            addLog(message, type);
         }
 
-        // Fungsi untuk menyembunyikan status
         function hideStatus() {
             statusBox.classList.remove('show');
-        }
-
-        // Fungsi utama untuk request izin dan subscribe OneSignal
-        async function requestNotificationPermission() {
-            // Nonaktifkan tombol selama proses
-            enableBtn.disabled = true;
-            enableBtn.innerHTML = '<span class="loading"></span> Memproses...';
-
-            try {
-                // Cek apakah Median JavaScript Bridge tersedia
-                if (typeof median === 'undefined' || !median.onesignal) {
-                    throw new Error('Median OneSignal bridge tidak tersedia. Pastikan aplikasi dibangun dengan Median.co dan plugin OneSignal aktif.');
-                }
-
-                // Langkah 1: Minta izin notifikasi
-                showStatus('Meminta izin notifikasi...', 'info');
-                await median.onesignal.register();
-                
-                // Tunggu sebentar agar proses registrasi selesai
-                await new Promise(resolve => setTimeout(resolve, 1000));
-
-                // Langkah 2: Jika ada data driver, daftarkan external ID
-                if (driverData && driverData.email) {
-                    showStatus('Mendaftarkan akun driver...', 'info');
-                    await median.onesignal.login(driverData.email);
-                    
-                    // Optional: Tambahkan tag untuk identifikasi
-                    if (median.onesignal.addTag) {
-                        if (driverData.name) {
-                            await median.onesignal.addTag('driver_name', driverData.name);
-                        }
-                        if (driverData.phone) {
-                            await median.onesignal.addTag('driver_phone', driverData.phone);
-                        }
-                        if (driverData.vehicleType) {
-                            await median.onesignal.addTag('vehicle_type', driverData.vehicleType);
-                        }
-                    }
-                }
-
-                // Langkah 3: Cek status akhir
-                showStatus('Memeriksa status langganan...', 'info');
-                
-                // Gunakan promise-based method untuk mendapatkan info
-                let oneSignalInfo = null;
-                if (median.onesignal.onesignalInfo) {
-                    oneSignalInfo = await median.onesignal.onesignalInfo();
-                } else if (median.onesignal.info) {
-                    oneSignalInfo = await new Promise((resolve) => {
-                        median.onesignal.info({ "callback": "median_onesignal_info" });
-                        // Karena median_onesignal_info akan dipanggil oleh native, kita perlu mendefinisikan callback-nya
-                        window.median_onesignal_info = (info) => {
-                            resolve(info);
-                        };
-                    });
-                }
-
-                const isSubscribed = oneSignalInfo?.subscription?.optedIn || oneSignalInfo?.oneSignalSubscribed;
-                
-                if (isSubscribed) {
-                    showStatus('✅ Berhasil! Notifikasi telah diaktifkan. Anda akan menerima order baru secara instan.', 'success');
-                    
-                    // Simpan status bahwa notifikasi sudah diaktifkan
-                    localStorage.setItem('jego_notification_enabled', 'true');
-                    
-                    // Kirim notifikasi ke Kodular bahwa proses selesai
-                    sendToKodular('notification_enabled', { status: 'success' });
-                    
-                    // Redirect ke halaman utama setelah 2 detik
-                    setTimeout(() => {
-                        window.location.href = 'list1.html';
-                    }, 2000);
-                } else {
-                    // Pengguna mungkin menolak izin
-                    showStatus('⚠️ Izin notifikasi belum diberikan. Anda dapat mengaktifkannya nanti melalui pengaturan aplikasi di ponsel Anda.', 'error');
-                    enableBtn.disabled = false;
-                    enableBtn.innerHTML = 'Coba Lagi';
-                }
-
-            } catch (error) {
-                console.error('Error:', error);
-                showStatus(`❌ Gagal mengaktifkan notifikasi: ${error.message}`, 'error');
-                enableBtn.disabled = false;
-                enableBtn.innerHTML = 'Coba Lagi';
-                
-                // Kirim notifikasi error ke Kodular
-                sendToKodular('notification_error', { error: error.message });
-            }
         }
 
         // Fungsi komunikasi dengan Kodular
@@ -348,7 +327,6 @@
                 timestamp: new Date().toISOString() 
             });
             console.log('📤 Mengirim ke Kodular:', payload);
-            
             if (window.AppInventor?.setWebViewString) {
                 window.AppInventor.setWebViewString(payload);
             } else if (window.android?.receiveData) {
@@ -356,46 +334,183 @@
             }
         }
 
-        // Fungsi untuk mengambil data driver dari localStorage
+        // Fungsi utama untuk request izin dan subscribe OneSignal
+        async function requestNotificationPermission() {
+            addLog('🔘 Tombol "Aktifkan Notifikasi" ditekan', 'info');
+            
+            // Nonaktifkan tombol selama proses
+            enableBtn.disabled = true;
+            enableBtn.innerHTML = '⏳ Memproses...';
+
+            try {
+                // Cek apakah Median bridge tersedia
+                addLog('🔍 Mengecek ketersediaan Median JavaScript Bridge...', 'info');
+                if (typeof median === 'undefined') {
+                    addLog('❌ ERROR: median object tidak ditemukan! Pastikan aplikasi di-build dengan Median.co.', 'error');
+                    showStatus('❌ Fitur notifikasi tidak tersedia. Aplikasi ini bukan versi Median.co yang benar.', 'error');
+                    enableBtn.disabled = false;
+                    enableBtn.innerHTML = 'Coba Lagi';
+                    return;
+                }
+                addLog('✅ median object tersedia', 'success');
+
+                if (!median.onesignal) {
+                    addLog('❌ ERROR: median.onesignal tidak tersedia. Plugin OneSignal mungkin tidak aktif.', 'error');
+                    showStatus('❌ Plugin OneSignal tidak terdeteksi. Hubungi pengembang.', 'error');
+                    enableBtn.disabled = false;
+                    enableBtn.innerHTML = 'Coba Lagi';
+                    return;
+                }
+                addLog('✅ median.onesignal tersedia', 'success');
+
+                // Langkah 1: Minta izin notifikasi
+                addLog('📢 Memanggil median.onesignal.register() untuk meminta izin...', 'info');
+                await median.onesignal.register();
+                addLog('✅ median.onesignal.register() berhasil dipanggil', 'success');
+                
+                // Tunggu sebentar agar proses registrasi selesai
+                await new Promise(resolve => setTimeout(resolve, 1500));
+
+                // Langkah 2: Daftarkan external ID (email driver)
+                if (driverData && driverData.email) {
+                    addLog(`📧 Mendaftarkan email driver: ${driverData.email}`, 'info');
+                    try {
+                        await median.onesignal.login(driverData.email);
+                        addLog('✅ Email berhasil didaftarkan ke OneSignal', 'success');
+                    } catch (err) {
+                        addLog(`⚠️ Gagal mendaftarkan email: ${err.message}`, 'warning');
+                    }
+                    
+                    // Optional: Tambahkan tag
+                    if (median.onesignal.addTag) {
+                        if (driverData.name) {
+                            await median.onesignal.addTag('driver_name', driverData.name);
+                            addLog(`🏷️ Tag driver_name: ${driverData.name}`, 'success');
+                        }
+                        if (driverData.phone) {
+                            await median.onesignal.addTag('driver_phone', driverData.phone);
+                        }
+                        if (driverData.vehicleType) {
+                            await median.onesignal.addTag('vehicle_type', driverData.vehicleType);
+                        }
+                    }
+                } else {
+                    addLog('⚠️ Tidak ada email driver, lewati pendaftaran external ID', 'warning');
+                }
+
+                // Langkah 3: Cek status subscription
+                addLog('🔍 Mengecek status subscription...', 'info');
+                let subscriptionStatus = null;
+                
+                // Coba beberapa metode untuk mendapatkan info
+                if (median.onesignal.onesignalInfo) {
+                    addLog('Menggunakan median.onesignal.onesignalInfo()...', 'info');
+                    subscriptionStatus = await median.onesignal.onesignalInfo();
+                } else if (median.onesignal.info) {
+                    addLog('Menggunakan median.onesignal.info() dengan callback...', 'info');
+                    subscriptionStatus = await new Promise((resolve) => {
+                        window.median_onesignal_info = (info) => {
+                            resolve(info);
+                        };
+                        median.onesignal.info({ "callback": "median_onesignal_info" });
+                        setTimeout(() => {
+                            if (!window.median_onesignal_called) resolve(null);
+                        }, 2000);
+                    });
+                } else {
+                    addLog('⚠️ Tidak ada metode untuk mendapatkan status subscription', 'warning');
+                }
+
+                addLog(`Status subscription: ${JSON.stringify(subscriptionStatus)}`, 'info');
+                
+                const isSubscribed = subscriptionStatus?.subscription?.optedIn || 
+                                     subscriptionStatus?.oneSignalSubscribed || 
+                                     subscriptionStatus?.subscribed ||
+                                     false;
+
+                if (isSubscribed) {
+                    addLog('🎉 BERHASIL! Izin notifikasi diberikan dan perangkat terdaftar.', 'success');
+                    showStatus('✅ Berhasil! Notifikasi telah diaktifkan.', 'success');
+                    localStorage.setItem('jego_notification_enabled', 'true');
+                    sendToKodular('notification_enabled', { status: 'success' });
+                    
+                    setTimeout(() => {
+                        addLog('🔄 Mengalihkan ke halaman utama...', 'info');
+                        window.location.href = 'list1.html';
+                    }, 2000);
+                } else {
+                    addLog('⚠️ Izin notifikasi belum diberikan (mungkin ditolak atau tidak ada respon).', 'warning');
+                    showStatus('⚠️ Izin notifikasi belum diberikan. Anda dapat mengaktifkannya nanti melalui pengaturan aplikasi di ponsel Anda.', 'error');
+                    enableBtn.disabled = false;
+                    enableBtn.innerHTML = 'Coba Lagi';
+                }
+
+            } catch (error) {
+                addLog(`❌ ERROR: ${error.message}`, 'error');
+                console.error(error);
+                showStatus(`❌ Gagal mengaktifkan notifikasi: ${error.message}`, 'error');
+                enableBtn.disabled = false;
+                enableBtn.innerHTML = 'Coba Lagi';
+                sendToKodular('notification_error', { error: error.message });
+            }
+        }
+
+        // Load data driver dari localStorage
         function loadDriverData() {
             try {
                 const stored = localStorage.getItem('jego_logged_in_driver');
                 if (stored) {
                     driverData = JSON.parse(stored);
-                    console.log('Data driver loaded:', driverData.name);
+                    addLog(`👤 Data driver dimuat: ${driverData.name || driverData.fullName || 'Tidak ada nama'}`, 'success');
+                    if (driverData.email) addLog(`📧 Email: ${driverData.email}`, 'info');
+                    if (driverData.phone) addLog(`📱 Telepon: ${driverData.phone}`, 'info');
+                } else {
+                    addLog('⚠️ Tidak ada data driver di localStorage', 'warning');
                 }
             } catch (e) {
-                console.error('Gagal load driver data:', e);
+                addLog(`❌ Gagal load driver data: ${e.message}`, 'error');
             }
         }
 
-        // Fungsi untuk mengecek apakah notifikasi sudah diaktifkan sebelumnya
+        // Cek apakah notifikasi sudah pernah diaktifkan sebelumnya
         function isNotificationAlreadyEnabled() {
             return localStorage.getItem('jego_notification_enabled') === 'true';
         }
 
-        // Event listener untuk tombol Aktifkan
+        // Event listener
         enableBtn.addEventListener('click', requestNotificationPermission);
-
-        // Event listener untuk tombol Skip
         skipBtn.addEventListener('click', () => {
+            addLog('⏭️ Pengguna memilih "Nanti Saja"', 'info');
             sendToKodular('notification_skipped', {});
             window.location.href = 'list1.html';
         });
 
         // Inisialisasi halaman
         document.addEventListener('DOMContentLoaded', () => {
+            addLog('🚀 Halaman dimuat, memulai inisialisasi...', 'info');
             loadDriverData();
             
-            // Jika sudah pernah mengaktifkan notifikasi sebelumnya, langsung redirect
             if (isNotificationAlreadyEnabled()) {
+                addLog('✅ Notifikasi sudah pernah diaktifkan sebelumnya, langsung redirect...', 'success');
                 window.location.href = 'list1.html';
                 return;
             }
             
-            // Tampilkan halaman
-            console.log('Halaman request notifikasi siap');
+            addLog('📱 Menampilkan halaman request notifikasi', 'info');
             sendToKodular('notification_page_loaded', {});
+            
+            // Tampilkan info bridge
+            addLog(`🔍 Cek typeof median: ${typeof median}`, 'info');
+            if (typeof median !== 'undefined') {
+                addLog(`🔍 median.onesignal ada? ${!!median.onesignal}`, 'info');
+                if (median.onesignal) {
+                    addLog('✅ Plugin OneSignal siap digunakan', 'success');
+                } else {
+                    addLog('❌ Plugin OneSignal tidak tersedia! Periksa konfigurasi Median.', 'error');
+                }
+            } else {
+                addLog('❌ median object tidak ditemukan! Aplikasi mungkin bukan hasil build Median.co.', 'error');
+            }
         });
     </script>
 </body>
