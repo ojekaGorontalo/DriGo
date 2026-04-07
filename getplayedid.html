@@ -14,7 +14,7 @@
 <div id="playerId">-</div>
 
 <h3>Log:</h3>
-<div id="log" style="background:#000;color:#0f0;padding:10px;height:200px;overflow:auto;font-size:12px;"></div>
+<div id="log" style="background:#000;color:#0f0;padding:10px;height:250px;overflow:auto;font-size:12px;"></div>
 
 <script>
 function log(msg){
@@ -26,35 +26,34 @@ function log(msg){
 }
 
 async function aktifkan(){
-  log("Tombol ditekan");
+  log("START");
 
   try {
-    if(typeof median === "undefined"){
-      log("❌ median tidak ditemukan");
-      return;
-    }
+    log("CEK median: " + typeof median);
 
-    if(!median.onesignal){
+    if(!median || !median.onesignal){
       log("❌ onesignal tidak ada");
       return;
     }
 
-    log("✅ median.onesignal tersedia");
+    log("✅ onesignal ADA");
 
-    // 🔥 WAJIB (biar player id muncul)
-    log("🔐 set consent...");
-    await median.onesignal.setConsentGiven(true);
+    // (optional tapi aman)
+    if(median.onesignal.setConsentGiven){
+      log("🔐 set consent...");
+      await median.onesignal.setConsentGiven(true);
+    }
 
-    log("📢 register...");
+    log("CALL register...");
     await median.onesignal.register();
+    log("✅ register SELESAI");
 
-    // tunggu
-    await new Promise(r => setTimeout(r, 4000));
+    await new Promise(r => setTimeout(r, 5000));
 
-    log("📦 ambil data...");
+    log("AMBIL INFO...");
     const info = await median.onesignal.onesignalInfo();
 
-    log("DATA: "+JSON.stringify(info));
+    log("DATA: " + JSON.stringify(info));
 
     let id = null;
 
@@ -63,14 +62,14 @@ async function aktifkan(){
     else if(info?.subscription?.id) id = info.subscription.id;
 
     if(id){
-      log("✅ Player ID: "+id);
+      log("✅ Player ID: " + id);
       document.getElementById("playerId").innerText = id;
     }else{
       log("❌ Player ID tidak ditemukan");
     }
 
   } catch(e){
-    log("❌ ERROR: "+e.message);
+    log("❌ ERROR: " + e.message);
   }
 }
 
