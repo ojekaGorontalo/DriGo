@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Aktifkan Notifikasi - JeGo Driver</title>
     <style>
+        /* (Gaya CSS tetap sama seperti sebelumnya) */
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -98,7 +99,6 @@
         // ================= VARIABEL GLOBAL =================
         let driverData = null;
         let isBridgeReady = false;
-        let playerId = null;
 
         // ================= ELEMEN DOM =================
         const statusBox = document.getElementById('statusBox');
@@ -126,7 +126,7 @@
 
         // Tampilkan Player ID di UI
         function displayPlayerId(id) {
-            if (id) {
+            if (id && id !== 'undefined' && id !== 'null') {
                 playerIdValue.textContent = id;
                 playerIdBox.classList.add('show');
                 addLog(`🆔 Player ID berhasil didapatkan: ${id.substring(0, 12)}...`, 'success');
@@ -149,45 +149,25 @@
             else if (window.android?.receiveData) window.android.receiveData(payload);
         }
 
-        // ================= AMBIL PLAYER ID DENGAN POLLING =================
-        async function fetchPlayerIdWithPolling() {
-            let id = null;
-            let attempts = 0;
-            const maxAttempts = 10; // 10 * 500ms = 5 detik
-
-            while (attempts < maxAttempts && !id) {
-                // Coba berbagai metode
-                if (median.onesignal.getPlayerId) {
-                    try {
-                        id = await median.onesignal.getPlayerId();
-                        if (id) break;
-                    } catch(e) {}
-                }
-                if (!id && median.onesignal.onesignalInfo) {
-                    try {
-                        const info = await median.onesignal.onesignalInfo();
-                        id = info?.playerId || info?.oneSignalUserId || info?.userId;
-                        if (id) break;
-                    } catch(e) {}
-                }
-                if (!id && median.onesignal.info) {
-                    try {
-                        const info = await new Promise((resolve) => {
-                            window.median_onesignal_info = resolve;
-                            median.onesignal.info({ "callback": "median_onesignal_info" });
-                            setTimeout(() => resolve(null), 1000);
-                        });
-                        id = info?.playerId || info?.oneSignalUserId || info?.userId;
-                        if (id) break;
-                    } catch(e) {}
-                }
-                if (!id) {
-                    attempts++;
-                    addLog(`⏳ Menunggu Player ID... (${attempts}/${maxAttempts})`, 'info');
-                    await new Promise(resolve => setTimeout(resolve, 500));
+        // ================= FUNGSI UTAMA AMBIL PLAYER ID =================
+        async function getPlayerId() {
+            // --- Metode 1: Menggunakan Promise (Metode Modern) ---
+            if (median.onesignal && median.onesignal.onesignalInfo) {
+                try {
+                    addLog('🔍 Mencoba mengambil info via promise...', 'info');
+                    const info = await median.onesignal.onesignalInfo();
+                    addLog(`📦 Data mentah (Promise): ${JSON.stringify(info)}`, 'info');
+                    // Cek properti yang mungkin ada
+                    if (info && (info.oneSignalUserId || info.subscription?.id || info.userId)) {
+                        const id = info.oneSignalUserId || info.subscription?.id || info.userId;
+                        addLog('✅ Metode Promise berhasil mendapatkan Player ID.', 'success');
+                        return id;
+                    }
+                } catch (err) {
+                    addLog(`⚠️ Metode Promise gagal: ${err.message}`, 'warning');
                 }
             }
-            return id;
+            return null;
         }
 
         // ================= PROSES UTAMA REQUEST NOTIFIKASI =================
@@ -203,15 +183,15 @@
                 if (!median.onesignal) throw new Error('median.onesignal tidak tersedia. Plugin OneSignal mungkin tidak aktif.');
                 addLog('✅ median.onesignal tersedia', 'success');
                 
-                // Minta izin notifikasi
+                // 1. Minta izin notifikasi
                 addLog('📢 Memanggil median.onesignal.register()...', 'info');
                 await median.onesignal.register();
                 addLog('✅ median.onesignal.register() berhasil dipanggil', 'success');
                 
-                // Tunggu 1 detik awal sebelum polling
-                await new Promise(resolve => setTimeout(resolve, 1000));
+                // 2. Tunggu sebentar
+                await new Promise(resolve => setTimeout(resolve, 2000));
 
-                // Daftarkan email driver (jika ada)
+                // 3. Daftarkan email driver (jika ada)
                 if (driverData && driverData.email) {
                     addLog(`📧 Mendaftarkan email driver: ${driverData.email}`, 'info');
                     try {
@@ -220,25 +200,23 @@
                     } catch (err) {
                         addLog(`⚠️ Gagal mendaftarkan email: ${err.message}`, 'warning');
                     }
-                    if (median.onesignal.addTag && driverData.name) {
-                        await median.onesignal.addTag('driver_name', driverData.name);
-                        addLog(`🏷️ Tag driver_name terpasang`, 'success');
-                    }
                 } else {
                     addLog('⚠️ Tidak ada email driver, lewati pendaftaran external ID', 'warning');
                 }
 
-                // Ambil Player ID dengan polling
-                addLog('🔍 Mengambil Player ID (polling hingga 5 detik)...', 'info');
-                const playerIdResult = await fetchPlayerIdWithPolling();
+                // 4. Ambil Player ID
+                addLog('🔍 Mengambil Player ID...', 'info');
+                let playerIdResult = null;
+                
+                // Coba metode promise dulu
+                playerIdResult = await getPlayerId();
+                
                 if (playerIdResult) {
-                    playerId = playerIdResult;
-                    displayPlayerId(playerId);
-                    sendToKodular('notification_enabled', { status: 'success', playerId: playerId });
+                    displayPlayerId(playerIdResult);
+                    sendToKodular('notification_enabled', { status: 'success', playerId: playerIdResult });
                 } else {
-                    addLog('⚠️ Tidak dapat memperoleh Player ID setelah 5 detik', 'warning');
-                    showStatus('⚠️ Notifikasi mungkin aktif, tapi Player ID tidak bisa didapatkan. Coba restart aplikasi atau tekan "Coba Lagi".', 'error');
-                    localStorage.setItem('jego_notification_enabled', 'true');
+                    addLog('⚠️ Gagal mendapatkan Player ID setelah mencoba berbagai metode.', 'warning');
+                    showStatus('⚠️ Gagal mendapatkan Player ID. Silakan restart aplikasi atau coba lagi.', 'error');
                     enableBtn.disabled = false;
                     enableBtn.innerHTML = 'Coba Lagi';
                 }
