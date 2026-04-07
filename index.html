@@ -787,14 +787,16 @@
       addDebugLog(`Error inisialisasi Firebase: ${error.message}`, 'error');
     }
 
-    // ==================== ONE SIGNAL WEB SDK (DIPERBAIKI) ====================
+    // ==================== ONE SIGNAL WEB SDK (DIPERBAIKI - HANYA 3 KALI PERCOBAAN) ====================
     const ONESIGNAL_APP_ID = '007d7eba-9cfc-40d1-a92e-f2299f770282';
+    let oneSignalAttempts = 0;
+    let oneSignalInitialized = false;
 
-    // Fungsi untuk inisialisasi OneSignal setelah SDK benar-benar siap
     function initOneSignal() {
-      if (typeof OneSignal !== 'undefined' && OneSignalDeferred) {
+      if (oneSignalInitialized) return;
+      if (typeof OneSignal !== 'undefined' && window.OneSignalDeferred) {
         addDebugLog('OneSignal SDK terdeteksi, memulai inisialisasi...', 'info');
-        OneSignalDeferred.push(async (OneSignal) => {
+        window.OneSignalDeferred.push(async (OneSignal) => {
           try {
             await OneSignal.init({
               appId: ONESIGNAL_APP_ID,
@@ -803,6 +805,7 @@
               allowLocalhostAsSecureOrigin: true,
             });
             addDebugLog('✅ OneSignal Web SDK init sukses', 'success');
+            oneSignalInitialized = true;
 
             const isOptedIn = await OneSignal.User.PushSubscription.optedIn;
             const userId = await OneSignal.User.PushSubscription.id;
@@ -839,9 +842,20 @@
           }
         });
       } else {
-        addDebugLog('OneSignal SDK tidak ditemukan, coba lagi nanti...', 'warning');
-        // Coba lagi setelah 2 detik jika SDK belum siap
-        setTimeout(initOneSignal, 2000);
+        if (oneSignalAttempts < 3) {
+          oneSignalAttempts++;
+          addDebugLog(`OneSignal SDK belum tersedia, percobaan ke-${oneSignalAttempts}...`, 'warning');
+          setTimeout(initOneSignal, 2000);
+        } else {
+          addDebugLog('❌ OneSignal SDK gagal dimuat setelah 3 kali percobaan. Notifikasi push tidak akan tersedia.', 'error');
+          // Nonaktifkan tombol izin notifikasi
+          const notifBtn = document.getElementById('requestNotifBtn');
+          if (notifBtn) {
+            notifBtn.disabled = true;
+            notifBtn.style.opacity = '0.5';
+            notifBtn.title = 'OneSignal tidak tersedia';
+          }
+        }
       }
     }
 
@@ -850,11 +864,14 @@
       initOneSignal();
     });
 
-    // Tombol manual untuk meminta izin (diperbaiki)
+    // Tombol manual untuk meminta izin (dengan pengecekan)
     document.getElementById('requestNotifBtn').addEventListener('click', async () => {
+      if (!oneSignalInitialized) {
+        addDebugLog('OneSignal belum siap, coba lagi nanti', 'warning');
+        return;
+      }
       if (window.OneSignalDeferred && typeof OneSignal !== 'undefined') {
         try {
-          // Ambil instance OneSignal dari Deferred
           const OneSignal = await new Promise((resolve) => {
             window.OneSignalDeferred.push(resolve);
           });
@@ -865,7 +882,7 @@
           addDebugLog(`Error request permission: ${err.message}`, 'error');
         }
       } else {
-        addDebugLog('OneSignal belum siap, coba lagi nanti', 'warning');
+        addDebugLog('OneSignal tidak tersedia', 'error');
       }
     });
 
@@ -1529,7 +1546,6 @@
     function hidePopup() { document.getElementById('popupOverlay').classList.remove('active'); }
 
     function showPhotoModal(photoUrl, name) {
-      // Implementasi sederhana untuk modal foto
       const modalHtml = `
         <div id="photoModal" class="modal photo-modal" style="display:flex;">
           <div class="modal-content">
