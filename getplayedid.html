@@ -43,7 +43,7 @@
         .btn-secondary { background: transparent; color: #FF9800; border: 1px solid #FF9800; }
         .btn-secondary:hover { background: rgba(255, 152, 0, 0.05); }
         .btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
-        .log-console { background: #1e1e1e; border-radius: 12px; margin-top: 20px; padding: 12px; text-align: left; font-family: 'Courier New', monospace; font-size: 11px; max-height: 200px; overflow-y: auto; border: 1px solid #333; }
+        .log-console { background: #1e1e1e; border-radius: 12px; margin-top: 20px; padding: 12px; text-align: left; font-family: 'Courier New', monospace; font-size: 11px; max-height: 250px; overflow-y: auto; border: 1px solid #333; }
         .log-title { color: #ccc; font-size: 11px; margin-bottom: 8px; font-weight: bold; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid #333; padding-bottom: 5px; }
         .log-content { color: #0f0; white-space: pre-wrap; word-break: break-word; }
         .log-content p { margin: 4px 0; border-bottom: 1px solid #2a2a2a; padding-bottom: 3px; }
@@ -51,6 +51,10 @@
         .log-success { color: #66ff66; }
         .log-warning { color: #ffaa66; }
         .log-info { color: #66aaff; }
+        .player-id-box { background: #f0f0f0; border-radius: 12px; padding: 12px; margin-top: 12px; font-size: 12px; word-break: break-all; display: none; border-left: 4px solid #FF9800; text-align: left; }
+        .player-id-box.show { display: block; }
+        .player-id-label { font-weight: bold; color: #FF9800; margin-bottom: 5px; }
+        .player-id-value { font-family: monospace; background: #fff; padding: 6px; border-radius: 8px; border: 1px solid #ddd; font-size: 11px; }
         .status-box { margin-top: 12px; padding: 10px; border-radius: 12px; font-size: 12px; display: none; }
         .status-box.show { display: block; }
         .status-box.success { background: #E8F5E9; color: #2E7D32; }
@@ -75,6 +79,12 @@
         <button class="btn btn-secondary" id="skipBtn">Nanti Saja</button>
 
         <div id="statusBox" class="status-box"></div>
+        
+        <!-- Box untuk menampilkan Player ID -->
+        <div id="playerIdBox" class="player-id-box">
+            <div class="player-id-label">🆔 Player ID (OneSignal)</div>
+            <div id="playerIdValue" class="player-id-value">-</div>
+        </div>
 
         <!-- Console Log UI -->
         <div class="log-console">
@@ -88,6 +98,7 @@
         // ================= VARIABEL GLOBAL =================
         let driverData = null;
         let isBridgeReady = false;
+        let playerId = null;
 
         // ================= ELEMEN DOM =================
         const statusBox = document.getElementById('statusBox');
@@ -95,6 +106,8 @@
         const skipBtn = document.getElementById('skipBtn');
         const logContent = document.getElementById('logContent');
         const clearLogBtn = document.getElementById('clearLogBtn');
+        const playerIdBox = document.getElementById('playerIdBox');
+        const playerIdValue = document.getElementById('playerIdValue');
 
         // ================= FUNGSI UTILITY =================
         function addLog(message, type = 'info') {
@@ -111,12 +124,60 @@
         function showStatus(message, type = 'info') { statusBox.textContent = message; statusBox.className = `status-box show ${type}`; addLog(message, type); }
         function hideStatus() { statusBox.classList.remove('show'); }
 
+        // Tampilkan Player ID di UI
+        function displayPlayerId(id) {
+            if (id) {
+                playerIdValue.textContent = id;
+                playerIdBox.classList.add('show');
+                addLog(`🆔 Player ID berhasil didapatkan: ${id.substring(0, 12)}...`, 'success');
+                // Simpan ke localStorage untuk keperluan lain
+                localStorage.setItem('jego_onesignal_player_id', id);
+            } else {
+                playerIdBox.classList.remove('show');
+                addLog('⚠️ Player ID tidak tersedia', 'warning');
+            }
+        }
+
         // ================= KOMUNIKASI DENGAN KODULAR =================
         function sendToKodular(action, data = {}) {
             const payload = JSON.stringify({ action: action, ...data, timestamp: new Date().toISOString() });
             console.log('📤 Mengirim ke Kodular:', payload);
             if (window.AppInventor?.setWebViewString) window.AppInventor.setWebViewString(payload);
             else if (window.android?.receiveData) window.android.receiveData(payload);
+        }
+
+        // ================= AMBIL PLAYER ID DARI ONESIGNAL =================
+        async function fetchPlayerId() {
+            try {
+                if (typeof median === 'undefined' || !median.onesignal) {
+                    addLog('❌ median.onesignal tidak tersedia, tidak bisa ambil Player ID', 'error');
+                    return null;
+                }
+                // Coba beberapa metode untuk mendapatkan playerId
+                let id = null;
+                if (median.onesignal.getPlayerId) {
+                    id = await median.onesignal.getPlayerId();
+                    addLog(`📡 Menggunakan getPlayerId(): ${id || 'null'}`, 'info');
+                }
+                if (!id && median.onesignal.onesignalInfo) {
+                    const info = await median.onesignal.onesignalInfo();
+                    id = info?.playerId || info?.oneSignalUserId || info?.userId;
+                    addLog(`📡 Menggunakan onesignalInfo(): ${id || 'null'}`, 'info');
+                }
+                if (!id && median.onesignal.info) {
+                    const info = await new Promise((resolve) => {
+                        window.median_onesignal_info = resolve;
+                        median.onesignal.info({ "callback": "median_onesignal_info" });
+                        setTimeout(() => resolve(null), 2000);
+                    });
+                    id = info?.playerId || info?.oneSignalUserId || info?.userId;
+                    addLog(`📡 Menggunakan info(): ${id || 'null'}`, 'info');
+                }
+                return id;
+            } catch (err) {
+                addLog(`❌ Gagal mengambil Player ID: ${err.message}`, 'error');
+                return null;
+            }
         }
 
         // ================= PROSES UTAMA REQUEST NOTIFIKASI =================
@@ -131,36 +192,55 @@
                 if (typeof median === 'undefined') throw new Error('median object tidak ditemukan!');
                 if (!median.onesignal) throw new Error('median.onesignal tidak tersedia. Plugin OneSignal mungkin tidak aktif.');
                 addLog('✅ median.onesignal tersedia', 'success');
+                
+                // Minta izin notifikasi
                 addLog('📢 Memanggil median.onesignal.register()...', 'info');
                 await median.onesignal.register();
-                addLog('✅ median.onesignal.register() berhasil', 'success');
-                await new Promise(resolve => setTimeout(resolve, 1500));
+                addLog('✅ median.onesignal.register() berhasil dipanggil', 'success');
+                
+                // Tunggu sebentar agar proses registrasi selesai
+                await new Promise(resolve => setTimeout(resolve, 2000));
 
+                // Daftarkan email driver (jika ada)
                 if (driverData && driverData.email) {
-                    addLog(`📧 Mendaftarkan email: ${driverData.email}`, 'info');
-                    try { await median.onesignal.login(driverData.email); addLog('✅ Email berhasil didaftarkan', 'success'); } 
-                    catch (err) { addLog(`⚠️ Gagal daftar email: ${err.message}`, 'warning'); }
-                    if (median.onesignal.addTag && driverData.name) { await median.onesignal.addTag('driver_name', driverData.name); addLog(`🏷️ Tag terpasang: driver_name`, 'success'); }
+                    addLog(`📧 Mendaftarkan email driver: ${driverData.email}`, 'info');
+                    try {
+                        await median.onesignal.login(driverData.email);
+                        addLog('✅ Email berhasil didaftarkan ke OneSignal', 'success');
+                    } catch (err) {
+                        addLog(`⚠️ Gagal mendaftarkan email: ${err.message}`, 'warning');
+                    }
+                    // Tambahkan tag jika diperlukan
+                    if (median.onesignal.addTag && driverData.name) {
+                        await median.onesignal.addTag('driver_name', driverData.name);
+                        addLog(`🏷️ Tag driver_name terpasang`, 'success');
+                    }
+                } else {
+                    addLog('⚠️ Tidak ada email driver, lewati pendaftaran external ID', 'warning');
                 }
 
-                addLog('🔍 Mengecek status subscription...', 'info');
-                let subscriptionStatus = null;
-                if (median.onesignal.onesignalInfo) subscriptionStatus = await median.onesignal.onesignalInfo();
-                else if (median.onesignal.info) subscriptionStatus = await new Promise((resolve) => { window.median_onesignal_info = resolve; median.onesignal.info({ "callback": "median_onesignal_info" }); setTimeout(() => resolve(null), 2000); });
-                const isSubscribed = subscriptionStatus?.subscription?.optedIn || subscriptionStatus?.oneSignalSubscribed || subscriptionStatus?.subscribed || false;
-
-                if (isSubscribed) {
-                    addLog('🎉 BERHASIL! Notifikasi diaktifkan.', 'success');
-                    showStatus('✅ Berhasil! Notifikasi telah diaktifkan.', 'success');
+                // Ambil Player ID
+                addLog('🔍 Mengambil Player ID...', 'info');
+                const playerIdResult = await fetchPlayerId();
+                if (playerIdResult) {
+                    playerId = playerIdResult;
+                    displayPlayerId(playerId);
+                    showStatus('✅ Berhasil! Notifikasi diaktifkan.', 'success');
                     localStorage.setItem('jego_notification_enabled', 'true');
-                    sendToKodular('notification_enabled', { status: 'success' });
-                    setTimeout(() => { window.location.href = 'list1.html'; }, 2000);
+                    sendToKodular('notification_enabled', { status: 'success', playerId: playerId });
+                    // Redirect ke halaman utama setelah 3 detik
+                    setTimeout(() => {
+                        window.location.href = 'list1.html';
+                    }, 3000);
                 } else {
-                    addLog('⚠️ Izin notifikasi belum diberikan.', 'warning');
-                    showStatus('⚠️ Izin notifikasi belum diberikan. Anda dapat mengaktifkannya nanti melalui pengaturan aplikasi di ponsel Anda.', 'error');
+                    // Jika gagal dapat Player ID tapi register mungkin berhasil
+                    addLog('⚠️ Tidak dapat memperoleh Player ID, tetapi notifikasi mungkin tetap aktif', 'warning');
+                    showStatus('⚠️ Notifikasi diaktifkan, tetapi Player ID tidak dapat diperoleh. Coba restart aplikasi.', 'error');
+                    localStorage.setItem('jego_notification_enabled', 'true');
                     enableBtn.disabled = false;
                     enableBtn.innerHTML = 'Coba Lagi';
                 }
+
             } catch (error) {
                 addLog(`❌ ERROR: ${error.message}`, 'error');
                 showStatus(`❌ Gagal mengaktifkan notifikasi: ${error.message}`, 'error');
@@ -174,22 +254,38 @@
         function loadDriverData() {
             try {
                 const stored = localStorage.getItem('jego_logged_in_driver');
-                if (stored) { driverData = JSON.parse(stored); addLog(`👤 Driver: ${driverData.name || driverData.fullName || 'Tidak ada nama'}`, 'success'); if (driverData.email) addLog(`📧 Email: ${driverData.email}`, 'info'); } 
-                else addLog('⚠️ Tidak ada data driver di localStorage', 'warning');
-            } catch (e) { addLog(`❌ Gagal load driver data: ${e.message}`, 'error'); }
+                if (stored) {
+                    driverData = JSON.parse(stored);
+                    addLog(`👤 Driver: ${driverData.name || driverData.fullName || 'Tidak ada nama'}`, 'success');
+                    if (driverData.email) addLog(`📧 Email: ${driverData.email}`, 'info');
+                } else {
+                    addLog('⚠️ Tidak ada data driver di localStorage', 'warning');
+                }
+            } catch (e) {
+                addLog(`❌ Gagal load driver data: ${e.message}`, 'error');
+            }
         }
 
         // ================= INISIALISASI HALAMAN =================
         function init() {
             addLog('🚀 Halaman dimuat, menunggu JavaScript Bridge...', 'info');
             loadDriverData();
-            if (localStorage.getItem('jego_notification_enabled') === 'true') { addLog('✅ Notifikasi sudah pernah diaktifkan, redirect...', 'success'); window.location.href = 'list1.html'; return; }
+            // Jika sudah pernah aktifkan notifikasi, langsung redirect
+            if (localStorage.getItem('jego_notification_enabled') === 'true') {
+                addLog('✅ Notifikasi sudah pernah diaktifkan sebelumnya, redirect...', 'success');
+                window.location.href = 'list1.html';
+                return;
+            }
             sendToKodular('notification_page_loaded', {});
         }
 
         // ================= EVENT LISTENER =================
         enableBtn.addEventListener('click', requestNotificationPermission);
-        skipBtn.addEventListener('click', () => { addLog('⏭️ Pengguna memilih "Nanti Saja"', 'info'); sendToKodular('notification_skipped', {}); window.location.href = 'list1.html'; });
+        skipBtn.addEventListener('click', () => {
+            addLog('⏭️ Pengguna memilih "Nanti Saja"', 'info');
+            sendToKodular('notification_skipped', {});
+            window.location.href = 'list1.html';
+        });
 
         // ================= FUNGSI CALLBACK UNTUK MENUNGGU BRIDGE SIAP =================
         window.median_library_ready = function() {
@@ -198,13 +294,21 @@
             addLog(`🔍 Cek typeof median: ${typeof median}`, 'info');
             if (typeof median !== 'undefined') {
                 addLog(`🔍 median.onesignal ada? ${!!median.onesignal}`, 'info');
-                if (median.onesignal) addLog('✅ Plugin OneSignal siap digunakan', 'success');
-                else addLog('❌ Plugin OneSignal tidak tersedia!', 'error');
+                if (median.onesignal) {
+                    addLog('✅ Plugin OneSignal siap digunakan', 'success');
+                    // Jika bridge sudah siap dan ada data driver, mungkin kita bisa otomatis cek status
+                } else {
+                    addLog('❌ Plugin OneSignal tidak tersedia! Periksa konfigurasi Median.', 'error');
+                }
             }
         };
-        if (window.median) { addLog('⚠️ median sudah ada, memanggil manual median_library_ready...', 'warning'); window.median_library_ready(); }
+        // Jika median sudah ada sebelum callback dipanggil, panggil manual
+        if (window.median) {
+            addLog('⚠️ median sudah ada, memanggil manual median_library_ready...', 'warning');
+            window.median_library_ready();
+        }
 
-        // Memulai proses inisialisasi
+        // Mulai inisialisasi
         init();
     </script>
 </body>
