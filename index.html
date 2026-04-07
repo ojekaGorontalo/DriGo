@@ -10,9 +10,9 @@
   <!-- Mapbox GL -->
   <script src='https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js'></script>
   <link href='https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css' rel='stylesheet' />
-  <!-- OneSignal Web SDK TIDAK DIPAKAI (dihapus) -->
+  <!-- TIDAK ADA OneSignal Web SDK -->
   <style>
-    /* ==================== CSS LENGKAP (sama seperti sebelumnya) ==================== */
+    /* ==================== CSS (sama seperti sebelumnya) ==================== */
     :root {
       --primary: #FF9800;
       --secondary: #FFB74D;
@@ -697,7 +697,7 @@
     <p>Memuat...</p>
   </div>
 
-  <!-- DEBUG CONSOLE SCROLLABLE -->
+  <!-- DEBUG CONSOLE -->
   <div class="debug-console" id="debugConsole">
     <div class="debug-header">
       <span>🐞 Debug Log</span>
@@ -720,7 +720,7 @@
   </audio>
 
   <script>
-    // ==================== DEBUG LOGGER ====================
+    // ================= DEBUG LOGGER =================
     const debugContent = document.getElementById('debugContent');
     function addDebugLog(message, type = 'info') {
       const p = document.createElement('p');
@@ -741,7 +741,7 @@
       toggleBtn.textContent = debugCollapsed ? '▲' : '▼';
     };
 
-    // ==================== BERSIHKAN KEY LAMA ====================
+    // ================= BERSIHKAN KEY LAMA =================
     addDebugLog('Membersihkan key localStorage lama...', 'info');
     const oldKeys = [
       'jego_driver_id', 'jego_driver_data', 'jego_driver_status',
@@ -751,7 +751,7 @@
       if (localStorage.getItem(key)) localStorage.removeItem(key);
     });
 
-    // ==================== CEK LOGIN ====================
+    // ================= CEK LOGIN =================
     function checkLoginStatus() {
       const driverData = localStorage.getItem('jego_logged_in_driver');
       if (!driverData || driverData === '{}') {
@@ -763,7 +763,7 @@
       return true;
     }
 
-    // ==================== KODE FIREBASE ====================
+    // ================= KODE FIREBASE =================
     const firebaseConfig = {
       apiKey: "AIzaSyDpGc_CsbNi1igA29n6qDhcX0oDkHNVscc",
       authDomain: "game-balap-simpel.firebaseapp.com",
@@ -783,7 +783,79 @@
       addDebugLog(`Error inisialisasi Firebase: ${error.message}`, 'error');
     }
 
-    // ==================== VARIABEL GLOBAL ====================
+    // ================= SUBSCRIBE ONESIGNAL (METODE DARI getplayedid.html) =================
+    let onesignalSubscribed = false;
+    let driverPlayerId = null;
+
+    async function subscribeToOneSignal() {
+      addDebugLog('Memulai subscribe OneSignal...', 'info');
+      try {
+        // Tunggu median siap (event deviceready)
+        if (typeof median === 'undefined') {
+          addDebugLog('median belum tersedia, tunggu deviceready...', 'warning');
+          return;
+        }
+        if (!median.onesignal) {
+          addDebugLog('median.onesignal tidak ada', 'error');
+          return;
+        }
+
+        // Set consent
+        if (median.onesignal.setConsentGiven) {
+          addDebugLog('Memberikan consent...', 'info');
+          await median.onesignal.setConsentGiven(true);
+        }
+
+        // Register
+        addDebugLog('Memanggil median.onesignal.register()...', 'info');
+        await median.onesignal.register();
+
+        // Minta izin notifikasi
+        if (median.onesignal.promptForPushNotificationsWithUserResponse) {
+          addDebugLog('Meminta izin notifikasi...', 'info');
+          await median.onesignal.promptForPushNotificationsWithUserResponse();
+        }
+
+        // Tunggu beberapa detik
+        addDebugLog('Menunggu sinkronisasi...', 'info');
+        await new Promise(r => setTimeout(r, 5000));
+
+        // Ambil Player ID
+        let info = await median.onesignal.onesignalInfo();
+        addDebugLog(`OneSignal info: ${JSON.stringify(info)}`, 'info');
+        let id = info?.userId || info?.oneSignalUserId || info?.subscription?.id;
+        if (id) {
+          driverPlayerId = id;
+          onesignalSubscribed = true;
+          addDebugLog(`✅ Berhasil subscribe! Player ID: ${id.substring(0,12)}...`, 'success');
+          // Simpan ke localStorage dan Firebase
+          localStorage.setItem('jego_onesignal_player_id', id);
+          if (currentDriverData && currentDriverData.driverId) {
+            await database.ref('drivers/' + currentDriverData.driverId).update({
+              playerId: id,
+              oneSignalSubscribed: true,
+              lastUpdated: firebase.database.ServerValue.TIMESTAMP
+            });
+            addDebugLog('Player ID tersimpan di Firebase', 'success');
+          }
+        } else {
+          addDebugLog('⚠️ Player ID tidak ditemukan, coba lagi nanti', 'warning');
+        }
+      } catch (err) {
+        addDebugLog(`Error subscribe OneSignal: ${err.message}`, 'error');
+      }
+    }
+
+    // Event listener untuk deviceready (median bridge siap)
+    document.addEventListener("deviceready", function() {
+      addDebugLog("📱 Median bridge ready (deviceready)", 'success');
+      // Jika driver sudah login, langsung subscribe
+      if (currentDriverData && currentDriverData.driverId) {
+        subscribeToOneSignal();
+      }
+    });
+
+    // ================= VARIABEL GLOBAL =================
     let ordersRef = null, ordersListener = null;
     let modalMap = null;
     let currentSelectedOrder = null;
@@ -1504,6 +1576,11 @@
       });
       document.getElementById('popupButton').addEventListener('click', hidePopup);
       document.getElementById('acceptKurirToggle').addEventListener('change', updateAcceptKurirSetting);
+
+      // Jika median sudah tersedia, langsung subscribe. Jika belum, deviceready akan menangani
+      if (typeof median !== 'undefined' && median.onesignal && currentDriverData) {
+        subscribeToOneSignal();
+      }
     });
     window.addEventListener('beforeunload', () => {
       if (locationWatchId) navigator.geolocation.clearWatch(locationWatchId);
