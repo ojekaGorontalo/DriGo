@@ -548,7 +548,7 @@
     <p>Memuat...</p>
   </div>
 
-  <!-- Audio baru untuk order masuk -->
+  <!-- Audio untuk order baru dan lainnya -->
   <audio id="beepSound" preload="auto">
     <source src="https://jegotiem.netlify.app/audio/beek.mp3" type="audio/mpeg">
   </audio>
@@ -598,6 +598,58 @@
     } catch (error) {
       console.error(error);
     }
+
+    // ================= SUBSCRIBE ONESIGNAL (TETAP UTUH) =================
+    let onesignalSubscribed = false;
+    let driverPlayerId = null;
+
+    async function subscribeToOneSignal() {
+      console.log('Memulai subscribe OneSignal...');
+      try {
+        if (typeof median === 'undefined') {
+          console.warn('median belum tersedia, tunggu deviceready...');
+          return;
+        }
+        if (!median.onesignal) {
+          console.error('median.onesignal tidak ada');
+          return;
+        }
+        if (median.onesignal.setConsentGiven) {
+          await median.onesignal.setConsentGiven(true);
+        }
+        await median.onesignal.register();
+        if (median.onesignal.promptForPushNotificationsWithUserResponse) {
+          await median.onesignal.promptForPushNotificationsWithUserResponse();
+        }
+        await new Promise(r => setTimeout(r, 5000));
+        let info = await median.onesignal.onesignalInfo();
+        let id = info?.userId || info?.oneSignalUserId || info?.subscription?.id;
+        if (id) {
+          driverPlayerId = id;
+          onesignalSubscribed = true;
+          console.log(`✅ Berhasil subscribe! Player ID: ${id.substring(0,12)}...`);
+          localStorage.setItem('jego_onesignal_player_id', id);
+          if (currentDriverData && currentDriverData.driverId) {
+            await database.ref('drivers/' + currentDriverData.driverId).update({
+              playerId: id,
+              oneSignalSubscribed: true,
+              lastUpdated: firebase.database.ServerValue.TIMESTAMP
+            });
+          }
+        } else {
+          console.warn('⚠️ Player ID tidak ditemukan');
+        }
+      } catch (err) {
+        console.error(`Error subscribe OneSignal: ${err.message}`);
+      }
+    }
+
+    document.addEventListener("deviceready", function() {
+      console.log("📱 Median bridge ready (deviceready)");
+      if (currentDriverData && currentDriverData.driverId) {
+        subscribeToOneSignal();
+      }
+    });
 
     // ================= VARIABEL GLOBAL =================
     let ordersRef = null, ordersListener = null;
@@ -696,7 +748,6 @@
           const perjalanan = data.perjalanan !== undefined ? data.perjalanan : (data.trips || 0);
           document.getElementById('sidebarDriverRating').innerText = avgRating.toFixed(1);
           document.getElementById('sidebarTripsHeader').innerText = perjalanan;
-          // Update currentDriverData juga
           currentDriverData.rating = avgRating;
           currentDriverData.perjalanan = perjalanan;
         }
@@ -1176,7 +1227,6 @@
           document.getElementById('driverPhoto').src = currentDriverData.profilePhotoUrl;
           document.getElementById('sidebarDriverPhoto').src = currentDriverData.profilePhotoUrl;
           document.getElementById('sidebarDriverName').textContent = currentDriverData.fullName;
-          // Ambil data terbaru dari Firebase
           updateDriverStatsFromFirebase();
           return true;
         } else { showDriverNotRegistered(); return false; }
@@ -1256,7 +1306,6 @@
     function toggleSidebar() {
       const sidebar = document.getElementById('sidebar');
       sidebar.style.display = sidebar.style.display === 'flex' ? 'none' : 'flex';
-      // Setiap sidebar dibuka, refresh data driver dari Firebase
       if (sidebar.style.display === 'flex') {
         updateDriverStatsFromFirebase();
       }
