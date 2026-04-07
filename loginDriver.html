@@ -7,7 +7,6 @@
   <!-- Firebase SDK hanya untuk Realtime Database -->
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
-  <!-- TIDAK ADA OneSignal Web SDK -->
   <style>
     :root {
       --primary: #FF9800;
@@ -820,28 +819,7 @@
       } catch (e) { console.error(e); return { exists: false, error: e.message }; }
     }
 
-    // ================= FUNGSI SUBSCRIBE ONE SIGNAL (via Median Bridge) =================
-    function subscribeToOneSignal(driverEmail, driverName) {
-      try {
-        if (typeof median !== 'undefined' && median.onesignal) {
-          console.log("Mengaktifkan OneSignal via Median bridge...");
-          median.onesignal.register();
-          if (driverEmail) {
-            median.onesignal.login(driverEmail);
-            console.log("Email driver terdaftar di OneSignal:", driverEmail);
-          }
-          if (driverName) {
-            median.onesignal.addTag('driver_name', driverName);
-          }
-        } else {
-          console.warn("Median OneSignal bridge tidak tersedia. Notifikasi mungkin tidak aktif.");
-        }
-      } catch (err) {
-        console.error("Gagal memanggil OneSignal bridge:", err);
-      }
-    }
-
-    // ================= FUNGSI HANDLE STATUS DRIVER (LANGSUNG REDIRECT KE INDEX.HTML) =================
+    // ================= FUNGSI HANDLE STATUS DRIVER (REDIRECT KE INDEX.HTML) =================
     function handleDriverStatus(driverData, driverId) {
       const status = driverData.status || driverData.driverStatus || 'pending';
       const ketGagal = driverData.ketGagal || driverData.rejectionReason || driverData.blockReason || 'Tidak ada keterangan.';
@@ -872,9 +850,6 @@
             createdAt: driverData.createdAt || new Date().toISOString()
           };
           localStorage.setItem('jego_logged_in_driver', JSON.stringify(sessionDriver));
-
-          // === SUBSCRIBE ONE SIGNAL ===
-          subscribeToOneSignal(sessionDriver.email, sessionDriver.name);
 
           // Tampilkan pesan sukses lalu redirect ke index.html
           showSuccessMessage('Login berhasil! Mengalihkan...', true);
@@ -1000,7 +975,7 @@
         return;
       }
 
-      // Handle status driver (termasuk subscribe OneSignal dan redirect)
+      // Handle status driver (termasuk redirect ke index.html)
       handleDriverStatus(info.data, info.id);
       // Tombol verifikasi akan dinonaktifkan setelah redirect (tidak masalah)
     });
@@ -1033,14 +1008,13 @@
       modalOverlay.addEventListener('click', function(e) { if (e.target === modalOverlay) hidePopup(); });
       document.addEventListener('keydown', function(e) { if (e.key === 'Escape' && modalOverlay.classList.contains('active')) hidePopup(); });
 
-      // Cek session driver yang sudah login (jika ada, redirect langsung)
+      // Cek session driver yang sudah login (jika ada, redirect langsung ke index.html)
       const loggedInDriver = localStorage.getItem('jego_logged_in_driver');
       if (loggedInDriver) {
         try {
           const driver = JSON.parse(loggedInDriver);
           if (driver.status === 'active') {
-            // Langsung redirect ke list1.html
-            window.location.href = 'list1.html';
+            window.location.href = 'index.html';
           } else {
             localStorage.removeItem('jego_logged_in_driver');
           }
