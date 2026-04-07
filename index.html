@@ -10,7 +10,7 @@
   <!-- Mapbox GL -->
   <script src='https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js'></script>
   <link href='https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css' rel='stylesheet' />
-  
+  <!-- OneSignal Web SDK TIDAK DIPAKAI (dihapus) -->
   <style>
     /* ==================== CSS LENGKAP (sama seperti sebelumnya) ==================== */
     :root {
@@ -125,7 +125,7 @@
     .gps-active { background-color: #4ade80; }
     .gps-inactive { background-color: #f87171; }
     .header-controls { display: flex; align-items: center; gap: 8px; }
-    .location-toggle-btn, .autobid-btn, .refresh-btn, .notif-permission-btn {
+    .location-toggle-btn, .autobid-btn, .refresh-btn {
       background: rgba(255,255,255,0.2);
       color: white;
       border: none;
@@ -139,11 +139,9 @@
       gap: 5px;
       font-size: 0.75rem;
     }
-    .notif-permission-btn { background: #4caf50; color: white; }
-    .location-toggle-btn:hover, .autobid-btn:hover, .refresh-btn:hover, .notif-permission-btn:hover { background: rgba(255,255,255,0.3); }
+    .location-toggle-btn:hover, .autobid-btn:hover, .refresh-btn:hover { background: rgba(255,255,255,0.3); }
     .location-toggle-btn.active, .autobid-btn.active { background: var(--accent); color: var(--dark); }
     .refresh-btn { padding: 8px; }
-    .notif-permission-btn { padding: 8px 12px; }
     /* DEBUG CONSOLE SCROLLABLE */
     .debug-console {
       position: fixed;
@@ -391,7 +389,7 @@
       .detail-label { font-size: 0.6rem; }
       .modal-content { width: 98%; max-height: 95vh; }
       .modal-map { height: 40vh; min-height: 180px; max-height: 250px; }
-      .location-toggle-btn, .autobid-btn, .refresh-btn, .notif-permission-btn { padding: 6px 12px; font-size: 0.75rem; }
+      .location-toggle-btn, .autobid-btn, .refresh-btn { padding: 6px 12px; font-size: 0.75rem; }
       .sidebar-content { width: 90%; }
       .menu-item { padding: 10px 0; }
       .input-group { width: 130px; }
@@ -426,7 +424,7 @@
       .modal-details { padding: 12px 15px; }
       .modal-footer { padding: 12px 15px; }
       .modal-order-details { grid-template-columns: 1fr 1fr 1fr; gap: 5px; padding: 8px; }
-      .location-toggle-btn, .autobid-btn, .refresh-btn, .notif-permission-btn { padding: 5px 10px; font-size: 0.7rem; }
+      .location-toggle-btn, .autobid-btn, .refresh-btn { padding: 5px 10px; font-size: 0.7rem; }
       .modal-content { max-width: 340px; }
       .modal-map { height: 35vh; min-height: 150px; max-height: 200px; }
       .modal-details { padding: 10px 12px; }
@@ -491,7 +489,6 @@
     <div class="header-controls">
       <button class="location-toggle-btn" id="locationToggleBtn">📍 OFF</button>
       <button class="autobid-btn" id="autobidBtn">Autobid: OFF</button>
-      <button class="notif-permission-btn" id="requestNotifBtn">🔔 Izin Notif</button>
       <button class="refresh-btn" id="refreshBtn" title="Refresh">↻</button>
     </div>
   </div>
@@ -785,105 +782,6 @@
     } catch (error) {
       addDebugLog(`Error inisialisasi Firebase: ${error.message}`, 'error');
     }
-
-    // ==================== ONE SIGNAL WEB SDK (DIPERBAIKI - HANYA 3 KALI PERCOBAAN) ====================
-    const ONESIGNAL_APP_ID = '3afda7a1-d5c4-4b00-8736-ea0f5418c682';
-    let oneSignalAttempts = 0;
-    let oneSignalInitialized = false;
-
-    function initOneSignal() {
-      if (oneSignalInitialized) return;
-      if (typeof OneSignal !== 'undefined' && window.OneSignalDeferred) {
-        addDebugLog('OneSignal SDK terdeteksi, memulai inisialisasi...', 'info');
-        window.OneSignalDeferred.push(async (OneSignal) => {
-          try {
-            await OneSignal.init({
-              appId: ONESIGNAL_APP_ID,
-              autoRegister: false,
-              notifyButton: { enable: false },
-              allowLocalhostAsSecureOrigin: true,
-            });
-            addDebugLog('✅ OneSignal Web SDK init sukses', 'success');
-            oneSignalInitialized = true;
-
-            const isOptedIn = await OneSignal.User.PushSubscription.optedIn;
-            const userId = await OneSignal.User.PushSubscription.id;
-
-            if (isOptedIn && userId) {
-              addDebugLog(`Sudah subscribe. PlayerID: ${userId.substring(0,12)}...`, 'success');
-              if (currentDriverData && currentDriverData.driverId) {
-                await database.ref('drivers/' + currentDriverData.driverId).update({
-                  playerId: userId,
-                  lastUpdated: firebase.database.ServerValue.TIMESTAMP
-                });
-                addDebugLog('Player ID tersimpan di Firebase', 'success');
-              }
-            } else {
-              addDebugLog('Belum subscribe, silakan tekan tombol izin', 'warning');
-            }
-
-            OneSignal.Notifications.addEventListener('permissionChange', async (permission) => {
-              if (permission) {
-                const newUserId = await OneSignal.User.PushSubscription.id;
-                if (newUserId && currentDriverData) {
-                  addDebugLog(`Izin diberikan, PlayerID: ${newUserId.substring(0,12)}...`, 'success');
-                  await database.ref('drivers/' + currentDriverData.driverId).update({
-                    playerId: newUserId,
-                    lastUpdated: firebase.database.ServerValue.TIMESTAMP
-                  });
-                }
-              } else {
-                addDebugLog('Izin notifikasi ditolak', 'warning');
-              }
-            });
-          } catch (err) {
-            addDebugLog(`❌ OneSignal init error: ${err.message}`, 'error');
-          }
-        });
-      } else {
-        if (oneSignalAttempts < 3) {
-          oneSignalAttempts++;
-          addDebugLog(`OneSignal SDK belum tersedia, percobaan ke-${oneSignalAttempts}...`, 'warning');
-          setTimeout(initOneSignal, 2000);
-        } else {
-          addDebugLog('❌ OneSignal SDK gagal dimuat setelah 3 kali percobaan. Notifikasi push tidak akan tersedia.', 'error');
-          // Nonaktifkan tombol izin notifikasi
-          const notifBtn = document.getElementById('requestNotifBtn');
-          if (notifBtn) {
-            notifBtn.disabled = true;
-            notifBtn.style.opacity = '0.5';
-            notifBtn.title = 'OneSignal tidak tersedia';
-          }
-        }
-      }
-    }
-
-    // Jalankan inisialisasi OneSignal setelah halaman selesai dimuat
-    window.addEventListener('load', function() {
-      initOneSignal();
-    });
-
-    // Tombol manual untuk meminta izin (dengan pengecekan)
-    document.getElementById('requestNotifBtn').addEventListener('click', async () => {
-      if (!oneSignalInitialized) {
-        addDebugLog('OneSignal belum siap, coba lagi nanti', 'warning');
-        return;
-      }
-      if (window.OneSignalDeferred && typeof OneSignal !== 'undefined') {
-        try {
-          const OneSignal = await new Promise((resolve) => {
-            window.OneSignalDeferred.push(resolve);
-          });
-          addDebugLog('Meminta izin notifikasi...', 'info');
-          await OneSignal.Notifications.requestPermission();
-          addDebugLog('Izin telah diminta, cek status...', 'info');
-        } catch (err) {
-          addDebugLog(`Error request permission: ${err.message}`, 'error');
-        }
-      } else {
-        addDebugLog('OneSignal tidak tersedia', 'error');
-      }
-    });
 
     // ==================== VARIABEL GLOBAL ====================
     let ordersRef = null, ordersListener = null;
