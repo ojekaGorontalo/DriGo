@@ -40,9 +40,9 @@
         .btn { width: 100%; padding: 12px; border: none; border-radius: 50px; font-size: 15px; font-weight: bold; cursor: pointer; transition: all 0.3s ease; margin-bottom: 10px; }
         .btn-primary { background: linear-gradient(90deg, #FF9800, #FF5722); color: white; box-shadow: 0 4px 12px rgba(255, 87, 34, 0.3); }
         .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(255, 87, 34, 0.4); }
+        .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; transform: none; box-shadow: none; background: #ccc; }
         .btn-secondary { background: transparent; color: #FF9800; border: 1px solid #FF9800; }
         .btn-secondary:hover { background: rgba(255, 152, 0, 0.05); }
-        .btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
         .log-console { background: #1e1e1e; border-radius: 12px; margin-top: 20px; padding: 12px; text-align: left; font-family: 'Courier New', monospace; font-size: 11px; max-height: 250px; overflow-y: auto; border: 1px solid #333; }
         .log-title { color: #ccc; font-size: 11px; margin-bottom: 8px; font-weight: bold; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid #333; padding-bottom: 5px; }
         .log-content { color: #0f0; white-space: pre-wrap; word-break: break-word; }
@@ -132,6 +132,11 @@
                 addLog(`🆔 Player ID berhasil didapatkan: ${id.substring(0, 12)}...`, 'success');
                 // Simpan ke localStorage untuk keperluan lain
                 localStorage.setItem('jego_onesignal_player_id', id);
+                localStorage.setItem('jego_notification_enabled', 'true');
+                // Ubah tombol menjadi berhasil
+                enableBtn.disabled = true;
+                enableBtn.innerHTML = '✅ Berlangganan Aktif';
+                showStatus('✅ Berhasil! Notifikasi diaktifkan. Player ID tersimpan.', 'success');
             } else {
                 playerIdBox.classList.remove('show');
                 addLog('⚠️ Player ID tidak tersedia', 'warning');
@@ -153,7 +158,6 @@
                     addLog('❌ median.onesignal tidak tersedia, tidak bisa ambil Player ID', 'error');
                     return null;
                 }
-                // Coba beberapa metode untuk mendapatkan playerId
                 let id = null;
                 if (median.onesignal.getPlayerId) {
                     id = await median.onesignal.getPlayerId();
@@ -210,7 +214,6 @@
                     } catch (err) {
                         addLog(`⚠️ Gagal mendaftarkan email: ${err.message}`, 'warning');
                     }
-                    // Tambahkan tag jika diperlukan
                     if (median.onesignal.addTag && driverData.name) {
                         await median.onesignal.addTag('driver_name', driverData.name);
                         addLog(`🏷️ Tag driver_name terpasang`, 'success');
@@ -225,17 +228,11 @@
                 if (playerIdResult) {
                     playerId = playerIdResult;
                     displayPlayerId(playerId);
-                    showStatus('✅ Berhasil! Notifikasi diaktifkan.', 'success');
-                    localStorage.setItem('jego_notification_enabled', 'true');
                     sendToKodular('notification_enabled', { status: 'success', playerId: playerId });
-                    // Redirect ke halaman utama setelah 3 detik
-                    setTimeout(() => {
-                        window.location.href = 'list1.html';
-                    }, 3000);
+                    // Tidak ada redirect! Hanya tampilkan Player ID di UI.
                 } else {
-                    // Jika gagal dapat Player ID tapi register mungkin berhasil
                     addLog('⚠️ Tidak dapat memperoleh Player ID, tetapi notifikasi mungkin tetap aktif', 'warning');
-                    showStatus('⚠️ Notifikasi diaktifkan, tetapi Player ID tidak dapat diperoleh. Coba restart aplikasi.', 'error');
+                    showStatus('⚠️ Notifikasi diaktifkan, tetapi Player ID tidak dapat diperoleh. Coba restart aplikasi atau tekan "Coba Lagi".', 'error');
                     localStorage.setItem('jego_notification_enabled', 'true');
                     enableBtn.disabled = false;
                     enableBtn.innerHTML = 'Coba Lagi';
@@ -270,9 +267,9 @@
         function init() {
             addLog('🚀 Halaman dimuat, menunggu JavaScript Bridge...', 'info');
             loadDriverData();
-            // Jika sudah pernah aktifkan notifikasi, langsung redirect
+            // Jika sudah pernah aktifkan notifikasi, langsung redirect ke halaman utama
             if (localStorage.getItem('jego_notification_enabled') === 'true') {
-                addLog('✅ Notifikasi sudah pernah diaktifkan sebelumnya, redirect...', 'success');
+                addLog('✅ Notifikasi sudah pernah diaktifkan sebelumnya, redirect ke list1.html...', 'success');
                 window.location.href = 'list1.html';
                 return;
             }
@@ -296,7 +293,6 @@
                 addLog(`🔍 median.onesignal ada? ${!!median.onesignal}`, 'info');
                 if (median.onesignal) {
                     addLog('✅ Plugin OneSignal siap digunakan', 'success');
-                    // Jika bridge sudah siap dan ada data driver, mungkin kita bisa otomatis cek status
                 } else {
                     addLog('❌ Plugin OneSignal tidak tersedia! Periksa konfigurasi Median.', 'error');
                 }
