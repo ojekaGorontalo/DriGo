@@ -635,22 +635,6 @@
     const loadingModal = document.getElementById('loadingModal');
     const loadingText = document.getElementById('loadingText');
 
-    // ================= FUNGSI KOMUNIKASI DENGAN KODULAR =================
-    function sendToKodular(action, data = {}) {
-      const payload = JSON.stringify({ action: action, ...data, timestamp: new Date().toISOString() });
-      console.log('📤 Mengirim ke Kodular:', payload);
-      
-      if (window.AppInventor && typeof window.AppInventor.setWebViewString === 'function') {
-        window.AppInventor.setWebViewString(payload);
-      } else if (window.android && typeof window.android.receiveData === 'function') {
-        window.android.receiveData(payload);
-      } else if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.observe) {
-        window.webkit.messageHandlers.observe.postMessage(payload);
-      } else {
-        console.warn('❌ Tidak ada metode komunikasi dengan Kodular');
-      }
-    }
-
     // ================= FUNGSI UTILITAS =================
     function showPopup(title, message, type = 'info', options = {}) {
       modalTitleText.textContent = title;
@@ -839,17 +823,13 @@
     // ================= FUNGSI SUBSCRIBE ONE SIGNAL (via Median Bridge) =================
     function subscribeToOneSignal(driverEmail, driverName) {
       try {
-        // Cek apakah Median bridge tersedia
         if (typeof median !== 'undefined' && median.onesignal) {
           console.log("Mengaktifkan OneSignal via Median bridge...");
-          // Meminta izin notifikasi (popup akan muncul)
           median.onesignal.register();
-          // Jika ada email, daftarkan user ke OneSignal
           if (driverEmail) {
             median.onesignal.login(driverEmail);
             console.log("Email driver terdaftar di OneSignal:", driverEmail);
           }
-          // Jika ada nama, bisa juga diset sebagai tag (opsional)
           if (driverName) {
             median.onesignal.addTag('driver_name', driverName);
           }
@@ -861,7 +841,7 @@
       }
     }
 
-    // ================= FUNGSI HANDLE STATUS DRIVER (DENGAN SUBSCRIBE) =================
+    // ================= FUNGSI HANDLE STATUS DRIVER (LANGSUNG REDIRECT KE LIST1.HTML) =================
     function handleDriverStatus(driverData, driverId) {
       const status = driverData.status || driverData.driverStatus || 'pending';
       const ketGagal = driverData.ketGagal || driverData.rejectionReason || driverData.blockReason || 'Tidak ada keterangan.';
@@ -893,15 +873,14 @@
           };
           localStorage.setItem('jego_logged_in_driver', JSON.stringify(sessionDriver));
 
-          // Kirim data ke Kodular
-          sendToKodular('login_success', { driver: sessionDriver });
-
           // === SUBSCRIBE ONE SIGNAL ===
           subscribeToOneSignal(sessionDriver.email, sessionDriver.name);
 
-          // Tampilkan pesan sukses
-          showSuccessMessage('Login berhasil!', true);
-          // TIDAK ADA REDIRECT KE HALAMAN HTML - biarkan Kodular yang menangani navigasi screen
+          // Tampilkan pesan sukses lalu redirect ke list1.html
+          showSuccessMessage('Login berhasil! Mengalihkan...', true);
+          setTimeout(() => {
+            window.location.href = 'list1.html';
+          }, 1500);
           break;
 
         case 'rejected':
@@ -1021,10 +1000,9 @@
         return;
       }
 
-      // Handle status driver (termasuk subscribe OneSignal)
+      // Handle status driver (termasuk subscribe OneSignal dan redirect)
       handleDriverStatus(info.data, info.id);
-      // Nonaktifkan tombol verifikasi setelah berhasil (opsional)
-      verifyOtpBtn.disabled = true;
+      // Tombol verifikasi akan dinonaktifkan setelah redirect (tidak masalah)
     });
 
     resendOtpLink.addEventListener('click', async function() {
@@ -1055,16 +1033,14 @@
       modalOverlay.addEventListener('click', function(e) { if (e.target === modalOverlay) hidePopup(); });
       document.addEventListener('keydown', function(e) { if (e.key === 'Escape' && modalOverlay.classList.contains('active')) hidePopup(); });
 
-      // Cek session driver yang sudah login
+      // Cek session driver yang sudah login (jika ada, redirect langsung)
       const loggedInDriver = localStorage.getItem('jego_logged_in_driver');
       if (loggedInDriver) {
         try {
           const driver = JSON.parse(loggedInDriver);
           if (driver.status === 'active') {
-            // Kirim ke Kodular bahwa driver sudah login
-            sendToKodular('already_logged_in', { driver: driver });
-            showInfoMessage('Anda sudah login. Mengalihkan...', true);
-            // Tidak redirect, biarkan Kodular menangani
+            // Langsung redirect ke list1.html
+            window.location.href = 'list1.html';
           } else {
             localStorage.removeItem('jego_logged_in_driver');
           }
