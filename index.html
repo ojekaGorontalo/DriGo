@@ -10,10 +10,9 @@
   <!-- Mapbox GL -->
   <script src='https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js'></script>
   <link href='https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css' rel='stylesheet' />
-  <!-- OneSignal SDK -->
-  <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
+  <!-- TIDAK ADA OneSignal SDK - akan menggunakan median bridge -->
   <style>
-    /* ==================== CSS LENGKAP (sama seperti sebelumnya, ditambah debug console) ==================== */
+    /* ==================== CSS (sama seperti sebelumnya, hanya ditambah debug panel) ==================== */
     :root {
       --primary: #FF9800;
       --secondary: #FFB74D;
@@ -130,7 +129,7 @@
     .location-toggle-btn:hover, .autobid-btn:hover, .refresh-btn:hover { background: rgba(255,255,255,0.3); }
     .location-toggle-btn.active, .autobid-btn.active { background: var(--accent); color: var(--dark); }
     .refresh-btn { padding: 8px; }
-    /* ==================== DEBUG CONSOLE (SCROLLABLE) ==================== */
+    /* DEBUG CONSOLE SCROLLABLE */
     .debug-console {
       position: fixed;
       bottom: 10px;
@@ -146,7 +145,6 @@
       z-index: 9999;
       box-shadow: 0 0 12px rgba(0,0,0,0.5);
       pointer-events: auto;
-      transition: 0.2s;
     }
     .debug-header {
       padding: 6px 10px;
@@ -160,7 +158,6 @@
       font-weight: bold;
       font-size: 11px;
     }
-    .debug-header span:first-child { user-select: none; }
     .debug-header button {
       background: none;
       border: none;
@@ -179,11 +176,7 @@
       white-space: pre-wrap;
       word-break: break-word;
     }
-    .debug-content p {
-      margin: 4px 0;
-      border-bottom: 1px solid #222;
-      padding-bottom: 2px;
-    }
+    .debug-content p { margin: 4px 0; border-bottom: 1px solid #222; padding-bottom: 2px; }
     .debug-content .error { color: #ff6666; }
     .debug-content .success { color: #66ff66; }
     .debug-content .info { color: #66aaff; }
@@ -724,7 +717,6 @@
       debugContent.appendChild(p);
       p.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       console.log(`[DEBUG][${type}] ${message}`);
-      // batasi jumlah log (max 200)
       while (debugContent.children.length > 200) debugContent.removeChild(debugContent.firstChild);
     }
     document.getElementById('clearDebugBtn').onclick = () => { debugContent.innerHTML = ''; addDebugLog('Log dibersihkan', 'info'); };
@@ -778,96 +770,63 @@
       addDebugLog(`Error inisialisasi Firebase: ${error.message}`, 'error');
     }
 
-    // ==================== ONE SIGNAL STANDARD SDK ====================
-    let currentPlayerId = null;
-
-    async function savePlayerIdToFirebase(playerId) {
-      if (!currentDriverData || !currentDriverData.driverId) return;
-      try {
-        await database.ref('drivers/' + currentDriverData.driverId).update({
-          playerId: playerId,
-          lastUpdated: firebase.database.ServerValue.TIMESTAMP
-        });
-        addDebugLog(`Player ID tersimpan di Firebase: ${playerId.substring(0,12)}...`, 'success');
-      } catch (err) {
-        addDebugLog(`Gagal simpan playerId: ${err.message}`, 'error');
+    // ==================== ONE SIGNAL VIA MEDIAN BRIDGE ====================
+    let oneSignalCheckInterval = null;
+    function stopOneSignalCheck() {
+      if (oneSignalCheckInterval) {
+        clearInterval(oneSignalCheckInterval);
+        oneSignalCheckInterval = null;
       }
     }
-
-    async function requestNotificationPermission() {
-      if (!window.OneSignalDeferred) {
-        addDebugLog('OneSignalDeferred tidak tersedia, tidak bisa minta izin', 'error');
-        return;
-      }
-      try {
-        const OneSignal = await window.OneSignalDeferred[0]?.();
-        if (OneSignal) {
-          const isOptedIn = await OneSignal.User.PushSubscription.optedIn;
-          if (!isOptedIn) {
-            addDebugLog('Meminta izin notifikasi...', 'info');
-            await OneSignal.Notifications.requestPermission();
-          }
-          const userId = await OneSignal.User.PushSubscription.id;
-          if (userId) {
-            currentPlayerId = userId;
-            await savePlayerIdToFirebase(userId);
-            addDebugLog(`Izin notifikasi diberikan. PlayerID: ${userId.substring(0,12)}...`, 'success');
-          } else {
-            addDebugLog('Izin tidak diberikan atau gagal mendapat ID', 'warning');
-          }
-        } else {
-          addDebugLog('Objek OneSignal tidak tersedia', 'error');
-        }
-      } catch (err) {
-        addDebugLog(`Gagal minta izin notifikasi: ${err.message}`, 'error');
-      }
-    }
-
-    // Inisialisasi OneSignal
-    window.OneSignalDeferred = window.OneSignalDeferred || [];
-    OneSignalDeferred.push(async (OneSignal) => {
-      try {
-        addDebugLog('Memulai inisialisasi OneSignal dengan App ID: c3cf91c1-1539-4011-af7e-01f3e219cd2c', 'info');
-        await OneSignal.init({
-          appId: 'c3cf91c1-1539-4011-af7e-01f3e219cd2c',
-          autoRegister: false,
-          notifyButton: { enable: false },
-          allowLocalhostAsSecureOrigin: true,
-        });
-        addDebugLog('OneSignal init sukses (SDK standar)', 'success');
-
-        const isOptedIn = await OneSignal.User.PushSubscription.optedIn;
-        const userId = await OneSignal.User.PushSubscription.id;
-        if (isOptedIn && userId) {
-          currentPlayerId = userId;
-          await savePlayerIdToFirebase(userId);
-          addDebugLog(`Sudah terdaftar. PlayerID: ${userId.substring(0,12)}...`, 'success');
-        } else {
-          addDebugLog('Belum terdaftar, akan meminta izin setelah driver login', 'info');
-          if (currentDriverData && currentDriverData.driverId) {
-            setTimeout(() => requestNotificationPermission(), 3000);
-          }
-        }
-
-        OneSignal.Notifications.addEventListener('permissionChange', async (permission) => {
-          if (permission) {
-            const newUserId = await OneSignal.User.PushSubscription.id;
-            if (newUserId) {
-              currentPlayerId = newUserId;
-              await savePlayerIdToFirebase(newUserId);
-              addDebugLog('Izin notifikasi diberikan (perubahan)', 'success');
+    function startOneSignalCheck() {
+      if (oneSignalCheckInterval) return;
+      oneSignalCheckInterval = setInterval(() => {
+        if (window.median && window.median.onesignal) {
+          window.median.onesignal.onesignalInfo().then(info => {
+            if (info.oneSignalUserId && info.oneSignalSubscribed) {
+              savePlayerIdToFirebase(info.oneSignalUserId);
+              stopOneSignalCheck();
+              addDebugLog(`OneSignal terhubung, PlayerID: ${info.oneSignalUserId.substring(0,12)}...`, 'success');
             }
+          }).catch(err => addDebugLog(`onesignalInfo error: ${err.message}`, 'error'));
+        } else {
+          addDebugLog('Menunggu window.median.onesignal...', 'info');
+        }
+      }, 3000);
+      setTimeout(()=>{ if(oneSignalCheckInterval) stopOneSignalCheck(); }, 120000);
+    }
+    function savePlayerIdToFirebase(playerId) {
+      if (!currentDriverData || !currentDriverData.driverId) return;
+      database.ref('drivers/' + currentDriverData.driverId).update({
+        playerId: playerId,
+        lastUpdated: firebase.database.ServerValue.TIMESTAMP
+      }).catch(err => addDebugLog(`Gagal simpan playerId: ${err.message}`, 'error'));
+    }
+    function getOneSignalPlayerId() {
+      if (window.median && window.median.onesignal) {
+        window.median.onesignal.onesignalInfo().then(info => {
+          if (info.oneSignalUserId && info.oneSignalSubscribed) {
+            savePlayerIdToFirebase(info.oneSignalUserId);
+            addDebugLog(`Player ID didapat: ${info.oneSignalUserId.substring(0,12)}...`, 'success');
           } else {
-            addDebugLog('Izin notifikasi dicabut', 'warning');
+            addDebugLog('OneSignal info: belum subscribe, coba register', 'info');
+            if (window.median.onesignal.register) {
+              window.median.onesignal.register().then(()=>startOneSignalCheck()).catch(()=>startOneSignalCheck());
+            } else {
+              startOneSignalCheck();
+            }
           }
+        }).catch(err => {
+          addDebugLog(`onesignalInfo error: ${err.message}`, 'error');
+          startOneSignalCheck();
         });
-      } catch (err) {
-        addDebugLog(`OneSignal init error: ${err.message || err}`, 'error');
-        if (err.stack) addDebugLog(err.stack, 'error');
+      } else {
+        addDebugLog('window.median tidak tersedia, memulai interval check', 'warning');
+        startOneSignalCheck();
       }
-    });
+    }
 
-    // ==================== VARIABEL GLOBAL ====================
+    // Variabel global
     let ordersRef = null, ordersListener = null;
     let modalMap = null;
     let currentSelectedOrder = null;
@@ -1436,14 +1395,9 @@
           document.getElementById('sidebarRating').textContent = currentDriverData.rating.toFixed(1);
           document.getElementById('sidebarTrips').textContent = currentDriverData.perjalanan;
           document.getElementById('sidebarBalance').textContent = `Rp ${currentDriverData.balance.toLocaleString('id-ID')}`;
-          // Minta izin OneSignal setelah driver siap
+          // Panggil OneSignal setelah data driver siap
           setTimeout(() => {
-            if (window.OneSignalDeferred) {
-              requestNotificationPermission();
-            } else {
-              addDebugLog('OneSignalDeferred belum siap, coba lagi 2 detik', 'warning');
-              setTimeout(() => requestNotificationPermission(), 2000);
-            }
+            getOneSignalPlayerId();
           }, 2000);
           addDebugLog(`Driver data loaded: ${currentDriverData.fullName}`, 'success');
           return true;
