@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <title>Penilaian Layanan - JeGo</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+  <style>
+    :root {
+      --primary: #FF9800;    /* Orange */
+      --secondary: #FF5722;   /* Red-Orange */
+      --accent: #FFC107;     /* Amber/Yellow */
+      --light: #f8f9fa;
+      --dark: #343a40;
+      --success: #4CAF50;    /* Green */
+      --danger: #f44336;     /* Red */
+      --warning: #FFC107;    /* Yellow */
+      --info: #2196F3;       /* Blue */
+      --gray: #9E9E9E;       /* Gray */
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: #f5f5f5;
+      color: #333;
+      line-height: 1.4;
+      font-size: 0.85rem;
+      padding-bottom: 20px;
+    }
+
+    /* Header Styles */
+    .header {
+      background: linear-gradient(135deg, var(--primary), var(--secondary));
+      color: white;
+      padding: 15px 20px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+      display: flex;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      min-height: 60px;
+    }
+
+    .logo-container {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .logo {
+      width: 32px;
+      height: 32px;
+      background-color: var(--accent);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      font-size: 14px;
+      color: var(--primary);
+      flex-shrink: 0;
+    }
+
+    .back-btn {
+      background: rgba(255,255,255,0.2);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      padding: 8px 12px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: all 0.3s;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 0.85rem;
+      flex-shrink: 0;
+    }
+
+    .back-btn:hover {
+      background: rgba(255,255,255,0.3);
+    }
+
+    .header-title {
+      font-size: 1.1rem;
+      font-weight: 600;
+      margin-left: 10px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* Container Styles */
+    .container {
+      max-width: 100%;
+      padding: 15px;
+    }
+
+    /* Rating Summary Styles */
+    .rating-summary {
+      background: white;
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+      margin-bottom: 20px;
+      text-align: center;
+      border: 1px solid rgba(255, 152, 0, 0.1);
+    }
+
+    .overall-rating {
+      font-size: 3rem;
+      font-weight: 700;
+      color: var(--primary);
+      margin-bottom: 5px;
+    }
+
+    .rating-stars {
+      display: flex;
+      justify-content: center;
+      gap: 2px;
+      margin-bottom: 10px;
+    }
+
+    .star {
+      color: #ddd;
+      font-size: 1.5rem;
+    }
+
+    .star.filled {
+      color: var(--accent);
+    }
+
+    .rating-count {
+      color: #666;
+      font-size: 0.9rem;
+      margin-bottom: 15px;
+    }
+
+    .policy-btn {
+      background: linear-gradient(to right, var(--primary), var(--secondary));
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: all 0.3s;
+      font-weight: 600;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    }
+
+    .policy-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+
+    /* Rating List Styles */
+    .rating-list {
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+    }
+
+    .date-section {
+      margin-bottom: 5px;
+    }
+
+    .date-header {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: var(--primary);
+      margin-bottom: 10px;
+      padding-bottom: 5px;
+      border-bottom: 2px solid rgba(255, 152, 0, 0.2);
+    }
+
+    .rating-card {
+      background: white;
+      border-radius: 12px;
+      padding: 15px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      border-left: 4px solid var(--primary);
+      transition: transform 0.3s;
+    }
+
+    .rating-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+    }
+
+    .rating-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 10px;
+    }
+
+    .passenger-info {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .passenger-avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--primary), var(--secondary));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-weight: 600;
+      font-size: 0.9rem;
+    }
+
+    .passenger-name {
+      font-weight: 600;
+      font-size: 0.9rem;
+      color: var(--dark);
+    }
+
+    .rating-meta {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .satisfaction-emoji {
+      font-size: 1.2rem;
+    }
+
+    .small-rating-stars {
+      display: flex;
+      gap: 1px;
+    }
+
+    .small-star {
+      color: #ddd;
+      font-size: 0.9rem;
+    }
+
+    .small-star.filled {
+      color: var(--accent);
+    }
+
+    .rating-comment {
+      color: #333;
+      font-size: 0.85rem;
+      line-height: 1.5;
+      margin-bottom: 8px;
+      padding: 10px;
+      background-color: #f8f9fa;
+      border-radius: 6px;
+      border-left: 3px solid var(--info);
+      word-break: break-word;
+    }
+
+    .rating-date {
+      color: #666;
+      font-size: 0.75rem;
+      text-align: right;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 5px;
+    }
+
+    .rating-date::before {
+      content: "🕒";
+      font-size: 0.7rem;
+    }
+
+    /* Empty state */
+    .empty-state {
+      text-align: center;
+      padding: 40px 20px;
+      color: #666;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+      border: 2px dashed rgba(255, 152, 0, 0.3);
+    }
+
+    .empty-state-icon {
+      font-size: 3.5rem;
+      margin-bottom: 15px;
+      color: var(--primary);
+      opacity: 0.5;
+    }
+
+    /* Loading spinner */
+    .loading {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      padding: 50px 20px;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+    }
+
+    .spinner {
+      width: 50px;
+      height: 50px;
+      border: 4px solid rgba(255, 152, 0, 0.1);
+      border-radius: 50%;
+      border-top-color: var(--primary);
+      animation: spin 1s linear infinite;
+      margin-bottom: 15px;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .overall-rating { font-size: 2.5rem; }
+      .rating-card { padding: 12px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="logo-container">
+      <button class="back-btn" id="backBtn">← Kembali</button>
+      <div class="logo">JG</div>
+      <div class="header-title">Penilaian Layanan</div>
+    </div>
+  </div>
+
+  <div class="container" id="mainContainer">
+    <!-- Loading / Content akan diisi JavaScript -->
+  </div>
+
+  <script>
+    const FIREBASE_CONFIG = {
+      apiKey: "AIzaSyDpGc_CsbNi1igA29n6qDhcX0oDkHNVscc",
+      authDomain: "game-balap-simpel.firebaseapp.com",
+      databaseURL: "https://game-balap-simpel-default-rtdb.firebaseio.com",
+      projectId: "game-balap-simpel",
+      storageBucket: "game-balap-simpel.firebasestorage.app",
+      messagingSenderId: "864576853495",
+      appId: "1:864576853495:web:6f16eb757fd3d8affb0af2"
+    };
+
+    let database;
+    if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
+    database = firebase.database();
+
+    let driverId = null;
+    let driverAvgRating = 0;
+    let driverRatingCount = 0;
+    let driverRatings = [];
+
+    // ==================== LOAD DATA ====================
+    function loadRatingsData() {
+      const loggedInDriver = localStorage.getItem('jego_logged_in_driver');
+      if (!loggedInDriver) {
+        showErrorState('Anda belum login.');
+        return;
+      }
+
+      try {
+        const driverData = JSON.parse(loggedInDriver);
+        driverId = driverData.uid || driverData.firebase_key || driverData.userId;
+        if (!driverId) {
+          showErrorState('Data driver tidak valid.');
+          return;
+        }
+
+        showLoadingState();
+
+        // Ambil data driver lengkap dari node drivers/{driverId}
+        database.ref('drivers/' + driverId).once('value')
+          .then(snapshot => {
+            const fullDriverData = snapshot.val();
+            if (!fullDriverData) {
+              // Jika tidak ditemukan, coba cari berdasarkan phone (fallback)
+              return findDriverByPhone(driverData.phone);
+            }
+            return fullDriverData;
+          })
+          .then(driverDataFull => {
+            if (!driverDataFull) {
+              showEmptyState();
+              return;
+            }
+
+            // Simpan avgRating dan ratingCount dari data driver
+            driverAvgRating = driverDataFull.avgRating || 0;
+            driverRatingCount = driverDataFull.ratingCount || 0;
+
+            // Proses data ratings jika ada
+            if (driverDataFull.ratings && typeof driverDataFull.ratings === 'object') {
+              processRatingsData(driverDataFull.ratings);
+            } else {
+              driverRatings = [];
+              displayRatingsData();
+            }
+          })
+          .catch(error => {
+            console.error('Error:', error);
+            showErrorState('Gagal memuat data.');
+          });
+      } catch (e) {
+        showErrorState('Data login rusak.');
+      }
+    }
+
+    function findDriverByPhone(phone) {
+      if (!phone) return Promise.resolve(null);
+      return database.ref('drivers')
+        .orderByChild('phone')
+        .equalTo(phone)
+        .once('value')
+        .then(snapshot => {
+          const drivers = snapshot.val();
+          if (!drivers) return null;
+          const foundKey = Object.keys(drivers)[0];
+          return drivers[foundKey];
+        });
+    }
+
+    function processRatingsData(ratingsObj) {
+      driverRatings = [];
+      Object.keys(ratingsObj).forEach(key => {
+        const r = ratingsObj[key];
+        // Pastikan data valid
+        if (!r || typeof r !== 'object') return;
+        
+        // Gunakan rated_at atau timestamp
+        let ratedAt = r.rated_at || r.timestamp;
+        if (!ratedAt) {
+          console.warn('Rating tanpa timestamp:', r);
+          return;
+        }
+
+        driverRatings.push({
+          id: key,
+          rating: r.rating || 0,
+          comment: r.comment || 'Tidak ada komentar',
+          customerName: 'Passenger', // Nama customer disembunyikan
+          timestamp: r.timestamp || Date.parse(ratedAt) || Date.now(),
+          rated_at: ratedAt
+        });
+      });
+
+      console.log('Jumlah rating diproses:', driverRatings.length); // Debug
+
+      // Urutkan dari terbaru
+      driverRatings.sort((a, b) => b.timestamp - a.timestamp);
+      displayRatingsData();
+    }
+
+    // ==================== TAMPILAN ====================
+    function displayRatingsData() {
+      const container = document.getElementById('mainContainer');
+      
+      if (driverRatings.length === 0) {
+        container.innerHTML = `
+          <div class="empty-state">
+            <div class="empty-state-icon">⭐</div>
+            <h3>Belum Ada Penilaian</h3>
+            <p>Anda belum menerima penilaian dari penumpang.</p>
+            <button class="policy-btn" id="refreshBtn">Muat Ulang</button>
+          </div>
+        `;
+        document.getElementById('refreshBtn')?.addEventListener('click', loadRatingsData);
+        return;
+      }
+
+      // Untuk sementara, nonaktifkan filter tanggal agar semua rating tampil
+      // const ratingsByDate = groupRatingsByDate(driverRatings);
+      // Gunakan semua rating tanpa filter tanggal
+      const ratingsByDate = { 'Semua': driverRatings }; 
+
+      let html = `
+        <div class="rating-summary">
+          <div class="overall-rating">${driverAvgRating.toFixed(1)}</div>
+          <div class="rating-stars">${generateStarRating(driverAvgRating)}</div>
+          <div class="rating-count">${driverRatingCount} ulasan</div>
+          <button class="policy-btn" id="policyBtn">Kebijakan Ulasan</button>
+        </div>
+        <div class="rating-list">
+      `;
+
+      // Tampilkan semua rating tanpa pengelompokan tanggal
+      html += `<div class="date-section"><div class="date-header">Semua Ulasan</div>`;
+      driverRatings.forEach(r => html += generateRatingCard(r));
+      html += `</div>`;
+
+      html += `</div>`;
+      container.innerHTML = html;
+
+      document.getElementById('policyBtn')?.addEventListener('click', () => {
+        window.location.href = 'kebijakanUlasan.html';
+      });
+    }
+
+    // Fungsi groupRatingsByDate asli (dikomentari sementara)
+    /*
+    function groupRatingsByDate(ratings) {
+      const groups = {};
+      const now = new Date();
+      const nowWITA = new Date(now.getTime() + 8 * 60 * 60 * 1000);
+
+      ratings.forEach(r => {
+        const date = new Date(r.rated_at);
+        const witaDate = new Date(date.getTime() + 8 * 60 * 60 * 1000);
+        const visibleDate = new Date(witaDate);
+        visibleDate.setDate(visibleDate.getDate() + 1); // H+1
+
+        if (nowWITA < visibleDate) return; // belum waktunya tampil
+
+        const key = visibleDate.toISOString().split('T')[0];
+        if (!groups[key]) groups[key] = [];
+        groups[key].push(r);
+      });
+      return groups;
+    }
+    */
+
+    function generateRatingCard(r) {
+      const emoji = getSatisfactionEmoji(r.rating);
+      // Gunakan generateStarRating untuk konsistensi
+      const stars = generateStarRating(r.rating, 'small-star');
+      return `
+        <div class="rating-card">
+          <div class="rating-header">
+            <div class="passenger-info">
+              <div class="passenger-avatar">P</div>
+              <div class="passenger-name">${r.customerName}</div>
+            </div>
+            <div class="rating-meta">
+              <span class="satisfaction-emoji">${emoji}</span>
+              <span class="small-rating-stars">${stars}</span>
+            </div>
+          </div>
+          <div class="rating-comment">${r.comment}</div>
+          <div class="rating-date">${formatTime(new Date(r.rated_at))}</div>
+        </div>
+      `;
+    }
+
+    function generateStarRating(rating, cls = 'star') {
+      const full = Math.floor(rating);
+      const half = rating % 1 >= 0.5 ? 1 : 0;
+      const empty = 5 - full - half;
+      let stars = '';
+      for (let i = 0; i < full; i++) stars += `<span class="${cls} filled">★</span>`;
+      if (half) stars += `<span class="${cls} filled">★</span>`;
+      for (let i = 0; i < empty; i++) stars += `<span class="${cls}">☆</span>`;
+      return stars;
+    }
+
+    function getSatisfactionEmoji(r) {
+      if (r >= 4.5) return '😍';
+      if (r >= 4) return '☺️';
+      if (r >= 3) return '😌';
+      if (r >= 2) return '😔';
+      return '🥴';
+    }
+
+    function formatDisplayDate(dateStr) {
+      const d = new Date(dateStr);
+      const today = new Date();
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+      
+      if (d.toDateString() === today.toDateString()) return 'Hari Ini';
+      if (d.toDateString() === yesterday.toDateString()) return 'Kemarin';
+      return d.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+    }
+
+    function formatTime(date) {
+      const d = new Date(date.getTime() + 8 * 60 * 60 * 1000);
+      return d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
+    }
+
+    function showLoadingState() {
+      document.getElementById('mainContainer').innerHTML = `
+        <div class="loading">
+          <div class="spinner"></div>
+          <div>Memuat data penilaian...</div>
+        </div>
+      `;
+    }
+
+    function showEmptyState() {
+      document.getElementById('mainContainer').innerHTML = `
+        <div class="empty-state">
+          <div class="empty-state-icon">⭐</div>
+          <h3>Belum Ada Penilaian</h3>
+          <p>Anda belum menerima penilaian dari penumpang.</p>
+          <button class="policy-btn" id="refreshBtn">Muat Ulang</button>
+        </div>
+      `;
+      document.getElementById('refreshBtn')?.addEventListener('click', loadRatingsData);
+    }
+
+    function showErrorState(msg) {
+      document.getElementById('mainContainer').innerHTML = `
+        <div class="empty-state">
+          <div class="empty-state-icon">⚠️</div>
+          <h3>Error</h3>
+          <p>${msg}</p>
+          <button class="policy-btn" id="retryBtn">Coba Lagi</button>
+        </div>
+      `;
+      document.getElementById('retryBtn')?.addEventListener('click', loadRatingsData);
+    }
+
+    // ==================== NAVIGASI ====================
+    document.getElementById('backBtn')?.addEventListener('click', () => {
+      window.location.href = 'akun.html';
+    });
+
+    // Inisialisasi
+    document.addEventListener('DOMContentLoaded', loadRatingsData);
+  </script>
+</body>
+</html>
