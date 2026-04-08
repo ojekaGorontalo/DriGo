@@ -142,10 +142,59 @@
     .location-toggle-btn:hover, .autobid-btn:hover, .refresh-btn:hover { background: rgba(255,255,255,0.3); }
     .location-toggle-btn.active, .autobid-btn.active { background: var(--accent); color: var(--dark); }
     .refresh-btn { padding: 8px; }
-    /* DEBUG CONSOLE SEMBUNYI */
+    /* DEBUG CONSOLE SCROLLABLE */
     .debug-console {
-      display: none !important;
+      position: fixed;
+      bottom: 10px;
+      right: 10px;
+      width: 300px;
+      max-width: 90%;
+      background: rgba(0,0,0,0.85);
+      backdrop-filter: blur(8px);
+      color: #0f0;
+      font-family: monospace;
+      font-size: 10px;
+      border-radius: 8px;
+      z-index: 9999;
+      box-shadow: 0 0 12px rgba(0,0,0,0.5);
+      pointer-events: auto;
     }
+    .debug-header {
+      padding: 6px 10px;
+      background: #222;
+      border-radius: 8px 8px 0 0;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      color: #ffaa00;
+      font-weight: bold;
+      font-size: 11px;
+    }
+    .debug-header button {
+      background: none;
+      border: none;
+      color: #0f0;
+      cursor: pointer;
+      font-size: 14px;
+      margin-left: 8px;
+    }
+    .debug-content {
+      max-height: 250px;
+      overflow-y: auto;
+      padding: 8px;
+      border-top: 1px solid #333;
+      font-size: 10px;
+      line-height: 1.4;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .debug-content p { margin: 4px 0; border-bottom: 1px solid #222; padding-bottom: 2px; }
+    .debug-content .error { color: #ff6666; }
+    .debug-content .success { color: #66ff66; }
+    .debug-content .info { color: #66aaff; }
+    .debug-content .warning { color: #ffaa66; }
+    .debug-console.collapsed .debug-content { display: none; }
     .container { max-width: 100%; padding: 15px; position: relative; z-index: 1; }
     .orders-list { display: flex; flex-direction: column; gap: 10px; position: relative; z-index: 1; }
     .order-item { background: white; border-radius: 8px; padding: 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.08); display: flex; flex-direction: column; gap: 8px; cursor: pointer; transition: all 0.3s; }
@@ -357,6 +406,8 @@
       .order-time { font-size: 0.48rem; }
       .radar-point { width: 12px; height: 12px; }
       .sweep-dot { width: 10px; height: 10px; }
+      .debug-console { width: 260px; font-size: 9px; }
+      .debug-content { max-height: 200px; }
     }
     @media (max-width: 576px) {
       body { padding-bottom: 10px; }
@@ -394,6 +445,7 @@
       .order-time { font-size: 0.48rem; }
       .radar-point { width: 10px; height: 10px; }
       .sweep-dot { width: 8px; height: 8px; }
+      .debug-console { width: 240px; font-size: 8px; }
     }
   </style>
 </head>
@@ -645,8 +697,8 @@
     <p>Memuat...</p>
   </div>
 
-  <!-- DEBUG CONSOLE SEMBUNYI (tetap ada di DOM tapi tidak terlihat) -->
-  <div class="debug-console" id="debugConsole" style="display: none !important;">
+  <!-- DEBUG CONSOLE -->
+  <div class="debug-console" id="debugConsole">
     <div class="debug-header">
       <span>🐞 Debug Log</span>
       <button id="clearDebugBtn">🗑️</button>
@@ -658,7 +710,7 @@
   </div>
 
   <audio id="newOrderSound" preload="auto">
-    <source src="https://jegotiem.netlify.app/audio/audiopopupmanual.mp3" type="audio/mpeg">
+    <source src="https://jegotiem.netlify.app/audio/beek.mp3" type="audio/mpeg">
   </audio>
   <audio id="autobidSound" preload="auto">
     <source src="https://jegotiem.netlify.app/audio/audioautobid.mp3" type="audio/mpeg">
@@ -668,26 +720,26 @@
   </audio>
 
   <script>
-    // ================= DEBUG LOGGER (tetap ada tapi tidak menampilkan UI) =================
+    // ================= DEBUG LOGGER =================
     const debugContent = document.getElementById('debugContent');
     function addDebugLog(message, type = 'info') {
-      // Tampilkan di console browser (opsional)
-      console.log(`[${type.toUpperCase()}] ${message}`);
-      // Jika ingin tetap menyimpan ke elemen (walaupun disembunyikan), bisa diaktifkan, tapi tidak perlu.
-      if (debugContent) {
-        const p = document.createElement('p');
-        p.className = type;
-        const time = new Date().toLocaleTimeString();
-        p.textContent = `[${time}] ${message}`;
-        debugContent.appendChild(p);
-        while (debugContent.children.length > 200) debugContent.removeChild(debugContent.firstChild);
-      }
+      const p = document.createElement('p');
+      p.className = type;
+      const time = new Date().toLocaleTimeString();
+      p.textContent = `[${time}] ${message}`;
+      debugContent.appendChild(p);
+      p.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      console.log(`[DEBUG][${type}] ${message}`);
+      while (debugContent.children.length > 200) debugContent.removeChild(debugContent.firstChild);
     }
-    // Tombol debug tidak perlu diaktifkan karena elemen disembunyikan, tapi tetap pasang event listener agar tidak error
-    const clearBtn = document.getElementById('clearDebugBtn');
-    if (clearBtn) clearBtn.onclick = () => { if (debugContent) debugContent.innerHTML = ''; };
-    const toggleDebugBtn = document.getElementById('toggleDebugBtn');
-    if (toggleDebugBtn) toggleDebugBtn.onclick = () => {}; // kosong
+    document.getElementById('clearDebugBtn').onclick = () => { debugContent.innerHTML = ''; addDebugLog('Log dibersihkan', 'info'); };
+    const toggleBtn = document.getElementById('toggleDebugBtn');
+    let debugCollapsed = false;
+    toggleBtn.onclick = () => {
+      debugCollapsed = !debugCollapsed;
+      document.getElementById('debugConsole').classList.toggle('collapsed', debugCollapsed);
+      toggleBtn.textContent = debugCollapsed ? '▲' : '▼';
+    };
 
     // ================= BERSIHKAN KEY LAMA =================
     addDebugLog('Membersihkan key localStorage lama...', 'info');
@@ -731,57 +783,16 @@
       addDebugLog(`Error inisialisasi Firebase: ${error.message}`, 'error');
     }
 
-    // ================= SUBSCRIBE ONESIGNAL (SEKALI SAJA) =================
+    // ================= SUBSCRIBE ONESIGNAL (METODE DARI getplayedid.html) =================
     let onesignalSubscribed = false;
     let driverPlayerId = null;
 
     async function subscribeToOneSignal() {
-      addDebugLog('Memulai pengecekan OneSignal...', 'info');
-
-      // 1. Cek localStorage
-      const savedPlayerId = localStorage.getItem('jego_onesignal_player_id');
-      if (savedPlayerId) {
-        driverPlayerId = savedPlayerId;
-        onesignalSubscribed = true;
-        addDebugLog(`✅ Sudah terdaftar dengan Player ID: ${driverPlayerId.substring(0,12)}...`, 'success');
-        // Update Firebase jika diperlukan
-        if (currentDriverData && currentDriverData.driverId) {
-          await database.ref('drivers/' + currentDriverData.driverId).update({
-            playerId: driverPlayerId,
-            oneSignalSubscribed: true,
-            lastChecked: firebase.database.ServerValue.TIMESTAMP
-          }).catch(err => addDebugLog(`Gagal update playerId ke Firebase: ${err.message}`, 'error'));
-        }
-        return;
-      }
-
-      // 2. Cek Firebase
-      if (currentDriverData && currentDriverData.driverId) {
-        try {
-          const snapshot = await database.ref('drivers/' + currentDriverData.driverId + '/playerId').once('value');
-          const existingPlayerId = snapshot.val();
-          if (existingPlayerId) {
-            driverPlayerId = existingPlayerId;
-            onesignalSubscribed = true;
-            localStorage.setItem('jego_onesignal_player_id', existingPlayerId);
-            addDebugLog(`✅ Player ID ditemukan di Firebase: ${existingPlayerId.substring(0,12)}...`, 'success');
-            return;
-          }
-        } catch (err) {
-          addDebugLog(`Gagal cek playerId di Firebase: ${err.message}`, 'error');
-        }
-      }
-
-      // 3. Belum pernah subscribe -> lakukan proses
-      addDebugLog('Driver belum terdaftar, memulai subscribe OneSignal...', 'info');
+      addDebugLog('Memulai subscribe OneSignal...', 'info');
       try {
+        // Tunggu median siap (event deviceready)
         if (typeof median === 'undefined') {
-          addDebugLog('median belum tersedia, daftarkan event listener nanti', 'warning');
-          // Coba lagi setelah deviceready
-          document.addEventListener("deviceready", function() {
-            addDebugLog("deviceready terpanggil, coba subscribe lagi", 'info');
-            if (!onesignalSubscribed) subscribeToOneSignal();
-          });
+          addDebugLog('median belum tersedia, tunggu deviceready...', 'warning');
           return;
         }
         if (!median.onesignal) {
@@ -789,39 +800,60 @@
           return;
         }
 
+        // Set consent
         if (median.onesignal.setConsentGiven) {
+          addDebugLog('Memberikan consent...', 'info');
           await median.onesignal.setConsentGiven(true);
         }
 
+        // Register
+        addDebugLog('Memanggil median.onesignal.register()...', 'info');
         await median.onesignal.register();
-        
+
+        // Minta izin notifikasi
         if (median.onesignal.promptForPushNotificationsWithUserResponse) {
+          addDebugLog('Meminta izin notifikasi...', 'info');
           await median.onesignal.promptForPushNotificationsWithUserResponse();
         }
 
+        // Tunggu beberapa detik
+        addDebugLog('Menunggu sinkronisasi...', 'info');
         await new Promise(r => setTimeout(r, 5000));
 
+        // Ambil Player ID
         let info = await median.onesignal.onesignalInfo();
+        addDebugLog(`OneSignal info: ${JSON.stringify(info)}`, 'info');
         let id = info?.userId || info?.oneSignalUserId || info?.subscription?.id;
         if (id) {
           driverPlayerId = id;
           onesignalSubscribed = true;
+          addDebugLog(`✅ Berhasil subscribe! Player ID: ${id.substring(0,12)}...`, 'success');
+          // Simpan ke localStorage dan Firebase
           localStorage.setItem('jego_onesignal_player_id', id);
           if (currentDriverData && currentDriverData.driverId) {
             await database.ref('drivers/' + currentDriverData.driverId).update({
               playerId: id,
               oneSignalSubscribed: true,
-              lastSubscribed: firebase.database.ServerValue.TIMESTAMP
+              lastUpdated: firebase.database.ServerValue.TIMESTAMP
             });
+            addDebugLog('Player ID tersimpan di Firebase', 'success');
           }
-          addDebugLog(`✅ Berhasil subscribe! Player ID: ${id.substring(0,12)}...`, 'success');
         } else {
-          addDebugLog('⚠️ Player ID tidak ditemukan setelah subscribe', 'warning');
+          addDebugLog('⚠️ Player ID tidak ditemukan, coba lagi nanti', 'warning');
         }
       } catch (err) {
         addDebugLog(`Error subscribe OneSignal: ${err.message}`, 'error');
       }
     }
+
+    // Event listener untuk deviceready (median bridge siap)
+    document.addEventListener("deviceready", function() {
+      addDebugLog("📱 Median bridge ready (deviceready)", 'success');
+      // Jika driver sudah login, langsung subscribe
+      if (currentDriverData && currentDriverData.driverId) {
+        subscribeToOneSignal();
+      }
+    });
 
     // ================= VARIABEL GLOBAL =================
     let ordersRef = null, ordersListener = null;
@@ -1545,9 +1577,9 @@
       document.getElementById('popupButton').addEventListener('click', hidePopup);
       document.getElementById('acceptKurirToggle').addEventListener('change', updateAcceptKurirSetting);
 
-      // Panggil subscribe OneSignal hanya sekali setelah driver data siap
-      if (currentDriverData) {
-        await subscribeToOneSignal();
+      // Jika median sudah tersedia, langsung subscribe. Jika belum, deviceready akan menangani
+      if (typeof median !== 'undefined' && median.onesignal && currentDriverData) {
+        subscribeToOneSignal();
       }
     });
     window.addEventListener('beforeunload', () => {
