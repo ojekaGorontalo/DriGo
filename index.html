@@ -12,7 +12,7 @@
   <link href='https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css' rel='stylesheet' />
   
   <style>
-    /* ==================== CSS LENGKAP ==================== */
+    /* ==================== CSS LENGKAP (sama seperti sebelumnya, tidak diubah) ==================== */
     :root {
       --primary: #FF9800;
       --secondary: #FFB74D;
@@ -332,6 +332,7 @@
 </head>
 <body>
   <script>
+    // Guard Login (diperbaiki dengan fungsi checkLoginStatus yang akan didefinisikan ulang nanti)
     (function () {
       const raw = localStorage.getItem('jego_logged_in_driver');
       if (!raw) { redirectLogin("not_logged_in"); return; }
@@ -408,7 +409,7 @@
   </div>
 
   <script>
-    // DEBUG LOGGER
+    // ================= DEBUG LOGGER =================
     const debugContent = document.getElementById('debugContent');
     function addDebugLog(message, type = 'info') {
       const p = document.createElement('p'); p.className = type;
@@ -421,7 +422,7 @@
     let debugCollapsed = false;
     document.getElementById('toggleDebugBtn').onclick = () => { debugCollapsed = !debugCollapsed; document.getElementById('debugConsole').classList.toggle('collapsed', debugCollapsed); };
 
-    // FIREBASE
+    // ================= FIREBASE =================
     const firebaseConfig = {
       apiKey: "AIzaSyDpGc_CsbNi1igA29n6qDhcX0oDkHNVscc",
       authDomain: "game-balap-simpel.firebaseapp.com",
@@ -434,7 +435,7 @@
     let database;
     try { if (!firebase.apps.length) firebase.initializeApp(firebaseConfig); database = firebase.database(); addDebugLog('Firebase siap', 'success'); } catch(e) { addDebugLog(`Firebase error: ${e.message}`, 'error'); }
 
-    // GLOBAL VARS
+    // ================= GLOBAL VARIABLES =================
     let ordersRef, ordersListener, modalMap, currentSelectedOrder, currentDriverId, currentDriverData = null;
     let autobidEnabled = false, driverLocation = { latitude: null, longitude: null };
     let locationWatchId = null, locationTrackingEnabled = false, mapboxAccessToken = null;
@@ -442,9 +443,11 @@
     let acceptKurirEnabled = false, previousOrderIds = new Set(), mapMarkers = [];
     const STORAGE_TRACKING = 'jego_location_tracking', STORAGE_AUTOBID = 'jego_autobid_enabled', STORAGE_ACCEPT_KURIR = 'jego_accept_kurir';
 
+    // ================= UTILITY FUNCTIONS =================
     function calculateDistance(lat1, lon1, lat2, lon2) { if(!lat1||!lon1||!lat2||!lon2) return null; const R=6371; const dLat=(lat2-lat1)*Math.PI/180; const dLon=(lon2-lon1)*Math.PI/180; const a=Math.sin(dLat/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2; const c=2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a)); return R*c; }
     function sendToKodular(action, message='') { const payload=JSON.stringify({action,message,timestamp:new Date().toISOString()}); if(window.AppInventor?.setWebViewString) window.AppInventor.setWebViewString(payload); else if(window.android?.receiveData) window.android.receiveData(payload); else console.log('📤',payload); }
 
+    // ================= SETTINGS & UI UPDATE =================
     function loadStoredSettings() {
       locationTrackingEnabled = localStorage.getItem(STORAGE_TRACKING) === 'true';
       updateTrackingButton();
@@ -458,11 +461,12 @@
     function updateAutobidButton() { const btn=document.getElementById('autobidBtn'); if(autobidEnabled){ btn.innerHTML='Autobid: ON'; btn.classList.add('active'); } else { btn.innerHTML='Autobid: OFF'; btn.classList.remove('active'); } }
     function updateAcceptKurirSetting() { acceptKurirEnabled=document.getElementById('acceptKurirToggle').checked; localStorage.setItem(STORAGE_ACCEPT_KURIR, acceptKurirEnabled); loadOrders(); }
 
+    // ================= LOAD & RENDER ORDERS =================
     function loadOrders() {
       const ordersList = document.getElementById('ordersList');
-      if(!ordersList) return;
+      if(!ordersList) { addDebugLog('ordersList tidak ditemukan, coba lagi nanti', 'warning'); return; }
       ordersList.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
-      if(!currentDriverData||!database) return;
+      if(!currentDriverData||!database) { addDebugLog('Driver data atau database belum siap', 'warning'); return; }
       if(ordersListener&&ordersRef) ordersRef.off('value', ordersListener);
       ordersRef = database.ref('orders');
       ordersListener = ordersRef.on('value', (snapshot) => {
@@ -518,7 +522,7 @@
         div.innerHTML = `
           <div class="order-header"><div class="order-badges">${isKurir?'<span class="kurir-badge">📦 KURIR</span>':''}${promo}</div></div>
           <div class="route-info-with-photo"><div class="customer-info-left"><img src="${customerPhoto}" class="customer-photo-left" onclick="window.showPhotoModal('${customerPhoto}','${customerName}')"><div class="customer-name-left">${customerName}</div><div class="customer-rating"><span class="rating-stars">★</span><span class="rating-value" data-customer-id="${user.uid||user.userId||''}" data-order-id="${order.id}">...</span></div><div class="order-time">${new Date(order.created_at).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'})}</div></div>
-          <div class="route-addresses-right"><div class="route-point"><div class="point-marker point-marker-a">A</div><div class="point-address point-address-a">${order.alamat_a||'-'}</div></div><div class="route-point"><div class="point-marker point-marker-b">B</div><div class="point-address">${order.alamat_b||'-'}</div></div>${isKurir&&order.delivery_data?.description?`<div class="delivery-desc-card"><span>📦 ${order.delivery_data.description}</span></div>`:''}</div></div>
+          <div class="route-addresses-right"><div class="route-point"><div class="point-marker point-marker-a">A</div><div class="point-address point-address-a">${escapeHtml(order.alamat_a||'-')}</div></div><div class="route-point"><div class="point-marker point-marker-b">B</div><div class="point-address">${escapeHtml(order.alamat_b||'-')}</div></div>${isKurir&&order.delivery_data?.description?`<div class="delivery-desc-card"><span>📦 ${escapeHtml(order.delivery_data.description)}</span></div>`:''}</div></div>
           <div class="order-details"><div class="detail-item"><span class="detail-value">${order.durasi||'-'}</span><span class="detail-label">Durasi</span></div><div class="detail-item"><span class="detail-value">${order.jarak||'-'}</span><span class="detail-label">Jarak</span></div><div class="detail-item"><span class="detail-value price-highlight">Rp ${(order.harga_total||0).toLocaleString('id-ID')}</span><span class="detail-label">Harga</span></div><div class="detail-item"><span class="detail-value">${jarakDriver}</span><span class="detail-label">Jarak Driver</span></div></div>
         `;
         div.addEventListener('click',()=>showOrderDetail(order,false));
@@ -532,7 +536,9 @@
         }).catch(e=>addDebugLog(`Gagal rating: ${e.message}`,'error'));
       });
     }
+    function escapeHtml(str) { if(!str) return ''; return str.replace(/[&<>]/g, function(m){ if(m==='&') return '&amp;'; if(m==='<') return '&lt;'; if(m==='>') return '&gt;'; return m;}); }
 
+    // ================= MAPBOX =================
     async function fetchMapboxToken(){ const snap=await database.ref('Secret/Key').once('value'); const token=snap.val(); if(token&&typeof token==='string'){ mapboxAccessToken=token; addDebugLog('Mapbox token siap','success'); return token; } throw new Error('Token tidak valid'); }
     function initModalMapbox(){ mapboxgl.accessToken=mapboxAccessToken; modalMap=new mapboxgl.Map({container:'modalMap',style:'mapbox://styles/mapbox/streets-v11',center:[123.0595,0.5441],zoom:12}); modalMap.addControl(new mapboxgl.NavigationControl(),'bottom-right'); }
     function showRouteOnMapbox(order){
@@ -551,6 +557,7 @@
       function fallbackLine(){ modalMap.addSource('route',{type:'geojson',data:{type:'Feature',geometry:{type:'LineString',coordinates:[[order.from_lng,order.from_lat],[order.to_lng,order.to_lat]]}}}); modalMap.addLayer({id:'route',type:'line',source:'route',paint:{'line-color':'#289672','line-width':4,'line-dasharray':[2,1]}}); }
     }
 
+    // ================= ORDER DETAIL & OFFER =================
     function showOrderDetail(order, fromAuto=false){
       if(!currentDriverData) return;
       database.ref('orders/'+(order.order_id||order.id)).once('value').then(snap=>{
@@ -593,6 +600,7 @@
     }
     function closeModal(){ document.getElementById('orderModal').style.display='none'; stopCountdown(); currentSelectedOrder=null; loadOrders(); }
 
+    // ================= GPS & DRIVER DATA =================
     function startGPSMonitoring(){ if(!navigator.geolocation){ addDebugLog('Geolocation tidak didukung','error'); return; } navigator.geolocation.getCurrentPosition(updateDriverLocation,err=>addDebugLog(`GPS error: ${err.message}`,'error')); locationWatchId=navigator.geolocation.watchPosition(updateDriverLocation,err=>addDebugLog(`GPS watch error: ${err.message}`,'error')); }
     function updateDriverLocation(pos){ driverLocation={latitude:pos.coords.latitude,longitude:pos.coords.longitude}; document.getElementById('gpsDot').className='gps-dot gps-active'; if(locationTrackingEnabled&&currentDriverData) database.ref('drivers/'+currentDriverData.driverId).update({latitude:driverLocation.latitude,longitude:driverLocation.longitude,trackingEnabled:true,last_update:new Date().toISOString()}).catch(e=>addDebugLog(`Update lokasi gagal: ${e.message}`,'error')); }
 
@@ -600,7 +608,7 @@
       try{ const raw=localStorage.getItem('jego_logged_in_driver'); if(!raw||raw==='{}'){ showDriverNotRegistered(); return false; } const d=JSON.parse(raw); if(d.uid&&d.name){ currentDriverData={ driverId:d.uid, fullName:d.name, phoneNumber:d.phone, email:d.email, profilePhotoUrl:d.fotoProfilURL||d.profilePhotoUrl||'https://cdn-icons-png.flaticon.com/512/3135/3135715.png', vehicleType:d.vehicleType, plateNumber:d.plateNumber, vehicleBrand:d.vehicleBrand, status:d.status||d.driverStatus||'pending', rating:d.rating||5, perjalanan:d.perjalanan||0, balance:d.Balance||0, potongan:d.Potongan||0 }; document.getElementById('driverPhoto').src=currentDriverData.profilePhotoUrl; document.getElementById('sidebarDriverPhoto').src=currentDriverData.profilePhotoUrl; document.getElementById('sidebarDriverName').textContent=currentDriverData.fullName; document.getElementById('sidebarDriverRating').textContent=currentDriverData.rating.toFixed(1); document.getElementById('sidebarRating').textContent=currentDriverData.rating.toFixed(1); document.getElementById('sidebarTrips').textContent=currentDriverData.perjalanan; document.getElementById('sidebarBalance').textContent=`Rp ${currentDriverData.balance.toLocaleString('id-ID')}`; addDebugLog(`Driver: ${currentDriverData.fullName}`,'success'); return true; } else { showDriverNotRegistered(); return false; } } catch(e){ addDebugLog(`Driver data error: ${e.message}`,'error'); showDriverNotRegistered(); return false; } }
     function showDriverNotRegistered(){ document.getElementById('app-content').innerHTML='<div class="container"><div class="empty-state"><div>🚫</div><p>Belum terdaftar sebagai driver atau belum login</p><p><a href="loginDriver.html" style="color:var(--primary);">Login</a></p><button onclick="localStorage.clear();location.reload();" style="margin-top:10px;padding:8px 16px;background:var(--danger);color:white;border:none;border-radius:5px;">Clear Cache</button></div></div>'; }
 
-    // SPA NAVIGATION
+    // ================= SPA NAVIGATION =================
     async function loadPage(url, screen, params={}){
       const app=document.getElementById('app-content'); if(!app) return;
       app.innerHTML='<div class="loading"><div class="spinner"></div><p>Memuat...</p></div>';
@@ -633,7 +641,7 @@
     function setActiveNav(screen){ document.querySelectorAll('.nav-item').forEach(item=>{ if(item.getAttribute('data-screen')===screen) item.classList.add('active'); else item.classList.remove('active'); }); }
     window.addEventListener('popstate',(event)=>{ const state=event.state; if(state&&state.screen){ loadPage(state.url,state.screen,state.params||{}); setActiveNav(state.screen); } else { loadPage(window.location.pathname,'home'); setActiveNav('home'); } });
 
-    // UTILITY
+    // ================= UI ACTIONS =================
     function toggleLocationTracking(){
       locationTrackingEnabled=!locationTrackingEnabled; localStorage.setItem(STORAGE_TRACKING,locationTrackingEnabled); updateTrackingButton();
       if(locationTrackingEnabled){ if(!driverLocation.latitude||!driverLocation.longitude){ showPopup('Info','Aktifkan GPS','warning'); locationTrackingEnabled=false; localStorage.setItem(STORAGE_TRACKING,false); updateTrackingButton(); return; } if(currentDriverData) database.ref('drivers/'+currentDriverData.driverId).update({latitude:driverLocation.latitude,longitude:driverLocation.longitude,trackingEnabled:true,last_update:new Date().toISOString()}); }
@@ -646,17 +654,20 @@
     function hidePopup(){ document.getElementById('popupOverlay').classList.remove('active'); }
     window.showPhotoModal = function(photoUrl,name){ const modalHtml=`<div id="photoModal" class="modal photo-modal" style="display:flex;"><div class="modal-content"><button class="close-btn" onclick="document.getElementById('photoModal').remove()">&times;</button><div class="modal-body"><img src="${photoUrl}" class="large-customer-photo" style="max-width:300px;border-radius:15px;"><div class="large-customer-name" style="color:white;text-align:center;margin-top:10px;">${name}</div></div></div></div>`; document.body.insertAdjacentHTML('beforeend',modalHtml); document.getElementById('photoModal').addEventListener('click',e=>{ if(e.target===document.getElementById('photoModal')) document.getElementById('photoModal').remove(); }); };
     async function checkDriverActiveOrder(){ const id=localStorage.getItem('jego_driver_active_order'); if(!id) return false; try{ const snap=await database.ref('orders/'+id).once('value'); const order=snap.val(); if(order&&['accepted','on_the_way','arrived','on_trip'].includes(order.status)){ addDebugLog(`Order aktif: ${id}`,'info'); navigateToScreen('active_order',{id}); return true; } else localStorage.removeItem('jego_driver_active_order'); } catch(e){ addDebugLog(`Cek order aktif error: ${e.message}`,'error'); } return false; }
+    function checkLoginStatus() { return true; } // sudah ditangani guard di awal
 
+    // ================= INITIALIZATION =================
     document.addEventListener('DOMContentLoaded',async()=>{
       addDebugLog('JeGo Driver SPA dimulai','info');
-      if(!checkLoginStatus()) return;
       try{ await fetchMapboxToken(); } catch(e){ addDebugLog(`Mapbox token gagal: ${e.message}`,'warning'); }
       if(!checkDriverData()) return;
       const hasActive=await checkDriverActiveOrder(); if(hasActive) return;
       loadStoredSettings();
       setTimeout(startGPSMonitoring,1000);
+      // Isi app-content dengan container ordersList
       document.getElementById('app-content').innerHTML='<div class="container"><div class="orders-list" id="ordersList"><div class="loading"><div class="spinner"></div></div></div></div>';
       loadOrders();
+      // Event listeners
       document.getElementById('menuBtn').addEventListener('click',toggleSidebar);
       document.getElementById('closeSidebar').addEventListener('click',toggleSidebar);
       document.getElementById('sidebarOverlay').addEventListener('click',toggleSidebar);
@@ -672,7 +683,6 @@
       setActiveNav('home');
     });
     window.addEventListener('beforeunload',()=>{ if(locationWatchId) navigator.geolocation.clearWatch(locationWatchId); });
-    // dummy untuk kompatibilitas jika halaman target belum ada fungsi init
     window.initOrderAccepted = window.initRiwayat = window.initAkun = function(){ addDebugLog('Fungsi init halaman target belum didefinisikan','warning'); };
   </script>
 </body>
