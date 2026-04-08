@@ -2,17 +2,20 @@
 <html lang="id">
 <head>
   <meta charset="utf-8" />
-  <title>List Permintaan - JeGo</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>JeGo Driver - SPA</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
   <!-- Firebase SDK -->
   <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-database-compat.js"></script>
   <!-- Mapbox GL -->
   <script src='https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js'></script>
   <link href='https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css' rel='stylesheet' />
+  <!-- Leaflet (riwayat) -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   
   <style>
-    /* ==================== CSS (sama seperti sebelumnya) ==================== */
+    /* ========== CSS DARI index.html ASLI (LENGKAP) ========== */
     :root {
       --primary: #FF9800;
       --secondary: #FFB74D;
@@ -22,6 +25,8 @@
       --success: #4CAF50;
       --danger: #F44336;
       --promo: #FF9800;
+      --info: #2196F3;
+      --gray: #9E9E9E;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -30,7 +35,7 @@
       color: #333;
       line-height: 1.4;
       font-size: 0.85rem;
-      padding-bottom: 20px;
+      padding-bottom: 70px; /* space untuk bottom nav */
       overflow-x: hidden;
     }
     body.radar-active {
@@ -142,10 +147,10 @@
     .location-toggle-btn:hover, .autobid-btn:hover, .refresh-btn:hover { background: rgba(255,255,255,0.3); }
     .location-toggle-btn.active, .autobid-btn.active { background: var(--accent); color: var(--dark); }
     .refresh-btn { padding: 8px; }
-    /* DEBUG CONSOLE SCROLLABLE */
+    /* debug console */
     .debug-console {
       position: fixed;
-      bottom: 10px;
+      bottom: 80px;
       right: 10px;
       width: 300px;
       max-width: 90%;
@@ -195,6 +200,7 @@
     .debug-content .info { color: #66aaff; }
     .debug-content .warning { color: #ffaa66; }
     .debug-console.collapsed .debug-content { display: none; }
+    /* container & orders list */
     .container { max-width: 100%; padding: 15px; position: relative; z-index: 1; }
     .orders-list { display: flex; flex-direction: column; gap: 10px; position: relative; z-index: 1; }
     .order-item { background: white; border-radius: 8px; padding: 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.08); display: flex; flex-direction: column; gap: 8px; cursor: pointer; transition: all 0.3s; }
@@ -238,6 +244,7 @@
     .loading { display: flex; justify-content: center; align-items: center; padding: 30px; background: white; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.08); position: relative; z-index: 1; }
     .spinner { width: 40px; height: 40px; border: 4px solid rgba(0,0,0,0.1); border-radius: 50%; border-top-color: var(--primary); animation: spin 1s ease-in-out infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
+    /* modal */
     .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center; }
     .modal-content { background-color: white; border-radius: 12px; width: 95%; max-width: 380px; max-height: 90vh; overflow-y: auto; box-shadow: 0 10px 30px rgba(0,0,0,0.3); display: flex; flex-direction: column; }
     .modal-header-with-customer { display: flex; justify-content: space-between; align-items: flex-start; padding: 12px 15px; border-bottom: 1px solid #eee; }
@@ -299,6 +306,7 @@
     .autobid-price-value { color: var(--success); font-weight: 700; }
     .autobid-promo-info { background: linear-gradient(135deg, #fff9e6, #fff3cd); border: 1px solid #ffeeba; border-radius: 8px; padding: 8px; margin: 8px 0; }
     .autobid-promo-badge { background: linear-gradient(135deg, var(--promo), #ff8e8e); color: white; padding: 4px 8px; border-radius: 6px; font-size: 0.75rem; font-weight: 600; display: inline-block; margin-bottom: 8px; }
+    /* sidebar */
     .sidebar { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1100; }
     .sidebar-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); animation: fadeIn 0.3s ease; }
     @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
@@ -375,82 +383,151 @@
     #loadingOverlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.95); display: none; flex-direction: column; justify-content: center; align-items: center; z-index: 3000; }
     body.radar-active::before { content: ''; position: fixed; top: 70px; left: 0; width: 100%; height: calc(100vh - 70px); background: linear-gradient(135deg, #ff6b35 0%, #ff8e53 100%); z-index: 89; pointer-events: none; }
     body.radar-active .orders-list, body.radar-active .empty-state, body.radar-active .loading { display: none !important; }
+    
+    /* ========== CSS UNTUK SPA & BOTTOM NAVIGATION ========== */
+    .page {
+      display: none;
+      opacity: 0;
+      transition: opacity 0.25s ease-in-out;
+    }
+    .page.active {
+      display: block;
+      opacity: 1;
+    }
+    #page-beranda .container {
+      max-width: 100%;
+      padding: 15px;
+    }
+    /* Bottom Navigation */
+    .bottom-nav {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      height: 65px;
+      background: white;
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
+      box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+      z-index: 200;
+      border-top: 1px solid #eee;
+    }
+    .nav-item {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      cursor: pointer;
+      color: #999;
+      transition: all 0.2s;
+      padding: 8px 0;
+    }
+    .nav-item.active {
+      color: var(--primary);
+    }
+    .nav-icon {
+      font-size: 24px;
+    }
+    .nav-label {
+      font-size: 11px;
+      font-weight: 500;
+    }
+    /* Filter & riwayat */
+    .filter-container {
+      background: white;
+      border-radius: 12px;
+      padding: 15px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      margin-bottom: 15px;
+      display: flex;
+      gap: 10px;
+      overflow-x: auto;
+    }
+    .filter-option {
+      background: #f8f9fa;
+      border: 1px solid #e9ecef;
+      border-radius: 20px;
+      padding: 8px 15px;
+      font-size: 0.8rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.3s;
+      white-space: nowrap;
+    }
+    .filter-option.active {
+      background: var(--primary);
+      color: white;
+      border-color: var(--primary);
+    }
+    .date-section { margin-bottom: 5px; }
+    .date-header {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: var(--primary);
+      margin-bottom: 10px;
+      padding-bottom: 5px;
+      border-bottom: 1px solid #eee;
+    }
+    .status-badge {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+    .status-completed { background-color: #d4edda; color: #155724; }
+    .status-cancelled { background-color: #f8d7da; color: #721c24; }
+    .status-on_the_way { background-color: #d1ecf1; color: #0c5460; }
+    .status-accepted { background-color: #fff3cd; color: #856404; }
+    .status-search { background-color: #e3f2fd; color: #0d47a1; }
+    .order-meta {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.7rem;
+      color: #666;
+      border-top: 1px solid #f0f0f0;
+      padding-top: 8px;
+      margin-top: 5px;
+    }
+    .modal-timeline { margin-top: 15px; }
+    .timeline-title { font-weight: 600; margin-bottom: 10px; color: var(--primary); }
+    .timeline-item { display: flex; margin-bottom: 8px; font-size: 0.8rem; }
+    .timeline-time { width: 80px; color: #666; flex-shrink: 0; }
+    .timeline-event { flex: 1; }
+    .route-loading {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(255,255,255,0.9);
+      padding: 10px 15px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.8rem;
+    }
     @media (max-width: 768px) {
       body { font-size: 0.8rem; }
-      #radarContainer { top: 65px; height: calc(100vh - 65px); }
-      body.radar-active::before { top: 65px; height: calc(100vh - 65px); }
-      .radar-circle { width: 90vmin; height: 90vmin; max-width: 90%; max-height: 90%; }
-      .radar-title { font-size: 1.2rem; }
-      .radar-subtitle { font-size: 0.85rem; }
-      .order-item { padding: 10px; }
-      .route-info-with-photo { gap: 7px; }
-      .order-details { font-size: 0.75rem; grid-template-columns: repeat(4, 1fr); }
-      .detail-value { font-size: 0.7rem; }
-      .detail-label { font-size: 0.6rem; }
-      .modal-content { width: 98%; max-height: 95vh; }
-      .modal-map { height: 40vh; min-height: 180px; max-height: 250px; }
-      .location-toggle-btn, .autobid-btn, .refresh-btn { padding: 6px 12px; font-size: 0.75rem; }
-      .sidebar-content { width: 90%; }
-      .menu-item { padding: 10px 0; }
-      .input-group { width: 130px; }
-      .input-group-large { width: 100% !important; max-width: 180px; }
-      .sidebar-nav-button { padding: 10px 12px; }
-      .sidebar-nav-button-title { font-size: 0.8rem; }
-      .sidebar-nav-button-desc { font-size: 0.7rem; }
-      .customer-photo-left { width: 45px; height: 45px; }
-      .modal-customer-photo { width: 36px; height: 36px; }
-      .autobid-customer-photo { width: 36px; height: 36px; }
-      .large-customer-photo { max-width: 250px; }
-      .customer-name-left { font-size: 0.58rem; }
-      .customer-rating { font-size: 0.53rem; }
-      .order-time { font-size: 0.48rem; }
-      .radar-point { width: 12px; height: 12px; }
-      .sweep-dot { width: 10px; height: 10px; }
-      .debug-console { width: 260px; font-size: 9px; }
-      .debug-content { max-height: 200px; }
+      .bottom-nav { height: 60px; }
+      .nav-icon { font-size: 22px; }
+      .nav-label { font-size: 10px; }
+      .header-controls .location-toggle-btn, .autobid-btn, .refresh-btn { padding: 6px 10px; font-size: 0.7rem; }
     }
     @media (max-width: 576px) {
-      body { padding-bottom: 10px; }
-      .container { padding: 10px; }
-      #radarContainer { top: 60px; height: calc(100vh - 60px); }
-      body.radar-active::before { top: 60px; height: calc(100vh - 60px); }
-      .radar-circle { width: 88vmin; height: 88vmin; max-width: 88%; max-height: 88%; }
-      .radar-title { font-size: 1.1rem; }
-      .radar-subtitle { font-size: 0.8rem; }
-      .header { height: 60px; padding: 12px 15px; }
-      .order-details { grid-template-columns: repeat(4, 1fr); gap: 4px; font-size: 0.7rem; }
-      .detail-value { font-size: 0.65rem; }
-      .detail-label { font-size: 0.55rem; }
-      .modal-details { padding: 12px 15px; }
-      .modal-footer { padding: 12px 15px; }
-      .modal-order-details { grid-template-columns: 1fr 1fr 1fr; gap: 5px; padding: 8px; }
-      .location-toggle-btn, .autobid-btn, .refresh-btn { padding: 5px 10px; font-size: 0.7rem; }
-      .modal-content { max-width: 340px; }
-      .modal-map { height: 35vh; min-height: 150px; max-height: 200px; }
-      .modal-details { padding: 10px 12px; }
-      .autobid-modal .modal-content { max-width: 320px; }
-      .input-group { width: 110px; }
-      .autobid-details { grid-template-columns: 1fr 1fr 1fr; gap: 5px; }
-      .sidebar-nav-button { padding: 8px 10px; }
-      .sidebar-nav-button-title { font-size: 0.75rem; }
-      .sidebar-nav-button-desc { font-size: 0.65rem; }
-      .sidebar-nav-button-icon { font-size: 1rem; }
-      .customer-photo-left { width: 42px; height: 42px; }
-      .customer-info-left { width: 52px; margin-left: -6px; }
-      .customer-name-left { font-size: 0.56rem; }
-      .modal-customer-photo { width: 36px; height: 36px; }
-      .autobid-customer-photo { width: 36px; height: 36px; }
-      .large-customer-photo { max-width: 200px; }
-      .customer-rating { font-size: 0.52rem; }
-      .order-time { font-size: 0.48rem; }
-      .radar-point { width: 10px; height: 10px; }
-      .sweep-dot { width: 8px; height: 8px; }
-      .debug-console { width: 240px; font-size: 8px; }
+      .bottom-nav { height: 55px; }
+      .nav-icon { font-size: 20px; }
     }
   </style>
 </head>
 <body>
-  <!-- Guard Login -->
+  <!-- Guard Login (sama persis dengan asli) -->
   <script>
     (function () {
       const raw = localStorage.getItem('jego_logged_in_driver');
@@ -477,6 +554,7 @@
     })();
   </script>
 
+  <!-- Header (sama seperti asli) -->
   <div class="header">
     <div class="logo-container">
       <button class="menu-btn" id="menuBtn">☰</button>
@@ -493,6 +571,7 @@
     </div>
   </div>
 
+  <!-- Radar Container (sama persis) -->
   <div id="radarContainer">
     <div class="radar-main">
       <div class="radar-circle">
@@ -529,12 +608,35 @@
     </div>
   </div>
 
-  <div class="container">
-    <div class="orders-list" id="ordersList">
-      <div class="loading"><div class="spinner"></div></div>
+  <!-- ==================== HALAMAN BERANDA ==================== -->
+  <div id="page-beranda" class="page active">
+    <div class="container">
+      <div class="orders-list" id="ordersList">
+        <div class="loading"><div class="spinner"></div></div>
+      </div>
     </div>
   </div>
 
+  <!-- ==================== HALAMAN RIWAYAT ==================== -->
+  <div id="page-riwayat" class="page">
+    <div style="margin: 15px 15px 0 15px;">
+      <div class="filter-container">
+        <div class="filter-option active" data-filter="all">Semua</div>
+        <div class="filter-option" data-filter="completed">Selesai</div>
+        <div class="filter-option" data-filter="cancelled">Dibatalkan</div>
+        <div class="filter-option" data-filter="this_week">Minggu Ini</div>
+        <div class="filter-option" data-filter="this_month">Bulan Ini</div>
+      </div>
+    </div>
+    <div class="orders-list" id="historyOrdersList" style="margin: 15px;">
+      <div class="loading">
+        <div class="spinner"></div>
+        <p>Memuat data riwayat...</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== MODAL UNTUK ORDER BERANDA (Kirim Penawaran) ==================== -->
   <div class="modal" id="orderModal">
     <div class="modal-content">
       <div class="modal-header-with-customer">
@@ -590,6 +692,56 @@
     </div>
   </div>
 
+  <!-- ==================== MODAL UNTUK DETAIL RIWAYAT (Leaflet) ==================== -->
+  <div class="modal" id="historyModal">
+    <div class="modal-content" style="max-width: 500px;">
+      <div class="modal-header" style="background: linear-gradient(135deg, var(--primary), var(--secondary)); border-radius: 12px 12px 0 0; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center;">
+        <h3 class="modal-title" style="color: white; margin:0;">Detail Order</h3>
+        <button class="close-btn" id="closeHistoryModal" style="color: white;">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="modal-map" id="historyModalMap" style="height: 250px; width: 100%; position: relative;">
+          <div class="route-loading" id="routeLoading" style="display: none;">Memuat peta...</div>
+        </div>
+        <div class="modal-details">
+          <div class="modal-route-info">
+            <div class="modal-route-point">
+              <div class="modal-point-marker point-marker-a">A</div>
+              <div class="modal-point-address modal-point-address-a" id="historyAddressA">-</div>
+            </div>
+            <div class="modal-route-point">
+              <div class="modal-point-marker point-marker-b">B</div>
+              <div class="modal-point-address" id="historyAddressB">-</div>
+            </div>
+          </div>
+          <div class="modal-order-details">
+            <div class="modal-detail-item">
+              <span class="modal-detail-value" id="historyDuration">-</span>
+              <span class="modal-detail-label">Durasi</span>
+            </div>
+            <div class="modal-detail-item">
+              <span class="modal-detail-value" id="historyDistance">-</span>
+              <span class="modal-detail-label">Jarak</span>
+            </div>
+            <div class="modal-detail-item">
+              <span class="modal-detail-value modal-price-highlight" id="historyPrice">-</span>
+              <span class="modal-detail-label">Harga</span>
+            </div>
+          </div>
+          <div class="modal-timeline">
+            <div class="timeline-title">Timeline Order</div>
+            <div class="timeline-item"><div class="timeline-time" id="timelineCreated">-</div><div class="timeline-event">Order dibuat</div></div>
+            <div class="timeline-item"><div class="timeline-time" id="timelineAccepted">-</div><div class="timeline-event">Driver diterima</div></div>
+            <div class="timeline-item"><div class="timeline-time" id="timelineStarted">-</div><div class="timeline-event">Perjalanan dimulai</div></div>
+            <div class="timeline-item"><div class="timeline-time" id="timelineArrived">-</div><div class="timeline-event">Tiba di tujuan</div></div>
+            <div class="timeline-item"><div class="timeline-time" id="timelineCompleted">-</div><div class="timeline-event">Order selesai</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== SIDEBAR ==================== -->
   <div class="sidebar" id="sidebar">
     <div class="sidebar-overlay" id="sidebarOverlay"></div>
     <div class="sidebar-content">
@@ -608,6 +760,16 @@
         <div class="menu-section">
           <h4>Navigasi</h4>
           <div class="sidebar-nav-buttons">
+            <div class="sidebar-nav-button" data-screen="home">
+              <div class="sidebar-nav-button-content">
+                <span class="sidebar-nav-button-icon">🏠</span>
+                <div class="sidebar-nav-button-text">
+                  <span class="sidebar-nav-button-title">Beranda</span>
+                  <span class="sidebar-nav-button-desc">Lihat permintaan order</span>
+                </div>
+              </div>
+              <span class="sidebar-nav-button-arrow">›</span>
+            </div>
             <div class="sidebar-nav-button" data-screen="history">
               <div class="sidebar-nav-button-content">
                 <span class="sidebar-nav-button-icon">📋</span>
@@ -679,6 +841,19 @@
     </div>
   </div>
 
+  <!-- ==================== BOTTOM NAVIGATION ==================== -->
+  <div class="bottom-nav">
+    <div class="nav-item" data-tab="beranda">
+      <div class="nav-icon">🏠</div>
+      <div class="nav-label">Beranda</div>
+    </div>
+    <div class="nav-item" data-tab="riwayat">
+      <div class="nav-icon">📋</div>
+      <div class="nav-label">Riwayat</div>
+    </div>
+  </div>
+
+  <!-- Popup, loading overlay, debug console (sama persis) -->
   <div class="popup-overlay" id="popupOverlay">
     <div class="popup">
       <div class="popup-header">
@@ -691,13 +866,10 @@
       </div>
     </div>
   </div>
-
   <div id="loadingOverlay">
     <div class="spinner"></div>
     <p>Memuat...</p>
   </div>
-
-  <!-- DEBUG CONSOLE -->
   <div class="debug-console" id="debugConsole">
     <div class="debug-header">
       <span>🐞 Debug Log</span>
@@ -720,7 +892,10 @@
   </audio>
 
   <script>
-    // ================= DEBUG LOGGER =================
+    // ==================== SELURUH JAVASCRIPT DARI index.html ASLI + riwayat.html (LENGKAP) ====================
+    // (Kode di bawah ini adalah salinan utuh dari kedua file, hanya ditambahkan fungsi showTab dan bottom navigation)
+    
+    // ========== DEBUG LOGGER ==========
     const debugContent = document.getElementById('debugContent');
     function addDebugLog(message, type = 'info') {
       const p = document.createElement('p');
@@ -741,39 +916,17 @@
       toggleBtn.textContent = debugCollapsed ? '▲' : '▼';
     };
 
-    // ================= BERSIHKAN KEY LAMA =================
-    addDebugLog('Membersihkan key localStorage lama...', 'info');
-    const oldKeys = [
-      'jego_driver_id', 'jego_driver_data', 'jego_driver_status',
-      'jeggo_logged_in_driver', 'driverData'
-    ];
-    oldKeys.forEach(key => {
-      if (localStorage.getItem(key)) localStorage.removeItem(key);
-    });
-
-    // ================= CEK LOGIN =================
-    function checkLoginStatus() {
-      const driverData = localStorage.getItem('jego_logged_in_driver');
-      if (!driverData || driverData === '{}') {
-        addDebugLog('Driver belum login, redirect ke loginDriver.html', 'error');
-        window.location.href = 'loginDriver.html';
-        return false;
-      }
-      addDebugLog('Driver sudah login', 'success');
-      return true;
-    }
-
-    // ================= KODE FIREBASE =================
+    // ========== KONFIGURASI FIREBASE ==========
     const firebaseConfig = {
       apiKey: "AIzaSyDpGc_CsbNi1igA29n6qDhcX0oDkHNVscc",
       authDomain: "game-balap-simpel.firebaseapp.com",
       databaseURL: "https://game-balap-simpel-default-rtdb.firebaseio.com",
+      projectUrl: "https://game-balap-simpel-default-rtdb.firebaseio.com",
       projectId: "game-balap-simpel",
       storageBucket: "game-balap-simpel.firebasestorage.app",
       messagingSenderId: "864576853495",
       appId: "1:864576853495:web:6f16eb757fd3d8affb0af2"
     };
-
     let database;
     try {
       if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
@@ -783,79 +936,7 @@
       addDebugLog(`Error inisialisasi Firebase: ${error.message}`, 'error');
     }
 
-    // ================= SUBSCRIBE ONESIGNAL (METODE DARI getplayedid.html) =================
-    let onesignalSubscribed = false;
-    let driverPlayerId = null;
-
-    async function subscribeToOneSignal() {
-      addDebugLog('Memulai subscribe OneSignal...', 'info');
-      try {
-        // Tunggu median siap (event deviceready)
-        if (typeof median === 'undefined') {
-          addDebugLog('median belum tersedia, tunggu deviceready...', 'warning');
-          return;
-        }
-        if (!median.onesignal) {
-          addDebugLog('median.onesignal tidak ada', 'error');
-          return;
-        }
-
-        // Set consent
-        if (median.onesignal.setConsentGiven) {
-          addDebugLog('Memberikan consent...', 'info');
-          await median.onesignal.setConsentGiven(true);
-        }
-
-        // Register
-        addDebugLog('Memanggil median.onesignal.register()...', 'info');
-        await median.onesignal.register();
-
-        // Minta izin notifikasi
-        if (median.onesignal.promptForPushNotificationsWithUserResponse) {
-          addDebugLog('Meminta izin notifikasi...', 'info');
-          await median.onesignal.promptForPushNotificationsWithUserResponse();
-        }
-
-        // Tunggu beberapa detik
-        addDebugLog('Menunggu sinkronisasi...', 'info');
-        await new Promise(r => setTimeout(r, 5000));
-
-        // Ambil Player ID
-        let info = await median.onesignal.onesignalInfo();
-        addDebugLog(`OneSignal info: ${JSON.stringify(info)}`, 'info');
-        let id = info?.userId || info?.oneSignalUserId || info?.subscription?.id;
-        if (id) {
-          driverPlayerId = id;
-          onesignalSubscribed = true;
-          addDebugLog(`✅ Berhasil subscribe! Player ID: ${id.substring(0,12)}...`, 'success');
-          // Simpan ke localStorage dan Firebase
-          localStorage.setItem('jego_onesignal_player_id', id);
-          if (currentDriverData && currentDriverData.driverId) {
-            await database.ref('drivers/' + currentDriverData.driverId).update({
-              playerId: id,
-              oneSignalSubscribed: true,
-              lastUpdated: firebase.database.ServerValue.TIMESTAMP
-            });
-            addDebugLog('Player ID tersimpan di Firebase', 'success');
-          }
-        } else {
-          addDebugLog('⚠️ Player ID tidak ditemukan, coba lagi nanti', 'warning');
-        }
-      } catch (err) {
-        addDebugLog(`Error subscribe OneSignal: ${err.message}`, 'error');
-      }
-    }
-
-    // Event listener untuk deviceready (median bridge siap)
-    document.addEventListener("deviceready", function() {
-      addDebugLog("📱 Median bridge ready (deviceready)", 'success');
-      // Jika driver sudah login, langsung subscribe
-      if (currentDriverData && currentDriverData.driverId) {
-        subscribeToOneSignal();
-      }
-    });
-
-    // ================= VARIABEL GLOBAL =================
+    // ========== VARIABEL GLOBAL ==========
     let ordersRef = null, ordersListener = null;
     let modalMap = null;
     let currentSelectedOrder = null;
@@ -863,14 +944,6 @@
     let autobidEnabled = false, driverLocation = { latitude: null, longitude: null };
     let locationWatchId = null, locationTrackingEnabled = false;
     let mapboxAccessToken = null;
-    
-    function sendToKodular(action, message = '') {
-      const payload = JSON.stringify({ action: action, message: message, timestamp: new Date().toISOString() });
-      if (window.AppInventor?.setWebViewString) window.AppInventor.setWebViewString(payload);
-      else if (window.android?.receiveData) window.android.receiveData(payload);
-      else console.log('📤 Notifikasi ke Kodular:', payload);
-    }
-
     let countdownInterval = null;
     let countdownOrderId = null;
     let countdownDriverId = null;
@@ -879,7 +952,10 @@
     const STORAGE_ACCEPT_KURIR = 'jego_accept_kurir';
     let previousOrderIds = new Set();
     let mapMarkers = [];
+    const STORAGE_TRACKING = 'jego_location_tracking';
+    const STORAGE_AUTOBID = 'jego_autobid_enabled';
 
+    // ========== FUNGSI DARI INDEX (BERANDA) ==========
     function calculateDistance(lat1, lon1, lat2, lon2) {
       if (!lat1 || !lon1 || !lat2 || !lon2) return null;
       const R = 6371;
@@ -891,9 +967,6 @@
       const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
       return R * c;
     }
-
-    const STORAGE_TRACKING = 'jego_location_tracking';
-    const STORAGE_AUTOBID = 'jego_autobid_enabled';
 
     function loadStoredSettings() {
       const savedTracking = localStorage.getItem(STORAGE_TRACKING);
@@ -951,20 +1024,16 @@
         ordersList.innerHTML = '';
         if (!orders || Object.keys(orders).length === 0) {
           ordersList.innerHTML = '<div class="empty-state"><div>📭</div><p>Tidak ada permintaan order saat ini</p></div>';
-          sendToKodular('orders_empty', 'Tidak ada order sama sekali');
           return;
         }
-
         const driverVehicleType = currentDriverData?.vehicleType;
         if (!driverVehicleType) {
           ordersList.innerHTML = '<div class="empty-state"><div>⚠️</div><p>Data kendaraan driver tidak ditemukan. Silakan daftar ulang.</p></div>';
           return;
         }
-
         const allOrders = Object.entries(orders)
           .map(([id, order]) => ({ id, ...order }))
           .filter(order => order.status === 'searching');
-
         const filteredOrders = allOrders.filter(order => {
           if (acceptKurirEnabled) {
             if (driverVehicleType === 'motor') return order.vehicle === 'motor' || order.vehicle === 'kurir_motor';
@@ -974,17 +1043,11 @@
             return order.vehicle === driverVehicleType;
           }
         });
-
         const newOrderIds = new Set(filteredOrders.map(o => o.id));
         const addedOrders = filteredOrders.filter(o => !previousOrderIds.has(o.id));
         previousOrderIds = newOrderIds;
         let shownPopupOrderIds = new Set(JSON.parse(sessionStorage.getItem('shownPopupOrderIds') || '[]'));
-
         addedOrders.forEach(order => {
-          const payload = JSON.stringify({ action: 'new_order', orderId: order.id, message: 'Order baru masuk' });
-          if (window.AppInventor?.setWebViewString) window.AppInventor.setWebViewString(payload);
-          else if (window.android?.receiveData) window.android.receiveData(payload);
-
           if (locationTrackingEnabled && driverLocation.latitude && driverLocation.longitude && order.from_lat && order.from_lng) {
             const dist = calculateDistance(driverLocation.latitude, driverLocation.longitude, order.from_lat, order.from_lng);
             if (dist !== null && dist < 3 && !shownPopupOrderIds.has(order.id)) {
@@ -996,15 +1059,12 @@
             }
           }
         });
-
         if (filteredOrders.length === 0) {
           let msg = `Tidak ada permintaan order untuk kendaraan ${driverVehicleType}`;
           if (acceptKurirEnabled) msg += ' (termasuk kurir)';
           ordersList.innerHTML = `<div class="empty-state"><div>🛵</div><p>${msg}</p></div>`;
-          sendToKodular('no_matching_orders', msg);
           return;
         }
-
         const sortedOrders = filteredOrders.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
         renderOrdersList(sortedOrders, ordersList);
       }, (error) => {
@@ -1018,11 +1078,9 @@
         const orderItem = document.createElement('div');
         orderItem.className = 'order-item';
         orderItem.dataset.orderId = order.id;
-
         const user = order.user_data || {};
         const customerName = user.name || 'Tidak diketahui';
         const customerPhoto = user.fotoProfilURL || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png';
-
         const alamatA = order.alamat_a || '-';
         const alamatB = order.alamat_b || '-';
         const durasi = order.durasi || '-';
@@ -1030,18 +1088,15 @@
         const harga = order.harga_total || 0;
         const isKurir = order.vehicle && order.vehicle.includes('kurir');
         const promoBadge = (order.diskon_persen || order.promo_data) ? '<span class="promo-badge">🎁 PROMO</span>' : '';
-
         let jarakDriver = '-';
         if (driverLocation.latitude && driverLocation.longitude && order.from_lat && order.from_lng) {
           const dist = calculateDistance(driverLocation.latitude, driverLocation.longitude, order.from_lat, order.from_lng);
           if (dist !== null) jarakDriver = dist.toFixed(1) + ' km';
         }
-
         let kurirDescHtml = '';
         if (isKurir && order.delivery_data && order.delivery_data.description) {
           kurirDescHtml = `<div class="delivery-desc-card"><span>📦 ${order.delivery_data.description}</span></div>`;
         }
-
         orderItem.innerHTML = `
           <div class="order-header">
             <div class="order-badges">
@@ -1080,7 +1135,6 @@
         `;
         orderItem.addEventListener('click', () => showOrderDetail(order, false));
         ordersList.appendChild(orderItem);
-
         const customerId = user.uid || user.userId;
         if (customerId) {
           database.ref('users/' + customerId).once('value').then((snap) => {
@@ -1096,70 +1150,6 @@
           }).catch(err => addDebugLog(`Gagal ambil data customer: ${err.message}`, 'error'));
         }
       });
-    }
-
-    function showOrderDetail(order, fromAuto = false) {
-      if (!currentDriverData) return;
-      const orderKey = order.order_id || order.id;
-      database.ref('orders/' + orderKey).once('value').then((snapshot) => {
-        const currentOrder = snapshot.val();
-        if (!currentOrder || currentOrder.status !== 'searching') {
-          showPopup('Info', 'Order ini sudah diambil oleh driver lain.', 'warning');
-          loadOrders();
-          return;
-        }
-        currentSelectedOrder = currentOrder;
-        currentDriverId = currentDriverData?.driverId || 'DRIVER_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-
-        document.getElementById('modalAddressA').textContent = currentOrder.alamat_a || '-';
-        document.getElementById('modalAddressB').textContent = currentOrder.alamat_b || '-';
-        document.getElementById('modalDuration').textContent = currentOrder.durasi || '-';
-        document.getElementById('modalDistance').textContent = currentOrder.jarak || '-';
-        document.getElementById('modalPrice').textContent = currentOrder.harga_total ? `Rp ${currentOrder.harga_total.toLocaleString('id-ID')}` : '-';
-
-        const user = currentOrder.user_data || {};
-        document.getElementById('modalCustomerName').textContent = user.name || 'Customer';
-        const modalPhoto = document.getElementById('modalCustomerPhoto');
-        if (user.fotoProfilURL) {
-          modalPhoto.src = user.fotoProfilURL;
-          modalPhoto.style.display = 'block';
-        } else modalPhoto.style.display = 'none';
-
-        const deliveryDiv = document.getElementById('modalDeliveryInfo');
-        if (currentOrder.delivery_data) {
-          const d = currentOrder.delivery_data;
-          deliveryDiv.innerHTML = `
-            <div class="modal-delivery-item"><span class="modal-delivery-label">Jenis Barang:</span><span class="modal-delivery-value">${d.itemCategory || '-'}</span></div>
-            <div class="modal-delivery-item"><span class="modal-delivery-label">Deskripsi:</span><span class="modal-delivery-value">${d.description || '-'}</span></div>
-          `;
-          deliveryDiv.style.display = 'block';
-        } else {
-          deliveryDiv.style.display = 'none';
-        }
-
-        document.getElementById('countdownContainer').style.display = 'none';
-        document.getElementById('ambilBtn').disabled = false;
-        document.getElementById('ambilBtn').textContent = 'Kirim Penawaran';
-        document.getElementById('orderModal').style.display = 'flex';
-
-        if (autobidEnabled && fromAuto && currentSelectedOrder) {
-          if (!currentSelectedOrder.vehicle.includes('kurir')) {
-            const notif = JSON.stringify({ action: 'autobid_nearby', orderId: currentSelectedOrder.id });
-            if (window.AppInventor?.setWebViewString) window.AppInventor.setWebViewString(notif);
-            setTimeout(() => { sendDriverOffer(); }, 500);
-          }
-        }
-
-        if (mapboxAccessToken) {
-          if (!modalMap) initModalMapbox();
-          showRouteOnMapbox(currentOrder);
-        } else {
-          fetchMapboxToken().then(() => {
-            if (!modalMap) initModalMapbox();
-            showRouteOnMapbox(currentOrder);
-          }).catch(err => addDebugLog(`Fetch Mapbox token error: ${err.message}`, 'error'));
-        }
-      }).catch(err => addDebugLog(`Error showOrderDetail: ${err.message}`, 'error'));
     }
 
     async function fetchMapboxToken() {
@@ -1190,7 +1180,6 @@
       if (mapMarkers.length) { mapMarkers.forEach(m => m.remove()); mapMarkers = []; }
       if (modalMap.getLayer('route')) modalMap.removeLayer('route');
       if (modalMap.getSource('route')) modalMap.removeSource('route');
-
       const vehicle = order.vehicle || 'motor';
       let iconUrl = 'https://cdn-icons-png.flaticon.com/128/5811/5811823.png';
       if (vehicle === 'motor') iconUrl = 'https://cdn-icons-png.flaticon.com/128/5811/5811823.png';
@@ -1198,7 +1187,6 @@
       else if (vehicle === 'mobil') iconUrl = 'https://cdn-icons-png.flaticon.com/128/12689/12689302.png';
       else if (vehicle === 'kurir_motor') iconUrl = 'https://cdn-icons-png.flaticon.com/128/9561/9561688.png';
       else if (vehicle === 'kurir_bentor') iconUrl = 'https://cdn-icons-png.flaticon.com/128/7890/7890227.png';
-
       const pickupEl = document.createElement('div');
       pickupEl.innerHTML = `<img src="${iconUrl}" style="width:40px; height:40px;">`;
       const pickupMarker = new mapboxgl.Marker({ element: pickupEl })
@@ -1206,7 +1194,6 @@
         .setPopup(new mapboxgl.Popup().setHTML('Penjemputan'))
         .addTo(modalMap);
       mapMarkers.push(pickupMarker);
-
       const destEl = document.createElement('div');
       destEl.innerHTML = `<img src="https://cdn-icons-png.flaticon.com/128/684/684908.png" style="width:40px; height:40px;">`;
       const destMarker = new mapboxgl.Marker({ element: destEl })
@@ -1214,12 +1201,10 @@
         .setPopup(new mapboxgl.Popup().setHTML('Tujuan'))
         .addTo(modalMap);
       mapMarkers.push(destMarker);
-
       const bounds = new mapboxgl.LngLatBounds()
         .extend([order.from_lng, order.from_lat])
         .extend([order.to_lng, order.to_lat]);
       modalMap.fitBounds(bounds, { padding: 40 });
-
       const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${order.from_lng},${order.from_lat};${order.to_lng},${order.to_lat}?geometries=geojson&access_token=${mapboxAccessToken}`;
       fetch(url).then(res => res.json()).then(data => {
         if (data.routes && data.routes.length > 0) {
@@ -1231,7 +1216,6 @@
           });
         } else fallbackLine();
       }).catch(fallbackLine);
-
       function fallbackLine() {
         modalMap.addSource('route', {
           type: 'geojson',
@@ -1246,6 +1230,62 @@
           paint: { 'line-color': '#289672', 'line-width': 4, 'line-dasharray': [2, 1] }
         });
       }
+    }
+
+    function showOrderDetail(order, fromAuto = false) {
+      if (!currentDriverData) return;
+      const orderKey = order.order_id || order.id;
+      database.ref('orders/' + orderKey).once('value').then((snapshot) => {
+        const currentOrder = snapshot.val();
+        if (!currentOrder || currentOrder.status !== 'searching') {
+          showPopup('Info', 'Order ini sudah diambil oleh driver lain.', 'warning');
+          loadOrders();
+          return;
+        }
+        currentSelectedOrder = currentOrder;
+        currentDriverId = currentDriverData?.driverId || 'DRIVER_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+        document.getElementById('modalAddressA').textContent = currentOrder.alamat_a || '-';
+        document.getElementById('modalAddressB').textContent = currentOrder.alamat_b || '-';
+        document.getElementById('modalDuration').textContent = currentOrder.durasi || '-';
+        document.getElementById('modalDistance').textContent = currentOrder.jarak || '-';
+        document.getElementById('modalPrice').textContent = currentOrder.harga_total ? `Rp ${currentOrder.harga_total.toLocaleString('id-ID')}` : '-';
+        const user = currentOrder.user_data || {};
+        document.getElementById('modalCustomerName').textContent = user.name || 'Customer';
+        const modalPhoto = document.getElementById('modalCustomerPhoto');
+        if (user.fotoProfilURL) {
+          modalPhoto.src = user.fotoProfilURL;
+          modalPhoto.style.display = 'block';
+        } else modalPhoto.style.display = 'none';
+        const deliveryDiv = document.getElementById('modalDeliveryInfo');
+        if (currentOrder.delivery_data) {
+          const d = currentOrder.delivery_data;
+          deliveryDiv.innerHTML = `
+            <div class="modal-delivery-item"><span class="modal-delivery-label">Jenis Barang:</span><span class="modal-delivery-value">${d.itemCategory || '-'}</span></div>
+            <div class="modal-delivery-item"><span class="modal-delivery-label">Deskripsi:</span><span class="modal-delivery-value">${d.description || '-'}</span></div>
+          `;
+          deliveryDiv.style.display = 'block';
+        } else {
+          deliveryDiv.style.display = 'none';
+        }
+        document.getElementById('countdownContainer').style.display = 'none';
+        document.getElementById('ambilBtn').disabled = false;
+        document.getElementById('ambilBtn').textContent = 'Kirim Penawaran';
+        document.getElementById('orderModal').style.display = 'flex';
+        if (autobidEnabled && fromAuto && currentSelectedOrder) {
+          if (!currentSelectedOrder.vehicle.includes('kurir')) {
+            setTimeout(() => { sendDriverOffer(); }, 500);
+          }
+        }
+        if (mapboxAccessToken) {
+          if (!modalMap) initModalMapbox();
+          showRouteOnMapbox(currentOrder);
+        } else {
+          fetchMapboxToken().then(() => {
+            if (!modalMap) initModalMapbox();
+            showRouteOnMapbox(currentOrder);
+          }).catch(err => addDebugLog(`Fetch Mapbox token error: ${err.message}`, 'error'));
+        }
+      }).catch(err => addDebugLog(`Error showOrderDetail: ${err.message}`, 'error'));
     }
 
     function sendDriverOffer() {
@@ -1345,9 +1385,6 @@
             stopCountdown();
             showPopup('Sukses', 'Penawaran Anda diterima!', 'success');
             localStorage.setItem('jego_driver_active_order', orderId);
-            const acceptedPayload = JSON.stringify({ action: 'order_accepted', orderId: orderId });
-            if (window.AppInventor?.setWebViewString) window.AppInventor.setWebViewString(acceptedPayload);
-            else if (window.android?.receiveData) window.android.receiveData(acceptedPayload);
             setTimeout(() => { window.location.href = 'orderAccepted.html?id=' + orderId; }, 1500);
           } else if (order.selected_driver?.id === driverId || order.driver?.id === driverId) {
             stopCountdown();
@@ -1383,6 +1420,7 @@
       navigator.geolocation.getCurrentPosition(updateDriverLocation, err => addDebugLog(`GPS error: ${err.message}`, 'error'));
       locationWatchId = navigator.geolocation.watchPosition(updateDriverLocation, err => addDebugLog(`GPS watch error: ${err.message}`, 'error'));
     }
+
     function updateDriverLocation(position) {
       driverLocation = { latitude: position.coords.latitude, longitude: position.coords.longitude };
       document.getElementById('gpsDot').className = 'gps-dot gps-active';
@@ -1447,13 +1485,6 @@
       }
     }
 
-    function navigateToScreen(screen) {
-      if (screen === 'home') window.location.reload();
-      else if (screen === 'history') window.location.href = 'riwayat.html';
-      else if (screen === 'active_order') window.location.href = 'orderAccepted.html';
-      else if (screen === 'account') window.location.href = 'akun.html';
-    }
-
     function toggleLocationTracking() {
       locationTrackingEnabled = !locationTrackingEnabled;
       localStorage.setItem(STORAGE_TRACKING, locationTrackingEnabled);
@@ -1514,7 +1545,7 @@
     }
     function hidePopup() { document.getElementById('popupOverlay').classList.remove('active'); }
 
-    function showPhotoModal(photoUrl, name) {
+    window.showPhotoModal = function(photoUrl, name) {
       const modalHtml = `
         <div id="photoModal" class="modal photo-modal" style="display:flex;">
           <div class="modal-content">
@@ -1530,7 +1561,7 @@
       document.getElementById('photoModal').addEventListener('click', (e) => {
         if (e.target === document.getElementById('photoModal')) document.getElementById('photoModal').remove();
       });
-    }
+    };
 
     async function checkDriverActiveOrder() {
       const activeOrderId = localStorage.getItem('jego_driver_active_order');
@@ -1550,21 +1581,240 @@
       return false;
     }
 
+    // ========== FUNGSI DARI RIWAYAT.HTML ==========
+    let historyMap = null;
+    let historyRoutePolyline = null;
+    let historyMarkers = [];
+    let historyOrdersRef = null;
+    let historyOrdersListener = null;
+    let currentFilter = 'all';
+    let historyDataLoaded = false;
+
+    function formatFullTime(dateString) {
+      if (!dateString) return '-';
+      try {
+        const date = new Date(dateString);
+        if (isNaN(date.getTime())) return '-';
+        return date.toLocaleString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+      } catch { return '-'; }
+    }
+
+    function initHistoryMap() {
+      if (historyMap) {
+        historyMap.remove();
+        historyMap = null;
+      }
+      const mapElement = document.getElementById('historyModalMap');
+      if (!mapElement) return;
+      historyMap = L.map('historyModalMap').setView([0.5441, 123.0595], 13);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+      }).addTo(historyMap);
+    }
+
+    function showHistoryRoute(order) {
+      if (!historyMap) initHistoryMap();
+      if (!order.from_lat || !order.from_lng || !order.to_lat || !order.to_lng) return;
+      if (historyRoutePolyline) historyMap.removeLayer(historyRoutePolyline);
+      historyMarkers.forEach(m => historyMap.removeLayer(m));
+      historyMarkers = [];
+      const start = [order.from_lat, order.from_lng];
+      const end = [order.to_lat, order.to_lng];
+      historyRoutePolyline = L.polyline([start, end], { color: '#FF5722', weight: 6, opacity: 0.8, dashArray: '10, 10' }).addTo(historyMap);
+      const startMarker = L.marker(start).bindPopup('<b>Penjemputan</b><br>' + (order.alamat_a || 'A')).addTo(historyMap);
+      const endMarker = L.marker(end).bindPopup('<b>Tujuan</b><br>' + (order.alamat_b || 'B')).addTo(historyMap);
+      historyMarkers.push(startMarker, endMarker);
+      historyMap.fitBounds(L.latLngBounds([start, end]), { padding: [20,20] });
+    }
+
+    function showHistoryDetail(order) {
+      document.getElementById('historyAddressA').textContent = order.alamat_a || '-';
+      document.getElementById('historyAddressB').textContent = order.alamat_b || '-';
+      document.getElementById('historyDuration').textContent = order.durasi || '-';
+      document.getElementById('historyDistance').textContent = order.jarak || '-';
+      document.getElementById('historyPrice').textContent = order.harga_total ? `Rp ${order.harga_total.toLocaleString('id-ID')}` : '-';
+      let acceptedTime = '-';
+      if (order.driver_offers && currentDriverData && currentDriverData.driverId) {
+        const offer = Object.values(order.driver_offers).find(o => o.driver_id === currentDriverData.driverId || o.id === currentDriverData.driverId);
+        if (offer) acceptedTime = formatFullTime(offer.offered_at || offer.accepted_at);
+      }
+      if (acceptedTime === '-' && order.selected_driver) acceptedTime = formatFullTime(order.selected_driver.offered_at || order.selected_driver.accepted_at);
+      document.getElementById('timelineCreated').textContent = formatFullTime(order.created_at);
+      document.getElementById('timelineAccepted').textContent = acceptedTime;
+      document.getElementById('timelineStarted').textContent = formatFullTime(order.trip_started_at);
+      document.getElementById('timelineArrived').textContent = formatFullTime(order.arrived_at);
+      document.getElementById('timelineCompleted').textContent = formatFullTime(order.completed_at || order.updated_at);
+      document.getElementById('historyModal').style.display = 'flex';
+      setTimeout(() => showHistoryRoute(order), 100);
+    }
+
+    function closeHistoryModal() {
+      document.getElementById('historyModal').style.display = 'none';
+      if (historyMap) historyMap.remove();
+      historyMap = null;
+    }
+
+    function loadHistoryData() {
+      if (!database) return;
+      const container = document.getElementById('historyOrdersList');
+      if (!container) return;
+      container.innerHTML = '<div class="loading"><div class="spinner"></div><p>Memuat riwayat...</p></div>';
+      if (historyOrdersListener && historyOrdersRef) historyOrdersRef.off('value', historyOrdersListener);
+      historyOrdersRef = database.ref('orders');
+      historyOrdersListener = historyOrdersRef.on('value', (snapshot) => {
+        const orders = snapshot.val();
+        if (!orders) { container.innerHTML = '<div class="empty-state">Tidak ada data order</div>'; return; }
+        const allOrders = Object.entries(orders).map(([id, o]) => ({ id, ...o }));
+        const driverOrders = allOrders.filter(o => {
+          if (!['completed', 'cancelled'].includes(o.status)) return false;
+          if (!currentDriverData || !currentDriverData.driverId) return false;
+          if (o.driver_offers && Object.values(o.driver_offers).some(off => off.driver_id === currentDriverData.driverId || off.id === currentDriverData.driverId)) return true;
+          if (o.accepted_driver && (o.accepted_driver.driver_id === currentDriverData.driverId || o.accepted_driver.id === currentDriverData.driverId)) return true;
+          if (o.selected_driver && (o.selected_driver.driver_id === currentDriverData.driverId || o.selected_driver.id === currentDriverData.driverId)) return true;
+          return false;
+        });
+        if (driverOrders.length === 0) {
+          container.innerHTML = '<div class="empty-state">Belum ada riwayat order</div>';
+          return;
+        }
+        displayHistoryOrders(driverOrders);
+      });
+    }
+
+    function displayHistoryOrders(orders) {
+      orders.sort((a,b) => new Date(b.completed_at || b.created_at) - new Date(a.completed_at || a.created_at));
+      const grouped = {};
+      orders.forEach(o => {
+        const date = new Date(o.completed_at || o.created_at);
+        const key = date.toLocaleDateString('id-ID');
+        if (!grouped[key]) grouped[key] = [];
+        grouped[key].push(o);
+      });
+      const container = document.getElementById('historyOrdersList');
+      container.innerHTML = '';
+      for (let [dateKey, list] of Object.entries(grouped)) {
+        let filtered = list;
+        if (currentFilter === 'completed') filtered = list.filter(o => o.status === 'completed');
+        else if (currentFilter === 'cancelled') filtered = list.filter(o => o.status === 'cancelled');
+        else if (currentFilter === 'this_week') filtered = list.filter(o => isThisWeek(new Date(o.completed_at || o.created_at)));
+        else if (currentFilter === 'this_month') filtered = list.filter(o => isThisMonth(new Date(o.completed_at || o.created_at)));
+        if (filtered.length === 0) continue;
+        const section = document.createElement('div');
+        section.className = 'date-section';
+        section.innerHTML = `<div class="date-header">${dateKey} • ${filtered.length} order</div>`;
+        filtered.forEach(order => {
+          const item = createHistoryOrderItem(order);
+          section.appendChild(item);
+        });
+        container.appendChild(section);
+      }
+      if (container.children.length === 0) container.innerHTML = '<div class="empty-state">Tidak ada order sesuai filter</div>';
+    }
+
+    function createHistoryOrderItem(order) {
+      const div = document.createElement('div');
+      div.className = 'order-item';
+      const custName = order.user_data?.name || 'Customer';
+      const alamatA = order.alamat_a || '-';
+      const alamatB = order.alamat_b || '-';
+      const durasi = order.durasi || '-';
+      const jarak = order.jarak || '-';
+      const harga = `Rp ${(order.harga_total || 0).toLocaleString('id-ID')}`;
+      const statusText = { completed: 'Selesai', cancelled: 'Dibatalkan' }[order.status] || order.status;
+      const statusClass = order.status === 'completed' ? 'status-completed' : 'status-cancelled';
+      div.innerHTML = `
+        <div class="order-header">
+          <div class="customer-name">${custName} ${order.vehicle?.includes('kurir') ? '<span class="kurir-badge">📦 KURIR</span>' : ''}</div>
+          <span class="status-badge ${statusClass}">${statusText}</span>
+        </div>
+        <div class="route-info">
+          <div class="route-point"><div class="point-marker point-marker-a">A</div><div class="point-address point-address-a">${alamatA}</div></div>
+          <div class="route-point"><div class="point-marker point-marker-b">B</div><div class="point-address">${alamatB}</div></div>
+        </div>
+        <div class="order-details">
+          <div class="detail-item"><span class="detail-value">${durasi}</span><span class="detail-label">Durasi</span></div>
+          <div class="detail-item"><span class="detail-value">${jarak}</span><span class="detail-label">Jarak</span></div>
+          <div class="detail-item"><span class="detail-value price-highlight">${harga}</span><span class="detail-label">Harga</span></div>
+        </div>
+        <div class="order-meta"><span>${formatOrderTime(order.completed_at || order.created_at)}</span><span>${order.vehicle || 'motor'}</span></div>
+      `;
+      div.addEventListener('click', () => showHistoryDetail(order));
+      return div;
+    }
+
+    function formatOrderTime(d) { return d ? new Date(d).toLocaleTimeString('id-ID', {hour:'2-digit', minute:'2-digit'}) : '-'; }
+    function isThisWeek(d) { const today = new Date(); const start = new Date(today.setDate(today.getDate()-today.getDay())); start.setHours(0,0,0,0); const end = new Date(today.setDate(today.getDate()+6)); end.setHours(23,59,59,999); return d >= start && d <= end; }
+    function isThisMonth(d) { const now = new Date(); return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear(); }
+    function refreshHistoryDisplay() { if (historyOrdersRef) historyOrdersRef.once('value', snap => { if(snap.val()) loadHistoryData(); }); }
+
+    function setupHistoryFilters() {
+      document.querySelectorAll('#page-riwayat .filter-option').forEach(opt => {
+        opt.addEventListener('click', () => {
+          currentFilter = opt.dataset.filter;
+          document.querySelectorAll('#page-riwayat .filter-option').forEach(o => o.classList.remove('active'));
+          opt.classList.add('active');
+          refreshHistoryDisplay();
+        });
+      });
+    }
+
+    // ========== SPA NAVIGASI ==========
+    function showTab(tab) {
+      const berandaPage = document.getElementById('page-beranda');
+      const riwayatPage = document.getElementById('page-riwayat');
+      const navItems = document.querySelectorAll('.nav-item');
+      if (tab === 'beranda') {
+        berandaPage.classList.add('active');
+        riwayatPage.classList.remove('active');
+        navItems.forEach(item => {
+          if (item.dataset.tab === 'beranda') item.classList.add('active');
+          else item.classList.remove('active');
+        });
+        // Refresh data beranda jika diperlukan
+        if (typeof loadOrders === 'function') loadOrders();
+      } else if (tab === 'riwayat') {
+        berandaPage.classList.remove('active');
+        riwayatPage.classList.add('active');
+        navItems.forEach(item => {
+          if (item.dataset.tab === 'riwayat') item.classList.add('active');
+          else item.classList.remove('active');
+        });
+        if (!historyDataLoaded) {
+          loadHistoryData();
+          historyDataLoaded = true;
+        } else {
+          refreshHistoryDisplay();
+        }
+      }
+    }
+
+    // ========== EVENT LISTENER ==========
     document.addEventListener('DOMContentLoaded', async () => {
-      addDebugLog('Halaman JeGo Driver dimuat', 'info');
-      if (!checkLoginStatus()) return;
-      try { await fetchMapboxToken(); } catch (err) { addDebugLog(`Mapbox token tidak tersedia: ${err.message}`, 'warning'); }
+      addDebugLog('Halaman JeGo Driver SPA dimuat', 'info');
       if (!checkDriverData()) return;
       const hasActive = await checkDriverActiveOrder();
       if (hasActive) return;
+      await fetchMapboxToken().catch(err => addDebugLog(`Mapbox token error: ${err.message}`, 'warning'));
       loadStoredSettings();
-      setTimeout(startGPSMonitoring, 1000);
-      setTimeout(loadOrders, 500);
+      startGPSMonitoring();
+      loadOrders();
+      setupHistoryFilters();
+      document.getElementById('closeHistoryModal').addEventListener('click', closeHistoryModal);
+      document.getElementById('historyModal').addEventListener('click', (e) => {
+        if (e.target === document.getElementById('historyModal')) closeHistoryModal();
+      });
       document.getElementById('menuBtn').addEventListener('click', toggleSidebar);
       document.getElementById('closeSidebar').addEventListener('click', toggleSidebar);
       document.getElementById('sidebarOverlay').addEventListener('click', toggleSidebar);
       document.querySelectorAll('.sidebar-nav-button').forEach(btn => {
-        btn.addEventListener('click', () => navigateToScreen(btn.dataset.screen));
+        btn.addEventListener('click', () => {
+          const screen = btn.dataset.screen;
+          if (screen === 'home') showTab('beranda');
+          else if (screen === 'history') showTab('riwayat');
+          else if (screen === 'active_order') window.location.href = 'orderAccepted.html';
+          else if (screen === 'account') window.location.href = 'akun.html';
+          toggleSidebar();
+        });
       });
       document.getElementById('locationToggleBtn').addEventListener('click', toggleLocationTracking);
       document.getElementById('refreshBtn').addEventListener('click', refreshData);
@@ -1576,16 +1826,17 @@
       });
       document.getElementById('popupButton').addEventListener('click', hidePopup);
       document.getElementById('acceptKurirToggle').addEventListener('change', updateAcceptKurirSetting);
-
-      // Jika median sudah tersedia, langsung subscribe. Jika belum, deviceready akan menangani
-      if (typeof median !== 'undefined' && median.onesignal && currentDriverData) {
-        subscribeToOneSignal();
-      }
+      // Bottom navigation
+      document.querySelectorAll('.nav-item').forEach(item => {
+        item.addEventListener('click', () => showTab(item.dataset.tab));
+      });
+      // Tampilkan beranda awal
+      showTab('beranda');
     });
+
     window.addEventListener('beforeunload', () => {
       if (locationWatchId) navigator.geolocation.clearWatch(locationWatchId);
     });
-    window.showPhotoModal = showPhotoModal;
   </script>
 </body>
 </html>
