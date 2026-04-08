@@ -2,7 +2,7 @@
 <html lang="id">
 <head>
   <meta charset="utf-8" />
-  <title>List Permintaan - JeGo</title>
+  <title>List Permintaan - JeGo (SPA)</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <!-- Firebase SDK -->
   <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
@@ -10,7 +10,7 @@
   <!-- Mapbox GL -->
   <script src='https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js'></script>
   <link href='https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css' rel='stylesheet' />
-  <!-- TIDAK ADA OneSignal Web SDK -->
+  
   <style>
     /* ==================== CSS (sama seperti sebelumnya) ==================== */
     :root {
@@ -195,6 +195,10 @@
     .debug-content .info { color: #66aaff; }
     .debug-content .warning { color: #ffaa66; }
     .debug-console.collapsed .debug-content { display: none; }
+    .spa-container {
+      width: 100%;
+      min-height: calc(100vh - 70px);
+    }
     .container { max-width: 100%; padding: 15px; position: relative; z-index: 1; }
     .orders-list { display: flex; flex-direction: column; gap: 10px; position: relative; z-index: 1; }
     .order-item { background: white; border-radius: 8px; padding: 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.08); display: flex; flex-direction: column; gap: 8px; cursor: pointer; transition: all 0.3s; }
@@ -529,12 +533,12 @@
     </div>
   </div>
 
-  <div class="container">
-    <div class="orders-list" id="ordersList">
-      <div class="loading"><div class="spinner"></div></div>
-    </div>
+  <!-- KONTEN DINAMIS SPA -->
+  <div id="app-content" class="spa-container">
+    <!-- konten default akan diisi oleh JavaScript -->
   </div>
 
+  <!-- MODAL-MODAL (tetap ada di luar app-content) -->
   <div class="modal" id="orderModal">
     <div class="modal-content">
       <div class="modal-header-with-customer">
@@ -697,7 +701,6 @@
     <p>Memuat...</p>
   </div>
 
-  <!-- DEBUG CONSOLE -->
   <div class="debug-console" id="debugConsole">
     <div class="debug-header">
       <span>🐞 Debug Log</span>
@@ -783,14 +786,13 @@
       addDebugLog(`Error inisialisasi Firebase: ${error.message}`, 'error');
     }
 
-    // ================= SUBSCRIBE ONESIGNAL (METODE DARI getplayedid.html) =================
+    // ================= SUBSCRIBE ONESIGNAL =================
     let onesignalSubscribed = false;
     let driverPlayerId = null;
 
     async function subscribeToOneSignal() {
       addDebugLog('Memulai subscribe OneSignal...', 'info');
       try {
-        // Tunggu median siap (event deviceready)
         if (typeof median === 'undefined') {
           addDebugLog('median belum tersedia, tunggu deviceready...', 'warning');
           return;
@@ -799,28 +801,18 @@
           addDebugLog('median.onesignal tidak ada', 'error');
           return;
         }
-
-        // Set consent
         if (median.onesignal.setConsentGiven) {
           addDebugLog('Memberikan consent...', 'info');
           await median.onesignal.setConsentGiven(true);
         }
-
-        // Register
         addDebugLog('Memanggil median.onesignal.register()...', 'info');
         await median.onesignal.register();
-
-        // Minta izin notifikasi
         if (median.onesignal.promptForPushNotificationsWithUserResponse) {
           addDebugLog('Meminta izin notifikasi...', 'info');
           await median.onesignal.promptForPushNotificationsWithUserResponse();
         }
-
-        // Tunggu beberapa detik
         addDebugLog('Menunggu sinkronisasi...', 'info');
         await new Promise(r => setTimeout(r, 5000));
-
-        // Ambil Player ID
         let info = await median.onesignal.onesignalInfo();
         addDebugLog(`OneSignal info: ${JSON.stringify(info)}`, 'info');
         let id = info?.userId || info?.oneSignalUserId || info?.subscription?.id;
@@ -828,7 +820,6 @@
           driverPlayerId = id;
           onesignalSubscribed = true;
           addDebugLog(`✅ Berhasil subscribe! Player ID: ${id.substring(0,12)}...`, 'success');
-          // Simpan ke localStorage dan Firebase
           localStorage.setItem('jego_onesignal_player_id', id);
           if (currentDriverData && currentDriverData.driverId) {
             await database.ref('drivers/' + currentDriverData.driverId).update({
@@ -846,10 +837,8 @@
       }
     }
 
-    // Event listener untuk deviceready (median bridge siap)
     document.addEventListener("deviceready", function() {
       addDebugLog("📱 Median bridge ready (deviceready)", 'success');
-      // Jika driver sudah login, langsung subscribe
       if (currentDriverData && currentDriverData.driverId) {
         subscribeToOneSignal();
       }
@@ -1051,7 +1040,7 @@
           </div>
           <div class="route-info-with-photo">
             <div class="customer-info-left">
-              <img src="${customerPhoto}" class="customer-photo-left" onclick="showPhotoModal('${customerPhoto}', '${customerName}')">
+              <img src="${customerPhoto}" class="customer-photo-left" onclick="window.showPhotoModal('${customerPhoto}', '${customerName}')">
               <div class="customer-name-left">${customerName}</div>
               <div class="customer-rating">
                 <span class="rating-stars">★</span>
@@ -1348,12 +1337,12 @@
             const acceptedPayload = JSON.stringify({ action: 'order_accepted', orderId: orderId });
             if (window.AppInventor?.setWebViewString) window.AppInventor.setWebViewString(acceptedPayload);
             else if (window.android?.receiveData) window.android.receiveData(acceptedPayload);
-            setTimeout(() => { window.location.href = 'orderAccepted.html?id=' + orderId; }, 1500);
+            setTimeout(() => { navigateToScreen('active_order', { id: orderId }); }, 1500);
           } else if (order.selected_driver?.id === driverId || order.driver?.id === driverId) {
             stopCountdown();
             showPopup('Sukses', 'Penawaran Anda diterima!', 'success');
             localStorage.setItem('jego_driver_active_order', orderId);
-            setTimeout(() => { window.location.href = 'orderAccepted.html?id=' + orderId; }, 1500);
+            setTimeout(() => { navigateToScreen('active_order', { id: orderId }); }, 1500);
           } else {
             stopCountdown();
             showPopup('Info', 'Order sudah diambil driver lain.', 'warning');
@@ -1434,26 +1423,89 @@
     }
 
     function showDriverNotRegistered() {
-      const ordersList = document.getElementById('ordersList');
-      if (ordersList) {
-        ordersList.innerHTML = `
-          <div class="empty-state">
-            <div>🚫</div>
-            <p>Anda belum terdaftar sebagai driver atau belum login</p>
-            <p><a href="loginDriver.html" style="color: var(--primary); text-decoration: underline;">Login sebagai Driver</a></p>
-            <button onclick="localStorage.clear(); location.reload();" style="margin-top:10px; padding:8px 16px; background:var(--danger); color:white; border:none; border-radius:5px;">🔄 Clear Cache</button>
+      const container = document.getElementById('app-content');
+      if (container) {
+        container.innerHTML = `
+          <div class="container">
+            <div class="empty-state">
+              <div>🚫</div>
+              <p>Anda belum terdaftar sebagai driver atau belum login</p>
+              <p><a href="loginDriver.html" style="color: var(--primary); text-decoration: underline;">Login sebagai Driver</a></p>
+              <button onclick="localStorage.clear(); location.reload();" style="margin-top:10px; padding:8px 16px; background:var(--danger); color:white; border:none; border-radius:5px;">🔄 Clear Cache</button>
+            </div>
           </div>
         `;
       }
     }
 
-    function navigateToScreen(screen) {
-      if (screen === 'home') window.location.reload();
-      else if (screen === 'history') window.location.href = 'riwayat.html';
-      else if (screen === 'active_order') window.location.href = 'orderAccepted.html';
-      else if (screen === 'account') window.location.href = 'akun.html';
+    // ================= SPA NAVIGATION =================
+    async function loadPage(url, screen, params = {}) {
+      const appContent = document.getElementById('app-content');
+      if (!appContent) return;
+      appContent.innerHTML = '<div class="loading"><div class="spinner"></div><p>Memuat...</p></div>';
+      try {
+        const response = await fetch(url);
+        const html = await response.text();
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, 'text/html');
+        // Coba cari konten utama: #app-content atau .container atau body
+        let content = doc.querySelector('#app-content');
+        if (!content) content = doc.querySelector('.container');
+        if (!content) content = doc.body;
+        appContent.innerHTML = content.innerHTML;
+        // Eksekusi semua script yang ada di halaman yang dimuat
+        const scripts = doc.querySelectorAll('script');
+        scripts.forEach(oldScript => {
+          const newScript = document.createElement('script');
+          if (oldScript.src) {
+            newScript.src = oldScript.src;
+            newScript.async = false;
+          } else {
+            newScript.textContent = oldScript.textContent;
+          }
+          document.body.appendChild(newScript);
+          document.body.removeChild(newScript);
+        });
+        // Panggil fungsi init jika tersedia
+        if (screen === 'active_order' && window.initOrderAccepted) {
+          window.initOrderAccepted(params);
+        } else if (screen === 'history' && window.initRiwayat) {
+          window.initRiwayat();
+        } else if (screen === 'account' && window.initAkun) {
+          window.initAkun();
+        } else if (screen === 'home') {
+          // Muat ulang daftar order dan pastikan listener berjalan
+          if (typeof loadOrders === 'function') loadOrders();
+        }
+        addDebugLog(`Halaman ${screen} dimuat secara dinamis`, 'success');
+      } catch (err) {
+        addDebugLog(`Gagal memuat ${url}: ${err.message}`, 'error');
+        appContent.innerHTML = '<div class="container"><div class="empty-state"><div>⚠️</div><p>Gagal memuat halaman</p></div></div>';
+      }
     }
 
+    function navigateToScreen(screen, params = {}) {
+      let url = '';
+      if (screen === 'history') url = 'riwayat.html';
+      else if (screen === 'active_order') url = 'orderAccepted.html';
+      else if (screen === 'account') url = 'akun.html';
+      else if (screen === 'home') url = window.location.pathname;
+      else return;
+      const state = { screen, url, params };
+      history.pushState(state, '', url);
+      loadPage(url, screen, params);
+    }
+
+    window.addEventListener('popstate', (event) => {
+      const state = event.state;
+      if (state && state.screen) {
+        loadPage(state.url, state.screen, state.params || {});
+      } else {
+        loadPage(window.location.pathname, 'home');
+      }
+    });
+
+    // ================= FUNGSI UTILITY =================
     function toggleLocationTracking() {
       locationTrackingEnabled = !locationTrackingEnabled;
       localStorage.setItem(STORAGE_TRACKING, locationTrackingEnabled);
@@ -1497,7 +1549,9 @@
     function refreshData() {
       const btn = document.getElementById('refreshBtn');
       btn.disabled = true;
-      loadOrders();
+      if (document.getElementById('ordersList')) loadOrders();
+      else if (window.location.pathname.includes('riwayat') && window.refreshRiwayat) window.refreshRiwayat();
+      else if (window.location.pathname.includes('akun') && window.refreshAkun) window.refreshAkun();
       setTimeout(() => btn.disabled = false, 1000);
     }
 
@@ -1514,7 +1568,7 @@
     }
     function hidePopup() { document.getElementById('popupOverlay').classList.remove('active'); }
 
-    function showPhotoModal(photoUrl, name) {
+    window.showPhotoModal = function(photoUrl, name) {
       const modalHtml = `
         <div id="photoModal" class="modal photo-modal" style="display:flex;">
           <div class="modal-content">
@@ -1530,7 +1584,7 @@
       document.getElementById('photoModal').addEventListener('click', (e) => {
         if (e.target === document.getElementById('photoModal')) document.getElementById('photoModal').remove();
       });
-    }
+    };
 
     async function checkDriverActiveOrder() {
       const activeOrderId = localStorage.getItem('jego_driver_active_order');
@@ -1542,7 +1596,7 @@
           const activeStatuses = ['accepted', 'on_the_way', 'arrived', 'on_trip'];
           if (activeStatuses.includes(order.status)) {
             addDebugLog(`Order aktif ditemukan: ${activeOrderId}`, 'info');
-            window.location.href = 'orderAccepted.html?id=' + activeOrderId;
+            navigateToScreen('active_order', { id: activeOrderId });
             return true;
           } else { localStorage.removeItem('jego_driver_active_order'); }
         } else { localStorage.removeItem('jego_driver_active_order'); }
@@ -1550,8 +1604,9 @@
       return false;
     }
 
+    // ================= INITIAL LOAD =================
     document.addEventListener('DOMContentLoaded', async () => {
-      addDebugLog('Halaman JeGo Driver dimuat', 'info');
+      addDebugLog('Halaman JeGo Driver (SPA) dimuat', 'info');
       if (!checkLoginStatus()) return;
       try { await fetchMapboxToken(); } catch (err) { addDebugLog(`Mapbox token tidak tersedia: ${err.message}`, 'warning'); }
       if (!checkDriverData()) return;
@@ -1559,12 +1614,29 @@
       if (hasActive) return;
       loadStoredSettings();
       setTimeout(startGPSMonitoring, 1000);
-      setTimeout(loadOrders, 500);
+      // Load konten home default
+      const homeHtml = `
+        <div class="container">
+          <div class="orders-list" id="ordersList">
+            <div class="loading"><div class="spinner"></div></div>
+          </div>
+        </div>
+      `;
+      document.getElementById('app-content').innerHTML = homeHtml;
+      loadOrders();
+      // Event listeners
       document.getElementById('menuBtn').addEventListener('click', toggleSidebar);
       document.getElementById('closeSidebar').addEventListener('click', toggleSidebar);
       document.getElementById('sidebarOverlay').addEventListener('click', toggleSidebar);
       document.querySelectorAll('.sidebar-nav-button').forEach(btn => {
-        btn.addEventListener('click', () => navigateToScreen(btn.dataset.screen));
+        btn.addEventListener('click', () => {
+          const screen = btn.dataset.screen;
+          if (screen === 'home') {
+            navigateToScreen('home');
+          } else {
+            navigateToScreen(screen);
+          }
+        });
       });
       document.getElementById('locationToggleBtn').addEventListener('click', toggleLocationTracking);
       document.getElementById('refreshBtn').addEventListener('click', refreshData);
@@ -1576,8 +1648,6 @@
       });
       document.getElementById('popupButton').addEventListener('click', hidePopup);
       document.getElementById('acceptKurirToggle').addEventListener('change', updateAcceptKurirSetting);
-
-      // Jika median sudah tersedia, langsung subscribe. Jika belum, deviceready akan menangani
       if (typeof median !== 'undefined' && median.onesignal && currentDriverData) {
         subscribeToOneSignal();
       }
@@ -1585,7 +1655,6 @@
     window.addEventListener('beforeunload', () => {
       if (locationWatchId) navigator.geolocation.clearWatch(locationWatchId);
     });
-    window.showPhotoModal = showPhotoModal;
   </script>
 </body>
 </html>
