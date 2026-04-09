@@ -585,7 +585,7 @@
   </style>
 </head>
 <body>
-  <!-- Guard Login (sama persis dengan asli) -->
+  <!-- Guard Login -->
   <script>
     (function () {
       const raw = localStorage.getItem('jego_logged_in_driver');
@@ -675,7 +675,7 @@
     </div>
   </div>
 
-  <!-- ==================== HALAMAN RIWAYAT (tetap ada untuk sidebar) ==================== -->
+  <!-- ==================== HALAMAN RIWAYAT ==================== -->
   <div id="page-riwayat" class="page">
     <div style="margin: 15px 15px 0 15px;">
       <div class="filter-container">
@@ -699,7 +699,7 @@
     <div class="efficiency-container">
       <div class="efficiency-card" id="cardRating">
         <div class="card-left">
-          <div class="card-title">Peringkat</div>
+          <div class="card-title">Peringkat (Bintang)</div>
           <div class="card-value" id="efficiencyRating">-</div>
           <div class="priority-label" id="priorityLabel">-</div>
           <div class="card-sub">Klik untuk lihat detail penilaian</div>
@@ -725,7 +725,7 @@
     </div>
   </div>
 
-  <!-- ==================== MODAL UNTUK ORDER BERANDA ==================== -->
+  <!-- ==================== MODAL ORDER ==================== -->
   <div class="modal" id="orderModal">
     <div class="modal-content">
       <div class="modal-header-with-customer">
@@ -781,7 +781,7 @@
     </div>
   </div>
 
-  <!-- ==================== MODAL UNTUK DETAIL RIWAYAT (Leaflet) ==================== -->
+  <!-- ==================== MODAL RIWAYAT ==================== -->
   <div class="modal" id="historyModal">
     <div class="modal-content" style="max-width: 500px;">
       <div class="modal-header" style="background: linear-gradient(135deg, var(--primary), var(--secondary)); border-radius: 12px 12px 0 0; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center;">
@@ -930,7 +930,7 @@
     </div>
   </div>
 
-  <!-- ==================== BOTTOM NAVIGATION (Beranda & Efisiensi) ==================== -->
+  <!-- ==================== BOTTOM NAVIGATION ==================== -->
   <div class="bottom-nav">
     <div class="nav-item" data-tab="beranda">
       <div class="nav-icon">☰</div>
@@ -981,9 +981,6 @@
   </audio>
 
   <script>
-    // ==================== SELURUH JAVASCRIPT DARI index.html ASLI + EFISIENSI + NOTIFIKASI TOLAK ====================
-    // (Kode di bawah ini adalah salinan utuh dari file asli, ditambah fungsi untuk halaman Efisiensi dan notifikasi penolakan)
-    
     // ========== DEBUG LOGGER ==========
     const debugContent = document.getElementById('debugContent');
     function addDebugLog(message, type = 'info') {
@@ -1048,7 +1045,7 @@
     const STORAGE_TRACKING = 'jego_location_tracking';
     const STORAGE_AUTOBID = 'jego_autobid_enabled';
 
-    // ========== FUNGSI DARI INDEX (BERANDA) ==========
+    // ========== FUNGSI UTAMA ==========
     function calculateDistance(lat1, lon1, lat2, lon2) {
       if (!lat1 || !lon1 || !lat2 || !lon2) return null;
       const R = 6371;
@@ -1381,6 +1378,7 @@
       }).catch(err => addDebugLog(`Error showOrderDetail: ${err.message}`, 'error'));
     }
 
+    // ========== KIRIM PENAWARAN ==========
     function sendDriverOffer() {
       if (!currentSelectedOrder || !currentDriverId || !currentDriverData) return;
       const hargaTotal = currentSelectedOrder.harga_total || 0;
@@ -1415,6 +1413,8 @@
           .then(() => {
             ambilBtn.textContent = 'Menunggu Konfirmasi';
             startCountdown(orderId, driverId);
+            // Mulai mendengarkan perubahan status penawaran (termasuk penolakan)
+            listenDriverOffers(orderId);
           }).catch(error => {
             showPopup('Error', 'Gagal mengirim penawaran.', 'error');
             ambilBtn.disabled = false;
@@ -1498,6 +1498,11 @@
     }
 
     function closeModal() {
+      // Hentikan listener penawaran jika ada
+      if (window.driverOffersRef) {
+        window.driverOffersRef.off();
+        window.driverOffersRef = null;
+      }
       document.getElementById('orderModal').style.display = 'none';
       stopCountdown();
       currentSelectedOrder = null;
@@ -1674,7 +1679,7 @@
       return false;
     }
 
-    // ========== FUNGSI DARI RIWAYAT.HTML ==========
+    // ========== FUNGSI RIWAYAT ==========
     let historyMap = null;
     let historyRoutePolyline = null;
     let historyMarkers = [];
@@ -1870,14 +1875,11 @@
 
     async function loadEfficiencyData() {
       if (!currentDriverData || !database) return;
-      // Rating
       const rating = currentDriverData.rating || 0;
       document.getElementById('efficiencyRating').innerHTML = `⭐ ${rating.toFixed(1)}`;
       updatePriorityLabel(rating);
-      // Saldo
       const balance = currentDriverData.balance || 0;
       document.getElementById('efficiencyBalance').innerHTML = `Rp ${balance.toLocaleString('id-ID')}`;
-      // Pendapatan hari ini: hitung dari order completed hari ini yang driver ini terlibat
       const today = new Date();
       today.setHours(0,0,0,0);
       const snapshot = await database.ref('orders').once('value');
@@ -1887,7 +1889,6 @@
         for (let id in orders) {
           const order = orders[id];
           if (order.status === 'completed') {
-            // cek apakah driver ini terkait
             let isDriverOrder = false;
             if (order.driver_offers) {
               isDriverOrder = Object.values(order.driver_offers).some(off => off.driver_id === currentDriverData.driverId || off.id === currentDriverData.driverId);
@@ -1906,46 +1907,34 @@
       document.getElementById('efficiencyTodayEarning').innerHTML = `Rp ${todayEarning.toLocaleString('id-ID')}`;
     }
 
-    // ========== FUNGSI NOTIFIKASI PENOLAKAN PENAWARAN ==========
+    // ========== NOTIFIKASI PENOLAKAN ==========
     function listenDriverOffers(orderId) {
       if (!orderId) return;
-      if (window.driverOffersRef) window.driverOffersRef.off();
+      // Hentikan listener lama jika ada
+      if (window.driverOffersRef) {
+        window.driverOffersRef.off();
+      }
       window.driverOffersRef = database.ref('orders/' + orderId + '/driver_offers');
-      window.driverOffersList = [];
-      window.driverOffersRef.on('child_added', snap => {
+      window.driverOffersRef.on('child_changed', (snap) => {
         const offer = snap.val();
         if (!offer) return;
-        if (offer.status === 'rejected' && offer.id === currentDriverData?.driverId) {
-          // Penawaran driver ini ditolak oleh customer
-          showPopup('Penawaran Ditolak', `Penawaran Anda untuk order ${orderId} ditolak oleh customer.`, 'warning');
+        // Jika status berubah menjadi rejected dan offer ini milik driver yang sedang login
+        if (offer.status === 'rejected' && (offer.id === currentDriverData?.driverId || offer.driver_id === currentDriverData?.driverId)) {
+          addDebugLog(`Penawaran ditolak untuk order ${orderId}`, 'warning');
+          // Hentikan countdown dan tutup modal
+          stopCountdown();
+          closeModal();
+          showPopup('Penawaran Ditolak', 'Penawaran Anda ditolak oleh customer.', 'warning');
         }
-        if (offer.status === 'rejected' || offer.status === 'accepted') return;
-        offer.id = snap.key;
-        const existing = (window.driverOffersList || []).findIndex(o => o.id === offer.id);
-        if (existing > -1) window.driverOffersList[existing] = offer;
-        else {
-          if (!window.driverOffersList) window.driverOffersList = [];
-          window.driverOffersList.push(offer);
-        }
-        if (window.priceIncreaseTimer) { clearTimeout(window.priceIncreaseTimer); window.priceIncreaseTimer = null; }
-        // Prioritas tidak diperlukan di driver, hanya notifikasi
       });
-      window.driverOffersRef.on('child_changed', snap => {
+      // Juga tangani child_added untuk berjaga-jaga jika langsung ditolak
+      window.driverOffersRef.on('child_added', (snap) => {
         const offer = snap.val();
-        const offerId = snap.key;
-        if (offer.status === 'rejected') {
-          if (offer.id === currentDriverData?.driverId) {
-            showPopup('Penawaran Ditolak', `Penawaran Anda untuk order ${orderId} ditolak oleh customer.`, 'warning');
-          }
-          if (window.driverOffersList) window.driverOffersList = window.driverOffersList.filter(o => o.id !== offerId);
-          return;
+        if (offer && offer.status === 'rejected' && (offer.id === currentDriverData?.driverId || offer.driver_id === currentDriverData?.driverId)) {
+          stopCountdown();
+          closeModal();
+          showPopup('Penawaran Ditolak', 'Penawaran Anda ditolak oleh customer.', 'warning');
         }
-        if (offer.status === 'accepted') return;
-        const idx = (window.driverOffersList || []).findIndex(o => o.id === offerId);
-        if (idx > -1) window.driverOffersList[idx] = { ...offer, id: offerId };
-      });
-      window.driverOffersRef.on('child_removed', snap => {
-        if (window.driverOffersList) window.driverOffersList = window.driverOffersList.filter(o => o.id !== snap.key);
       });
     }
 
@@ -2028,13 +2017,11 @@
       });
       document.getElementById('popupButton').addEventListener('click', hidePopup);
       document.getElementById('acceptKurirToggle').addEventListener('change', updateAcceptKurirSetting);
-      // Bottom navigation
       document.querySelectorAll('.nav-item').forEach(item => {
         item.addEventListener('click', () => showTab(item.dataset.tab));
       });
-      // Card klik efisiensi
       document.getElementById('cardRating').addEventListener('click', () => {
-        window.location.href = 'penilaianLayanan.html';
+        window.location.href = 'penilaLayanan.html';
       });
       document.getElementById('cardTodayEarning').addEventListener('click', () => {
         window.location.href = 'pendapatan.html';
@@ -2042,12 +2029,12 @@
       document.getElementById('cardBalance').addEventListener('click', () => {
         window.location.href = 'payment.html';
       });
-      // Tampilkan beranda awal
       showTab('beranda');
     });
 
     window.addEventListener('beforeunload', () => {
       if (locationWatchId) navigator.geolocation.clearWatch(locationWatchId);
+      if (window.driverOffersRef) window.driverOffersRef.off();
     });
   </script>
 </body>
