@@ -163,6 +163,7 @@
       z-index: 9999;
       box-shadow: 0 0 12px rgba(0,0,0,0.5);
       pointer-events: auto;
+      display: none !important;
     }
     .debug-header {
       padding: 6px 10px;
@@ -383,9 +384,6 @@
     #loadingOverlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.95); display: none; flex-direction: column; justify-content: center; align-items: center; z-index: 3000; }
     body.radar-active::before { content: ''; position: fixed; top: 70px; left: 0; width: 100%; height: calc(100vh - 70px); background: linear-gradient(135deg, #ff6b35 0%, #ff8e53 100%); z-index: 89; pointer-events: none; }
     body.radar-active .orders-list, body.radar-active .empty-state, body.radar-active .loading { display: none !important; }
-    .debug-console {
-      display: none !important;
-    }
     /* ========== CSS UNTUK SPA & BOTTOM NAVIGATION ========== */
     .page {
       display: none;
@@ -556,6 +554,19 @@
       font-size: 0.7rem;
       color: #999;
     }
+    .priority-label {
+      font-size: 0.65rem;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 12px;
+      display: inline-block;
+      width: fit-content;
+      margin-top: 4px;
+    }
+    .priority-basic { background: #6c757d; color: white; }
+    .priority-standard { background: #17a2b8; color: white; }
+    .priority-regular { background: #28a745; color: white; }
+    .priority-essential { background: linear-gradient(135deg, #ffc107, #e0a800); color: #333; }
     .card-icon {
       font-size: 2.5rem;
       opacity: 0.7;
@@ -688,8 +699,9 @@
     <div class="efficiency-container">
       <div class="efficiency-card" id="cardRating">
         <div class="card-left">
-          <div class="card-title">Peringkat</div>
+          <div class="card-title">Peringkat (Bintang)</div>
           <div class="card-value" id="efficiencyRating">-</div>
+          <div class="priority-label" id="priorityLabel">-</div>
           <div class="card-sub">Klik untuk lihat detail penilaian</div>
         </div>
         <div class="card-icon">⭐</div>
@@ -704,7 +716,7 @@
       </div>
       <div class="efficiency-card" id="cardBalance">
         <div class="card-left">
-          <div class="card-title">Saldo</div>
+          <div class="card-title">Saldo (Hasil Kotor)</div>
           <div class="card-value" id="efficiencyBalance">Rp 0</div>
           <div class="card-sub">Klik untuk melakukan pembayaran</div>
         </div>
@@ -969,8 +981,8 @@
   </audio>
 
   <script>
-    // ==================== SELURUH JAVASCRIPT DARI index.html ASLI + EFISIENSI ====================
-    // (Kode di bawah ini adalah salinan utuh dari file asli, ditambah fungsi untuk halaman Efisiensi)
+    // ==================== SELURUH JAVASCRIPT DARI index.html ASLI + EFISIENSI + NOTIFIKASI TOLAK ====================
+    // (Kode di bawah ini adalah salinan utuh dari file asli, ditambah fungsi untuk halaman Efisiensi dan notifikasi penolakan)
     
     // ========== DEBUG LOGGER ==========
     const debugContent = document.getElementById('debugContent');
@@ -984,14 +996,18 @@
       console.log(`[DEBUG][${type}] ${message}`);
       while (debugContent.children.length > 200) debugContent.removeChild(debugContent.firstChild);
     }
-    document.getElementById('clearDebugBtn').onclick = () => { debugContent.innerHTML = ''; addDebugLog('Log dibersihkan', 'info'); };
+    if (document.getElementById('clearDebugBtn')) {
+      document.getElementById('clearDebugBtn').onclick = () => { debugContent.innerHTML = ''; addDebugLog('Log dibersihkan', 'info'); };
+    }
     const toggleBtn = document.getElementById('toggleDebugBtn');
     let debugCollapsed = false;
-    toggleBtn.onclick = () => {
-      debugCollapsed = !debugCollapsed;
-      document.getElementById('debugConsole').classList.toggle('collapsed', debugCollapsed);
-      toggleBtn.textContent = debugCollapsed ? '▲' : '▼';
-    };
+    if (toggleBtn) {
+      toggleBtn.onclick = () => {
+        debugCollapsed = !debugCollapsed;
+        document.getElementById('debugConsole').classList.toggle('collapsed', debugCollapsed);
+        toggleBtn.textContent = debugCollapsed ? '▲' : '▼';
+      };
+    }
 
     // ========== KONFIGURASI FIREBASE ==========
     const firebaseConfig = {
@@ -1836,11 +1852,28 @@
     }
 
     // ========== FUNGSI EFISIENSI ==========
+    function getPriorityLevel(rating) {
+      if (rating >= 4.5) return { level: 'Essential', class: 'priority-essential' };
+      if (rating >= 4.0) return { level: 'Regular', class: 'priority-regular' };
+      if (rating >= 3.0) return { level: 'Standard', class: 'priority-standard' };
+      return { level: 'Basic', class: 'priority-basic' };
+    }
+
+    function updatePriorityLabel(rating) {
+      const priority = getPriorityLevel(rating);
+      const labelEl = document.getElementById('priorityLabel');
+      if (labelEl) {
+        labelEl.textContent = priority.level;
+        labelEl.className = `priority-label ${priority.class}`;
+      }
+    }
+
     async function loadEfficiencyData() {
       if (!currentDriverData || !database) return;
       // Rating
       const rating = currentDriverData.rating || 0;
       document.getElementById('efficiencyRating').innerHTML = `⭐ ${rating.toFixed(1)}`;
+      updatePriorityLabel(rating);
       // Saldo
       const balance = currentDriverData.balance || 0;
       document.getElementById('efficiencyBalance').innerHTML = `Rp ${balance.toLocaleString('id-ID')}`;
@@ -1871,6 +1904,49 @@
         }
       }
       document.getElementById('efficiencyTodayEarning').innerHTML = `Rp ${todayEarning.toLocaleString('id-ID')}`;
+    }
+
+    // ========== FUNGSI NOTIFIKASI PENOLAKAN PENAWARAN ==========
+    function listenDriverOffers(orderId) {
+      if (!orderId) return;
+      if (window.driverOffersRef) window.driverOffersRef.off();
+      window.driverOffersRef = database.ref('orders/' + orderId + '/driver_offers');
+      window.driverOffersList = [];
+      window.driverOffersRef.on('child_added', snap => {
+        const offer = snap.val();
+        if (!offer) return;
+        if (offer.status === 'rejected' && offer.id === currentDriverData?.driverId) {
+          // Penawaran driver ini ditolak oleh customer
+          showPopup('Penawaran Ditolak', `Penawaran Anda untuk order ${orderId} ditolak oleh customer.`, 'warning');
+        }
+        if (offer.status === 'rejected' || offer.status === 'accepted') return;
+        offer.id = snap.key;
+        const existing = (window.driverOffersList || []).findIndex(o => o.id === offer.id);
+        if (existing > -1) window.driverOffersList[existing] = offer;
+        else {
+          if (!window.driverOffersList) window.driverOffersList = [];
+          window.driverOffersList.push(offer);
+        }
+        if (window.priceIncreaseTimer) { clearTimeout(window.priceIncreaseTimer); window.priceIncreaseTimer = null; }
+        // Prioritas tidak diperlukan di driver, hanya notifikasi
+      });
+      window.driverOffersRef.on('child_changed', snap => {
+        const offer = snap.val();
+        const offerId = snap.key;
+        if (offer.status === 'rejected') {
+          if (offer.id === currentDriverData?.driverId) {
+            showPopup('Penawaran Ditolak', `Penawaran Anda untuk order ${orderId} ditolak oleh customer.`, 'warning');
+          }
+          if (window.driverOffersList) window.driverOffersList = window.driverOffersList.filter(o => o.id !== offerId);
+          return;
+        }
+        if (offer.status === 'accepted') return;
+        const idx = (window.driverOffersList || []).findIndex(o => o.id === offerId);
+        if (idx > -1) window.driverOffersList[idx] = { ...offer, id: offerId };
+      });
+      window.driverOffersRef.on('child_removed', snap => {
+        if (window.driverOffersList) window.driverOffersList = window.driverOffersList.filter(o => o.id !== snap.key);
+      });
     }
 
     // ========== SPA NAVIGASI ==========
