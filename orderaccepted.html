@@ -1033,18 +1033,15 @@
       'kurir_bentor': 'https://cdn-icons-png.flaticon.com/128/7890/7890227.png'
     };
 
-    // ========== FUNGSI BARU: BUKA GOOGLE MAPS ========== 
-    // <!-- UPDATE: fungsi baru untuk navigasi eksternal -->
+    // ========== FUNGSI BUKA GOOGLE MAPS ========== 
     function openGoogleMaps(lat, lng) {
       if (!lat || !lng) {
         showInfoModal('Error', 'Koordinat tidak tersedia');
         return;
       }
       const url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`;
-      // Menggunakan _system agar terbuka di aplikasi maps default (median.co WebView)
       window.open(url, '_system');
     }
-    // =================================================
 
     function initMap(centerLat, centerLng) {
       if (!orderMap) {
@@ -1592,40 +1589,116 @@
       }
     }
 
-    // ========== FUNGSI START TRIP YANG DIPERBARUI ==========
-    // <!-- UPDATE: startTrip() sekarang membuka Google Maps sesuai status -->
+    // ========== FUNGSI START TRIP YANG DIPERBAIKI (UPDATE STATUS + NAVIGASI) ==========
     function startTrip() {
-      if (!orderData) {
+      if (!orderData || !orderId) {
         showInfoModal('Error', 'Data order tidak tersedia.');
         return;
       }
 
-      // Ambil koordinat dari orderData (pastikan nama field sesuai)
-      const pickupLat = orderData.lat_a || orderData.from_lat;
-      const pickupLng = orderData.lng_a || orderData.from_lng;
-      const destLat = orderData.lat_b || orderData.to_lat;
-      const destLng = orderData.lng_b || orderData.to_lng;
+      let newStatus = '';
+      let actionText = '';
+      let navigateTo = null; // { lat, lng }
 
-      // Tentukan tujuan navigasi berdasarkan status
-      if (currentOrderStatus === 'accepted' || currentOrderStatus === 'on_the_way') {
-        // Menuju ke titik penjemputan (A)
-        if (pickupLat && pickupLng) {
-          openGoogleMaps(pickupLat, pickupLng);
-        } else {
-          showInfoModal('Error', 'Koordinat penjemputan tidak tersedia.');
-        }
-      } 
-      else if (currentOrderStatus === 'arrived' || currentOrderStatus === 'on_trip') {
-        // Menuju ke titik tujuan (B)
-        if (destLat && destLng) {
-          openGoogleMaps(destLat, destLng);
-        } else {
-          showInfoModal('Error', 'Koordinat tujuan tidak tersedia.');
-        }
+      // Tentukan status baru dan teks konfirmasi berdasarkan status saat ini
+      switch (currentOrderStatus) {
+        case 'accepted':
+          newStatus = 'on_the_way';
+          actionText = 'mulai menuju lokasi penjemputan';
+          navigateTo = { lat: orderData.lat_a || orderData.from_lat, lng: orderData.lng_a || orderData.from_lng };
+          break;
+        case 'on_the_way':
+          newStatus = 'arrived';
+          actionText = 'menandai telah tiba di lokasi';
+          navigateTo = null; // tidak perlu navigasi karena sudah sampai
+          break;
+        case 'arrived':
+          newStatus = 'on_trip';
+          actionText = 'memulai perjalanan ke tujuan';
+          navigateTo = { lat: orderData.lat_b || orderData.to_lat, lng: orderData.lng_b || orderData.to_lng };
+          break;
+        default:
+          showInfoModal('Info', 'Tidak dapat melakukan aksi ini. Status saat ini: ' + currentOrderStatus);
+          return;
       }
-      else {
-        showInfoModal('Info', 'Tidak dapat membuka navigasi pada status ini.');
-      }
+
+      // Tampilkan konfirmasi sebelum mengubah status
+      showConfirmationModal('Konfirmasi', `Apakah Anda yakin ingin ${actionText}?`, () => {
+        // Update status di Firebase
+        database.ref('orders/' + orderId).update({
+          status: newStatus,
+          updated_at: new Date().toISOString()
+        }).then(() => {
+          showInfoModal('Sukses', 'Status berhasil diperbarui.');
+
+          // Buka navigasi jika diperlukan
+          if (navigateTo && navigateTo.lat && navigateTo.lng) {
+            openGoogleMaps(navigateTo.lat, navigateTo.lng);
+          }
+
+          // Jika status baru adalah 'on_trip', lakukan pemotongan saldo (sesuai kode asli)
+          if (newStatus === 'on_trip') {
+            const driverId = driverData?.driverId || driverData?.uid || driverData?.id;
+            if (driverId) {
+              database.ref('drivers/' + driverId).once('value').then((snap) => {
+                const driverInfo = snap.val();
+                if (driverInfo) {
+                  const potonganPersen = driverInfo.Potongan || 0;
+                  const hargaTotal = orderData?.harga_total || 0;
+                  const potonganNominal = hargaTotal * (potonganPersen / 100);
+                  if (potonganNominal > 0) {
+                    database.ref('drivers/' + driverId + '/Balance').transaction((currentBalance) => {
+                      return (currentBalance || 0) - potonganNominal;
+                    }).then((result) => {
+                      if (result.committed) {
+                        if (driverData) {
+                          driverData.Balance = (driverData.Balance || 0) - potonganNominal;
+                          localStorage.setItem('jego_logged_in_driver', JSON.stringify(driverData));
+                        }
+                        showInfoModal('Sukses', `Saldo dipotong Rp ${potonganNominal.toLocaleString('id-ID')}`);
+                        const transactionRef = database.ref('drivers/' + driverId + '/transactions').push();
+                        transactionRef.set({
+                          type: 'potongan_komisi',
+                          amount: -potonganNominal,
+                          order_id: orderId,
+                          description: `Potongan komisi ${potonganPersen}% dari order ${orderId}`,
+                          timestamp: Date.now(),
+                          date: new Date().toISOString()
+                        }).catch(err => console.error('Gagal simpan transaksi:', err));
+                      }
+                    }).catch((err) => {
+                      showInfoModal('Error', 'Gagal memperbarui saldo: ' + err.message);
+                    });
+                  }
+                }
+              }).catch((err) => {
+                showInfoModal('Error', 'Gagal mengambil data driver: ' + err.message);
+              });
+            }
+          }
+
+          // Kirim notifikasi ke Kodular (opsional)
+          let payload = {
+            event: 'driver_status_update',
+            order_id: orderId,
+            status: newStatus
+          };
+          if (newStatus === 'on_the_way') {
+            payload.lat = orderData.from_lat;
+            payload.lng = orderData.from_lng;
+            payload.type = 'pickup';
+          } else if (newStatus === 'on_trip') {
+            payload.lat = orderData.to_lat;
+            payload.lng = orderData.to_lng;
+            payload.type = 'destination';
+          }
+          if (payload.lat && payload.lng) {
+            sendToKodular(payload);
+          }
+        }).catch(err => {
+          showInfoModal('Error', 'Gagal memperbarui status: ' + err.message);
+        });
+      });
     }
     // ============================================================
 
