@@ -1193,7 +1193,47 @@
     function formatFullTime(dateString) { if (!dateString) return '-'; try { const date = new Date(dateString); if (isNaN(date.getTime())) return '-'; return date.toLocaleString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }); } catch { return '-'; } }
     function initHistoryMap() { if (historyMap) { historyMap.remove(); historyMap = null; } const mapElement = document.getElementById('historyModalMap'); if (!mapElement) return; historyMap = L.map('historyModalMap').setView([0.5441, 123.0595], 13); L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' }).addTo(historyMap); }
     function showHistoryRoute(order) { if (!historyMap) initHistoryMap(); if (!order.from_lat || !order.from_lng || !order.to_lat || !order.to_lng) return; if (historyRoutePolyline) historyMap.removeLayer(historyRoutePolyline); historyMarkers.forEach(m => historyMap.removeLayer(m)); historyMarkers = []; const start = [order.from_lat, order.from_lng]; const end = [order.to_lat, order.to_lng]; historyRoutePolyline = L.polyline([start, end], { color: '#FF5722', weight: 6, opacity: 0.8, dashArray: '10, 10' }).addTo(historyMap); const startMarker = L.marker(start).bindPopup('<b>Penjemputan</b><br>' + (order.alamat_a || 'A')).addTo(historyMap); const endMarker = L.marker(end).bindPopup('<b>Tujuan</b><br>' + (order.alamat_b || 'B')).addTo(historyMap); historyMarkers.push(startMarker, endMarker); historyMap.fitBounds(L.latLngBounds([start, end]), { padding: [20,20] }); }
-    function showHistoryDetail(order) { document.getElementById('historyAddressA').textContent = order.alamat_a || '-'; document.getElementById('historyAddressB').textContent = order.alamat_b || '-'; document.getElementById('historyDuration').textContent = order.durasi || '-'; document.getElementById('historyDistance').textContent = order.jarak || '-'; document.getElementById('historyPrice').textContent = order.harga_total ? `Rp ${order.harga_total.toLocaleString('id-ID')}` : '-'; let acceptedTime = '-'; if (order.driver_offers && currentDriverData && currentDriverData.driverId) { const offer = Object.values(order.driver_offers).find(o => o.driver_id === currentDriverData.driverId || o.id === currentDriverData.driverId); if (offer) acceptedTime = formatFullTime(offer.offered_at || offer.accepted_at); } if (acceptedTime === '-' && order.selected_driver) acceptedTime = formatFullTime(order.selected_driver.offered_at || order.selected_driver.accepted_at); document.getElementById('timelineCreated').textContent = formatFullTime(order.created_at); document.getElementById('timelineAccepted').textContent = acceptedTime; document.getElementById('timelineStarted').textContent = formatFullTime(order.trip_started_at); document.getElementById('timelineArrived').textContent = formatFullTime(order.arrived_at); document.getElementById('timelineCompleted').textContent = formatFullTime(order.completed_at || order.updated_at); document.getElementById('historyModal').style.display = 'flex'; setTimeout(() => showHistoryRoute(order), 100); }
+    function showHistoryDetail(order) {
+    document.getElementById('historyAddressA').textContent = order.alamat_a || '-';
+    document.getElementById('historyAddressB').textContent = order.alamat_b || '-';
+    document.getElementById('historyDuration').textContent = order.durasi || '-';
+    document.getElementById('historyDistance').textContent = order.jarak || '-';
+    document.getElementById('historyPrice').textContent = order.harga_total ? `Rp ${order.harga_total.toLocaleString('id-ID')}` : '-';
+    
+    // Cari waktu accepted dari driver_offers
+    let acceptedTime = '-';
+    if (order.driver_offers && currentDriverData && currentDriverData.driverId) {
+        const offer = Object.values(order.driver_offers).find(o => o.driver_id === currentDriverData.driverId || o.id === currentDriverData.driverId);
+        if (offer) acceptedTime = formatFullTime(offer.accepted_at || offer.offered_at);
+    }
+    if (acceptedTime === '-' && order.selected_driver) acceptedTime = formatFullTime(order.selected_driver.accepted_at || order.selected_driver.offered_at);
+    if (acceptedTime === '-' && order.accepted_driver) acceptedTime = formatFullTime(order.accepted_driver.accepted_at || order.accepted_driver.offered_at);
+    
+    // Ambil waktu selesai dari berbagai kemungkinan field
+    let completedTime = order.completed_at || order.finished_at || order.updated_at;
+    
+    // Fallback untuk perjalanan dimulai
+    let startedAt = order.trip_started_at || order.started_at;
+    if (!startedAt) {
+        // Jika tidak ada, gunakan accepted_time (jika ada) atau updated_at
+        startedAt = acceptedTime !== '-' ? order.accepted_at || order.updated_at : order.updated_at;
+    }
+    
+    // Fallback untuk tiba di tujuan: gunakan completedTime jika arrived_at tidak ada
+    let arrivedAt = order.arrived_at;
+    if (!arrivedAt && completedTime) {
+        arrivedAt = completedTime;
+    }
+    
+    document.getElementById('timelineCreated').textContent = formatFullTime(order.created_at);
+    document.getElementById('timelineAccepted').textContent = acceptedTime;
+    document.getElementById('timelineStarted').textContent = startedAt ? formatFullTime(startedAt) : '(Tidak tercatat)';
+    document.getElementById('timelineArrived').textContent = arrivedAt ? formatFullTime(arrivedAt) : '(Tidak tercatat)';
+    document.getElementById('timelineCompleted').textContent = formatFullTime(completedTime);
+    
+    document.getElementById('historyModal').style.display = 'flex';
+    setTimeout(() => showHistoryRoute(order), 100);
+}
     function closeHistoryModal() { document.getElementById('historyModal').style.display = 'none'; if (historyMap) historyMap.remove(); historyMap = null; }
     function loadHistoryData() {
     if (!database) return;
