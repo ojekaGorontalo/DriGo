@@ -378,17 +378,25 @@
         }
 
         driverData = JSON.parse(loggedInDriver);
-        driverId = driverData.uid || driverData.firebase_key || driverData.userId;
+        // Cari driverId dari berbagai kemungkinan field
+        driverId = driverData.uid || driverData.driverId || driverData.firebase_key || driverData.userId;
+        if (!driverId) {
+          console.warn('Driver ID tidak ditemukan di localStorage, coba dari drivers node');
+          // fallback: ambil dari localStorage key lain jika ada
+          driverId = driverData.id || null;
+        }
         
         if (!driverId) {
           showErrorState('Data driver tidak valid. Silakan login ulang.');
           return;
         }
 
+        console.log('Driver ID:', driverId);
         showLoadingState();
 
         Promise.all([ loadDriverOrders(), loadBalanceHistory() ])
           .then(() => {
+            console.log(`Total order selesai ditemukan: ${driverOrders.length}`);
             displayEarningsData();
           })
           .catch((error) => {
@@ -412,28 +420,39 @@
             if (ordersData) {
               Object.keys(ordersData).forEach(key => {
                 const order = ordersData[key];
+                // Cek apakah order milik driver ini
+                let isDriverOrder = false;
                 
-                const isDriverOrder = 
-                  (order.selected_driver && 
-                    (order.selected_driver.id === driverId || 
-                     order.selected_driver.driver_id === driverId)) ||
-                  (order.driver && 
-                    (order.driver.id === driverId || 
-                     order.driver.driver_id === driverId)) ||
-                  (order.driverId === driverId) ||
-                  (order.driver_id === driverId);
+                // 1. Cek accepted_driver_id
+                if (order.accepted_driver_id === driverId) isDriverOrder = true;
+                // 2. Cek selected_driver
+                if (order.selected_driver && (order.selected_driver.id === driverId || order.selected_driver.driver_id === driverId)) isDriverOrder = true;
+                // 3. Cek driver object
+                if (order.driver && (order.driver.id === driverId || order.driver.driver_id === driverId)) isDriverOrder = true;
+                // 4. Cek field driverId / driver_id
+                if (order.driverId === driverId || order.driver_id === driverId) isDriverOrder = true;
+                // 5. Cek driver_offers (jika ada)
+                if (order.driver_offers) {
+                  if (Object.values(order.driver_offers).some(offer => offer.id === driverId || offer.driver_id === driverId)) isDriverOrder = true;
+                }
                 
+                // Hanya order dengan status completed
                 if (isDriverOrder && order.status === 'completed') {
+                  // Ambil waktu selesai dari berbagai kemungkinan field
+                  let completedTime = order.completed_at || order.finished_at || order.updated_at || order.created_at;
+                  if (!completedTime) completedTime = Date.now();
+                  
                   driverOrders.push({
                     id: key,
                     ...order,
-                    jarak_km: order.jarak_km || order.distance || '0',
+                    jarak_km: order.jarak_km || order.jarak || order.distance || '0',
                     harga_total: order.harga_total || order.total_price || 0,
-                    completed_at: order.completed_at || order.finished_at || order.updated_at || order.created_at || Date.now()
+                    completed_at: completedTime
                   });
                 }
               });
               
+              // Urutkan dari yang terbaru
               driverOrders.sort((a, b) => new Date(b.completed_at) - new Date(a.completed_at));
             }
             
@@ -443,7 +462,6 @@
       });
     }
 
-    // ==================== PERBAIKAN: HANYA BACA DARI drivers/{driverId}/transactions ====================
     function loadBalanceHistory() {
       return new Promise((resolve) => {
         if (!driverId) {
@@ -469,128 +487,8 @@
       });
     }
 
-    function displayEarningsData() {
-      const container = document.getElementById('mainContainer');
-      
-      const filteredOrders = filterOrdersByDateWITA(driverOrders, currentDate);
-      
-      if (filteredOrders.length === 0) {
-        container.innerHTML = `
-          <div class="date-navigation">
-            <button class="nav-btn" id="prevBtn">‹</button>
-            <div class="current-date">
-              <div class="date-display">${formatDateDisplay(currentDate)}</div>
-              <div class="day-display">${getDayName(currentDate)}</div>
-            </div>
-            <button class="nav-btn" id="nextBtn" disabled>›</button>
-          </div>
-          <div class="empty-state">
-            <div class="empty-state-icon">📭</div>
-            <h3 style="color: var(--primary); margin-bottom: 10px;">Tidak Ada Data</h3>
-            <p>Tidak ada order yang diselesaikan pada tanggal ini.</p>
-            <button class="nav-btn" id="retryBtn" style="margin-top: 15px; width: auto; padding: 8px 20px;">
-              Coba Lagi
-            </button>
-          </div>
-        `;
-        
-        initButtons();
-        updateNavButtons();
-        
-        const retryBtn = document.getElementById('retryBtn');
-        if (retryBtn) retryBtn.addEventListener('click', loadEarningsData);
-        
-        return;
-      }
-
-      const stats = calculateStats(filteredOrders, currentDate);
-      
-      let html = `
-        <div class="date-navigation">
-          <button class="nav-btn" id="prevBtn">‹</button>
-          <div class="current-date">
-            <div class="date-display">${formatDateDisplay(currentDate)}</div>
-            <div class="day-display">${getDayName(currentDate)}</div>
-          </div>
-          <button class="nav-btn" id="nextBtn">›</button>
-        </div>
-        
-        <div class="summary-grid">
-          <div class="summary-card">
-            <div class="summary-icon">📊</div>
-            <div class="summary-label">Total Order</div>
-            <div class="summary-value">${stats.totalOrders}</div>
-          </div>
-          
-          <div class="summary-card">
-            <div class="summary-icon">📏</div>
-            <div class="summary-label">Total Jarak</div>
-            <div class="summary-value distance">${stats.totalDistance}</div>
-          </div>
-          
-          <div class="summary-card">
-            <div class="summary-icon">💰</div>
-            <div class="summary-label">Rata-rata per KM</div>
-            <div class="summary-value">Rp ${stats.averagePerKm.toLocaleString('id-ID')}</div>
-          </div>
-          
-          <div class="summary-card">
-            <div class="summary-icon">💵</div>
-            <div class="summary-label">Pendapatan Bersih</div>
-            <div class="summary-value earnings">Rp ${stats.netEarnings.toLocaleString('id-ID')}</div>
-          </div>
-          
-          <div class="summary-card">
-            <div class="summary-icon">📉</div>
-            <div class="summary-label">Total Potongan</div>
-            <div class="summary-value fees">Rp ${stats.totalFees.toLocaleString('id-ID')}</div>
-          </div>
-          
-          <div class="summary-card">
-            <div class="summary-icon">⚖️</div>
-            <div class="summary-label">Persentase Potongan</div>
-            <div class="summary-value">${stats.feePercentage}%</div>
-          </div>
-        </div>
-      `;
-      
-      if (filteredOrders.length > 0) {
-        html += `
-          <div class="breakdown-section">
-            <div class="section-title">Rincian Order</div>
-            <div class="breakdown-list">
-        `;
-        
-        filteredOrders.forEach(order => {
-          const orderTime = formatTimeWITA(new Date(order.completed_at));
-          const distance = parseFloat((order.jarak_km || '0').replace(',', '.')) || 0;
-          const earnings = parseFloat(order.harga_total) || 0;
-          const vehicleType = order.vehicle_name || order.vehicleType || 'Kendaraan';
-          
-          html += `
-            <div class="breakdown-item">
-              <div class="breakdown-label">
-                <div>${orderTime} • ${vehicleType}</div>
-                <div style="font-size: 0.75rem; color: #999;">${distance.toFixed(1)} km</div>
-              </div>
-              <div class="breakdown-value">Rp ${earnings.toLocaleString('id-ID')}</div>
-            </div>
-          `;
-        });
-        
-        html += `
-            </div>
-          </div>
-        `;
-      }
-      
-      container.innerHTML = html;
-      
-      initButtons();
-      updateNavButtons();
-    }
-
     function filterOrdersByDateWITA(orders, date) {
+      // Buat tanggal WITA (UTC+8) untuk batas hari
       const dateWITA = new Date(date.getTime() + (8 * 60 * 60 * 1000));
       const dateStringWITA = dateWITA.toISOString().split('T')[0];
 
@@ -715,6 +613,127 @@
       nextBtn.disabled = tomorrowWITA > todayWITA;
     }
 
+    function displayEarningsData() {
+      const container = document.getElementById('mainContainer');
+      
+      const filteredOrders = filterOrdersByDateWITA(driverOrders, currentDate);
+      
+      if (filteredOrders.length === 0) {
+        container.innerHTML = `
+          <div class="date-navigation">
+            <button class="nav-btn" id="prevBtn">‹</button>
+            <div class="current-date">
+              <div class="date-display">${formatDateDisplay(currentDate)}</div>
+              <div class="day-display">${getDayName(currentDate)}</div>
+            </div>
+            <button class="nav-btn" id="nextBtn" ${currentDate.toDateString() === new Date().toDateString() ? 'disabled' : ''}>›</button>
+          </div>
+          <div class="empty-state">
+            <div class="empty-state-icon">📭</div>
+            <h3 style="color: var(--primary); margin-bottom: 10px;">Tidak Ada Data</h3>
+            <p>Tidak ada order yang diselesaikan pada tanggal ini.</p>
+            <button class="nav-btn" id="retryBtn" style="margin-top: 15px; width: auto; padding: 8px 20px;">
+              Coba Lagi
+            </button>
+          </div>
+        `;
+        
+        initButtons();
+        updateNavButtons();
+        
+        const retryBtn = document.getElementById('retryBtn');
+        if (retryBtn) retryBtn.addEventListener('click', loadEarningsData);
+        
+        return;
+      }
+
+      const stats = calculateStats(filteredOrders, currentDate);
+      
+      let html = `
+        <div class="date-navigation">
+          <button class="nav-btn" id="prevBtn">‹</button>
+          <div class="current-date">
+            <div class="date-display">${formatDateDisplay(currentDate)}</div>
+            <div class="day-display">${getDayName(currentDate)}</div>
+          </div>
+          <button class="nav-btn" id="nextBtn">›</button>
+        </div>
+        
+        <div class="summary-grid">
+          <div class="summary-card">
+            <div class="summary-icon">📊</div>
+            <div class="summary-label">Total Order</div>
+            <div class="summary-value">${stats.totalOrders}</div>
+          </div>
+          
+          <div class="summary-card">
+            <div class="summary-icon">📏</div>
+            <div class="summary-label">Total Jarak</div>
+            <div class="summary-value distance">${stats.totalDistance}</div>
+          </div>
+          
+          <div class="summary-card">
+            <div class="summary-icon">💰</div>
+            <div class="summary-label">Rata-rata per KM</div>
+            <div class="summary-value">Rp ${stats.averagePerKm.toLocaleString('id-ID')}</div>
+          </div>
+          
+          <div class="summary-card">
+            <div class="summary-icon">💵</div>
+            <div class="summary-label">Pendapatan Bersih</div>
+            <div class="summary-value earnings">Rp ${stats.netEarnings.toLocaleString('id-ID')}</div>
+          </div>
+          
+          <div class="summary-card">
+            <div class="summary-icon">📉</div>
+            <div class="summary-label">Total Potongan</div>
+            <div class="summary-value fees">Rp ${stats.totalFees.toLocaleString('id-ID')}</div>
+          </div>
+          
+          <div class="summary-card">
+            <div class="summary-icon">⚖️</div>
+            <div class="summary-label">Persentase Potongan</div>
+            <div class="summary-value">${stats.feePercentage}%</div>
+          </div>
+        </div>
+      `;
+      
+      if (filteredOrders.length > 0) {
+        html += `
+          <div class="breakdown-section">
+            <div class="section-title">Rincian Order</div>
+            <div class="breakdown-list">
+        `;
+        
+        filteredOrders.forEach(order => {
+          const orderTime = formatTimeWITA(new Date(order.completed_at));
+          const distance = parseFloat((order.jarak_km || '0').replace(',', '.')) || 0;
+          const earnings = parseFloat(order.harga_total) || 0;
+          const vehicleType = order.vehicle_name || order.vehicleType || (order.vehicle === 'kurir_motor' ? 'Kurir Motor' : (order.vehicle === 'motor' ? 'Motor' : 'Kendaraan'));
+          
+          html += `
+            <div class="breakdown-item">
+              <div class="breakdown-label">
+                <div>${orderTime} • ${vehicleType}</div>
+                <div style="font-size: 0.75rem; color: #999;">${distance.toFixed(1)} km</div>
+              </div>
+              <div class="breakdown-value">Rp ${earnings.toLocaleString('id-ID')}</div>
+            </div>
+          `;
+        });
+        
+        html += `
+            </div>
+          </div>
+        `;
+      }
+      
+      container.innerHTML = html;
+      
+      initButtons();
+      updateNavButtons();
+    }
+
     function showLoadingState() {
       const container = document.getElementById('mainContainer');
       container.innerHTML = `
@@ -749,8 +768,10 @@
 
     function initButtons() {
       document.getElementById('backBtn')?.addEventListener('click', goBack);
-      document.getElementById('prevBtn')?.addEventListener('click', goToPreviousDay);
-      document.getElementById('nextBtn')?.addEventListener('click', goToNextDay);
+      const prevBtn = document.getElementById('prevBtn');
+      const nextBtn = document.getElementById('nextBtn');
+      if (prevBtn) prevBtn.addEventListener('click', goToPreviousDay);
+      if (nextBtn) nextBtn.addEventListener('click', goToNextDay);
     }
 
     function goBack() {
