@@ -375,9 +375,10 @@
     .popup-header h3 { font-size: 1rem; font-weight: 600; margin: 8px 0 0 0; }
     #popupIcon { font-size: 2rem; display: block; }
     .popup-body { padding: 20px; text-align: center; font-size: 0.9rem; line-height: 1.5; color: #333; }
-    .popup-footer { padding: 15px 20px; border-top: 1px solid #eee; display: flex; justify-content: center; }
+    .popup-footer { padding: 15px 20px; border-top: 1px solid #eee; display: flex; justify-content: center; gap: 10px; }
     .popup-button { background: linear-gradient(to right, var(--primary), var(--secondary)); color: white; border: none; border-radius: 8px; padding: 10px 30px; font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: all 0.3s; }
     .popup-button:hover { transform: translateY(-2px); box-shadow: 0 4px 10px rgba(0,0,0,0.15); }
+    .popup-button-cancel { background: linear-gradient(to right, #9e9e9e, #757575) !important; }
     .popup-button-primary { background: linear-gradient(to right, var(--primary), var(--secondary)); }
     .popup-button-warning { background: linear-gradient(to right, #ff9800, #f57c00); }
     .popup-button-danger { background: linear-gradient(to right, #dc3545, #c82333); }
@@ -821,7 +822,6 @@
       color: var(--gray);
       border: 1px solid var(--gray);
     }
-    /* Modal akun (sama seperti popup, tapi kita reuse popup yang sudah ada) */
     @media (max-width: 768px) {
       .info-item { flex-direction: column; gap: 5px; align-items: flex-start; }
       .info-value { text-align: left; max-width: 100%; width: 100%; justify-content: space-between; }
@@ -1093,7 +1093,7 @@
   </div>
 
   <!-- Popup, loading overlay, debug console -->
-  <div class="popup-overlay" id="popupOverlay"><div class="popup"><div class="popup-header"><span id="popupIcon">ℹ️</span><h3 id="popupTitle">Pemberitahuan</h3></div><div class="popup-body" id="popupMessage">Pesan akan ditampilkan di sini</div><div class="popup-footer"><button class="popup-button" id="popupButton">OK</button></div></div></div>
+  <div class="popup-overlay" id="popupOverlay"><div class="popup"><div class="popup-header"><span id="popupIcon">ℹ️</span><h3 id="popupTitle">Pemberitahuan</h3></div><div class="popup-body" id="popupMessage">Pesan akan ditampilkan di sini</div><div class="popup-footer" id="popupFooter"></div></div></div>
   <div id="loadingOverlay"><div class="spinner"></div><p>Memuat...</p></div>
   <div class="debug-console" id="debugConsole"><div class="debug-header"><span>🐞 Debug Log</span><button id="clearDebugBtn">🗑️</button><button id="toggleDebugBtn">▼</button></div><div class="debug-content" id="debugContent"><p class="info">▶️ Memulai debug...</p></div></div>
 
@@ -1160,13 +1160,13 @@
     let akunPageInitialized = false;
 
     // ========== FUNGSI BERANDA & RIWAYAT (sama persis seperti sebelumnya, tidak diubah) ==========
-    function calculateDistance(lat1, lon1, lat2, lon2) { /* ... */ if (!lat1 || !lon1 || !lat2 || !lon2) return null; const R = 6371; const dLat = (lat2 - lat1) * Math.PI / 180; const dLon = (lon2 - lon1) * Math.PI / 180; const a = Math.sin(dLat/2)*Math.sin(dLat/2) + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)*Math.sin(dLon/2); const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); return R * c; }
+    function calculateDistance(lat1, lon1, lat2, lon2) { if (!lat1 || !lon1 || !lat2 || !lon2) return null; const R = 6371; const dLat = (lat2 - lat1) * Math.PI / 180; const dLon = (lon2 - lon1) * Math.PI / 180; const a = Math.sin(dLat/2)*Math.sin(dLat/2) + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)*Math.sin(dLon/2); const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); return R * c; }
     function loadStoredSettings() { const savedTracking = localStorage.getItem(STORAGE_TRACKING); locationTrackingEnabled = savedTracking === 'true'; updateTrackingButton(); const savedAutobid = localStorage.getItem(STORAGE_AUTOBID); autobidEnabled = savedAutobid === 'true'; updateAutobidButton(); const savedKurir = localStorage.getItem(STORAGE_ACCEPT_KURIR); acceptKurirEnabled = savedKurir === 'true'; const toggle = document.getElementById('acceptKurirToggle'); if (toggle) toggle.checked = acceptKurirEnabled; }
     function updateTrackingButton() { const btn = document.getElementById('locationToggleBtn'); if (locationTrackingEnabled) { btn.innerHTML = '📍 ON'; btn.classList.add('active'); } else { btn.innerHTML = '📍 OFF'; btn.classList.remove('active'); } }
     function updateAutobidButton() { const btn = document.getElementById('autobidBtn'); if (autobidEnabled) { btn.innerHTML = 'Autobid: ON'; btn.classList.add('active'); } else { btn.innerHTML = 'Autobid: OFF'; btn.classList.remove('active'); } }
     function updateAcceptKurirSetting() { const toggle = document.getElementById('acceptKurirToggle'); if (toggle) { acceptKurirEnabled = toggle.checked; localStorage.setItem(STORAGE_ACCEPT_KURIR, acceptKurirEnabled); loadOrders(); } }
-    function loadOrders() { /* ... kode lengkap seperti asli ... */ const ordersList = document.getElementById('ordersList'); if (!ordersList) return; ordersList.innerHTML = '<div class="loading"><div class="spinner"></div></div>'; if (!currentDriverData || !database) return; if (ordersListener && ordersRef) ordersRef.off('value', ordersListener); ordersRef = database.ref('orders'); ordersListener = ordersRef.on('value', (snapshot) => { const orders = snapshot.val(); ordersList.innerHTML = ''; if (!orders || Object.keys(orders).length === 0) { ordersList.innerHTML = '<div class="empty-state"><div>📭</div><p>Tidak ada permintaan order saat ini</p></div>'; return; } const driverVehicleType = currentDriverData?.vehicleType; if (!driverVehicleType) { ordersList.innerHTML = '<div class="empty-state"><div>⚠️</div><p>Data kendaraan driver tidak ditemukan. Silakan daftar ulang.</p></div>'; return; } const allOrders = Object.entries(orders).map(([id, order]) => ({ id, ...order })).filter(order => order.status === 'searching'); const filteredOrders = allOrders.filter(order => { if (acceptKurirEnabled) { if (driverVehicleType === 'motor') return order.vehicle === 'motor' || order.vehicle === 'kurir_motor'; if (driverVehicleType === 'bentor') return order.vehicle === 'bentor' || order.vehicle === 'kurir_bentor'; return order.vehicle === driverVehicleType; } else { return order.vehicle === driverVehicleType; } }); const newOrderIds = new Set(filteredOrders.map(o => o.id)); const addedOrders = filteredOrders.filter(o => !previousOrderIds.has(o.id)); previousOrderIds = newOrderIds; let shownPopupOrderIds = new Set(JSON.parse(sessionStorage.getItem('shownPopupOrderIds') || '[]')); addedOrders.forEach(order => { if (locationTrackingEnabled && driverLocation.latitude && driverLocation.longitude && order.from_lat && order.from_lng) { const dist = calculateDistance(driverLocation.latitude, driverLocation.longitude, order.from_lat, order.from_lng); if (dist !== null && dist < 3 && !shownPopupOrderIds.has(order.id)) { const sound = document.getElementById('newOrderSound'); if (sound) sound.play().catch(e => addDebugLog(`Audio play gagal: ${e.message}`, 'warning')); showOrderDetail(order, true); shownPopupOrderIds.add(order.id); sessionStorage.setItem('shownPopupOrderIds', JSON.stringify(Array.from(shownPopupOrderIds))); } } }); if (filteredOrders.length === 0) { let msg = `Tidak ada permintaan order untuk kendaraan ${driverVehicleType}`; if (acceptKurirEnabled) msg += ' (termasuk kurir)'; ordersList.innerHTML = `<div class="empty-state"><div>🛵</div><p>${msg}</p></div>`; return; } const sortedOrders = filteredOrders.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0)); renderOrdersList(sortedOrders, ordersList); }, (error) => { addDebugLog(`Error loading orders: ${error.message}`, 'error'); ordersList.innerHTML = '<div class="empty-state"><div>⚠️</div><p>Gagal terhubung ke server</p></div>'; }); }
-    function renderOrdersList(orders, ordersList) { /* ... kode lengkap ... */ orders.forEach(order => { const orderItem = document.createElement('div'); orderItem.className = 'order-item'; orderItem.dataset.orderId = order.id; const user = order.user_data || {}; const customerName = user.name || 'Tidak diketahui'; const customerPhoto = user.fotoProfilURL || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png'; const alamatA = order.alamat_a || '-'; const alamatB = order.alamat_b || '-'; const durasi = order.durasi || '-'; const jarak = order.jarak || '-'; const harga = order.harga_total || 0; const isKurir = order.vehicle && order.vehicle.includes('kurir'); const promoBadge = (order.diskon_persen || order.promo_data) ? '<span class="promo-badge">🎁 PROMO</span>' : ''; let jarakDriver = '-'; if (driverLocation.latitude && driverLocation.longitude && order.from_lat && order.from_lng) { const dist = calculateDistance(driverLocation.latitude, driverLocation.longitude, order.from_lat, order.from_lng); if (dist !== null) jarakDriver = dist.toFixed(1) + ' km'; } let kurirDescHtml = ''; if (isKurir && order.delivery_data && order.delivery_data.description) { kurirDescHtml = `<div class="delivery-desc-card"><span>📦 ${order.delivery_data.description}</span></div>`; } orderItem.innerHTML = `<div class="order-header"><div class="order-badges">${isKurir ? '<span class="kurir-badge">📦 KURIR</span>' : ''}${promoBadge}</div></div><div class="route-info-with-photo"><div class="customer-info-left"><img src="${customerPhoto}" class="customer-photo-left" onclick="showPhotoModal('${customerPhoto}', '${customerName}')"><div class="customer-name-left">${customerName}</div><div class="customer-rating"><span class="rating-stars">★</span><span class="rating-value" data-customer-id="${user.uid || user.userId || ''}" data-order-id="${order.id}">...</span></div><div class="order-time">${new Date(order.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}</div></div><div class="route-addresses-right"><div class="route-point"><div class="point-marker point-marker-a">A</div><div class="point-address point-address-a">${alamatA}</div></div><div class="route-point"><div class="point-marker point-marker-b">B</div><div class="point-address">${alamatB}</div></div>${kurirDescHtml}</div></div><div class="order-details"><div class="detail-item"><span class="detail-value">${durasi}</span><span class="detail-label">Durasi</span></div><div class="detail-item"><span class="detail-value">${jarak}</span><span class="detail-label">Jarak</span></div><div class="detail-item"><span class="detail-value price-highlight">Rp ${harga.toLocaleString('id-ID')}</span><span class="detail-label">Harga</span></div><div class="detail-item"><span class="detail-value">${jarakDriver}</span><span class="detail-label">Jarak Driver</span></div></div>`; orderItem.addEventListener('click', () => showOrderDetail(order, false)); ordersList.appendChild(orderItem); const customerId = user.uid || user.userId; if (customerId) { database.ref('users/' + customerId).once('value').then((snap) => { const customerData = snap.val(); if (customerData) { const ratingSpan = orderItem.querySelector(`.rating-value[data-order-id="${order.id}"]`); if (ratingSpan) { const avgRating = customerData.avgRating ? customerData.avgRating.toFixed(1) : '0.0'; const ratingCount = customerData.ratingCount || 0; ratingSpan.textContent = `${avgRating} (${ratingCount})`; } } }).catch(err => addDebugLog(`Gagal ambil data customer: ${err.message}`, 'error')); } }); }
+    function loadOrders() { const ordersList = document.getElementById('ordersList'); if (!ordersList) return; ordersList.innerHTML = '<div class="loading"><div class="spinner"></div></div>'; if (!currentDriverData || !database) return; if (ordersListener && ordersRef) ordersRef.off('value', ordersListener); ordersRef = database.ref('orders'); ordersListener = ordersRef.on('value', (snapshot) => { const orders = snapshot.val(); ordersList.innerHTML = ''; if (!orders || Object.keys(orders).length === 0) { ordersList.innerHTML = '<div class="empty-state"><div>📭</div><p>Tidak ada permintaan order saat ini</p></div>'; return; } const driverVehicleType = currentDriverData?.vehicleType; if (!driverVehicleType) { ordersList.innerHTML = '<div class="empty-state"><div>⚠️</div><p>Data kendaraan driver tidak ditemukan. Silakan daftar ulang.</p></div>'; return; } const allOrders = Object.entries(orders).map(([id, order]) => ({ id, ...order })).filter(order => order.status === 'searching'); const filteredOrders = allOrders.filter(order => { if (acceptKurirEnabled) { if (driverVehicleType === 'motor') return order.vehicle === 'motor' || order.vehicle === 'kurir_motor'; if (driverVehicleType === 'bentor') return order.vehicle === 'bentor' || order.vehicle === 'kurir_bentor'; return order.vehicle === driverVehicleType; } else { return order.vehicle === driverVehicleType; } }); const newOrderIds = new Set(filteredOrders.map(o => o.id)); const addedOrders = filteredOrders.filter(o => !previousOrderIds.has(o.id)); previousOrderIds = newOrderIds; let shownPopupOrderIds = new Set(JSON.parse(sessionStorage.getItem('shownPopupOrderIds') || '[]')); addedOrders.forEach(order => { if (locationTrackingEnabled && driverLocation.latitude && driverLocation.longitude && order.from_lat && order.from_lng) { const dist = calculateDistance(driverLocation.latitude, driverLocation.longitude, order.from_lat, order.from_lng); if (dist !== null && dist < 3 && !shownPopupOrderIds.has(order.id)) { const sound = document.getElementById('newOrderSound'); if (sound) sound.play().catch(e => addDebugLog(`Audio play gagal: ${e.message}`, 'warning')); showOrderDetail(order, true); shownPopupOrderIds.add(order.id); sessionStorage.setItem('shownPopupOrderIds', JSON.stringify(Array.from(shownPopupOrderIds))); } } }); if (filteredOrders.length === 0) { let msg = `Tidak ada permintaan order untuk kendaraan ${driverVehicleType}`; if (acceptKurirEnabled) msg += ' (termasuk kurir)'; ordersList.innerHTML = `<div class="empty-state"><div>🛵</div><p>${msg}</p></div>`; return; } const sortedOrders = filteredOrders.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0)); renderOrdersList(sortedOrders, ordersList); }, (error) => { addDebugLog(`Error loading orders: ${error.message}`, 'error'); ordersList.innerHTML = '<div class="empty-state"><div>⚠️</div><p>Gagal terhubung ke server</p></div>'; }); }
+    function renderOrdersList(orders, ordersList) { orders.forEach(order => { const orderItem = document.createElement('div'); orderItem.className = 'order-item'; orderItem.dataset.orderId = order.id; const user = order.user_data || {}; const customerName = user.name || 'Tidak diketahui'; const customerPhoto = user.fotoProfilURL || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png'; const alamatA = order.alamat_a || '-'; const alamatB = order.alamat_b || '-'; const durasi = order.durasi || '-'; const jarak = order.jarak || '-'; const harga = order.harga_total || 0; const isKurir = order.vehicle && order.vehicle.includes('kurir'); const promoBadge = (order.diskon_persen || order.promo_data) ? '<span class="promo-badge">🎁 PROMO</span>' : ''; let jarakDriver = '-'; if (driverLocation.latitude && driverLocation.longitude && order.from_lat && order.from_lng) { const dist = calculateDistance(driverLocation.latitude, driverLocation.longitude, order.from_lat, order.from_lng); if (dist !== null) jarakDriver = dist.toFixed(1) + ' km'; } let kurirDescHtml = ''; if (isKurir && order.delivery_data && order.delivery_data.description) { kurirDescHtml = `<div class="delivery-desc-card"><span>📦 ${order.delivery_data.description}</span></div>`; } orderItem.innerHTML = `<div class="order-header"><div class="order-badges">${isKurir ? '<span class="kurir-badge">📦 KURIR</span>' : ''}${promoBadge}</div></div><div class="route-info-with-photo"><div class="customer-info-left"><img src="${customerPhoto}" class="customer-photo-left" onclick="showPhotoModal('${customerPhoto}', '${customerName}')"><div class="customer-name-left">${customerName}</div><div class="customer-rating"><span class="rating-stars">★</span><span class="rating-value" data-customer-id="${user.uid || user.userId || ''}" data-order-id="${order.id}">...</span></div><div class="order-time">${new Date(order.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}</div></div><div class="route-addresses-right"><div class="route-point"><div class="point-marker point-marker-a">A</div><div class="point-address point-address-a">${alamatA}</div></div><div class="route-point"><div class="point-marker point-marker-b">B</div><div class="point-address">${alamatB}</div></div>${kurirDescHtml}</div></div><div class="order-details"><div class="detail-item"><span class="detail-value">${durasi}</span><span class="detail-label">Durasi</span></div><div class="detail-item"><span class="detail-value">${jarak}</span><span class="detail-label">Jarak</span></div><div class="detail-item"><span class="detail-value price-highlight">Rp ${harga.toLocaleString('id-ID')}</span><span class="detail-label">Harga</span></div><div class="detail-item"><span class="detail-value">${jarakDriver}</span><span class="detail-label">Jarak Driver</span></div></div>`; orderItem.addEventListener('click', () => showOrderDetail(order, false)); ordersList.appendChild(orderItem); const customerId = user.uid || user.userId; if (customerId) { database.ref('users/' + customerId).once('value').then((snap) => { const customerData = snap.val(); if (customerData) { const ratingSpan = orderItem.querySelector(`.rating-value[data-order-id="${order.id}"]`); if (ratingSpan) { const avgRating = customerData.avgRating ? customerData.avgRating.toFixed(1) : '0.0'; const ratingCount = customerData.ratingCount || 0; ratingSpan.textContent = `${avgRating} (${ratingCount})`; } } }).catch(err => addDebugLog(`Gagal ambil data customer: ${err.message}`, 'error')); } }); }
     async function fetchMapboxToken() { const snapshot = await database.ref('Secret/Key').once('value'); const token = snapshot.val(); if (token && typeof token === 'string') { mapboxAccessToken = token; addDebugLog('Mapbox token berhasil diambil', 'success'); return token; } throw new Error('Token tidak valid'); }
     function initModalMapbox() { mapboxgl.accessToken = mapboxAccessToken; const mapElement = document.getElementById('modalMap'); modalMap = new mapboxgl.Map({ container: mapElement, style: 'mapbox://styles/mapbox/streets-v11', center: [123.0595, 0.5441], zoom: 12 }); modalMap.addControl(new mapboxgl.NavigationControl(), 'bottom-right'); }
     function showRouteOnMapbox(order) { if (!order.from_lat || !order.from_lng || !order.to_lat || !order.to_lng) return; if (mapMarkers.length) { mapMarkers.forEach(m => m.remove()); mapMarkers = []; } if (modalMap.getLayer('route')) modalMap.removeLayer('route'); if (modalMap.getSource('route')) modalMap.removeSource('route'); const vehicle = order.vehicle || 'motor'; let iconUrl = 'https://cdn-icons-png.flaticon.com/128/5811/5811823.png'; if (vehicle === 'motor') iconUrl = 'https://cdn-icons-png.flaticon.com/128/5811/5811823.png'; else if (vehicle === 'bentor') iconUrl = 'https://cdn-icons-png.flaticon.com/128/7890/7890227.png'; else if (vehicle === 'mobil') iconUrl = 'https://cdn-icons-png.flaticon.com/128/12689/12689302.png'; else if (vehicle === 'kurir_motor') iconUrl = 'https://cdn-icons-png.flaticon.com/128/9561/9561688.png'; else if (vehicle === 'kurir_bentor') iconUrl = 'https://cdn-icons-png.flaticon.com/128/7890/7890227.png'; const pickupEl = document.createElement('div'); pickupEl.innerHTML = `<img src="${iconUrl}" style="width:40px; height:40px;">`; const pickupMarker = new mapboxgl.Marker({ element: pickupEl }).setLngLat([order.from_lng, order.from_lat]).setPopup(new mapboxgl.Popup().setHTML('Penjemputan')).addTo(modalMap); mapMarkers.push(pickupMarker); const destEl = document.createElement('div'); destEl.innerHTML = `<img src="https://cdn-icons-png.flaticon.com/128/684/684908.png" style="width:40px; height:40px;">`; const destMarker = new mapboxgl.Marker({ element: destEl }).setLngLat([order.to_lng, order.to_lat]).setPopup(new mapboxgl.Popup().setHTML('Tujuan')).addTo(modalMap); mapMarkers.push(destMarker); const bounds = new mapboxgl.LngLatBounds().extend([order.from_lng, order.from_lat]).extend([order.to_lng, order.to_lat]); modalMap.fitBounds(bounds, { padding: 40 }); const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${order.from_lng},${order.from_lat};${order.to_lng},${order.to_lat}?geometries=geojson&access_token=${mapboxAccessToken}`; fetch(url).then(res => res.json()).then(data => { if (data.routes && data.routes.length > 0) { modalMap.addSource('route', { type: 'geojson', data: data.routes[0].geometry }); modalMap.addLayer({ id: 'route', type: 'line', source: 'route', layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: { 'line-color': '#289672', 'line-width': 4 } }); } else fallbackLine(); }).catch(fallbackLine); function fallbackLine() { modalMap.addSource('route', { type: 'geojson', data: { type: 'Feature', geometry: { type: 'LineString', coordinates: [[order.from_lng, order.from_lat], [order.to_lng, order.to_lat]] } } }); modalMap.addLayer({ id: 'route', type: 'line', source: 'route', layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: { 'line-color': '#289672', 'line-width': 4, 'line-dasharray': [2, 1] } }); } }
@@ -1197,8 +1197,6 @@
         document.getElementById('ambilBtn').disabled = false; 
         document.getElementById('ambilBtn').textContent = 'Kirim Penawaran'; 
         document.getElementById('orderModal').style.display = 'flex'; 
-        
-        // Perbaikan autobid: langsung kirim penawaran tanpa delay berlebih
         if (autobidEnabled && fromAuto && currentSelectedOrder && !currentSelectedOrder.vehicle.includes('kurir')) { 
           setTimeout(() => { 
             if (currentSelectedOrder && currentSelectedOrder.status === 'searching') { 
@@ -1208,12 +1206,10 @@
             } 
           }, 300); 
         } 
-        
         if (mapboxAccessToken) { if (!modalMap) initModalMapbox(); showRouteOnMapbox(currentOrder); } 
         else { fetchMapboxToken().then(() => { if (!modalMap) initModalMapbox(); showRouteOnMapbox(currentOrder); }).catch(err => addDebugLog(`Fetch Mapbox token error: ${err.message}`, 'error')); } 
       }).catch(err => addDebugLog(`Error showOrderDetail: ${err.message}`, 'error')); 
     }
-    // ========== PERBAIKAN FUNGSI sendDriverOffer ==========
     function sendDriverOffer() {
         if (!currentSelectedOrder || !currentDriverId || !currentDriverData) {
             showPopup('Error', 'Data order atau driver tidak lengkap.', 'error');
@@ -1226,7 +1222,6 @@
             return;
         }
         addDebugLog(`sendDriverOffer dipanggil untuk order ${orderId}`, 'info');
-        
         const hargaTotal = currentSelectedOrder.harga_total || 0;
         const requiredBalance = hargaTotal * 0.1;
         const driverBalance = currentDriverData.balance || 0;
@@ -1234,13 +1229,10 @@
             showPopup('Saldo Tidak Cukup', `Saldo Anda Rp ${driverBalance.toLocaleString('id-ID')} tidak mencukupi untuk membayar 10% dari tarif (Rp ${requiredBalance.toLocaleString('id-ID')}).`, 'warning');
             return;
         }
-        
         const driverId = currentDriverId;
         const ambilBtn = document.getElementById('ambilBtn');
         ambilBtn.disabled = true;
         ambilBtn.textContent = 'Mengirim...';
-        
-        // Cek status order terlebih dahulu
         database.ref('orders/' + orderId).once('value').then((snapshot) => {
             const currentOrder = snapshot.val();
             if (!currentOrder) {
@@ -1254,8 +1246,6 @@
                 closeModal();
                 return;
             }
-            
-            // Kirim penawaran
             const driverData = {
                 id: driverId,
                 name: currentDriverData.fullName,
@@ -1290,8 +1280,74 @@
     function toggleAutobid() { if (!locationTrackingEnabled) { showPopup('Info', 'Aktifkan tracking terlebih dahulu', 'warning'); return; } autobidEnabled = !autobidEnabled; localStorage.setItem(STORAGE_AUTOBID, autobidEnabled); updateAutobidButton(); }
     function refreshData() { const btn = document.getElementById('refreshBtn'); btn.disabled = true; loadOrders(); setTimeout(() => btn.disabled = false, 1000); }
     function toggleSidebar() { const sidebar = document.getElementById('sidebar'); sidebar.style.display = sidebar.style.display === 'flex' ? 'none' : 'flex'; }
-    function showPopup(title, message, type = 'info') { document.getElementById('popupTitle').textContent = title; document.getElementById('popupMessage').textContent = message; document.getElementById('popupIcon').textContent = { success: '✅', error: '❌', warning: '⚠️', info: 'ℹ️' }[type] || 'ℹ️'; document.getElementById('popupOverlay').classList.add('active'); }
-    function hidePopup() { document.getElementById('popupOverlay').classList.remove('active'); }
+    
+    // ========== PERBAIKAN SHOWPOPUP dengan konfirmasi 2 tombol ==========
+    function showPopup(title, message, type = 'info', options = null) {
+      const popup = document.getElementById('popupOverlay');
+      const popupTitle = document.getElementById('popupTitle');
+      const popupMessage = document.getElementById('popupMessage');
+      const popupIcon = document.getElementById('popupIcon');
+      const popupFooter = document.getElementById('popupFooter');
+      
+      popupTitle.textContent = title;
+      popupMessage.textContent = message;
+      const icons = { success: '✅', error: '❌', warning: '⚠️', info: 'ℹ️' };
+      popupIcon.textContent = icons[type] || 'ℹ️';
+      
+      // Kosongkan footer
+      while (popupFooter.firstChild) {
+        popupFooter.removeChild(popupFooter.firstChild);
+      }
+      
+      if (options && options.showCancel) {
+        // Tombol Batal
+        const cancelBtn = document.createElement('button');
+        cancelBtn.textContent = options.cancelText || 'Batal';
+        cancelBtn.className = 'popup-button popup-button-cancel';
+        cancelBtn.onclick = () => {
+          hidePopup();
+          if (options.onCancel) options.onCancel();
+        };
+        // Tombol Konfirmasi
+        const confirmBtn = document.createElement('button');
+        confirmBtn.textContent = options.confirmText || 'Ya';
+        confirmBtn.className = 'popup-button popup-button-primary';
+        confirmBtn.onclick = () => {
+          hidePopup();
+          if (options.onConfirm) options.onConfirm();
+        };
+        popupFooter.appendChild(cancelBtn);
+        popupFooter.appendChild(confirmBtn);
+      } else {
+        const okBtn = document.createElement('button');
+        okBtn.textContent = 'OK';
+        okBtn.className = 'popup-button';
+        okBtn.onclick = () => hidePopup();
+        popupFooter.appendChild(okBtn);
+      }
+      
+      popup.classList.add('active');
+    }
+    
+    function hidePopup() {
+      document.getElementById('popupOverlay').classList.remove('active');
+    }
+    
+    // ========== FUNGSI LOGOUT (sudah benar) ==========
+    function logoutDriver() {
+      showPopup('Konfirmasi Logout', 'Apakah Anda yakin ingin logout?', 'warning', {
+        showCancel: true,
+        confirmText: 'Ya, Logout',
+        cancelText: 'Batal',
+        onConfirm: () => {
+          localStorage.removeItem('jego_logged_in_driver');
+          localStorage.removeItem('jego_driver_data');
+          sessionStorage.removeItem('shownPopupOrderIds');
+          window.location.href = 'loginDriver.html';
+        }
+      });
+    }
+    
     window.showPhotoModal = function(photoUrl, name) { const modalHtml = `<div id="photoModal" class="modal photo-modal" style="display:flex;"><div class="modal-content"><button class="close-btn" onclick="document.getElementById('photoModal').remove()">&times;</button><div class="modal-body"><img src="${photoUrl}" class="large-customer-photo" alt="${name}"><div class="large-customer-name">${name}</div></div></div></div>`; document.body.insertAdjacentHTML('beforeend', modalHtml); document.getElementById('photoModal').addEventListener('click', (e) => { if (e.target === document.getElementById('photoModal')) document.getElementById('photoModal').remove(); }); };
     async function checkDriverActiveOrder() { const activeOrderId = localStorage.getItem('jego_driver_active_order'); if (!activeOrderId) return false; try { const snap = await database.ref('orders/' + activeOrderId).once('value'); const order = snap.val(); if (order) { const activeStatuses = ['accepted', 'on_the_way', 'arrived', 'on_trip']; if (activeStatuses.includes(order.status)) { addDebugLog(`Order aktif ditemukan: ${activeOrderId}`, 'info'); window.location.href = 'orderAccepted.html?id=' + activeOrderId; return true; } else localStorage.removeItem('jego_driver_active_order'); } else localStorage.removeItem('jego_driver_active_order'); } catch (error) { addDebugLog(`Error cek order aktif: ${error.message}`, 'error'); } return false; }
     function listenDriverOffers(orderId) { if (!orderId) return; if (window.driverOffersRef) window.driverOffersRef.off(); window.driverOffersRef = database.ref('orders/' + orderId + '/driver_offers'); window.driverOffersRef.on('child_changed', (snap) => { const offer = snap.val(); if (offer && offer.status === 'rejected' && (offer.id === currentDriverData?.driverId || offer.driver_id === currentDriverData?.driverId)) { addDebugLog(`Penawaran ditolak untuk order ${orderId}`, 'warning'); stopCountdown(); closeModal(); showPopup('Penawaran Ditolak', 'Penawaran Anda ditolak oleh customer.', 'warning'); } }); window.driverOffersRef.on('child_added', (snap) => { const offer = snap.val(); if (offer && offer.status === 'rejected' && (offer.id === currentDriverData?.driverId || offer.driver_id === currentDriverData?.driverId)) { stopCountdown(); closeModal(); showPopup('Penawaran Ditolak', 'Penawaran Anda ditolak oleh customer.', 'warning'); } }); }
@@ -1301,86 +1357,74 @@
     function initHistoryMap() { if (historyMap) { historyMap.remove(); historyMap = null; } const mapElement = document.getElementById('historyModalMap'); if (!mapElement) return; historyMap = L.map('historyModalMap').setView([0.5441, 123.0595], 13); L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' }).addTo(historyMap); }
     function showHistoryRoute(order) { if (!historyMap) initHistoryMap(); if (!order.from_lat || !order.from_lng || !order.to_lat || !order.to_lng) return; if (historyRoutePolyline) historyMap.removeLayer(historyRoutePolyline); historyMarkers.forEach(m => historyMap.removeLayer(m)); historyMarkers = []; const start = [order.from_lat, order.from_lng]; const end = [order.to_lat, order.to_lng]; historyRoutePolyline = L.polyline([start, end], { color: '#FF5722', weight: 6, opacity: 0.8, dashArray: '10, 10' }).addTo(historyMap); const startMarker = L.marker(start).bindPopup('<b>Penjemputan</b><br>' + (order.alamat_a || 'A')).addTo(historyMap); const endMarker = L.marker(end).bindPopup('<b>Tujuan</b><br>' + (order.alamat_b || 'B')).addTo(historyMap); historyMarkers.push(startMarker, endMarker); historyMap.fitBounds(L.latLngBounds([start, end]), { padding: [20,20] }); }
     function showHistoryDetail(order) {
-    document.getElementById('historyAddressA').textContent = order.alamat_a || '-';
-    document.getElementById('historyAddressB').textContent = order.alamat_b || '-';
-    document.getElementById('historyDuration').textContent = order.durasi || '-';
-    document.getElementById('historyDistance').textContent = order.jarak || '-';
-    document.getElementById('historyPrice').textContent = order.harga_total ? `Rp ${order.harga_total.toLocaleString('id-ID')}` : '-';
-    
-    // Cari waktu accepted dari driver_offers
-    let acceptedTime = '-';
-    if (order.driver_offers && currentDriverData && currentDriverData.driverId) {
-        const offer = Object.values(order.driver_offers).find(o => o.driver_id === currentDriverData.driverId || o.id === currentDriverData.driverId);
-        if (offer) acceptedTime = formatFullTime(offer.accepted_at || offer.offered_at);
+      document.getElementById('historyAddressA').textContent = order.alamat_a || '-';
+      document.getElementById('historyAddressB').textContent = order.alamat_b || '-';
+      document.getElementById('historyDuration').textContent = order.durasi || '-';
+      document.getElementById('historyDistance').textContent = order.jarak || '-';
+      document.getElementById('historyPrice').textContent = order.harga_total ? `Rp ${order.harga_total.toLocaleString('id-ID')}` : '-';
+      let acceptedTime = '-';
+      if (order.driver_offers && currentDriverData && currentDriverData.driverId) {
+          const offer = Object.values(order.driver_offers).find(o => o.driver_id === currentDriverData.driverId || o.id === currentDriverData.driverId);
+          if (offer) acceptedTime = formatFullTime(offer.accepted_at || offer.offered_at);
+      }
+      if (acceptedTime === '-' && order.selected_driver) acceptedTime = formatFullTime(order.selected_driver.accepted_at || order.selected_driver.offered_at);
+      if (acceptedTime === '-' && order.accepted_driver) acceptedTime = formatFullTime(order.accepted_driver.accepted_at || order.accepted_driver.offered_at);
+      let completedTime = order.completed_at || order.finished_at || order.updated_at;
+      let startedAt = order.trip_started_at || order.started_at;
+      if (!startedAt) {
+          startedAt = acceptedTime !== '-' ? order.accepted_at || order.updated_at : order.updated_at;
+      }
+      let arrivedAt = order.arrived_at;
+      if (!arrivedAt && completedTime) {
+          arrivedAt = completedTime;
+      }
+      document.getElementById('timelineCreated').textContent = formatFullTime(order.created_at);
+      document.getElementById('timelineAccepted').textContent = acceptedTime;
+      document.getElementById('timelineStarted').textContent = startedAt ? formatFullTime(startedAt) : '(Tidak tercatat)';
+      document.getElementById('timelineArrived').textContent = arrivedAt ? formatFullTime(arrivedAt) : '(Tidak tercatat)';
+      document.getElementById('timelineCompleted').textContent = formatFullTime(completedTime);
+      document.getElementById('historyModal').style.display = 'flex';
+      setTimeout(() => showHistoryRoute(order), 100);
     }
-    if (acceptedTime === '-' && order.selected_driver) acceptedTime = formatFullTime(order.selected_driver.accepted_at || order.selected_driver.offered_at);
-    if (acceptedTime === '-' && order.accepted_driver) acceptedTime = formatFullTime(order.accepted_driver.accepted_at || order.accepted_driver.offered_at);
-    
-    // Ambil waktu selesai dari berbagai kemungkinan field
-    let completedTime = order.completed_at || order.finished_at || order.updated_at;
-    
-    // Fallback untuk perjalanan dimulai
-    let startedAt = order.trip_started_at || order.started_at;
-    if (!startedAt) {
-        // Jika tidak ada, gunakan accepted_time (jika ada) atau updated_at
-        startedAt = acceptedTime !== '-' ? order.accepted_at || order.updated_at : order.updated_at;
-    }
-    
-    // Fallback untuk tiba di tujuan: gunakan completedTime jika arrived_at tidak ada
-    let arrivedAt = order.arrived_at;
-    if (!arrivedAt && completedTime) {
-        arrivedAt = completedTime;
-    }
-    
-    document.getElementById('timelineCreated').textContent = formatFullTime(order.created_at);
-    document.getElementById('timelineAccepted').textContent = acceptedTime;
-    document.getElementById('timelineStarted').textContent = startedAt ? formatFullTime(startedAt) : '(Tidak tercatat)';
-    document.getElementById('timelineArrived').textContent = arrivedAt ? formatFullTime(arrivedAt) : '(Tidak tercatat)';
-    document.getElementById('timelineCompleted').textContent = formatFullTime(completedTime);
-    
-    document.getElementById('historyModal').style.display = 'flex';
-    setTimeout(() => showHistoryRoute(order), 100);
-}
     function closeHistoryModal() { document.getElementById('historyModal').style.display = 'none'; if (historyMap) historyMap.remove(); historyMap = null; }
     function loadHistoryData() {
-    if (!database) return;
-    const container = document.getElementById('historyOrdersList');
-    if (!container) return;
-    container.innerHTML = '<div class="loading"><div class="spinner"></div><p>Memuat riwayat...</p></div>';
-    if (historyOrdersListener && historyOrdersRef) historyOrdersRef.off('value', historyOrdersListener);
-    historyOrdersRef = database.ref('orders');
-    historyOrdersListener = historyOrdersRef.on('value', (snapshot) => {
-        const orders = snapshot.val();
-        if (!orders) {
-            container.innerHTML = '<div class="empty-state">Tidak ada data order</div>';
-            return;
-        }
-        const allOrders = Object.entries(orders).map(([id, o]) => ({ id, ...o }));
-        const driverId = currentDriverData?.driverId || currentDriverData?.uid;
-        if (!driverId) {
-            container.innerHTML = '<div class="empty-state">Data driver tidak valid</div>';
-            return;
-        }
-        const driverOrders = allOrders.filter(o => {
-            if (!['completed', 'cancelled'].includes(o.status)) return false;
-            // Cek semua kemungkinan field driver (sesuai dengan yang berhasil di akun)
-            if (o.accepted_driver_id === driverId) return true;
-            if (o.accepted_driver && (o.accepted_driver.id === driverId || o.accepted_driver.driver_id === driverId)) return true;
-            if (o.selected_driver && (o.selected_driver.id === driverId || o.selected_driver.driver_id === driverId)) return true;
-            if (o.driver && (o.driver.id === driverId || o.driver.driver_id === driverId)) return true;
-            if (o.driverId === driverId || o.driver_id === driverId) return true;
-            if (o.driver_offers) {
-                if (Object.values(o.driver_offers).some(off => off.id === driverId || off.driver_id === driverId)) return true;
-            }
-            return false;
-        });
-        if (driverOrders.length === 0) {
-            container.innerHTML = '<div class="empty-state">Belum ada riwayat order</div>';
-            return;
-        }
-        displayHistoryOrders(driverOrders);
-    });
-}
+      if (!database) return;
+      const container = document.getElementById('historyOrdersList');
+      if (!container) return;
+      container.innerHTML = '<div class="loading"><div class="spinner"></div><p>Memuat riwayat...</p></div>';
+      if (historyOrdersListener && historyOrdersRef) historyOrdersRef.off('value', historyOrdersListener);
+      historyOrdersRef = database.ref('orders');
+      historyOrdersListener = historyOrdersRef.on('value', (snapshot) => {
+          const orders = snapshot.val();
+          if (!orders) {
+              container.innerHTML = '<div class="empty-state">Tidak ada data order</div>';
+              return;
+          }
+          const allOrders = Object.entries(orders).map(([id, o]) => ({ id, ...o }));
+          const driverId = currentDriverData?.driverId || currentDriverData?.uid;
+          if (!driverId) {
+              container.innerHTML = '<div class="empty-state">Data driver tidak valid</div>';
+              return;
+          }
+          const driverOrders = allOrders.filter(o => {
+              if (!['completed', 'cancelled'].includes(o.status)) return false;
+              if (o.accepted_driver_id === driverId) return true;
+              if (o.accepted_driver && (o.accepted_driver.id === driverId || o.accepted_driver.driver_id === driverId)) return true;
+              if (o.selected_driver && (o.selected_driver.id === driverId || o.selected_driver.driver_id === driverId)) return true;
+              if (o.driver && (o.driver.id === driverId || o.driver.driver_id === driverId)) return true;
+              if (o.driverId === driverId || o.driver_id === driverId) return true;
+              if (o.driver_offers) {
+                  if (Object.values(o.driver_offers).some(off => off.id === driverId || off.driver_id === driverId)) return true;
+              }
+              return false;
+          });
+          if (driverOrders.length === 0) {
+              container.innerHTML = '<div class="empty-state">Belum ada riwayat order</div>';
+              return;
+          }
+          displayHistoryOrders(driverOrders);
+      });
+    }
     function displayHistoryOrders(orders) { orders.sort((a,b) => new Date(b.completed_at || b.created_at) - new Date(a.completed_at || a.created_at)); const grouped = {}; orders.forEach(o => { const date = new Date(o.completed_at || o.created_at); const key = date.toLocaleDateString('id-ID'); if (!grouped[key]) grouped[key] = []; grouped[key].push(o); }); const container = document.getElementById('historyOrdersList'); container.innerHTML = ''; for (let [dateKey, list] of Object.entries(grouped)) { let filtered = list; if (currentFilter === 'completed') filtered = list.filter(o => o.status === 'completed'); else if (currentFilter === 'cancelled') filtered = list.filter(o => o.status === 'cancelled'); else if (currentFilter === 'this_week') filtered = list.filter(o => isThisWeek(new Date(o.completed_at || o.created_at))); else if (currentFilter === 'this_month') filtered = list.filter(o => isThisMonth(new Date(o.completed_at || o.created_at))); if (filtered.length === 0) continue; const section = document.createElement('div'); section.className = 'date-section'; section.innerHTML = `<div class="date-header">${dateKey} • ${filtered.length} order</div>`; filtered.forEach(order => { const item = createHistoryOrderItem(order); section.appendChild(item); }); container.appendChild(section); } if (container.children.length === 0) container.innerHTML = '<div class="empty-state">Tidak ada order sesuai filter</div>'; }
     function createHistoryOrderItem(order) { const div = document.createElement('div'); div.className = 'order-item'; const custName = order.user_data?.name || 'Customer'; const alamatA = order.alamat_a || '-'; const alamatB = order.alamat_b || '-'; const durasi = order.durasi || '-'; const jarak = order.jarak || '-'; const harga = `Rp ${(order.harga_total || 0).toLocaleString('id-ID')}`; const statusText = { completed: 'Selesai', cancelled: 'Dibatalkan' }[order.status] || order.status; const statusClass = order.status === 'completed' ? 'status-completed' : 'status-cancelled'; div.innerHTML = `<div class="order-header"><div class="customer-name">${custName} ${order.vehicle?.includes('kurir') ? '<span class="kurir-badge">📦 KURIR</span>' : ''}</div><span class="status-badge ${statusClass}">${statusText}</span></div><div class="route-info"><div class="route-point"><div class="point-marker point-marker-a">A</div><div class="point-address point-address-a">${alamatA}</div></div><div class="route-point"><div class="point-marker point-marker-b">B</div><div class="point-address">${alamatB}</div></div></div><div class="order-details"><div class="detail-item"><span class="detail-value">${durasi}</span><span class="detail-label">Durasi</span></div><div class="detail-item"><span class="detail-value">${jarak}</span><span class="detail-label">Jarak</span></div><div class="detail-item"><span class="detail-value price-highlight">${harga}</span><span class="detail-label">Harga</span></div></div><div class="order-meta"><span>${formatOrderTime(order.completed_at || order.created_at)}</span><span>${order.vehicle || 'motor'}</span></div>`; div.addEventListener('click', () => showHistoryDetail(order)); return div; }
     function formatOrderTime(d) { return d ? new Date(d).toLocaleTimeString('id-ID', {hour:'2-digit', minute:'2-digit'}) : '-'; }
@@ -1400,50 +1444,46 @@
     function updateRatingDisplayAkun() { const avgRating = currentDriverData?.avgRating || 0; const ratingCount = currentDriverData?.ratingCount || 0; const starsDiv = document.getElementById('ratingStars'); if (starsDiv) starsDiv.innerHTML = generateStarRating(avgRating); const ratingValueSpan = document.getElementById('ratingValue'); if (ratingValueSpan) ratingValueSpan.textContent = avgRating.toFixed(1); const ratingCountSpan = document.getElementById('ratingCount'); if (ratingCountSpan) ratingCountSpan.textContent = `(${ratingCount} rating)`; const priority = getPriorityBadge(avgRating); const badgeSmall = document.getElementById('priorityBadgeSmall'); if (badgeSmall) { badgeSmall.textContent = priority.level; badgeSmall.className = priority.class; } }
     async function loadBalanceAndCommissionAkun(uid) { try { const [balanceSnap, potonganSnap] = await Promise.all([database.ref('drivers/'+uid+'/Balance').once('value'), database.ref('drivers/'+uid+'/Potongan').once('value')]); const balance = balanceSnap.val() || 0; const potongan = potonganSnap.val() || 0; const balanceAmountSpan = document.getElementById('balanceAmount'); if (balanceAmountSpan) balanceAmountSpan.textContent = formatCurrency(balance); const commissionSpan = document.getElementById('commissionRate'); if (commissionSpan) commissionSpan.textContent = potongan+'%'; } catch(e){ console.error(e); } }
     async function loadDriverOrdersAkun(uid) {
-    try {
-        const ordersSnap = await database.ref('orders').once('value');
-        const ordersData = ordersSnap.val();
-        let completedOrdersCount = 0;
-        let todayEarnings = 0;
-        const now = new Date();
-        const todayWITA = new Date(now.getTime() + (8 * 60 * 60 * 1000));
-        const todayDateString = todayWITA.toISOString().split('T')[0];
-
-        if (ordersData) {
-            Object.entries(ordersData).forEach(([orderId, order]) => {
-                const isDriverOrder = order.accepted_driver_id === uid ||
-                    (order.selected_driver && (order.selected_driver.id === uid || order.selected_driver.driver_id === uid)) ||
-                    (order.driver && (order.driver.id === uid || order.driver.driver_id === uid)) ||
-                    order.driverId === uid || order.driver_id === uid;
-                if (isDriverOrder && order.status === 'completed') {
-                    completedOrdersCount++;
-                    // Ambil waktu selesai dari berbagai kemungkinan field
-                    const completedTime = order.completed_at || order.finished_at || order.updated_at || order.created_at;
-                    if (completedTime) {
-                        const orderDate = new Date(completedTime);
-                        const orderDateWITA = new Date(orderDate.getTime() + (8 * 60 * 60 * 1000));
-                        if (orderDateWITA.toISOString().split('T')[0] === todayDateString) {
-                            todayEarnings += (parseInt(order.harga_total) || 0);
-                        }
-                    }
-                }
-            });
-        }
-
-        const totalOrdersSpan = document.getElementById('totalOrders');
-        if (totalOrdersSpan) totalOrdersSpan.textContent = completedOrdersCount;
-        const completedOrdersSpan = document.getElementById('completedOrders');
-        if (completedOrdersSpan) completedOrdersSpan.textContent = completedOrdersCount;
-        const todayEarningsSpan = document.getElementById('todayEarnings');
-        if (todayEarningsSpan) todayEarningsSpan.textContent = formatCurrency(todayEarnings);
-    } catch (e) {
-        console.error('Error loadDriverOrdersAkun:', e);
+      try {
+          const ordersSnap = await database.ref('orders').once('value');
+          const ordersData = ordersSnap.val();
+          let completedOrdersCount = 0;
+          let todayEarnings = 0;
+          const now = new Date();
+          const todayWITA = new Date(now.getTime() + (8 * 60 * 60 * 1000));
+          const todayDateString = todayWITA.toISOString().split('T')[0];
+          if (ordersData) {
+              Object.entries(ordersData).forEach(([orderId, order]) => {
+                  const isDriverOrder = order.accepted_driver_id === uid ||
+                      (order.selected_driver && (order.selected_driver.id === uid || order.selected_driver.driver_id === uid)) ||
+                      (order.driver && (order.driver.id === uid || order.driver.driver_id === uid)) ||
+                      order.driverId === uid || order.driver_id === uid;
+                  if (isDriverOrder && order.status === 'completed') {
+                      completedOrdersCount++;
+                      const completedTime = order.completed_at || order.finished_at || order.updated_at || order.created_at;
+                      if (completedTime) {
+                          const orderDate = new Date(completedTime);
+                          const orderDateWITA = new Date(orderDate.getTime() + (8 * 60 * 60 * 1000));
+                          if (orderDateWITA.toISOString().split('T')[0] === todayDateString) {
+                              todayEarnings += (parseInt(order.harga_total) || 0);
+                          }
+                      }
+                  }
+              });
+          }
+          const totalOrdersSpan = document.getElementById('totalOrders');
+          if (totalOrdersSpan) totalOrdersSpan.textContent = completedOrdersCount;
+          const completedOrdersSpan = document.getElementById('completedOrders');
+          if (completedOrdersSpan) completedOrdersSpan.textContent = completedOrdersCount;
+          const todayEarningsSpan = document.getElementById('todayEarnings');
+          if (todayEarningsSpan) todayEarningsSpan.textContent = formatCurrency(todayEarnings);
+      } catch (e) {
+          console.error('Error loadDriverOrdersAkun:', e);
+      }
     }
-}
     function displayDriverDataAkun(data) { const profileNameSpan = document.getElementById('profileName'); if(profileNameSpan) profileNameSpan.textContent = data.name || data.fullName || '-'; const profileVehicleSpan = document.getElementById('profileVehicle'); if(profileVehicleSpan) profileVehicleSpan.textContent = `${getVehicleTypeText(data.vehicleType)} - ${data.vehicleBrand || ''}`; const profilePhotoImg = document.getElementById('profilePhoto'); if(profilePhotoImg) { profilePhotoImg.src = data.fotoProfilURL || data.profilePhotoUrl || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png'; profilePhotoImg.onerror = function(){ this.src = 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png'; }; } const fullNameSpan = document.getElementById('fullName'); if(fullNameSpan) fullNameSpan.textContent = data.name || data.fullName || '-'; const emailSpan = document.getElementById('email'); if(emailSpan) emailSpan.textContent = data.email || '-'; const phoneSpan = document.getElementById('phoneNumber'); if(phoneSpan) phoneSpan.textContent = data.phone || data.phoneNumber || '-'; const addressSpan = document.getElementById('address'); if(addressSpan) addressSpan.textContent = data.address || '-'; const idCardSpan = document.getElementById('idCardNumber'); if(idCardSpan) idCardSpan.textContent = maskIdCard(data.idCardNumber || '-'); const vehicleTypeSpan = document.getElementById('vehicleType'); if(vehicleTypeSpan) vehicleTypeSpan.textContent = getVehicleTypeText(data.vehicleType); const vehicleBrandSpan = document.getElementById('vehicleBrand'); if(vehicleBrandSpan) vehicleBrandSpan.textContent = data.vehicleBrand || '-'; const plateNumberSpan = document.getElementById('plateNumber'); if(plateNumberSpan) plateNumberSpan.textContent = data.plateNumber || '-'; const driverIdSpan = document.getElementById('driverId'); if(driverIdSpan) driverIdSpan.textContent = data.uid || data.driverId || '-'; const regDateSpan = document.getElementById('registrationDate'); if(regDateSpan) regDateSpan.textContent = data.createdAt ? new Date(data.createdAt).toLocaleDateString('id-ID') : '-'; const statusSpan = document.getElementById('verificationStatus'); if(statusSpan) statusSpan.innerHTML = `<span class="status-badge ${getStatusClass(data.status || data.driverStatus || 'pending')}">${getStatusText(data.status || data.driverStatus || 'pending')}</span>`; updateRatingDisplayAkun(); }
     async function loadAkunData() { const storedDriver = localStorage.getItem('jego_logged_in_driver'); if (!storedDriver) { window.location.href = 'loginDriver.html'; return; } const driver = JSON.parse(storedDriver); const uid = driver.uid || driver.userId; if (!uid) { showPopup('Error', 'Data driver tidak valid. Silakan login ulang.', 'error'); setTimeout(() => { localStorage.removeItem('jego_logged_in_driver'); window.location.href = 'loginDriver.html'; }, 2000); return; } try { const driverRef = database.ref('drivers/'+uid); const snapshot = await driverRef.once('value'); const driverData = snapshot.val(); if (!driverData) { showPopup('Error', 'Data driver tidak ditemukan.', 'error'); return; } currentDriverData = { ...driver, ...driverData, uid: uid, avgRating: driverData?.avgRating || 0, ratingCount: driverData?.ratingCount || 0, balance: driverData?.Balance || 0, potongan: driverData?.Potongan || 0 }; localStorage.setItem('jego_logged_in_driver', JSON.stringify(currentDriverData)); const status = currentDriverData.status || currentDriverData.driverStatus || 'pending'; if (status === 'blocked') { showPopup('Akun Diblokir', `Akun Anda telah diblokir.${currentDriverData.blockReason ? ' Alasan: ' + currentDriverData.blockReason : ''}`, 'error', { onConfirm: () => { localStorage.removeItem('jego_logged_in_driver'); window.location.href = 'loginDriver.html'; } }); return; } if (status === 'rejected') { showPopup('Pendaftaran Ditolak', `Pendaftaran Anda ditolak.${currentDriverData.rejectionReason ? ' Alasan: ' + currentDriverData.rejectionReason : ''}`, 'error', { onConfirm: () => { localStorage.removeItem('jego_logged_in_driver'); window.location.href = 'loginDriver.html'; } }); return; } displayDriverDataAkun(currentDriverData); await loadBalanceAndCommissionAkun(uid); await loadDriverOrdersAkun(uid); } catch(e) { addDebugLog(`Error load akun data: ${e.message}`, 'error'); showPopup('Error', 'Gagal memuat data akun.', 'error'); } }
-    function logoutDriver() { showPopup('Konfirmasi Logout', 'Apakah Anda yakin ingin logout?', 'warning', { showCancel: true, confirmText: 'Ya, Logout', cancelText: 'Batal', onConfirm: () => { localStorage.removeItem('jego_logged_in_driver'); localStorage.removeItem('jego_driver_data'); window.location.href = 'loginDriver.html'; } }); }
-    function initAkunPage() { if (akunPageInitialized) return; akunPageInitialized = true; loadAkunData(); document.querySelectorAll('.toggle-btn').forEach(btn => { btn.addEventListener('click', function() { const targetId = this.dataset.target; const content = document.getElementById(targetId); if (content) { content.classList.toggle('collapsed'); const icon = this.querySelector('svg'); if (icon) icon.style.transform = content.classList.contains('collapsed') ? 'rotate(-90deg)' : 'rotate(0deg)'; } }); }); document.querySelectorAll('.copy-btn').forEach(btn => { btn.addEventListener('click', function() { const targetId = this.dataset.copyTarget; const targetEl = document.getElementById(targetId); if (targetEl) { const text = targetEl.textContent; navigator.clipboard?.writeText(text).then(() => showPopup('Sukses', 'Disalin!', 'success', { autoHide: true, autoHideDelay: 1500 })).catch(() => { const textarea = document.createElement('textarea'); textarea.value = text; document.body.appendChild(textarea); textarea.select(); document.execCommand('copy'); document.body.removeChild(textarea); showPopup('Sukses', 'Disalin!', 'success', { autoHide: true, autoHideDelay: 1500 }); }); } }); }); document.getElementById('ratingClickable')?.addEventListener('click', () => { window.location.href = 'penilaianLayanan.html'; }); document.getElementById('balanceContainer')?.addEventListener('click', () => { window.location.href = 'payment.html'; }); document.getElementById('todayEarningsStat')?.addEventListener('click', () => { window.location.href = 'pendapatan.html'; }); }
+    function initAkunPage() { if (akunPageInitialized) return; akunPageInitialized = true; loadAkunData(); document.getElementById('logoutBtn')?.addEventListener('click', logoutDriver); document.querySelectorAll('.toggle-btn').forEach(btn => { btn.addEventListener('click', function() { const targetId = this.dataset.target; const content = document.getElementById(targetId); if (content) { content.classList.toggle('collapsed'); const icon = this.querySelector('svg'); if (icon) icon.style.transform = content.classList.contains('collapsed') ? 'rotate(-90deg)' : 'rotate(0deg)'; } }); }); document.querySelectorAll('.copy-btn').forEach(btn => { btn.addEventListener('click', function() { const targetId = this.dataset.copyTarget; const targetEl = document.getElementById(targetId); if (targetEl) { const text = targetEl.textContent; navigator.clipboard?.writeText(text).then(() => showPopup('Sukses', 'Disalin!', 'success', { autoHide: true, autoHideDelay: 1500 })).catch(() => { const textarea = document.createElement('textarea'); textarea.value = text; document.body.appendChild(textarea); textarea.select(); document.execCommand('copy'); document.body.removeChild(textarea); showPopup('Sukses', 'Disalin!', 'success', { autoHide: true, autoHideDelay: 1500 }); }); } }); }); document.getElementById('ratingClickable')?.addEventListener('click', () => { window.location.href = 'penilaianLayanan.html'; }); document.getElementById('balanceContainer')?.addEventListener('click', () => { window.location.href = 'payment.html'; }); document.getElementById('todayEarningsStat')?.addEventListener('click', () => { window.location.href = 'pendapatan.html'; }); }
 
     // ========== SPA NAVIGASI ==========
     function showTab(tab) {
@@ -1493,21 +1533,10 @@
       document.getElementById('ambilBtn')?.addEventListener('click', sendDriverOffer);
       document.getElementById('autobidBtn')?.addEventListener('click', toggleAutobid);
       document.getElementById('orderModal')?.addEventListener('click', e => { if (e.target === document.getElementById('orderModal') && !countdownInterval) closeModal(); });
-      document.getElementById('popupButton')?.addEventListener('click', hidePopup);
       document.getElementById('acceptKurirToggle')?.addEventListener('change', updateAcceptKurirSetting);
       document.querySelectorAll('.nav-item').forEach(item => { item.addEventListener('click', () => showTab(item.dataset.tab)); });
       showTab('beranda');
     });
-    
-    // ========== EVENT DELEGATION UNTUK TOMBOL LOGOUT (AGAR SELALU BERFUNGSI) ==========
-    document.addEventListener('click', function(e) {
-        const logoutBtn = e.target.closest('#logoutBtn');
-        if (logoutBtn) {
-            e.preventDefault();
-            logoutDriver();
-        }
-    });
-    
     window.addEventListener('beforeunload', () => { if (locationWatchId) navigator.geolocation.clearWatch(locationWatchId); if (window.driverOffersRef) window.driverOffersRef.off(); });
   </script>
 </body>
