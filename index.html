@@ -833,29 +833,127 @@
   </style>
 </head>
 <body>
-  <!-- Guard Login -->
+  <!-- Guard Login dengan mekanisme persisten Kodular -->
   <script>
-    (function () {
-      const raw = localStorage.getItem('jego_logged_in_driver');
-      if (!raw) {
-        redirectLogin("not_logged_in");
-        return;
-      }
-      const driver = JSON.parse(raw);
-      const status = driver.status || driver.driverStatus;
-      if (!["active", "approved", "accepted"].includes(status)) {
-        redirectLogin("not_logged_in_or_inactive");
-        return;
-      }
-      function redirectLogin(reason) {
-        const payload = { action: "navigate", target: "login", reason };
-        if (window.AppInventor?.setWebViewString) {
-          window.AppInventor.setWebViewString(JSON.stringify(payload));
-        } else if (window.android?.receiveData) {
-          window.android.receiveData(JSON.stringify(payload));
-        } else {
-          window.location.href = "loginDriver.html";
+    // ========== FUNGSI PENYIMPANAN PERSISTEN UNTUK KODULAR ==========
+    // Deteksi lingkungan Kodular (App Inventor)
+    const isKodular = typeof window.AppInventor !== 'undefined';
+
+    // Fungsi untuk menyimpan data driver secara persisten
+    async function saveDriverSecurely(driverData) {
+      // 1. Simpan ke localStorage (sebagai cache)
+      localStorage.setItem('jego_logged_in_driver', JSON.stringify(driverData));
+      localStorage.setItem('jego_driver_data', JSON.stringify(driverData));
+
+      // 2. Jika di Kodular, simpan ke penyimpanan native via interface
+      if (isKodular && window.AppInventor && window.AppInventor.saveDriverData) {
+        try {
+          const dataString = JSON.stringify(driverData);
+          window.AppInventor.saveDriverData(dataString);
+          console.log('Driver data saved to Kodular native storage');
+        } catch (e) {
+          console.error('Failed to save to native storage:', e);
         }
+      }
+      
+      // 3. Simpan juga ke session token di Firebase (opsional untuk fallback)
+      if (driverData.uid || driverData.driverId) {
+        const driverId = driverData.uid || driverData.driverId;
+        const sessionToken = driverId + '_' + Date.now() + '_' + Math.random().toString(36).substr(2, 8);
+        localStorage.setItem('jego_session_token', sessionToken);
+        try {
+          const database = firebase.database();
+          await database.ref('driverSessions/' + sessionToken).set({
+            driverId: driverId,
+            data: driverData,
+            createdAt: Date.now(),
+            expiresAt: Date.now() + (30 * 24 * 60 * 60 * 1000)
+          });
+        } catch(e) { console.warn('Firebase session save failed', e); }
+      }
+    }
+
+    // Fungsi untuk memuat data driver dari penyimpanan persisten
+    async function loadDriverSecurely() {
+      return new Promise((resolve) => {
+        // 1. Cek localStorage dulu (cepat)
+        let driverStr = localStorage.getItem('jego_logged_in_driver');
+        if (driverStr) {
+          try {
+            const driver = JSON.parse(driverStr);
+            resolve(driver);
+            return;
+          } catch(e) {}
+        }
+
+        // 2. Jika di Kodular, minta dari native storage
+        if (isKodular && window.AppInventor && window.AppInventor.loadDriverData) {
+          console.log('Requesting driver data from Kodular native storage...');
+          // Set callback untuk menerima data dari Kodular
+          window.onDataLoaded = function(dataString) {
+            if (dataString && dataString !== 'null' && dataString !== '') {
+              try {
+                const driver = JSON.parse(dataString);
+                localStorage.setItem('jego_logged_in_driver', dataString);
+                resolve(driver);
+                return;
+              } catch(e) {}
+            }
+            resolve(null);
+          };
+          window.AppInventor.loadDriverData();
+          // Timeout jika tidak ada respon dalam 2 detik
+          setTimeout(() => {
+            if (window.onDataLoaded) {
+              window.onDataLoaded = null;
+              resolve(null);
+            }
+          }, 2000);
+        } else {
+          resolve(null);
+        }
+      });
+    }
+
+    // Fungsi logout yang membersihkan semua penyimpanan
+    async function logoutDriver() {
+      // Hapus dari localStorage
+      localStorage.removeItem('jego_logged_in_driver');
+      localStorage.removeItem('jego_driver_data');
+      const token = localStorage.getItem('jego_session_token');
+      if (token) {
+        try {
+          await firebase.database().ref('driverSessions/' + token).remove();
+        } catch(e) {}
+        localStorage.removeItem('jego_session_token');
+      }
+      // Hapus dari native storage Kodular
+      if (isKodular && window.AppInventor && window.AppInventor.clearDriverData) {
+        window.AppInventor.clearDriverData();
+      }
+      window.location.href = 'loginDriver.html';
+    }
+
+    // ========== GUARD LOGIN UTAMA ==========
+    (async function() {
+      try {
+        const driver = await loadDriverSecurely();
+        if (!driver) {
+          window.location.href = 'loginDriver.html';
+          return;
+        }
+        const status = driver.status || driver.driverStatus;
+        if (!['active', 'approved', 'accepted'].includes(status)) {
+          window.location.href = 'loginDriver.html';
+          return;
+        }
+        // Jika berhasil, simpan ke variabel global (akan diinisialisasi ulang nanti)
+        window.__initialDriver = driver;
+        // Lanjutkan load halaman
+        document.body.style.display = '';
+      } catch(e) {
+        console.error('Guard error:', e);
+        window.location.href = 'loginDriver.html';
       }
     })();
   </script>
@@ -1071,7 +1169,7 @@
     </div>
   </div>
 
-  <!-- ==================== SIDEBAR (tanpa navigasi) ==================== -->
+  <!-- ==================== SIDEBAR ==================== -->
   <div class="sidebar" id="sidebar">
     <div class="sidebar-overlay" id="sidebarOverlay"></div>
     <div class="sidebar-content">
@@ -1102,7 +1200,7 @@
   <audio id="orderAcceptedSound" preload="auto"><source src="https://jegotiem.netlify.app/audio/audioorderaccepted.mp3" type="audio/mpeg"></audio>
 
   <script>
-    // ========== DEBUG LOGGER (sama seperti sebelumnya) ==========
+    // ========== DEBUG LOGGER ==========
     const debugContent = document.getElementById('debugContent');
     function addDebugLog(message, type = 'info') {
       const p = document.createElement('p');
@@ -1138,7 +1236,7 @@
       addDebugLog(`Error inisialisasi Firebase: ${error.message}`, 'error');
     }
 
-    // ========== VARIABEL GLOBAL (beranda & riwayat) ==========
+    // ========== VARIABEL GLOBAL ==========
     let ordersRef = null, ordersListener = null;
     let modalMap = null;
     let currentSelectedOrder = null;
@@ -1159,7 +1257,7 @@
     let historyMap = null, historyRoutePolyline = null, historyMarkers = [], historyOrdersRef = null, historyOrdersListener = null, currentFilter = 'all', historyDataLoaded = false;
     let akunPageInitialized = false;
 
-    // ========== FUNGSI BERANDA & RIWAYAT (sama persis seperti sebelumnya, tidak diubah) ==========
+    // ========== FUNGSI UTILITAS (sama seperti asli) ==========
     function calculateDistance(lat1, lon1, lat2, lon2) { if (!lat1 || !lon1 || !lat2 || !lon2) return null; const R = 6371; const dLat = (lat2 - lat1) * Math.PI / 180; const dLon = (lon2 - lon1) * Math.PI / 180; const a = Math.sin(dLat/2)*Math.sin(dLat/2) + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)*Math.sin(dLon/2); const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); return R * c; }
     function loadStoredSettings() { const savedTracking = localStorage.getItem(STORAGE_TRACKING); locationTrackingEnabled = savedTracking === 'true'; updateTrackingButton(); const savedAutobid = localStorage.getItem(STORAGE_AUTOBID); autobidEnabled = savedAutobid === 'true'; updateAutobidButton(); const savedKurir = localStorage.getItem(STORAGE_ACCEPT_KURIR); acceptKurirEnabled = savedKurir === 'true'; const toggle = document.getElementById('acceptKurirToggle'); if (toggle) toggle.checked = acceptKurirEnabled; }
     function updateTrackingButton() { const btn = document.getElementById('locationToggleBtn'); if (locationTrackingEnabled) { btn.innerHTML = '📍 ON'; btn.classList.add('active'); } else { btn.innerHTML = '📍 OFF'; btn.classList.remove('active'); } }
@@ -1281,7 +1379,7 @@
     function refreshData() { const btn = document.getElementById('refreshBtn'); btn.disabled = true; loadOrders(); setTimeout(() => btn.disabled = false, 1000); }
     function toggleSidebar() { const sidebar = document.getElementById('sidebar'); sidebar.style.display = sidebar.style.display === 'flex' ? 'none' : 'flex'; }
     
-    // ========== PERBAIKAN SHOWPOPUP dengan konfirmasi 2 tombol ==========
+    // ========== SHOWPOPUP dengan konfirmasi 2 tombol ==========
     function showPopup(title, message, type = 'info', options = null) {
       const popup = document.getElementById('popupOverlay');
       const popupTitle = document.getElementById('popupTitle');
@@ -1294,13 +1392,11 @@
       const icons = { success: '✅', error: '❌', warning: '⚠️', info: 'ℹ️' };
       popupIcon.textContent = icons[type] || 'ℹ️';
       
-      // Kosongkan footer
       while (popupFooter.firstChild) {
         popupFooter.removeChild(popupFooter.firstChild);
       }
       
       if (options && options.showCancel) {
-        // Tombol Batal
         const cancelBtn = document.createElement('button');
         cancelBtn.textContent = options.cancelText || 'Batal';
         cancelBtn.className = 'popup-button popup-button-cancel';
@@ -1308,7 +1404,6 @@
           hidePopup();
           if (options.onCancel) options.onCancel();
         };
-        // Tombol Konfirmasi
         const confirmBtn = document.createElement('button');
         confirmBtn.textContent = options.confirmText || 'Ya';
         confirmBtn.className = 'popup-button popup-button-primary';
@@ -1333,26 +1428,14 @@
       document.getElementById('popupOverlay').classList.remove('active');
     }
     
-    // ========== FUNGSI LOGOUT (sudah benar) ==========
-    function logoutDriver() {
-      showPopup('Konfirmasi Logout', 'Apakah Anda yakin ingin logout?', 'warning', {
-        showCancel: true,
-        confirmText: 'Ya, Logout',
-        cancelText: 'Batal',
-        onConfirm: () => {
-          localStorage.removeItem('jego_logged_in_driver');
-          localStorage.removeItem('jego_driver_data');
-          sessionStorage.removeItem('shownPopupOrderIds');
-          window.location.href = 'loginDriver.html';
-        }
-      });
-    }
+    // ========== FUNGSI LOGOUT (override dengan yang persisten) ==========
+    // Sudah didefinisikan di awal, kita gunakan yang sudah ada
     
     window.showPhotoModal = function(photoUrl, name) { const modalHtml = `<div id="photoModal" class="modal photo-modal" style="display:flex;"><div class="modal-content"><button class="close-btn" onclick="document.getElementById('photoModal').remove()">&times;</button><div class="modal-body"><img src="${photoUrl}" class="large-customer-photo" alt="${name}"><div class="large-customer-name">${name}</div></div></div></div>`; document.body.insertAdjacentHTML('beforeend', modalHtml); document.getElementById('photoModal').addEventListener('click', (e) => { if (e.target === document.getElementById('photoModal')) document.getElementById('photoModal').remove(); }); };
     async function checkDriverActiveOrder() { const activeOrderId = localStorage.getItem('jego_driver_active_order'); if (!activeOrderId) return false; try { const snap = await database.ref('orders/' + activeOrderId).once('value'); const order = snap.val(); if (order) { const activeStatuses = ['accepted', 'on_the_way', 'arrived', 'on_trip']; if (activeStatuses.includes(order.status)) { addDebugLog(`Order aktif ditemukan: ${activeOrderId}`, 'info'); window.location.href = 'orderAccepted.html?id=' + activeOrderId; return true; } else localStorage.removeItem('jego_driver_active_order'); } else localStorage.removeItem('jego_driver_active_order'); } catch (error) { addDebugLog(`Error cek order aktif: ${error.message}`, 'error'); } return false; }
     function listenDriverOffers(orderId) { if (!orderId) return; if (window.driverOffersRef) window.driverOffersRef.off(); window.driverOffersRef = database.ref('orders/' + orderId + '/driver_offers'); window.driverOffersRef.on('child_changed', (snap) => { const offer = snap.val(); if (offer && offer.status === 'rejected' && (offer.id === currentDriverData?.driverId || offer.driver_id === currentDriverData?.driverId)) { addDebugLog(`Penawaran ditolak untuk order ${orderId}`, 'warning'); stopCountdown(); closeModal(); showPopup('Penawaran Ditolak', 'Penawaran Anda ditolak oleh customer.', 'warning'); } }); window.driverOffersRef.on('child_added', (snap) => { const offer = snap.val(); if (offer && offer.status === 'rejected' && (offer.id === currentDriverData?.driverId || offer.driver_id === currentDriverData?.driverId)) { stopCountdown(); closeModal(); showPopup('Penawaran Ditolak', 'Penawaran Anda ditolak oleh customer.', 'warning'); } }); }
 
-    // ========== FUNGSI RIWAYAT (sama seperti asli) ==========
+    // ========== FUNGSI RIWAYAT ==========
     function formatFullTime(dateString) { if (!dateString) return '-'; try { const date = new Date(dateString); if (isNaN(date.getTime())) return '-'; return date.toLocaleString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }); } catch { return '-'; } }
     function initHistoryMap() { if (historyMap) { historyMap.remove(); historyMap = null; } const mapElement = document.getElementById('historyModalMap'); if (!mapElement) return; historyMap = L.map('historyModalMap').setView([0.5441, 123.0595], 13); L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' }).addTo(historyMap); }
     function showHistoryRoute(order) { if (!historyMap) initHistoryMap(); if (!order.from_lat || !order.from_lng || !order.to_lat || !order.to_lng) return; if (historyRoutePolyline) historyMap.removeLayer(historyRoutePolyline); historyMarkers.forEach(m => historyMap.removeLayer(m)); historyMarkers = []; const start = [order.from_lat, order.from_lng]; const end = [order.to_lat, order.to_lng]; historyRoutePolyline = L.polyline([start, end], { color: '#FF5722', weight: 6, opacity: 0.8, dashArray: '10, 10' }).addTo(historyMap); const startMarker = L.marker(start).bindPopup('<b>Penjemputan</b><br>' + (order.alamat_a || 'A')).addTo(historyMap); const endMarker = L.marker(end).bindPopup('<b>Tujuan</b><br>' + (order.alamat_b || 'B')).addTo(historyMap); historyMarkers.push(startMarker, endMarker); historyMap.fitBounds(L.latLngBounds([start, end]), { padding: [20,20] }); }
@@ -1433,7 +1516,7 @@
     function refreshHistoryDisplay() { if (historyOrdersRef) historyOrdersRef.once('value', snap => { if(snap.val()) loadHistoryData(); }); }
     function setupHistoryFilters() { document.querySelectorAll('#page-riwayat .filter-option').forEach(opt => { opt.addEventListener('click', () => { currentFilter = opt.dataset.filter; document.querySelectorAll('#page-riwayat .filter-option').forEach(o => o.classList.remove('active')); opt.classList.add('active'); refreshHistoryDisplay(); }); }); }
 
-    // ========== FUNGSI KHUSUS HALAMAN AKUN (Saya) ==========
+    // ========== FUNGSI KHUSUS HALAMAN AKUN ==========
     function formatCurrency(amount) { if (!amount && amount !== 0) return 'Rp 0'; return 'Rp ' + parseInt(amount).toLocaleString('id-ID'); }
     function maskIdCard(idCard) { if (!idCard || idCard === '-') return '-'; const idString = idCard.toString(); if (idString.length <= 8) return idString; const firstPart = idString.substring(0,4); const lastPart = idString.substring(idString.length-4); const maskedPart = '*'.repeat(idString.length-8); return firstPart + maskedPart + lastPart; }
     function generateStarRating(rating, starClass = 'star') { const fullStars = Math.floor(rating); const hasHalfStar = rating % 1 >= 0.5; const emptyStars = 5 - fullStars - (hasHalfStar ? 1 : 0); let starsHTML = ''; for (let i=0; i<fullStars; i++) starsHTML += `<span class="${starClass} filled">★</span>`; if (hasHalfStar) starsHTML += `<span class="${starClass} filled">★</span>`; for (let i=0; i<emptyStars; i++) starsHTML += `<span class="${starClass}">☆</span>`; return starsHTML; }
@@ -1483,7 +1566,7 @@
     }
     function displayDriverDataAkun(data) { const profileNameSpan = document.getElementById('profileName'); if(profileNameSpan) profileNameSpan.textContent = data.name || data.fullName || '-'; const profileVehicleSpan = document.getElementById('profileVehicle'); if(profileVehicleSpan) profileVehicleSpan.textContent = `${getVehicleTypeText(data.vehicleType)} - ${data.vehicleBrand || ''}`; const profilePhotoImg = document.getElementById('profilePhoto'); if(profilePhotoImg) { profilePhotoImg.src = data.fotoProfilURL || data.profilePhotoUrl || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png'; profilePhotoImg.onerror = function(){ this.src = 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png'; }; } const fullNameSpan = document.getElementById('fullName'); if(fullNameSpan) fullNameSpan.textContent = data.name || data.fullName || '-'; const emailSpan = document.getElementById('email'); if(emailSpan) emailSpan.textContent = data.email || '-'; const phoneSpan = document.getElementById('phoneNumber'); if(phoneSpan) phoneSpan.textContent = data.phone || data.phoneNumber || '-'; const addressSpan = document.getElementById('address'); if(addressSpan) addressSpan.textContent = data.address || '-'; const idCardSpan = document.getElementById('idCardNumber'); if(idCardSpan) idCardSpan.textContent = maskIdCard(data.idCardNumber || '-'); const vehicleTypeSpan = document.getElementById('vehicleType'); if(vehicleTypeSpan) vehicleTypeSpan.textContent = getVehicleTypeText(data.vehicleType); const vehicleBrandSpan = document.getElementById('vehicleBrand'); if(vehicleBrandSpan) vehicleBrandSpan.textContent = data.vehicleBrand || '-'; const plateNumberSpan = document.getElementById('plateNumber'); if(plateNumberSpan) plateNumberSpan.textContent = data.plateNumber || '-'; const driverIdSpan = document.getElementById('driverId'); if(driverIdSpan) driverIdSpan.textContent = data.uid || data.driverId || '-'; const regDateSpan = document.getElementById('registrationDate'); if(regDateSpan) regDateSpan.textContent = data.createdAt ? new Date(data.createdAt).toLocaleDateString('id-ID') : '-'; const statusSpan = document.getElementById('verificationStatus'); if(statusSpan) statusSpan.innerHTML = `<span class="status-badge ${getStatusClass(data.status || data.driverStatus || 'pending')}">${getStatusText(data.status || data.driverStatus || 'pending')}</span>`; updateRatingDisplayAkun(); }
     async function loadAkunData() { const storedDriver = localStorage.getItem('jego_logged_in_driver'); if (!storedDriver) { window.location.href = 'loginDriver.html'; return; } const driver = JSON.parse(storedDriver); const uid = driver.uid || driver.userId; if (!uid) { showPopup('Error', 'Data driver tidak valid. Silakan login ulang.', 'error'); setTimeout(() => { localStorage.removeItem('jego_logged_in_driver'); window.location.href = 'loginDriver.html'; }, 2000); return; } try { const driverRef = database.ref('drivers/'+uid); const snapshot = await driverRef.once('value'); const driverData = snapshot.val(); if (!driverData) { showPopup('Error', 'Data driver tidak ditemukan.', 'error'); return; } currentDriverData = { ...driver, ...driverData, uid: uid, avgRating: driverData?.avgRating || 0, ratingCount: driverData?.ratingCount || 0, balance: driverData?.Balance || 0, potongan: driverData?.Potongan || 0 }; localStorage.setItem('jego_logged_in_driver', JSON.stringify(currentDriverData)); const status = currentDriverData.status || currentDriverData.driverStatus || 'pending'; if (status === 'blocked') { showPopup('Akun Diblokir', `Akun Anda telah diblokir.${currentDriverData.blockReason ? ' Alasan: ' + currentDriverData.blockReason : ''}`, 'error', { onConfirm: () => { localStorage.removeItem('jego_logged_in_driver'); window.location.href = 'loginDriver.html'; } }); return; } if (status === 'rejected') { showPopup('Pendaftaran Ditolak', `Pendaftaran Anda ditolak.${currentDriverData.rejectionReason ? ' Alasan: ' + currentDriverData.rejectionReason : ''}`, 'error', { onConfirm: () => { localStorage.removeItem('jego_logged_in_driver'); window.location.href = 'loginDriver.html'; } }); return; } displayDriverDataAkun(currentDriverData); await loadBalanceAndCommissionAkun(uid); await loadDriverOrdersAkun(uid); } catch(e) { addDebugLog(`Error load akun data: ${e.message}`, 'error'); showPopup('Error', 'Gagal memuat data akun.', 'error'); } }
-    function initAkunPage() { if (akunPageInitialized) return; akunPageInitialized = true; loadAkunData(); document.getElementById('logoutBtn')?.addEventListener('click', logoutDriver); document.querySelectorAll('.toggle-btn').forEach(btn => { btn.addEventListener('click', function() { const targetId = this.dataset.target; const content = document.getElementById(targetId); if (content) { content.classList.toggle('collapsed'); const icon = this.querySelector('svg'); if (icon) icon.style.transform = content.classList.contains('collapsed') ? 'rotate(-90deg)' : 'rotate(0deg)'; } }); }); document.querySelectorAll('.copy-btn').forEach(btn => { btn.addEventListener('click', function() { const targetId = this.dataset.copyTarget; const targetEl = document.getElementById(targetId); if (targetEl) { const text = targetEl.textContent; navigator.clipboard?.writeText(text).then(() => showPopup('Sukses', 'Disalin!', 'success', { autoHide: true, autoHideDelay: 1500 })).catch(() => { const textarea = document.createElement('textarea'); textarea.value = text; document.body.appendChild(textarea); textarea.select(); document.execCommand('copy'); document.body.removeChild(textarea); showPopup('Sukses', 'Disalin!', 'success', { autoHide: true, autoHideDelay: 1500 }); }); } }); }); document.getElementById('ratingClickable')?.addEventListener('click', () => { window.location.href = 'penilaianLayanan.html'; }); document.getElementById('balanceContainer')?.addEventListener('click', () => { window.location.href = 'payment.html'; }); document.getElementById('todayEarningsStat')?.addEventListener('click', () => { window.location.href = 'pendapatan.html'; }); }
+    function initAkunPage() { if (akunPageInitialized) return; akunPageInitialized = true; loadAkunData(); document.getElementById('logoutBtn')?.addEventListener('click', () => logoutDriver()); document.querySelectorAll('.toggle-btn').forEach(btn => { btn.addEventListener('click', function() { const targetId = this.dataset.target; const content = document.getElementById(targetId); if (content) { content.classList.toggle('collapsed'); const icon = this.querySelector('svg'); if (icon) icon.style.transform = content.classList.contains('collapsed') ? 'rotate(-90deg)' : 'rotate(0deg)'; } }); }); document.querySelectorAll('.copy-btn').forEach(btn => { btn.addEventListener('click', function() { const targetId = this.dataset.copyTarget; const targetEl = document.getElementById(targetId); if (targetEl) { const text = targetEl.textContent; navigator.clipboard?.writeText(text).then(() => showPopup('Sukses', 'Disalin!', 'success', { autoHide: true, autoHideDelay: 1500 })).catch(() => { const textarea = document.createElement('textarea'); textarea.value = text; document.body.appendChild(textarea); textarea.select(); document.execCommand('copy'); document.body.removeChild(textarea); showPopup('Sukses', 'Disalin!', 'success', { autoHide: true, autoHideDelay: 1500 }); }); } }); }); document.getElementById('ratingClickable')?.addEventListener('click', () => { window.location.href = 'penilaianLayanan.html'; }); document.getElementById('balanceContainer')?.addEventListener('click', () => { window.location.href = 'payment.html'; }); document.getElementById('todayEarningsStat')?.addEventListener('click', () => { window.location.href = 'pendapatan.html'; }); }
 
     // ========== SPA NAVIGASI ==========
     function showTab(tab) {
@@ -1514,9 +1597,26 @@
     // ========== EVENT LISTENER UTAMA ==========
     document.addEventListener('DOMContentLoaded', async () => {
       addDebugLog('Halaman JeGo Driver SPA dimuat', 'info');
-      if (!checkDriverData()) return;
+      
+      // Inisialisasi driver data dari guard
+      if (window.__initialDriver) {
+        currentDriverData = window.__initialDriver;
+        localStorage.setItem('jego_logged_in_driver', JSON.stringify(currentDriverData));
+        // Perbarui tampilan header
+        document.getElementById('driverPhoto').src = currentDriverData.profilePhotoUrl || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png';
+        document.getElementById('sidebarDriverPhoto').src = currentDriverData.profilePhotoUrl || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png';
+        document.getElementById('sidebarDriverName').textContent = currentDriverData.fullName || currentDriverData.name;
+        document.getElementById('sidebarDriverRating').textContent = (currentDriverData.rating || 5).toFixed(1);
+        document.getElementById('sidebarRating').textContent = (currentDriverData.rating || 5).toFixed(1);
+        document.getElementById('sidebarTrips').textContent = currentDriverData.perjalanan || 0;
+        document.getElementById('sidebarBalance').textContent = `Rp ${(currentDriverData.balance || 0).toLocaleString('id-ID')}`;
+      } else {
+        if (!checkDriverData()) return;
+      }
+      
       const hasActive = await checkDriverActiveOrder();
       if (hasActive) return;
+      
       await fetchMapboxToken().catch(err => addDebugLog(`Mapbox token error: ${err.message}`, 'warning'));
       loadStoredSettings();
       startGPSMonitoring();
