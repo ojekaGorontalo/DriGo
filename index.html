@@ -1102,7 +1102,7 @@
   <audio id="orderAcceptedSound" preload="auto"><source src="https://jegotiem.netlify.app/audio/audioorderaccepted.mp3" type="audio/mpeg"></audio>
 
   <script>
-    // ========== DEBUG LOGGER ==========
+    // ========== DEBUG LOGGER (sama seperti sebelumnya) ==========
     const debugContent = document.getElementById('debugContent');
     function addDebugLog(message, type = 'info') {
       const p = document.createElement('p');
@@ -1138,7 +1138,7 @@
       addDebugLog(`Error inisialisasi Firebase: ${error.message}`, 'error');
     }
 
-    // ========== VARIABEL GLOBAL ==========
+    // ========== VARIABEL GLOBAL (beranda & riwayat) ==========
     let ordersRef = null, ordersListener = null;
     let modalMap = null;
     let currentSelectedOrder = null;
@@ -1281,7 +1281,7 @@
     function refreshData() { const btn = document.getElementById('refreshBtn'); btn.disabled = true; loadOrders(); setTimeout(() => btn.disabled = false, 1000); }
     function toggleSidebar() { const sidebar = document.getElementById('sidebar'); sidebar.style.display = sidebar.style.display === 'flex' ? 'none' : 'flex'; }
     
-    // ========== SHOWPOPUP dengan konfirmasi 2 tombol ==========
+    // ========== PERBAIKAN SHOWPOPUP dengan konfirmasi 2 tombol ==========
     function showPopup(title, message, type = 'info', options = null) {
       const popup = document.getElementById('popupOverlay');
       const popupTitle = document.getElementById('popupTitle');
@@ -1290,15 +1290,17 @@
       const popupFooter = document.getElementById('popupFooter');
       
       popupTitle.textContent = title;
-      popupMessage.innerHTML = message;
+      popupMessage.textContent = message;
       const icons = { success: '✅', error: '❌', warning: '⚠️', info: 'ℹ️' };
       popupIcon.textContent = icons[type] || 'ℹ️';
       
+      // Kosongkan footer
       while (popupFooter.firstChild) {
         popupFooter.removeChild(popupFooter.firstChild);
       }
       
       if (options && options.showCancel) {
+        // Tombol Batal
         const cancelBtn = document.createElement('button');
         cancelBtn.textContent = options.cancelText || 'Batal';
         cancelBtn.className = 'popup-button popup-button-cancel';
@@ -1306,6 +1308,7 @@
           hidePopup();
           if (options.onCancel) options.onCancel();
         };
+        // Tombol Konfirmasi
         const confirmBtn = document.createElement('button');
         confirmBtn.textContent = options.confirmText || 'Ya';
         confirmBtn.className = 'popup-button popup-button-primary';
@@ -1330,7 +1333,7 @@
       document.getElementById('popupOverlay').classList.remove('active');
     }
     
-    // ========== FUNGSI LOGOUT ==========
+    // ========== FUNGSI LOGOUT (sudah benar) ==========
     function logoutDriver() {
       showPopup('Konfirmasi Logout', 'Apakah Anda yakin ingin logout?', 'warning', {
         showCancel: true,
@@ -1349,7 +1352,7 @@
     async function checkDriverActiveOrder() { const activeOrderId = localStorage.getItem('jego_driver_active_order'); if (!activeOrderId) return false; try { const snap = await database.ref('orders/' + activeOrderId).once('value'); const order = snap.val(); if (order) { const activeStatuses = ['accepted', 'on_the_way', 'arrived', 'on_trip']; if (activeStatuses.includes(order.status)) { addDebugLog(`Order aktif ditemukan: ${activeOrderId}`, 'info'); window.location.href = 'orderAccepted.html?id=' + activeOrderId; return true; } else localStorage.removeItem('jego_driver_active_order'); } else localStorage.removeItem('jego_driver_active_order'); } catch (error) { addDebugLog(`Error cek order aktif: ${error.message}`, 'error'); } return false; }
     function listenDriverOffers(orderId) { if (!orderId) return; if (window.driverOffersRef) window.driverOffersRef.off(); window.driverOffersRef = database.ref('orders/' + orderId + '/driver_offers'); window.driverOffersRef.on('child_changed', (snap) => { const offer = snap.val(); if (offer && offer.status === 'rejected' && (offer.id === currentDriverData?.driverId || offer.driver_id === currentDriverData?.driverId)) { addDebugLog(`Penawaran ditolak untuk order ${orderId}`, 'warning'); stopCountdown(); closeModal(); showPopup('Penawaran Ditolak', 'Penawaran Anda ditolak oleh customer.', 'warning'); } }); window.driverOffersRef.on('child_added', (snap) => { const offer = snap.val(); if (offer && offer.status === 'rejected' && (offer.id === currentDriverData?.driverId || offer.driver_id === currentDriverData?.driverId)) { stopCountdown(); closeModal(); showPopup('Penawaran Ditolak', 'Penawaran Anda ditolak oleh customer.', 'warning'); } }); }
 
-    // ========== FUNGSI RIWAYAT ==========
+    // ========== FUNGSI RIWAYAT (sama seperti asli) ==========
     function formatFullTime(dateString) { if (!dateString) return '-'; try { const date = new Date(dateString); if (isNaN(date.getTime())) return '-'; return date.toLocaleString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }); } catch { return '-'; } }
     function initHistoryMap() { if (historyMap) { historyMap.remove(); historyMap = null; } const mapElement = document.getElementById('historyModalMap'); if (!mapElement) return; historyMap = L.map('historyModalMap').setView([0.5441, 123.0595], 13); L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' }).addTo(historyMap); }
     function showHistoryRoute(order) { if (!historyMap) initHistoryMap(); if (!order.from_lat || !order.from_lng || !order.to_lat || !order.to_lng) return; if (historyRoutePolyline) historyMap.removeLayer(historyRoutePolyline); historyMarkers.forEach(m => historyMap.removeLayer(m)); historyMarkers = []; const start = [order.from_lat, order.from_lng]; const end = [order.to_lat, order.to_lng]; historyRoutePolyline = L.polyline([start, end], { color: '#FF5722', weight: 6, opacity: 0.8, dashArray: '10, 10' }).addTo(historyMap); const startMarker = L.marker(start).bindPopup('<b>Penjemputan</b><br>' + (order.alamat_a || 'A')).addTo(historyMap); const endMarker = L.marker(end).bindPopup('<b>Tujuan</b><br>' + (order.alamat_b || 'B')).addTo(historyMap); historyMarkers.push(startMarker, endMarker); historyMap.fitBounds(L.latLngBounds([start, end]), { padding: [20,20] }); }
@@ -1430,7 +1433,7 @@
     function refreshHistoryDisplay() { if (historyOrdersRef) historyOrdersRef.once('value', snap => { if(snap.val()) loadHistoryData(); }); }
     function setupHistoryFilters() { document.querySelectorAll('#page-riwayat .filter-option').forEach(opt => { opt.addEventListener('click', () => { currentFilter = opt.dataset.filter; document.querySelectorAll('#page-riwayat .filter-option').forEach(o => o.classList.remove('active')); opt.classList.add('active'); refreshHistoryDisplay(); }); }); }
 
-    // ========== FUNGSI KHUSUS HALAMAN AKUN ==========
+    // ========== FUNGSI KHUSUS HALAMAN AKUN (Saya) ==========
     function formatCurrency(amount) { if (!amount && amount !== 0) return 'Rp 0'; return 'Rp ' + parseInt(amount).toLocaleString('id-ID'); }
     function maskIdCard(idCard) { if (!idCard || idCard === '-') return '-'; const idString = idCard.toString(); if (idString.length <= 8) return idString; const firstPart = idString.substring(0,4); const lastPart = idString.substring(idString.length-4); const maskedPart = '*'.repeat(idString.length-8); return firstPart + maskedPart + lastPart; }
     function generateStarRating(rating, starClass = 'star') { const fullStars = Math.floor(rating); const hasHalfStar = rating % 1 >= 0.5; const emptyStars = 5 - fullStars - (hasHalfStar ? 1 : 0); let starsHTML = ''; for (let i=0; i<fullStars; i++) starsHTML += `<span class="${starClass} filled">★</span>`; if (hasHalfStar) starsHTML += `<span class="${starClass} filled">★</span>`; for (let i=0; i<emptyStars; i++) starsHTML += `<span class="${starClass}">☆</span>`; return starsHTML; }
@@ -1507,67 +1510,6 @@
         initAkunPage();
       }
     }
-
-    // ========== HANDLE TOMBOL BACK (Konfirmasi keluar) ==========
-    window.addEventListener('load', function() {
-      // Push state awal agar popstate bisa ditangkap
-      history.pushState({ page: 'main' }, null, location.href);
-    });
-
-    window.addEventListener('popstate', function(event) {
-      // Cek apakah ada modal yang sedang terbuka
-      const orderModal = document.getElementById('orderModal');
-      const historyModal = document.getElementById('historyModal');
-      const sidebar = document.getElementById('sidebar');
-      const popup = document.getElementById('popupOverlay');
-      
-      if (orderModal && orderModal.style.display === 'flex') {
-        closeModal();
-        history.pushState({ page: 'main' }, null, location.href);
-        event.preventDefault();
-        return;
-      }
-      if (historyModal && historyModal.style.display === 'flex') {
-        closeHistoryModal();
-        history.pushState({ page: 'main' }, null, location.href);
-        event.preventDefault();
-        return;
-      }
-      if (sidebar && sidebar.style.display === 'flex') {
-        toggleSidebar(); // tutup sidebar
-        history.pushState({ page: 'main' }, null, location.href);
-        event.preventDefault();
-        return;
-      }
-      if (popup && popup.classList.contains('active')) {
-        hidePopup();
-        history.pushState({ page: 'main' }, null, location.href);
-        event.preventDefault();
-        return;
-      }
-      
-      // Jika tidak ada modal, tampilkan konfirmasi keluar
-      showPopup('Konfirmasi Keluar', 'Apakah Anda yakin ingin keluar dari aplikasi?', 'warning', {
-        showCancel: true,
-        confirmText: 'Ya, Keluar',
-        cancelText: 'Tidak',
-        onConfirm: () => {
-          // Untuk WebView/median.co, coba tutup window
-          window.close();
-          // Fallback: jika tidak bisa, arahkan ke halaman kosong
-          setTimeout(() => {
-            window.location.href = 'about:blank';
-          }, 100);
-        },
-        onCancel: () => {
-          // Push state lagi agar tetap di halaman
-          history.pushState({ page: 'main' }, null, location.href);
-        }
-      });
-      // Tetap push state agar popstate berikutnya bisa ditangani
-      history.pushState({ page: 'main' }, null, location.href);
-      event.preventDefault();
-    });
 
     // ========== EVENT LISTENER UTAMA ==========
     document.addEventListener('DOMContentLoaded', async () => {
