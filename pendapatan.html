@@ -7,26 +7,22 @@
   <!-- Firebase SDK -->
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+  <!-- Leaflet untuk peta -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <!-- html2canvas dan jsPDF -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <style>
     :root {
       --primary: #FF9800;
       --secondary: #FF5722;
       --accent: #FFC107;
-      --light: #f8f9fa;
-      --dark: #343a40;
       --success: #4CAF50;
       --danger: #f44336;
-      --warning: #FFC107;
-      --info: #2196F3;
       --gray: #9E9E9E;
     }
-
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
-
+    * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
       background-color: #f5f5f5;
@@ -35,758 +31,464 @@
       font-size: 0.85rem;
       padding-bottom: 20px;
     }
-
     .header {
       background: linear-gradient(135deg, var(--primary), var(--secondary));
       color: white;
       padding: 15px 20px;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.2);
       display: flex;
       align-items: center;
       position: sticky;
       top: 0;
       z-index: 100;
-      min-height: 60px;
     }
-
-    .logo-container {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-
+    .logo-container { display: flex; align-items: center; gap: 12px; }
     .logo {
-      width: 32px;
-      height: 32px;
-      background-color: var(--accent);
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-weight: bold;
-      font-size: 14px;
-      color: var(--primary);
-      flex-shrink: 0;
+      width: 32px; height: 32px; background-color: var(--accent); border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: bold; color: var(--primary);
     }
-
-    .back-btn {
-      background: rgba(255,255,255,0.2);
-      color: white;
-      border: none;
-      border-radius: 8px;
-      padding: 8px 12px;
-      cursor: pointer;
-      font-weight: 600;
-      transition: all 0.3s;
-      display: flex;
-      align-items: center;
-      gap: 5px;
-      font-size: 0.85rem;
-      flex-shrink: 0;
+    .header-title { font-size: 1.1rem; font-weight: 600; margin-left: 10px; }
+    .container { max-width: 100%; padding: 15px; }
+    .date-navigation {
+      background: white; border-radius: 12px; padding: 15px; margin-bottom: 15px;
+      display: flex; align-items: center; justify-content: space-between;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
     }
-
-    .back-btn:hover {
-      background: rgba(255,255,255,0.3);
+    .nav-btn {
+      background: linear-gradient(to right, var(--primary), var(--secondary));
+      color: white; border: none; border-radius: 8px; width: 40px; height: 40px;
+      cursor: pointer; font-size: 1.2rem;
     }
-
-    .header-title {
-      font-size: 1.1rem;
-      font-weight: 600;
-      margin-left: 10px;
+    .nav-btn:disabled { background: #ccc; cursor: not-allowed; }
+    .current-date { text-align: center; flex: 1; }
+    .date-display { font-size: 1rem; font-weight: 600; color: var(--primary); }
+    .day-display { font-size: 0.75rem; color: #666; }
+    .summary-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px;
+    }
+    .summary-card {
+      background: white; border-radius: 10px; padding: 12px; text-align: center;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+    }
+    .summary-icon { font-size: 1.5rem; margin-bottom: 5px; color: var(--primary); }
+    .summary-label { font-size: 0.7rem; color: #666; }
+    .summary-value { font-size: 1rem; font-weight: 700; color: var(--primary); }
+    .summary-value.earnings { color: var(--success); }
+    .summary-value.fees { color: var(--danger); }
+    .breakdown-section {
+      background: white; border-radius: 12px; padding: 15px; margin-bottom: 15px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+    }
+    .section-title {
+      font-size: 0.9rem; font-weight: 600; color: var(--primary);
+      margin-bottom: 12px; border-bottom: 1px solid #eee; padding-bottom: 6px;
+    }
+    .breakdown-list { display: flex; flex-direction: column; gap: 10px; }
+    .breakdown-item {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 8px 0; border-bottom: 1px solid #f5f5f5; cursor: pointer;
+    }
+    .breakdown-item:hover { background-color: #fff8f0; border-radius: 6px; padding-left: 6px; }
+    .breakdown-label {
+      font-size: 0.8rem; color: #666;
+      flex: 1;
+      overflow: hidden;
+    }
+    .address-line {
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+      max-width: 220px;
     }
-
-    .container {
-      max-width: 100%;
-      padding: 15px;
-    }
-
-    .date-navigation {
-      background: white;
-      border-radius: 12px;
-      padding: 15px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-      margin-bottom: 15px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      border: 1px solid rgba(255, 152, 0, 0.1);
-    }
-
-    .nav-btn {
-      background: linear-gradient(to right, var(--primary), var(--secondary));
-      color: white;
-      border: none;
-      border-radius: 8px;
-      width: 40px;
-      height: 40px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      font-size: 1.2rem;
-      font-weight: bold;
-      transition: all 0.3s;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-    }
-
-    .nav-btn:disabled {
-      background: #cccccc;
-      cursor: not-allowed;
-      box-shadow: none;
-    }
-
-    .nav-btn:hover:not(:disabled) {
-      transform: translateY(-2px);
-      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-    }
-
-    .current-date {
-      text-align: center;
-      flex: 1;
-    }
-
-    .date-display {
-      font-size: 1.1rem;
+    .address-line span {
       font-weight: 600;
       color: var(--primary);
-      margin-bottom: 2px;
+      margin-right: 4px;
     }
-
-    .day-display {
-      font-size: 0.8rem;
-      color: #666;
+    .breakdown-value { font-weight: 600; color: var(--primary); margin-left: 8px; }
+    .empty-state, .loading {
+      text-align: center; padding: 40px; background: white; border-radius: 12px;
     }
-
-    .summary-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 10px;
-      margin-bottom: 15px;
-    }
-
-    .summary-card {
-      background: white;
-      border-radius: 10px;
-      padding: 12px;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.08);
-      text-align: center;
-      min-height: 100px;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      border: 1px solid rgba(255, 152, 0, 0.1);
-      transition: transform 0.3s;
-    }
-
-    .summary-card:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 4px 12px rgba(0,0,0,0.12);
-    }
-
-    .summary-card.full-width {
-      grid-column: 1 / -1;
-    }
-
-    .summary-icon {
-      font-size: 1.5rem;
-      margin-bottom: 5px;
-      color: var(--primary);
-    }
-
-    .summary-label {
-      font-size: 0.75rem;
-      color: #666;
-      margin-bottom: 4px;
-    }
-
-    .summary-value {
-      font-size: 1.1rem;
-      font-weight: 700;
-      color: var(--primary);
-    }
-
-    .summary-value.earnings {
-      color: var(--success);
-    }
-
-    .summary-value.fees {
-      color: var(--danger);
-    }
-
-    .summary-value.distance {
-      color: var(--secondary);
-    }
-
-    .breakdown-section {
-      background: white;
-      border-radius: 12px;
-      padding: 15px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-      margin-bottom: 15px;
-      border: 1px solid rgba(255, 152, 0, 0.1);
-    }
-
-    .section-title {
-      font-size: 1rem;
-      font-weight: 600;
-      color: var(--primary);
-      margin-bottom: 15px;
-      padding-bottom: 8px;
-      border-bottom: 2px solid rgba(255, 152, 0, 0.2);
-    }
-
-    .breakdown-list {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-    }
-
-    .breakdown-item {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 10px 0;
-      border-bottom: 1px solid #f5f5f5;
-    }
-
-    .breakdown-item:last-child {
-      border-bottom: none;
-    }
-
-    .breakdown-label {
-      font-size: 0.85rem;
-      color: #666;
-    }
-
-    .breakdown-value {
-      font-size: 0.9rem;
-      font-weight: 600;
-      color: var(--primary);
-    }
-
-    .empty-state {
-      text-align: center;
-      padding: 40px 20px;
-      color: #666;
-      background: white;
-      border-radius: 12px;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.08);
-      border: 2px dashed rgba(255, 152, 0, 0.3);
-    }
-
-    .empty-state-icon {
-      font-size: 3.5rem;
-      margin-bottom: 15px;
-      color: var(--primary);
-      opacity: 0.5;
-    }
-
-    .loading {
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      padding: 50px 20px;
-      background: white;
-      border-radius: 12px;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.08);
-      border: 1px solid rgba(255, 152, 0, 0.1);
-    }
-
     .spinner {
-      width: 50px;
-      height: 50px;
-      border: 4px solid rgba(255, 152, 0, 0.1);
-      border-radius: 50%;
-      border-top-color: var(--primary);
-      animation: spin 1s linear infinite;
-      margin-bottom: 15px;
+      width: 40px; height: 40px; border: 4px solid #f3f3f3;
+      border-top-color: var(--primary); border-radius: 50%;
+      animation: spin 1s linear infinite; margin: 0 auto 10px;
     }
-
-    @keyframes spin {
-      to { transform: rotate(360deg); }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    /* Modal */
+    .modal {
+      display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0,0,0,0.7); z-index: 1000; align-items: center; justify-content: center;
     }
-
-    @media (max-width: 768px) {
-      body { font-size: 0.8rem; }
-      .header-title { font-size: 1rem; margin-left: 8px; }
-      .summary-grid { gap: 8px; }
-      .summary-card { padding: 10px; min-height: 90px; }
-      .summary-value { font-size: 1rem; }
-      .summary-icon { font-size: 1.3rem; }
-      .logo { width: 28px; height: 28px; font-size: 12px; }
+    .modal-content {
+      background: white; border-radius: 16px; width: 95%; max-width: 500px;
+      max-height: 90vh; overflow-y: auto; padding-bottom: 15px;
     }
-
+    .modal-header {
+      padding: 15px; border-bottom: 1px solid #eee;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .modal-header h3 { margin: 0; color: var(--primary); }
+    .close-modal { background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #666; }
+    .detail-status {
+      background: #e8f5e9; color: #2e7d32; padding: 6px 12px; border-radius: 20px;
+      font-size: 0.75rem; font-weight: 600; display: inline-block; margin-bottom: 12px;
+    }
+    .detail-route { background: #f9f9f9; border-radius: 12px; padding: 12px; margin: 10px 0; }
+    .route-point { display: flex; gap: 10px; margin-bottom: 10px; }
+    .point-marker {
+      width: 24px; height: 24px; background: var(--primary); border-radius: 50%;
+      display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 0.7rem;
+    }
+    .point-marker.b { background: var(--secondary); }
+    .point-address { flex: 1; font-size: 0.8rem; }
+    .detail-meta { display: flex; gap: 15px; margin: 12px 0; font-size: 0.75rem; color: #666; }
+    .customer-name { font-weight: 600; color: var(--primary); margin: 8px 0; }
+    .action-buttons { display: flex; gap: 10px; margin: 15px 0; }
+    .action-btn {
+      flex: 1; background: #f0f0f0; border: none; border-radius: 8px; padding: 10px;
+      font-weight: 600; cursor: pointer;
+    }
+    .action-btn.resi { background: var(--primary); color: white; }
+    .earnings-section { background: #f5f5f5; border-radius: 12px; padding: 12px; margin: 15px 0; }
+    .earnings-header { font-size: 0.9rem; font-weight: 600; margin-bottom: 8px; }
+    .earnings-amount { font-size: 1.3rem; font-weight: 700; color: var(--success); }
+    .divider { height: 1px; background: #ddd; margin: 12px 0; }
+    .detail-row { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 0.8rem; }
+    .detail-row.total { font-weight: 700; color: var(--primary); }
+    .payment-method { font-size: 0.7rem; color: #666; margin-top: 5px; }
+    /* Resi style kwitansi */
+    .resi-wrapper {
+      background: white; padding: 20px; font-family: 'Courier New', monospace;
+    }
+    .resi-card {
+      border: 1px solid #ddd; border-radius: 8px; padding: 20px; background: #fff;
+      max-width: 100%; margin: 0 auto;
+    }
+    .resi-header { text-align: center; margin-bottom: 20px; }
+    .resi-header h2 { margin: 0; color: #333; }
+    .resi-header p { margin: 5px 0; font-size: 0.8rem; color: #666; }
+    .resi-detail-row { display: flex; margin-bottom: 8px; font-size: 0.8rem; }
+    .resi-label { font-weight: 600; width: 130px; flex-shrink: 0; }
+    .resi-value { flex: 1; }
+    .resi-table { width: 100%; border-collapse: collapse; margin: 15px 0; }
+    .resi-table th, .resi-table td { border: 1px solid #ddd; padding: 8px; text-align: left; font-size: 0.8rem; }
+    .resi-table th { background: #f2f2f2; }
+    .resi-total { text-align: right; font-weight: bold; margin-top: 10px; }
+    .resi-footer { margin-top: 20px; font-size: 0.7rem; text-align: center; color: #999; }
+    .resi-actions { display: flex; gap: 10px; margin-top: 15px; justify-content: center; }
+    .resi-actions button { background: var(--primary); border: none; padding: 8px 16px; border-radius: 6px; color: white; cursor: pointer; }
+    .email-link { display: block; text-align: center; margin-top: 10px; color: var(--primary); text-decoration: none; }
     @media (max-width: 576px) {
-      .container { padding: 10px; }
-      .header { padding: 12px 15px; }
-      .back-btn { padding: 6px 10px; font-size: 0.8rem; }
-      .date-navigation { padding: 12px; }
-      .nav-btn { width: 36px; height: 36px; font-size: 1rem; }
-      .date-display { font-size: 1rem; }
+      .address-line { max-width: 160px; }
+      .resi-label { width: 100px; }
+      .resi-table th, .resi-table td { padding: 5px; }
     }
   </style>
 </head>
 <body>
-  <div class="header">
-    <div class="logo-container">
-      <button class="back-btn" id="backBtn">
-        <span style="font-size: 18px;">←</span>
-        Kembali
-      </button>
-      <div class="logo">JG</div>
-      <div class="header-title">Ringkasan Pendapatan</div>
-    </div>
+<div class="header">
+  <div class="logo-container">
+    <div class="logo">JG</div>
+    <div class="header-title">Ringkasan Pendapatan</div>
   </div>
+</div>
+<div class="container" id="mainContainer"></div>
 
-  <div class="container" id="mainContainer"></div>
+<!-- Modal Detail Order -->
+<div id="orderDetailModal" class="modal">
+  <div class="modal-content" id="detailModalContent"></div>
+</div>
 
-  <script>
-    const FIREBASE_CONFIG = {
-      apiKey: "AIzaSyDpGc_CsbNi1igA29n6qDhcX0oDkHNVscc",
-      authDomain: "game-balap-simpel.firebaseapp.com",
-      databaseURL: "https://game-balap-simpel-default-rtdb.firebaseio.com",
-      projectId: "game-balap-simpel",
-      storageBucket: "game-balap-simpel.firebasestorage.app",
-      messagingSenderId: "864576853495",
-      appId: "1:864576853495:web:6f16eb757fd3d8affb0af2"
-    };
+<!-- Modal Resi -->
+<div id="resiModal" class="modal">
+  <div class="modal-content">
+    <div class="modal-header"><h3>Resi Digital</h3><button class="close-modal" onclick="closeResiModal()">&times;</button></div>
+    <div class="modal-body"><div id="resiContainer"></div></div>
+  </div>
+</div>
 
-    let database;
+<script>
+  const FIREBASE_CONFIG = {
+    apiKey: "AIzaSyDpGc_CsbNi1igA29n6qDhcX0oDkHNVscc",
+    authDomain: "game-balap-simpel.firebaseapp.com",
+    databaseURL: "https://game-balap-simpel-default-rtdb.firebaseio.com",
+    projectId: "game-balap-simpel",
+    storageBucket: "game-balap-simpel.firebasestorage.app",
+    appId: "1:864576853495:web:6f16eb757fd3d8affb0af2"
+  };
+  if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
+  const database = firebase.database();
+
+  let currentDate = new Date();
+  let driverOrders = [];
+  let driverId = null;
+  let commissionRate = 12.99;
+  let currentSelectedOrder = null;
+
+  function roundCurrency(value) { return Math.round(value); }
+  function parseCommission(val) { let num = parseFloat(String(val).replace(',', '.')); return isNaN(num) ? 12.99 : num; }
+
+  async function loadEarningsData() {
+    const loggedInDriver = localStorage.getItem('jego_logged_in_driver');
+    if (!loggedInDriver) return showErrorState('Belum login.');
     try {
-      if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
-      database = firebase.database();
-    } catch (error) {
-      console.error('Error Firebase:', error);
-    }
-
-    let currentDate = new Date();
-    let driverOrders = [];
-    let driverId = null;
-    let driverData = null;
-    let balanceHistory = {};
-
-    function loadEarningsData() {
-      try {
-        const loggedInDriver = localStorage.getItem('jego_logged_in_driver');
-        if (!loggedInDriver) {
-          showErrorState('Anda belum login. Silakan login terlebih dahulu.');
-          return;
-        }
-
-        driverData = JSON.parse(loggedInDriver);
-        // Cari driverId dari berbagai kemungkinan field
-        driverId = driverData.uid || driverData.driverId || driverData.firebase_key || driverData.userId;
-        if (!driverId) {
-          console.warn('Driver ID tidak ditemukan di localStorage, coba dari drivers node');
-          // fallback: ambil dari localStorage key lain jika ada
-          driverId = driverData.id || null;
-        }
-        
-        if (!driverId) {
-          showErrorState('Data driver tidak valid. Silakan login ulang.');
-          return;
-        }
-
-        console.log('Driver ID:', driverId);
-        showLoadingState();
-
-        Promise.all([ loadDriverOrders(), loadBalanceHistory() ])
-          .then(() => {
-            console.log(`Total order selesai ditemukan: ${driverOrders.length}`);
-            displayEarningsData();
-          })
-          .catch((error) => {
-            console.error('Error memuat data:', error);
-            showErrorState('Gagal memuat data. Periksa koneksi internet Anda.');
-          });
-          
-      } catch (error) {
-        console.error('Error parsing driver data:', error);
-        showErrorState('Data session tidak valid. Silakan login ulang.');
-      }
-    }
-
-    function loadDriverOrders() {
-      return new Promise((resolve, reject) => {
-        database.ref('orders').once('value')
-          .then((snapshot) => {
-            const ordersData = snapshot.val();
-            driverOrders = [];
-            
-            if (ordersData) {
-              Object.keys(ordersData).forEach(key => {
-                const order = ordersData[key];
-                // Cek apakah order milik driver ini
-                let isDriverOrder = false;
-                
-                // 1. Cek accepted_driver_id
-                if (order.accepted_driver_id === driverId) isDriverOrder = true;
-                // 2. Cek selected_driver
-                if (order.selected_driver && (order.selected_driver.id === driverId || order.selected_driver.driver_id === driverId)) isDriverOrder = true;
-                // 3. Cek driver object
-                if (order.driver && (order.driver.id === driverId || order.driver.driver_id === driverId)) isDriverOrder = true;
-                // 4. Cek field driverId / driver_id
-                if (order.driverId === driverId || order.driver_id === driverId) isDriverOrder = true;
-                // 5. Cek driver_offers (jika ada)
-                if (order.driver_offers) {
-                  if (Object.values(order.driver_offers).some(offer => offer.id === driverId || offer.driver_id === driverId)) isDriverOrder = true;
-                }
-                
-                // Hanya order dengan status completed
-                if (isDriverOrder && order.status === 'completed') {
-                  // Ambil waktu selesai dari berbagai kemungkinan field
-                  let completedTime = order.completed_at || order.finished_at || order.updated_at || order.created_at;
-                  if (!completedTime) completedTime = Date.now();
-                  
-                  driverOrders.push({
-                    id: key,
-                    ...order,
-                    jarak_km: order.jarak_km || order.jarak || order.distance || '0',
-                    harga_total: order.harga_total || order.total_price || 0,
-                    completed_at: completedTime
-                  });
-                }
-              });
-              
-              // Urutkan dari yang terbaru
-              driverOrders.sort((a, b) => new Date(b.completed_at) - new Date(a.completed_at));
-            }
-            
-            resolve();
-          })
-          .catch(reject);
-      });
-    }
-
-    function loadBalanceHistory() {
-      return new Promise((resolve) => {
-        if (!driverId) {
-          resolve({});
-          return;
-        }
-
-        database.ref('drivers/' + driverId + '/transactions').once('value')
-          .then((snapshot) => {
-            const data = snapshot.val();
-            if (data) {
-              balanceHistory = data;
-            } else {
-              balanceHistory = {};
-            }
-            resolve();
-          })
-          .catch((error) => {
-            console.error('Error memuat transaksi:', error);
-            balanceHistory = {};
-            resolve();
-          });
-      });
-    }
-
-    function filterOrdersByDateWITA(orders, date) {
-      // Buat tanggal WITA (UTC+8) untuk batas hari
-      const dateWITA = new Date(date.getTime() + (8 * 60 * 60 * 1000));
-      const dateStringWITA = dateWITA.toISOString().split('T')[0];
-
-      return orders.filter(order => {
-        if (!order.completed_at) return false;
-        try {
-          const orderDate = new Date(order.completed_at);
-          const orderDateWITA = new Date(orderDate.getTime() + (8 * 60 * 60 * 1000));
-          return orderDateWITA.toISOString().split('T')[0] === dateStringWITA;
-        } catch {
-          return false;
-        }
-      });
-    }
-
-    function calculateStats(orders, selectedDate) {
-      let totalOrders = orders.length;
-      let totalDistance = 0;
-      
-      orders.forEach(order => {
-        const distanceStr = order.jarak_km || '0';
-        const clean = distanceStr.toString().replace('km', '').replace(',', '.').trim();
-        totalDistance += parseFloat(clean) || 0;
-      });
-      
-      const earningsData = calculateNetEarnings(orders, balanceHistory, selectedDate);
-      const averagePerKm = totalDistance > 0 ? Math.round(earningsData.netEarnings / totalDistance) : 0;
-      
-      return {
-        totalOrders,
-        totalDistance: totalDistance.toFixed(1) + ' km',
-        grossEarnings: earningsData.grossEarnings,
-        netEarnings: earningsData.netEarnings,
-        totalFees: earningsData.totalFees,
-        feePercentage: earningsData.feePercentage,
-        averagePerKm
-      };
-    }
-
-    function calculateNetEarnings(orders, transactions, selectedDate) {
-      let grossEarnings = 0;
-      let totalFees = 0;
-      
-      orders.forEach(order => grossEarnings += parseFloat(order.harga_total) || 0);
-      
-      const filteredTransactions = filterTransactionsByDateWITA(transactions, selectedDate);
-      filteredTransactions.forEach(transaction => {
-        const amount = parseFloat(transaction.amount) || 0;
-        if (amount < 0) totalFees += Math.abs(amount);
-      });
-      
-      const netEarnings = grossEarnings - totalFees;
-      const feePercentage = grossEarnings > 0 ? ((totalFees / grossEarnings) * 100).toFixed(1) : '0';
-      
-      return { grossEarnings, totalFees, netEarnings, feePercentage };
-    }
-
-    function filterTransactionsByDateWITA(transactions, date) {
-      const dateWITA = new Date(date.getTime() + (8 * 60 * 60 * 1000));
-      const dateString = dateWITA.toISOString().split('T')[0];
-      const filtered = [];
-      
-      Object.values(transactions).forEach(transaction => {
-        if (!transaction.timestamp) return;
-        try {
-          const tDate = new Date(transaction.timestamp);
-          const tDateWITA = new Date(tDate.getTime() + (8 * 60 * 60 * 1000));
-          if (tDateWITA.toISOString().split('T')[0] === dateString) filtered.push(transaction);
-        } catch {}
-      });
-      return filtered;
-    }
-
-    function formatDateDisplay(date) {
-      return date.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
-    }
-
-    function getDayName(date) {
-      return date.toLocaleDateString('id-ID', { weekday: 'long' });
-    }
-
-    function formatTimeWITA(date) {
-      const dateWITA = new Date(date.getTime() + (8 * 60 * 60 * 1000));
-      return dateWITA.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
-    }
-
-    function goToPreviousDay() {
-      currentDate.setDate(currentDate.getDate() - 1);
+      const driverData = JSON.parse(loggedInDriver);
+      driverId = driverData.uid || driverData.driverId || driverData.userId || driverData.id;
+      if (!driverId) throw new Error();
+      showLoadingState();
+      const potonganSnap = await database.ref('drivers/' + driverId + '/Potongan').once('value');
+      let rate = parseCommission(potonganSnap.val());
+      if (rate === 0) rate = 12.99;
+      commissionRate = rate;
+      await loadDriverOrders();
       displayEarningsData();
-    }
+    } catch(e) { showErrorState('Gagal memuat data.'); }
+  }
 
-    function goToNextDay() {
-      const tomorrow = new Date(currentDate);
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      
-      const tomorrowWITA = new Date(tomorrow.getTime() + (8 * 60 * 60 * 1000));
-      const todayWITA = new Date(today.getTime() + (8 * 60 * 60 * 1000));
-      
-      if (tomorrowWITA <= todayWITA) {
-        currentDate = tomorrow;
-        displayEarningsData();
-      }
-    }
-
-    function updateNavButtons() {
-      const prevBtn = document.getElementById('prevBtn');
-      const nextBtn = document.getElementById('nextBtn');
-      if (!prevBtn || !nextBtn) return;
-      
-      prevBtn.disabled = false;
-      
-      const tomorrow = new Date(currentDate);
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const tomorrowWITA = new Date(tomorrow.getTime() + (8 * 60 * 60 * 1000));
-      const todayWITA = new Date(today.getTime() + (8 * 60 * 60 * 1000));
-      
-      nextBtn.disabled = tomorrowWITA > todayWITA;
-    }
-
-    function displayEarningsData() {
-      const container = document.getElementById('mainContainer');
-      
-      const filteredOrders = filterOrdersByDateWITA(driverOrders, currentDate);
-      
-      if (filteredOrders.length === 0) {
-        container.innerHTML = `
-          <div class="date-navigation">
-            <button class="nav-btn" id="prevBtn">‹</button>
-            <div class="current-date">
-              <div class="date-display">${formatDateDisplay(currentDate)}</div>
-              <div class="day-display">${getDayName(currentDate)}</div>
-            </div>
-            <button class="nav-btn" id="nextBtn" ${currentDate.toDateString() === new Date().toDateString() ? 'disabled' : ''}>›</button>
-          </div>
-          <div class="empty-state">
-            <div class="empty-state-icon">📭</div>
-            <h3 style="color: var(--primary); margin-bottom: 10px;">Tidak Ada Data</h3>
-            <p>Tidak ada order yang diselesaikan pada tanggal ini.</p>
-            <button class="nav-btn" id="retryBtn" style="margin-top: 15px; width: auto; padding: 8px 20px;">
-              Coba Lagi
-            </button>
-          </div>
-        `;
-        
-        initButtons();
-        updateNavButtons();
-        
-        const retryBtn = document.getElementById('retryBtn');
-        if (retryBtn) retryBtn.addEventListener('click', loadEarningsData);
-        
-        return;
-      }
-
-      const stats = calculateStats(filteredOrders, currentDate);
-      
-      let html = `
-        <div class="date-navigation">
-          <button class="nav-btn" id="prevBtn">‹</button>
-          <div class="current-date">
-            <div class="date-display">${formatDateDisplay(currentDate)}</div>
-            <div class="day-display">${getDayName(currentDate)}</div>
-          </div>
-          <button class="nav-btn" id="nextBtn">›</button>
-        </div>
-        
-        <div class="summary-grid">
-          <div class="summary-card">
-            <div class="summary-icon">📊</div>
-            <div class="summary-label">Total Order</div>
-            <div class="summary-value">${stats.totalOrders}</div>
-          </div>
-          
-          <div class="summary-card">
-            <div class="summary-icon">📏</div>
-            <div class="summary-label">Total Jarak</div>
-            <div class="summary-value distance">${stats.totalDistance}</div>
-          </div>
-          
-          <div class="summary-card">
-            <div class="summary-icon">💰</div>
-            <div class="summary-label">Rata-rata per KM</div>
-            <div class="summary-value">Rp ${stats.averagePerKm.toLocaleString('id-ID')}</div>
-          </div>
-          
-          <div class="summary-card">
-            <div class="summary-icon">💵</div>
-            <div class="summary-label">Pendapatan Bersih</div>
-            <div class="summary-value earnings">Rp ${stats.netEarnings.toLocaleString('id-ID')}</div>
-          </div>
-          
-          <div class="summary-card">
-            <div class="summary-icon">📉</div>
-            <div class="summary-label">Total Potongan</div>
-            <div class="summary-value fees">Rp ${stats.totalFees.toLocaleString('id-ID')}</div>
-          </div>
-          
-          <div class="summary-card">
-            <div class="summary-icon">⚖️</div>
-            <div class="summary-label">Persentase Potongan</div>
-            <div class="summary-value">${stats.feePercentage}%</div>
-          </div>
-        </div>
-      `;
-      
-      if (filteredOrders.length > 0) {
-        html += `
-          <div class="breakdown-section">
-            <div class="section-title">Rincian Order</div>
-            <div class="breakdown-list">
-        `;
-        
-        filteredOrders.forEach(order => {
-          const orderTime = formatTimeWITA(new Date(order.completed_at));
-          const distance = parseFloat((order.jarak_km || '0').replace(',', '.')) || 0;
-          const earnings = parseFloat(order.harga_total) || 0;
-          const vehicleType = order.vehicle_name || order.vehicleType || (order.vehicle === 'kurir_motor' ? 'Kurir Motor' : (order.vehicle === 'motor' ? 'Motor' : 'Kendaraan'));
-          
-          html += `
-            <div class="breakdown-item">
-              <div class="breakdown-label">
-                <div>${orderTime} • ${vehicleType}</div>
-                <div style="font-size: 0.75rem; color: #999;">${distance.toFixed(1)} km</div>
-              </div>
-              <div class="breakdown-value">Rp ${earnings.toLocaleString('id-ID')}</div>
-            </div>
-          `;
+  async function loadDriverOrders() {
+    const snapshot = await database.ref('orders').once('value');
+    const data = snapshot.val();
+    driverOrders = [];
+    if (!data) return;
+    for (const [key, order] of Object.entries(data)) {
+      let isDriverOrder = false;
+      if (order.accepted_driver_id === driverId) isDriverOrder = true;
+      if (order.selected_driver && (order.selected_driver.id === driverId || order.selected_driver.driver_id === driverId)) isDriverOrder = true;
+      if (order.driver && (order.driver.id === driverId || order.driver.driver_id === driverId)) isDriverOrder = true;
+      if (order.driverId === driverId || order.driver_id === driverId) isDriverOrder = true;
+      if (order.driver_offers && Object.values(order.driver_offers).some(o => o.id === driverId || o.driver_id === driverId)) isDriverOrder = true;
+      if (isDriverOrder && order.status === 'completed') {
+        const gross = parseFloat(order.harga_total) || 0;
+        const feeRaw = gross * (commissionRate / 100);
+        const ppnRaw = feeRaw * 0.11;
+        const fee = roundCurrency(feeRaw);
+        const ppn = roundCurrency(ppnRaw);
+        const totalPotongan = fee + ppn;
+        const net = roundCurrency(gross - totalPotongan);
+        driverOrders.push({
+          id: key, ...order, harga_total: gross, fee: fee, ppn_fee: ppn,
+          total_potongan: totalPotongan, pendapatan_bersih: net,
+          jarak_km: parseFloat(order.jarak_km || order.jarak || order.distance || 0),
+          completed_at: order.completed_at || order.finished_at || order.updated_at || order.created_at || Date.now(),
+          from_lat: order.from_lat, from_lng: order.from_lng, to_lat: order.to_lat, to_lng: order.to_lng,
+          alamat_a: order.alamat_a, alamat_b: order.alamat_b, user_data: order.user_data || {},
+          payment_method: order.payment_method || 'Tunai', durasi: order.durasi || '-'
         });
-        
-        html += `
-            </div>
-          </div>
-        `;
       }
-      
-      container.innerHTML = html;
-      
+    }
+    driverOrders.sort((a,b) => new Date(b.completed_at) - new Date(a.completed_at));
+  }
+
+  function filterOrdersByDateWITA(orders, date) {
+    const offset = 8*60*60*1000;
+    const target = new Date(date.getTime()+offset).toISOString().split('T')[0];
+    return orders.filter(o => {
+      if (!o.completed_at) return false;
+      const d = new Date(o.completed_at);
+      return new Date(d.getTime()+offset).toISOString().split('T')[0] === target;
+    });
+  }
+
+  function formatCurrency(amount) { return 'Rp ' + (amount || 0).toLocaleString('id-ID'); }
+
+  function truncateAddress(addr, maxLen = 35) {
+    if (!addr) return '-';
+    return addr.length > maxLen ? addr.substring(0, maxLen) + '…' : addr;
+  }
+
+  function displayEarningsData() {
+    const container = document.getElementById('mainContainer');
+    const filtered = filterOrdersByDateWITA(driverOrders, currentDate);
+    if (filtered.length === 0) {
+      container.innerHTML = `
+        <div class="date-navigation"><button class="nav-btn" id="prevBtn">‹</button><div class="current-date"><div class="date-display">${formatDateDisplay(currentDate)}</div><div class="day-display">${getDayName(currentDate)}</div></div><button class="nav-btn" id="nextBtn">›</button></div>
+        <div class="empty-state"><div class="empty-state-icon">📭</div><p>Tidak ada order selesai pada tanggal ini</p><button class="nav-btn" id="retryBtn" style="margin-top:15px;">Coba Lagi</button></div>`;
       initButtons();
-      updateNavButtons();
-    }
-
-    function showLoadingState() {
-      const container = document.getElementById('mainContainer');
-      container.innerHTML = `
-        <div class="loading">
-          <div class="spinner"></div>
-          <div style="color: var(--primary); font-weight: 600; margin-top: 10px;">Memuat data pendapatan...</div>
-        </div>
-      `;
-    }
-
-    function showErrorState(message) {
-      const container = document.getElementById('mainContainer');
-      container.innerHTML = `
-        <div class="empty-state">
-          <div class="empty-state-icon">⚠️</div>
-          <div style="color: var(--danger); margin: 10px 0; font-weight: 600;">${message}</div>
-          <button class="nav-btn" id="retryBtn" style="margin-top: 15px; width: auto; padding: 8px 20px;">
-            Coba Lagi
-          </button>
-          <button class="nav-btn" id="logoutBtn" style="margin-top: 10px; width: auto; padding: 8px 20px; background: #6c757d;">
-            Login Ulang
-          </button>
-        </div>
-      `;
-      
       document.getElementById('retryBtn')?.addEventListener('click', loadEarningsData);
-      document.getElementById('logoutBtn')?.addEventListener('click', () => {
-        localStorage.removeItem('jego_logged_in_driver');
-        window.location.href = 'loginDriver.html';
+      return;
+    }
+    let totalGross=0, totalFees=0, totalNet=0, totalDist=0;
+    filtered.forEach(o => { totalGross+=o.harga_total; totalFees+=o.total_potongan; totalNet+=o.pendapatan_bersih; totalDist+=o.jarak_km; });
+    const avgPerKm = totalDist>0 ? roundCurrency(totalNet/totalDist) : 0;
+    let html = `
+      <div class="date-navigation"><button class="nav-btn" id="prevBtn">‹</button><div class="current-date"><div class="date-display">${formatDateDisplay(currentDate)}</div><div class="day-display">${getDayName(currentDate)}</div></div><button class="nav-btn" id="nextBtn">›</button></div>
+      <div class="summary-grid">
+        <div class="summary-card"><div class="summary-icon">📊</div><div class="summary-label">Total Order</div><div class="summary-value">${filtered.length}</div></div>
+        <div class="summary-card"><div class="summary-icon">📏</div><div class="summary-label">Total Jarak</div><div class="summary-value">${totalDist.toFixed(1)} km</div></div>
+        <div class="summary-card"><div class="summary-icon">💰</div><div class="summary-label">Rata-rata per KM</div><div class="summary-value">${formatCurrency(avgPerKm)}</div></div>
+        <div class="summary-card"><div class="summary-icon">💵</div><div class="summary-label">Pendapatan Bersih</div><div class="summary-value earnings">${formatCurrency(totalNet)}</div></div>
+        <div class="summary-card"><div class="summary-icon">📉</div><div class="summary-label">Total Potongan</div><div class="summary-value fees">${formatCurrency(totalFees)}</div></div>
+        <div class="summary-card"><div class="summary-icon">⚖️</div><div class="summary-label">Persentase Potongan</div><div class="summary-value">${commissionRate}%</div></div>
+      </div>
+      <div class="breakdown-section"><div class="section-title">Rincian Order (klik untuk detail)</div><div class="breakdown-list">`;
+    filtered.forEach(order => {
+      // Alamat jemput dan tujuan (dipotong)
+      const addrA = truncateAddress(order.alamat_a, 30);
+      const addrB = truncateAddress(order.alamat_b, 30);
+      html += `
+        <div class="breakdown-item" data-id="${order.id}" title="Jemput: ${order.alamat_a || '-'}\nTujuan: ${order.alamat_b || '-'}">
+          <div class="breakdown-label">
+            <div class="address-line"><span>A:</span> ${addrA}</div>
+            <div class="address-line"><span>B:</span> ${addrB}</div>
+          </div>
+          <div class="breakdown-value">${formatCurrency(order.pendapatan_bersih)}</div>
+        </div>
+      `;
+    });
+    html += `</div></div>`;
+    container.innerHTML = html;
+    initButtons();
+    document.querySelectorAll('.breakdown-item').forEach(el => {
+      el.addEventListener('click', () => {
+        const order = filtered.find(o => o.id === el.dataset.id);
+        if (order) showOrderDetail(order);
       });
-    }
-
-    function initButtons() {
-      document.getElementById('backBtn')?.addEventListener('click', goBack);
-      const prevBtn = document.getElementById('prevBtn');
-      const nextBtn = document.getElementById('nextBtn');
-      if (prevBtn) prevBtn.addEventListener('click', goToPreviousDay);
-      if (nextBtn) nextBtn.addEventListener('click', goToNextDay);
-    }
-
-    function goBack() {
-      window.location.href = 'akun.html';
-    }
-
-    document.addEventListener('DOMContentLoaded', () => {
-      currentDate = new Date();
-      currentDate.setHours(0, 0, 0, 0);
-      loadEarningsData();
     });
+  }
 
-    document.addEventListener('visibilitychange', () => {
-      if (!document.hidden) loadEarningsData();
-    });
-  </script>
+  function showOrderDetail(order) {
+    currentSelectedOrder = order;
+    const cust = order.user_data || {};
+    const modalContent = `
+      <div style="padding:15px;">
+        <div style="display:flex; justify-content:space-between;"><span class="detail-status">✓ Selesai</span><button class="close-modal" onclick="closeOrderModal()" style="background:none; border:none; font-size:1.5rem;">&times;</button></div>
+        <div class="detail-route"><div class="route-point"><div class="point-marker">A</div><div class="point-address">${order.alamat_a || '-'}</div></div><div class="route-point"><div class="point-marker b">B</div><div class="point-address">${order.alamat_b || '-'}</div></div></div>
+        <div class="detail-meta"><span>⏱️ ${order.durasi}</span><span>📏 ${order.jarak_km.toFixed(1)} km</span></div>
+        <div class="customer-name">👤 ${cust.name || 'Customer'}</div>
+        <div class="action-buttons"><button class="action-btn resi" id="showResiBtn">📄 Resi</button><button class="action-btn" id="supportBtn">💬 Dukungan</button></div>
+        <div class="earnings-section"><div class="earnings-header">Pendapatan saya</div><div class="earnings-amount">${formatCurrency(order.pendapatan_bersih)}</div><div class="payment-method">${order.payment_method === 'Tunai' ? 'Pembayaran tunai' : 'Pembayaran ' + order.payment_method}</div></div>
+        <div class="divider"></div><div><strong>Saya telah menerima</strong></div>
+        <div class="detail-row"><span>Ongkos</span><span>${formatCurrency(order.harga_total)}</span></div>
+        <div class="detail-row total"><span>Total diterima</span><span>${formatCurrency(order.harga_total)}</span></div>
+        <div class="payment-method">${order.payment_method === 'Tunai' ? 'Pembayaran tunai' : ''}</div>
+        <div class="divider"></div><div><strong>Saya telah membayar</strong></div>
+        <div class="detail-row"><span>Pembayaran layanan kami terjangkau (${commissionRate}%)</span><span>${formatCurrency(order.fee)}</span></div>
+        <div class="detail-row"><span>PPN</span><span>${formatCurrency(order.ppn_fee)}</span></div>
+        <div class="detail-row total"><span>Total dibayarkan</span><span>${formatCurrency(order.total_potongan)}</span></div>
+      </div>`;
+    document.getElementById('detailModalContent').innerHTML = modalContent;
+    document.getElementById('orderDetailModal').style.display = 'flex';
+    document.getElementById('showResiBtn')?.addEventListener('click', () => showResi(order));
+    document.getElementById('supportBtn')?.addEventListener('click', () => window.location.href = 'mailto:cs.jego.app@gmail.com?subject=Support Order ' + order.id);
+    // peta
+    setTimeout(() => {
+      const mapDiv = document.getElementById('detailMap');
+      if (!mapDiv) return;
+      if (window._detailMap) window._detailMap.remove();
+      if (!order.from_lat || !order.from_lng || !order.to_lat || !order.to_lng) { mapDiv.innerHTML = '<div style="padding:20px;">Lokasi tidak tersedia</div>'; return; }
+      const map = L.map(mapDiv).setView([order.from_lat, order.from_lng], 13);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+      L.marker([order.from_lat, order.from_lng]).bindPopup('Penjemputan').addTo(map);
+      L.marker([order.to_lat, order.to_lng]).bindPopup('Tujuan').addTo(map);
+      L.polyline([[order.from_lat, order.from_lng], [order.to_lat, order.to_lng]], { color: '#FF5722', weight: 4 }).addTo(map);
+      map.fitBounds([[order.from_lat, order.from_lng], [order.to_lat, order.to_lng]]);
+      window._detailMap = map;
+    }, 100);
+  }
+
+  function generateResiHTML(order) {
+    const cust = order.user_data || {};
+    const gross = order.harga_total;
+    const fee = order.fee;
+    const ppn = order.ppn_fee;
+    const invoiceNo = "ID" + order.id.slice(-15);
+    const today = new Date().toLocaleDateString('id-ID', { day:'numeric', month:'long', year:'numeric' });
+    const travelDate = new Date(order.completed_at).toLocaleDateString('id-ID', { day:'numeric', month:'long', year:'numeric' });
+    const vehicleDetail = `${order.vehicle_name || order.vehicleType || 'Motor'} ${order.plate_number ? order.plate_number : ''}`.trim();
+    return `
+      <div id="resiCapture" class="resi-wrapper">
+        <div class="resi-card">
+          <div class="resi-header">
+            <h2>Receipt</h2>
+            <p>Resi untuk layanan Anda</p>
+            <p><strong>Nomor faktur:</strong> ${invoiceNo}</p>
+          </div>
+          <div class="resi-detail-row"><div class="resi-label">Ke:</div><div class="resi-value">${cust.name || 'Customer'}</div></div>
+          <div class="resi-detail-row"><div class="resi-label">Tanggal:</div><div class="resi-value">${today}</div></div>
+          <div class="resi-detail-row"><div class="resi-label">Resi diterbitkan oleh:</div><div class="resi-value">PT JeGo Teknologi Indonesia</div></div>
+          <div class="resi-detail-row"><div class="resi-label">Nomor Pajak:</div><div class="resi-value">96.929.433-9.011.000</div></div>
+          <div class="resi-detail-row"><div class="resi-label">Alamat terdaftar:</div><div class="resi-value">World Trade Center 5 level 3A, Jl. Jenderal Sudirman - Jakarta</div></div>
+          <div class="resi-detail-row"><div class="resi-label">Jenis layanan:</div><div class="resi-value">Transportasi online</div></div>
+          <div class="resi-detail-row"><div class="resi-label">Jenis order:</div><div class="resi-value">Pengantaran / Transportasi</div></div>
+          <div class="resi-detail-row"><div class="resi-label">Tanggal Perjalanan:</div><div class="resi-value">${travelDate}</div></div>
+          <div class="resi-detail-row"><div class="resi-label">Detail kendaraan:</div><div class="resi-value">${vehicleDetail || 'Kendaraan driver'}</div></div>
+          <table class="resi-table">
+            <thead><tr><th>Deskripsi</th><th>Jumlah</th></tr></thead>
+            <tbody>
+              <tr><td>Biaya layanan (tidak termasuk pajak)</td><td>${formatCurrency(gross - fee)}</td></tr>
+              <tr><td>Fee layanan (${commissionRate}%)</td><td>${formatCurrency(fee)}</td></tr>
+              <tr><td>PPN 11%</td><td>${formatCurrency(ppn)}</td></tr>
+            </tbody>
+          </table>
+          <div class="resi-detail-row"><div class="resi-label">Metode pembayaran:</div><div class="resi-value">${order.payment_method || 'Tunai'}</div></div>
+          <div class="resi-total">Total jumlah: ${formatCurrency(gross)}</div>
+          <div class="resi-footer">Terima kasih telah menggunakan JeGo</div>
+        </div>
+      </div>
+      <div class="resi-actions">
+        <button id="downloadPDFBtn">📄 Download PDF</button>
+        <button id="shareResiBtn">📤 Share</button>
+      </div>
+      <a href="mailto:cs.jego.app@gmail.com?subject=Resi Order ${order.id}" class="email-link">📧 Hubungi CS: cs.jego.app@gmail.com</a>
+    `;
+  }
+
+  function showResi(order) {
+    const html = generateResiHTML(order);
+    document.getElementById('resiContainer').innerHTML = html;
+    document.getElementById('resiModal').style.display = 'flex';
+    document.getElementById('downloadPDFBtn')?.addEventListener('click', () => downloadResiAsPDF());
+    document.getElementById('shareResiBtn')?.addEventListener('click', () => shareResi());
+  }
+
+  async function downloadResiAsPDF() {
+    const element = document.getElementById('resiCapture');
+    if (!element) return;
+    try {
+      const canvas = await html2canvas(element, { scale: 2, backgroundColor: '#ffffff' });
+      const imgData = canvas.toDataURL('image/png');
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const imgWidth = 190;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      pdf.addImage(imgData, 'PNG', 10, 10, imgWidth, imgHeight);
+      pdf.save(`resi_${currentSelectedOrder.id}.pdf`);
+    } catch(e) { alert('Gagal membuat PDF'); }
+  }
+
+  async function shareResi() {
+    const element = document.getElementById('resiCapture');
+    if (!element) return;
+    try {
+      const canvas = await html2canvas(element, { scale: 2 });
+      canvas.toBlob(async (blob) => {
+        if (navigator.share) {
+          await navigator.share({ files: [new File([blob], 'resi.png', { type: 'image/png' })], title: 'Resi JeGo' });
+        } else alert('Share tidak didukung, silakan screenshot manual.');
+      });
+    } catch(e) { alert('Gagal share'); }
+  }
+
+  function closeOrderModal() { document.getElementById('orderDetailModal').style.display = 'none'; if(window._detailMap) window._detailMap.remove(); }
+  function closeResiModal() { document.getElementById('resiModal').style.display = 'none'; }
+  function formatDateDisplay(d) { return d.toLocaleDateString('id-ID', { day:'numeric', month:'long', year:'numeric' }); }
+  function getDayName(d) { return d.toLocaleDateString('id-ID', { weekday:'long' }); }
+  function formatTimeWITA(d) { return new Date(d.getTime() + 8*3600000).toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit', timeZone:'UTC' }); }
+  function goPrev() { currentDate.setDate(currentDate.getDate()-1); displayEarningsData(); }
+  function goNext() { const tomorrow = new Date(currentDate); tomorrow.setDate(tomorrow.getDate()+1); if(tomorrow <= new Date()) { currentDate = tomorrow; displayEarningsData(); } }
+  function initButtons() {
+    document.getElementById('prevBtn')?.addEventListener('click', goPrev);
+    document.getElementById('nextBtn')?.addEventListener('click', goNext);
+    const nextBtn = document.getElementById('nextBtn');
+    if(nextBtn) { const tomorrow = new Date(currentDate); tomorrow.setDate(tomorrow.getDate()+1); nextBtn.disabled = tomorrow > new Date(); }
+  }
+  function showLoadingState() { document.getElementById('mainContainer').innerHTML = '<div class="loading"><div class="spinner"></div><p>Memuat...</p></div>'; }
+  function showErrorState(msg) { document.getElementById('mainContainer').innerHTML = `<div class="empty-state"><div>⚠️</div><p>${msg}</p><button class="nav-btn" onclick="location.reload()">Coba Lagi</button><button class="nav-btn" id="logoutBtn" style="margin-top:10px; background:#6c757d;">Login Ulang</button></div>`;
+    document.getElementById('logoutBtn')?.addEventListener('click', () => { localStorage.removeItem('jego_logged_in_driver'); window.location.href='loginDriver.html'; });
+  }
+  document.addEventListener('DOMContentLoaded', () => { currentDate.setHours(0,0,0,0); loadEarningsData(); });
+  window.closeOrderModal = closeOrderModal; window.closeResiModal = closeResiModal;
+</script>
 </body>
 </html>
