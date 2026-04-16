@@ -1211,70 +1211,98 @@
       }).catch(err => addDebugLog(`Error showOrderDetail: ${err.message}`, 'error')); 
     }
     function sendDriverOffer() {
-        if (!currentSelectedOrder || !currentDriverId || !currentDriverData) {
-            showPopup('Error', 'Data order atau driver tidak lengkap.', 'error');
-            return;
-        }
-        const orderId = currentSelectedOrder.order_id || currentSelectedOrder.id;
-        if (!orderId) {
-            showPopup('Error', 'ID order tidak valid.', 'error');
+    if (!currentSelectedOrder || !currentDriverId || !currentDriverData) {
+        showPopup('Error', 'Data order atau driver tidak lengkap.', 'error');
+        return;
+    }
+    const orderId = currentSelectedOrder.order_id || currentSelectedOrder.id;
+    if (!orderId) {
+        showPopup('Error', 'ID order tidak valid.', 'error');
+        closeModal();
+        return;
+    }
+    addDebugLog(`sendDriverOffer dipanggil untuk order ${orderId}`, 'info');
+    const hargaTotal = currentSelectedOrder.harga_total || 0;
+    const requiredBalance = hargaTotal * 0.1;
+    const driverBalance = currentDriverData.balance || 0;
+    if (driverBalance < requiredBalance) {
+        showPopup('Saldo Tidak Cukup', `Saldo Anda Rp ${driverBalance.toLocaleString('id-ID')} tidak mencukupi untuk membayar 10% dari tarif (Rp ${requiredBalance.toLocaleString('id-ID')}).`, 'warning');
+        return;
+    }
+    const driverId = currentDriverId;
+    const ambilBtn = document.getElementById('ambilBtn');
+    ambilBtn.disabled = true;
+    ambilBtn.textContent = 'Mengirim...';
+    
+    // Ambil nilai dengan default yang aman
+    const driverFullName = currentDriverData.fullName || currentDriverData.name || 'Driver';
+    const driverPlate = currentDriverData.plateNumber || '';
+    const driverVehicleType = currentDriverData.vehicleType || '';
+    const driverRating = currentDriverData.rating || 5;
+    const driverPhoto = currentDriverData.profilePhotoUrl || '';
+    
+    const driverDataObj = {
+        id: driverId,
+        name: driverFullName,
+        plate_number: driverPlate,
+        vehicle_type: driverVehicleType,
+        rating: driverRating,
+        profile_photo_url: driverPhoto,
+        avg_rating: driverRating,
+        offered_at: new Date().toISOString(),
+        status: 'offered'
+    };
+    
+    // Hapus properti yang bernilai undefined
+    Object.keys(driverDataObj).forEach(key => {
+        if (driverDataObj[key] === undefined) delete driverDataObj[key];
+    });
+    
+    database.ref('orders/' + orderId).once('value').then((snapshot) => {
+        const currentOrder = snapshot.val();
+        if (!currentOrder) {
+            showPopup('Info', 'Order tidak ditemukan. Mungkin sudah dihapus.', 'warning');
             closeModal();
             return;
         }
-        addDebugLog(`sendDriverOffer dipanggil untuk order ${orderId}`, 'info');
-        const hargaTotal = currentSelectedOrder.harga_total || 0;
-        const requiredBalance = hargaTotal * 0.1;
-        const driverBalance = currentDriverData.balance || 0;
-        if (driverBalance < requiredBalance) {
-            showPopup('Saldo Tidak Cukup', `Saldo Anda Rp ${driverBalance.toLocaleString('id-ID')} tidak mencukupi untuk membayar 10% dari tarif (Rp ${requiredBalance.toLocaleString('id-ID')}).`, 'warning');
+        if (currentOrder.status !== 'searching') {
+            showPopup('Info', 'Order ini sudah diambil oleh driver lain.', 'warning');
+            loadOrders();
+            closeModal();
             return;
         }
-        const driverId = currentDriverId;
-        const ambilBtn = document.getElementById('ambilBtn');
-        ambilBtn.disabled = true;
-        ambilBtn.textContent = 'Mengirim...';
-        database.ref('orders/' + orderId).once('value').then((snapshot) => {
-            const currentOrder = snapshot.val();
-            if (!currentOrder) {
-                showPopup('Info', 'Order tidak ditemukan. Mungkin sudah dihapus.', 'warning');
-                closeModal();
-                return;
-            }
-            if (currentOrder.status !== 'searching') {
-                showPopup('Info', 'Order ini sudah diambil oleh driver lain.', 'warning');
-                loadOrders();
-                closeModal();
-                return;
-            }
-            const driverData = {
-                id: driverId,
-                name: currentDriverData.fullName,
-                plate_number: currentDriverData.plateNumber,
-                vehicle_type: currentDriverData.vehicleType,
-                rating: currentDriverData.rating,
-                profile_photo_url: currentDriverData.profilePhotoUrl || '',
-                avg_rating: currentDriverData.rating,
-                offered_at: new Date().toISOString(),
-                status: 'offered'
-            };
-            return database.ref('orders/' + orderId + '/driver_offers/' + driverId).set(driverData);
-        }).then(() => {
-            ambilBtn.textContent = 'Menunggu Konfirmasi';
-            startCountdown(orderId, driverId);
-            listenDriverOffers(orderId);
-        }).catch(error => {
-            addDebugLog(`Error di sendDriverOffer: ${error.message}`, 'error');
-            showPopup('Error', 'Gagal mengirim penawaran: ' + error.message, 'error');
-            ambilBtn.disabled = false;
-            ambilBtn.textContent = 'Kirim Penawaran';
-        });
-    }
+        return database.ref('orders/' + orderId + '/driver_offers/' + driverId).set(driverDataObj);
+    }).then(() => {
+        ambilBtn.textContent = 'Menunggu Konfirmasi';
+        startCountdown(orderId, driverId);
+        listenDriverOffers(orderId);
+    }).catch(error => {
+        addDebugLog(`Error di sendDriverOffer: ${error.message}`, 'error');
+        showPopup('Error', 'Gagal mengirim penawaran: ' + error.message, 'error');
+        ambilBtn.disabled = false;
+        ambilBtn.textContent = 'Kirim Penawaran';
+    });
+}
     function stopCountdown() { if (countdownInterval) { clearInterval(countdownInterval); countdownInterval = null; } if (orderStatusListener && countdownOrderId) { database.ref('orders/' + countdownOrderId).off('value', orderStatusListener); orderStatusListener = null; } const container = document.getElementById('countdownContainer'); if (container) container.style.display = 'none'; const ambilBtn = document.getElementById('ambilBtn'); if (ambilBtn) { ambilBtn.disabled = false; ambilBtn.textContent = 'Kirim Penawaran'; } const closeBtn = document.getElementById('closeModal'); if (closeBtn) { closeBtn.classList.remove('disabled'); closeBtn.disabled = false; } countdownOrderId = null; countdownDriverId = null; }
     function startCountdown(orderId, driverId) { stopCountdown(); countdownOrderId = orderId; countdownDriverId = driverId; const container = document.getElementById('countdownContainer'); const progress = document.getElementById('countdownProgress'); const secondsSpan = document.getElementById('countdownSeconds'); const ambilBtn = document.getElementById('ambilBtn'); let timeLeft = 30; container.style.display = 'block'; ambilBtn.disabled = true; ambilBtn.textContent = 'Menunggu...'; const closeBtn = document.getElementById('closeModal'); if (closeBtn) { closeBtn.classList.add('disabled'); closeBtn.disabled = true; } countdownInterval = setInterval(() => { timeLeft--; const percent = (timeLeft / 30) * 100; progress.style.width = percent + '%'; secondsSpan.textContent = timeLeft + ' detik'; if (timeLeft <= 0) { clearInterval(countdownInterval); countdownInterval = null; database.ref('orders/' + orderId + '/driver_offers/' + driverId).remove().then(() => { showPopup('Info', 'Waktu penawaran habis. Silakan coba lagi.', 'info'); closeModal(); }).catch(err => { console.error(err); closeModal(); }); } }, 1000); orderStatusListener = database.ref('orders/' + orderId).on('value', (snapshot) => { const order = snapshot.val(); if (!order) { stopCountdown(); showPopup('Info', 'Order tidak ditemukan.', 'warning'); closeModal(); return; } if (order.status === 'accepted') { if (order.accepted_driver_id === driverId || order.selected_driver?.id === driverId || order.driver?.id === driverId) { stopCountdown(); showPopup('Sukses', 'Penawaran Anda diterima!', 'success'); localStorage.setItem('jego_driver_active_order', orderId); setTimeout(() => { window.location.href = 'orderAccepted.html?id=' + orderId; }, 1500); } else { stopCountdown(); showPopup('Info', 'Order sudah diambil driver lain.', 'warning'); closeModal(); } } else if (order.status !== 'searching') { stopCountdown(); showPopup('Info', 'Status order berubah.', 'info'); closeModal(); } }); }
     function closeModal() { if (window.driverOffersRef) { window.driverOffersRef.off(); window.driverOffersRef = null; } document.getElementById('orderModal').style.display = 'none'; stopCountdown(); currentSelectedOrder = null; currentDriverId = null; loadOrders(); }
     function startGPSMonitoring() { if (!navigator.geolocation) { addDebugLog('Geolocation tidak didukung', 'error'); return; } navigator.geolocation.getCurrentPosition(updateDriverLocation, err => addDebugLog(`GPS error: ${err.message}`, 'error')); locationWatchId = navigator.geolocation.watchPosition(updateDriverLocation, err => addDebugLog(`GPS watch error: ${err.message}`, 'error')); }
     function updateDriverLocation(position) { driverLocation = { latitude: position.coords.latitude, longitude: position.coords.longitude }; document.getElementById('gpsDot').className = 'gps-dot gps-active'; if (locationTrackingEnabled && currentDriverData) { database.ref('drivers/' + currentDriverData.driverId).update({ latitude: driverLocation.latitude, longitude: driverLocation.longitude, trackingEnabled: true, last_update: new Date().toISOString() }).catch(err => addDebugLog(`Update lokasi gagal: ${err.message}`, 'error')); } }
-    function checkDriverData() { try { const driverDataStr = localStorage.getItem('jego_logged_in_driver'); if (!driverDataStr || driverDataStr === '{}') { showDriverNotRegistered(); return false; } const driverData = JSON.parse(driverDataStr); if (driverData.uid && driverData.name) { currentDriverData = { driverId: driverData.uid, fullName: driverData.name, phoneNumber: driverData.phone, email: driverData.email, profilePhotoUrl: driverData.fotoProfilURL || driverData.profilePhotoUrl || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png', vehicleType: driverData.vehicleType, plateNumber: driverData.plateNumber, vehicleBrand: driverData.vehicleBrand, status: driverData.status || driverData.driverStatus || 'pending', rating: driverData.avgRating || 5, perjalanan: driverData.perjalanan || 0, balance: driverData.Balance || 0, potongan: driverData.Potongan || 0 }; document.getElementById('driverPhoto').src = currentDriverData.profilePhotoUrl; document.getElementById('sidebarDriverPhoto').src = currentDriverData.profilePhotoUrl; document.getElementById('sidebarDriverName').textContent = currentDriverData.fullName; document.getElementById('sidebarDriverRating').textContent = currentDriverData.rating.toFixed(1); document.getElementById('sidebarRating').textContent = currentDriverData.rating.toFixed(1); document.getElementById('sidebarTrips').textContent = currentDriverData.perjalanan; document.getElementById('sidebarBalance').textContent = `Rp ${currentDriverData.balance.toLocaleString('id-ID')}`; addDebugLog(`Driver data loaded: ${currentDriverData.fullName}`, 'success'); return true; } else { showDriverNotRegistered(); return false; } } catch (error) { addDebugLog(`Error checking driver data: ${error.message}`, 'error'); showDriverNotRegistered(); return false; } }
+    function checkDriverData() { try { const driverDataStr = localStorage.getItem('jego_logged_in_driver'); if (!driverDataStr || driverDataStr === '{}') { showDriverNotRegistered(); return false; } const driverData = JSON.parse(driverDataStr); if (driverData.uid && driverData.name) { currentDriverData = {
+    driverId: driverData.uid,
+    fullName: driverData.name || driverData.fullName || 'Driver',
+    phoneNumber: driverData.phone || '',
+    email: driverData.email || '',
+    profilePhotoUrl: driverData.fotoProfilURL || driverData.profilePhotoUrl || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png',
+    vehicleType: driverData.vehicleType || '',
+    plateNumber: driverData.plateNumber || '',
+    vehicleBrand: driverData.vehicleBrand || '',
+    status: driverData.status || driverData.driverStatus || 'pending',
+    rating: driverData.avgRating || 5,
+    perjalanan: driverData.perjalanan || 0,
+    balance: driverData.Balance || 0,
+    potongan: driverData.Potongan || 0
+};document.getElementById('driverPhoto').src = currentDriverData.profilePhotoUrl; document.getElementById('sidebarDriverPhoto').src = currentDriverData.profilePhotoUrl; document.getElementById('sidebarDriverName').textContent = currentDriverData.fullName; document.getElementById('sidebarDriverRating').textContent = currentDriverData.rating.toFixed(1); document.getElementById('sidebarRating').textContent = currentDriverData.rating.toFixed(1); document.getElementById('sidebarTrips').textContent = currentDriverData.perjalanan; document.getElementById('sidebarBalance').textContent = `Rp ${currentDriverData.balance.toLocaleString('id-ID')}`; addDebugLog(`Driver data loaded: ${currentDriverData.fullName}`, 'success'); return true; } else { showDriverNotRegistered(); return false; } } catch (error) { addDebugLog(`Error checking driver data: ${error.message}`, 'error'); showDriverNotRegistered(); return false; } }
     function showDriverNotRegistered() { const ordersList = document.getElementById('ordersList'); if (ordersList) ordersList.innerHTML = `<div class="empty-state"><div>🚫</div><p>Anda belum terdaftar sebagai driver atau belum login</p><p><a href="loginDriver.html" style="color: var(--primary); text-decoration: underline;">Login sebagai Driver</a></p><button onclick="localStorage.clear(); location.reload();" style="margin-top:10px; padding:8px 16px; background:var(--danger); color:white; border:none; border-radius:5px;">🔄 Clear Cache</button></div>`; }
     function toggleLocationTracking() { locationTrackingEnabled = !locationTrackingEnabled; localStorage.setItem(STORAGE_TRACKING, locationTrackingEnabled); updateTrackingButton(); if (locationTrackingEnabled) { if (!driverLocation.latitude || !driverLocation.longitude) { showPopup('Info', 'GPS diperlukan. Pastikan lokasi Anda aktif.', 'warning'); locationTrackingEnabled = false; localStorage.setItem(STORAGE_TRACKING, false); updateTrackingButton(); return; } if (currentDriverData) database.ref('drivers/' + currentDriverData.driverId).update({ latitude: driverLocation.latitude, longitude: driverLocation.longitude, trackingEnabled: true, last_update: new Date().toISOString() }).catch(err => addDebugLog(`Update tracking status gagal: ${err.message}`, 'error')); } else { if (currentDriverData) database.ref('drivers/' + currentDriverData.driverId).update({ trackingEnabled: false, last_update: new Date().toISOString() }).catch(err => addDebugLog(`Update tracking status gagal: ${err.message}`, 'error')); } }
     function toggleAutobid() { if (!locationTrackingEnabled) { showPopup('Info', 'Aktifkan tracking terlebih dahulu', 'warning'); return; } autobidEnabled = !autobidEnabled; localStorage.setItem(STORAGE_AUTOBID, autobidEnabled); updateAutobidButton(); }
