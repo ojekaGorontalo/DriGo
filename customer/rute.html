@@ -1,0 +1,841 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <title>Rute - JeGo (Supabase Realtime)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <!-- Supabase SDK -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <!-- Mapbox CSS & JS -->
+  <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet" />
+  <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
+
+  <!-- Mapbox Search JS -->
+  <script id="search-js" defer src="https://api.mapbox.com/search-js/v1.5.0/web.js"></script>
+
+  <style>
+    :root {
+      --primary: #FF9800;
+      --secondary: #FF5722;
+      --accent: #FFC107;
+      --light: #f8f9fa;
+      --dark: #343a40;
+      --success: #4CAF50;
+      --danger: #f44336;
+      --warning: #FFC107;
+      --info: #2196F3;
+      --gray: #9E9E9E;
+    }
+    html, body, #map { height: 100%; margin: 0; font-family: 'Segoe UI', sans-serif; }
+    
+    .panel { 
+      position: absolute; 
+      top: 10px; 
+      left: 10px; 
+      right: 10px; 
+      background: rgba(255,255,255,0.98); 
+      padding: 15px; 
+      z-index: 5; 
+      border-radius: 12px; 
+      box-shadow: 0 4px 15px rgba(0,0,0,0.15); 
+      box-sizing: border-box; 
+      overflow: visible !important;
+    }
+    
+    mapbox-search-box {
+      z-index: 9999 !important;
+      position: relative;
+    }
+    
+    .input-container { 
+      position: relative; 
+      margin-bottom: 12px;
+      overflow: visible;
+    }
+    
+    .mapbox-search-input { 
+      width: 100%; 
+      padding: 12px 40px 12px 15px; 
+      font-size: 14px; 
+      border: 2px solid #e9ecef; 
+      border-radius: 8px; 
+      background: white; 
+      transition: all 0.3s; 
+    }
+    .mapbox-search-input:focus { 
+      outline: none; 
+      border-color: var(--secondary); 
+      box-shadow: 0 0 0 3px rgba(40,150,114,0.1); 
+    }
+    .clear-btn, .location-btn { 
+      position: absolute; 
+      top: 50%; 
+      transform: translateY(-50%); 
+      background: none; 
+      border: none; 
+      cursor: pointer; 
+      width: 20px; 
+      height: 20px; 
+      display: flex; 
+      align-items: center; 
+      justify-content: center; 
+      z-index: 10; 
+    }
+    .clear-btn { right: 35px; color: #999; font-size: 18px; }
+    .location-btn { right: 8px; color: var(--primary); font-size: 18px; }
+    .map-mode-btn { 
+      position: absolute; 
+      bottom: 120px; 
+      right: 20px; 
+      background: var(--primary); 
+      color: white; 
+      border: none; 
+      border-radius: 8px; 
+      padding: 10px 15px; 
+      cursor: pointer; 
+      z-index: 5; 
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2); 
+      font-weight: 600; 
+      transition: all 0.3s; 
+    }
+    .map-mode-btn:hover { background: var(--secondary); transform: translateY(-2px); }
+    .route-details { 
+      position: fixed; 
+      bottom: 90px; 
+      left: 20px; 
+      right: 20px; 
+      background: #fff; 
+      border-radius: 12px; 
+      padding: 12px 16px; 
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15); 
+      z-index: 8; 
+      max-height: 30vh; 
+      overflow-y: auto; 
+      display: none; 
+    }
+    .route-info { margin-bottom: 12px; }
+    .route-address { display: flex; align-items: flex-start; margin-bottom: 8px; font-size: 0.85rem; }
+    .route-address .label { min-width: 70px; color: var(--primary); font-weight: 600; margin-right: 8px; }
+    .route-address .value { flex: 1; color: var(--dark); line-height: 1.4; }
+    .route-stats { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; padding-top: 10px; border-top: 1px solid #e9ecef; }
+    .route-stat { text-align: center; flex: 1; }
+    .stat-value { font-weight: 600; color: var(--primary); font-size: 1rem; }
+    .stat-label { font-size: 0.75rem; color: #666; }
+    .price-highlight { font-weight: 700; color: var(--success); font-size: 1.1rem; }
+    .confirm-btn, .cancel-btn { 
+      position: fixed; 
+      bottom: 20px; 
+      left: 20px; 
+      right: 20px; 
+      color: white; 
+      border: none; 
+      border-radius: 10px; 
+      padding: 16px; 
+      font-size: 16px; 
+      font-weight: 600; 
+      cursor: pointer; 
+      box-shadow: 0 4px 10px rgba(0,0,0,0.2); 
+      z-index: 9; 
+      transition: all 0.3s; 
+    }
+    .confirm-btn { background: linear-gradient(to right, var(--primary), var(--secondary)); }
+    .cancel-btn { background: linear-gradient(to right, var(--danger), #e74c3c); display: none; }
+    .confirm-btn:hover, .cancel-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 15px rgba(0,0,0,0.25); }
+    .confirm-btn:disabled, .cancel-btn:disabled { background: #cccccc; cursor: not-allowed; transform: none; box-shadow: none; opacity: 0.7; }
+    .radar-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(135deg, #ff6b35 0%, #ff8e53 100%);
+      z-index: 200;
+      display: none;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      backdrop-filter: blur(2px);
+    }
+    .radar-container {
+      position: relative;
+      width: 250px;
+      height: 250px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.1);
+      box-shadow: 0 0 40px rgba(0,0,0,0.2);
+      animation: pulse 2s infinite;
+    }
+    .radar-sweep {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      background: conic-gradient(from 0deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.8) 100%);
+      animation: spin 2s linear infinite;
+    }
+    @keyframes spin { 100% { transform: rotate(360deg); } }
+    @keyframes pulse { 0% { transform: scale(0.95); opacity: 0.7; } 100% { transform: scale(1); opacity: 1; } }
+    .radar-center {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 20px;
+      height: 20px;
+      background: white;
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+      box-shadow: 0 0 15px white;
+    }
+    .radar-message {
+      margin-top: 30px;
+      color: white;
+      text-align: center;
+      font-size: 1.2rem;
+      font-weight: 600;
+      text-shadow: 0 2px 5px rgba(0,0,0,0.3);
+    }
+    .radar-sub {
+      color: rgba(255,255,255,0.8);
+      font-size: 0.9rem;
+      margin-top: 10px;
+    }
+    .cancel-search-btn {
+      margin-top: 30px;
+      background: rgba(0,0,0,0.5);
+      border: none;
+      color: white;
+      padding: 10px 20px;
+      border-radius: 30px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    .popup-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: rgba(0,0,0,0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 10000;
+      opacity: 0;
+      visibility: hidden;
+      transition: all 0.3s ease;
+    }
+    .popup-overlay.active { opacity: 1; visibility: visible; }
+    .popup {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+      width: 90%;
+      max-width: 400px;
+      transform: scale(0.9);
+      transition: transform 0.3s ease;
+    }
+    .popup-overlay.active .popup { transform: scale(1); }
+    .popup-header { padding: 16px 20px; border-bottom: 1px solid #eee; display: flex; align-items: center; justify-content: space-between; }
+    .popup-title { font-size: 18px; font-weight: 600; color: var(--dark); margin: 0; }
+    .popup-close { background: none; border: none; font-size: 24px; color: #999; cursor: pointer; }
+    .popup-content { padding: 20px; text-align: center; }
+    .popup-icon { font-size: 48px; margin-bottom: 16px; }
+    .popup-message { font-size: 16px; line-height: 1.5; color: var(--dark); margin-bottom: 20px; }
+    .popup-buttons { display: flex; gap: 12px; justify-content: center; }
+    .popup-button { padding: 10px 20px; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.3s; min-width: 100px; }
+    .popup-button-primary { background: linear-gradient(135deg, var(--primary), var(--secondary)); color: white; }
+    .popup-button-secondary { background: #f8f9fa; color: var(--dark); border: 1px solid #ddd; }
+    .delivery-info-panel { margin-top: 10px; padding-top: 10px; border-top: 1px solid #e9ecef; background: #fef7e0; border-radius: 8px; padding: 10px; margin-bottom: 8px; }
+    .delivery-info-title { font-weight: 700; color: var(--primary); margin-bottom: 8px; font-size: 0.9rem; }
+    .delivery-info-row { display: flex; margin-bottom: 6px; font-size: 0.8rem; }
+    .delivery-info-label { width: 100px; font-weight: 600; color: #555; }
+    .delivery-info-value { flex: 1; color: #333; word-break: break-word; }
+    @media (max-width: 768px) { .route-details { max-height: 28vh; } .delivery-info-label { width: 85px; } }
+  </style>
+</head>
+<body>
+  <div class="panel">
+    <div id="from-container" class="input-container"></div>
+    <div id="to-container" class="input-container"></div>
+    <div id="deliveryInfoPanel" class="delivery-info-panel" style="display: none;"></div>
+  </div>
+  <div id="map"></div>
+  <button id="mapModeBtn" class="map-mode-btn">Mode Malam</button>
+  <div class="route-details" id="routeDetails">
+    <div class="route-info">
+      <div class="route-address"><span class="label">Penjemputan:</span><span class="value" id="routeFrom">-</span></div>
+      <div class="route-address"><span class="label">Tujuan:</span><span class="value" id="routeTo">-</span></div>
+    </div>
+    <div class="route-stats">
+      <div class="route-stat"><div class="stat-value" id="routeDuration">-</div><div class="stat-label">Durasi</div></div>
+      <div class="route-stat"><div class="stat-value"><span class="price-highlight" id="routePrice">-</span></div><div class="stat-label">Biaya</div></div>
+    </div>
+  </div>
+  <!-- Tombol Cari Driver -->
+  <button class="confirm-btn" id="confirmBtn" disabled>Cari Driver</button>
+
+  <!-- Radar Overlay -->
+  <div id="radarOverlay" class="radar-overlay">
+    <div class="radar-container">
+      <div class="radar-sweep"></div>
+      <div class="radar-center"></div>
+    </div>
+    <div class="radar-message">🔍 Mencari Driver Terdekat...</div>
+    <div class="radar-sub">Menunggu driver menerima pesanan Anda</div>
+    <button class="cancel-search-btn" id="cancelSearchBtn">Batalkan Pencarian</button>
+  </div>
+
+  <!-- Popup Notifikasi -->
+  <div class="popup-overlay" id="popupOverlay">
+    <div class="popup">
+      <div class="popup-header">
+        <h3 class="popup-title" id="popupTitle">Pemberitahuan</h3>
+        <button class="popup-close" id="popupCloseBtn">×</button>
+      </div>
+      <div class="popup-content">
+        <div class="popup-icon" id="popupIcon">⚠️</div>
+        <div class="popup-message" id="popupMessage"></div>
+        <div class="popup-buttons">
+          <button class="popup-button popup-button-primary" id="popupButton">OK</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ========== KONFIGURASI SUPABASE ==========
+    const SUPABASE_URL = 'https://imrhkvtkpwascicthddo.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImltcmhrdnRrcHdhc2NpY3RoZGRvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY0Mjk1NTUsImV4cCI6MjA5MjAwNTU1NX0.eYMx1pwwACazkch7OzSYyljE0ahtC4SDoI0ydapn068';
+    const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    // Token Mapbox akan diambil dari Supabase, fallback hardcode hanya untuk development
+    let MAPBOX_ACCESS_TOKEN = '';
+
+    let map;
+    let currentUser = null;
+    let currentRoute = null;
+    let pickupCoord = null, destCoord = null;
+    let pickupAddress = '', destAddress = '';
+    let routeLayer = null;
+    let pickupMarker = null, destMarker = null;
+    let selectedTransport = null;
+    let transportType = null;
+    let transportIconUrl = '';
+    let deliveryData = null;
+    let isCourier = false;
+
+    let transportRate = {
+      minimal_distance: 4,
+      minimal_price: 10000,
+      price_per_km: 2200
+    };
+
+    let currentOrderId = null;
+    let orderSubscription = null;
+
+    // ========== AMBIL TOKEN MAPBOX DARI SUPABASE ==========
+    async function fetchMapboxToken() {
+      try {
+        const { data, error } = await supabaseClient
+          .from('app_config')
+          .select('value')
+          .eq('key', 'mapbox_access_token')
+          .single();
+        
+        if (error) throw error;
+        if (data && data.value) {
+          MAPBOX_ACCESS_TOKEN = data.value;
+          console.log('✅ Mapbox token loaded from Supabase');
+          return true;
+        } else {
+          throw new Error('Token tidak ditemukan di app_config');
+        }
+      } catch (err) {
+        console.warn('⚠️ Gagal ambil token Mapbox dari Supabase, gunakan fallback:', err);
+        // Fallback token (hanya untuk development, sebaiknya tidak digunakan di production)
+        MAPBOX_ACCESS_TOKEN = 'pk.12346676566666877';
+        return false;
+      }
+    }
+
+    function showPopup(title, message, icon = '⚠️', onClose = null) {
+      document.getElementById('popupTitle').innerText = title;
+      document.getElementById('popupMessage').innerHTML = message;
+      document.getElementById('popupIcon').innerHTML = icon;
+      const overlay = document.getElementById('popupOverlay');
+      overlay.classList.add('active');
+      const closeBtn = document.getElementById('popupCloseBtn');
+      const okBtn = document.getElementById('popupButton');
+      const handler = () => {
+        overlay.classList.remove('active');
+        if (onClose) onClose();
+        closeBtn.removeEventListener('click', handler);
+        okBtn.removeEventListener('click', handler);
+      };
+      closeBtn.addEventListener('click', handler);
+      okBtn.addEventListener('click', handler);
+    }
+
+    function formatRupiah(amount) {
+      return 'Rp ' + amount.toLocaleString('id-ID');
+    }
+
+    function calculatePrice(distanceMeters) {
+      const distanceKm = distanceMeters / 1000;
+      let price = 0;
+      if (distanceKm <= transportRate.minimal_distance) {
+        price = transportRate.minimal_price;
+      } else {
+        const extraKm = distanceKm - transportRate.minimal_distance;
+        price = transportRate.minimal_price + (extraKm * transportRate.price_per_km);
+      }
+      return Math.round(price / 1000) * 1000;
+    }
+
+    async function loadTransportRateFromDB(transportName) {
+      try {
+        const { data, error } = await supabaseClient
+          .from('tarif')
+          .select('id, minimal_distance, minimal_price, price_per_km, icon_url')
+          .eq('nama', transportName)
+          .limit(1)
+          .maybeSingle();
+        if (error) throw error;
+        if (data) {
+          transportRate = {
+            minimal_distance: data.minimal_distance,
+            minimal_price: data.minimal_price,
+            price_per_km: data.price_per_km
+          };
+          transportIconUrl = data.icon_url || '';
+          console.log(`Tarif untuk ${transportName} dimuat dari DB:`, transportRate);
+          return true;
+        } else {
+          console.warn(`Transportasi "${transportName}" tidak ditemukan di DB, menggunakan fallback.`);
+          // fallback values
+          if (transportName === 'Motor') {
+            transportRate = { minimal_distance: 4, minimal_price: 10000, price_per_km: 2200 };
+            transportIconUrl = 'https://cdn-icons-png.flaticon.com/128/5811/5811823.png';
+          } else if (transportName === 'Bentor') {
+            transportRate = { minimal_distance: 4, minimal_price: 11000, price_per_km: 3000 };
+            transportIconUrl = 'https://cdn-icons-png.flaticon.com/128/7890/7890227.png';
+          } else if (transportName === 'Mobil') {
+            transportRate = { minimal_distance: 4, minimal_price: 15000, price_per_km: 4000 };
+            transportIconUrl = 'https://cdn-icons-png.flaticon.com/128/12689/12689302.png';
+          } else if (transportName === 'Kurir Motor') {
+            transportRate = { minimal_distance: 4, minimal_price: 10000, price_per_km: 2100 };
+            transportIconUrl = 'https://cdn-icons-png.flaticon.com/128/9561/9561688.png';
+          } else if (transportName === 'Kurir Bentor') {
+            transportRate = { minimal_distance: 4, minimal_price: 10000, price_per_km: 2100 };
+            transportIconUrl = 'https://cdn-icons-png.flaticon.com/128/7890/7890227.png';
+          } else {
+            transportRate = { minimal_distance: 4, minimal_price: 10000, price_per_km: 2200 };
+            transportIconUrl = 'https://cdn-icons-png.flaticon.com/128/5811/5811823.png';
+          }
+          return false;
+        }
+      } catch (err) {
+        console.error('Gagal mengambil data tarif:', err);
+        showPopup('Error', 'Gagal memuat tarif kendaraan. Gunakan tarif default.', '⚠️');
+        return false;
+      }
+    }
+
+    async function loadSelectedTransport() {
+      const lastTransport = localStorage.getItem('jego_last_transport');
+      if (!lastTransport) {
+        showPopup('Pilih Transportasi', 'Anda belum memilih jenis kendaraan. Silakan pilih di halaman sebelumnya.', '🚚', () => {
+          window.location.href = 'jenis_kenderaan.html';
+        });
+        return false;
+      }
+      try {
+        selectedTransport = JSON.parse(lastTransport);
+        transportType = selectedTransport.type;
+        isCourier = transportType && (transportType.includes('kurir') || selectedTransport.name?.toLowerCase().includes('kurir'));
+        await loadTransportRateFromDB(transportType);
+        if (isCourier && selectedTransport.deliveryData) {
+          deliveryData = selectedTransport.deliveryData;
+          displayDeliveryInfo();
+        } else if (isCourier && !selectedTransport.deliveryData) {
+          showPopup('Data Kurir Tidak Lengkap', 'Silakan kembali ke halaman sebelumnya dan lengkapi data pengiriman.', '⚠️', () => {
+            window.location.href = 'jenis_kenderaan.html';
+          });
+          return false;
+        }
+        return true;
+      } catch (e) {
+        console.error(e);
+        return false;
+      }
+    }
+
+    function displayDeliveryInfo() {
+      const panel = document.getElementById('deliveryInfoPanel');
+      if (!deliveryData) {
+        panel.style.display = 'none';
+        return;
+      }
+      panel.style.display = 'block';
+      panel.innerHTML = `
+        <div class="delivery-info-title">📦 Informasi Pengiriman (Kurir)</div>
+        <div class="delivery-info-row"><span class="delivery-info-label">Pengirim:</span><span class="delivery-info-value">${deliveryData.senderPhone || '-'}</span></div>
+        <div class="delivery-info-row"><span class="delivery-info-label">Penerima:</span><span class="delivery-info-value">${deliveryData.receiverPhone || '-'}</span></div>
+        <div class="delivery-info-row"><span class="delivery-info-label">Jenis Barang:</span><span class="delivery-info-value">${deliveryData.itemCategory || '-'}</span></div>
+        <div class="delivery-info-row"><span class="delivery-info-label">Deskripsi:</span><span class="delivery-info-value">${deliveryData.description || '-'}</span></div>
+      `;
+    }
+
+    function updateMarkers() {
+      if (pickupMarker) pickupMarker.remove();
+      if (destMarker) destMarker.remove();
+      if (pickupCoord) {
+        const elPickup = document.createElement('div');
+        elPickup.style.backgroundImage = `url(${transportIconUrl})`;
+        elPickup.style.backgroundSize = 'cover';
+        elPickup.style.width = '35px';
+        elPickup.style.height = '35px';
+        elPickup.style.cursor = 'pointer';
+        elPickup.style.borderRadius = '50%';
+        elPickup.style.border = '2px solid white';
+        pickupMarker = new mapboxgl.Marker({ element: elPickup }).setLngLat(pickupCoord).addTo(map);
+      }
+      if (destCoord) {
+        const elDest = document.createElement('div');
+        elDest.style.backgroundImage = `url(${transportIconUrl})`;
+        elDest.style.backgroundSize = 'cover';
+        elDest.style.width = '35px';
+        elDest.style.height = '35px';
+        elDest.style.cursor = 'pointer';
+        elDest.style.borderRadius = '50%';
+        elDest.style.border = '2px solid white';
+        destMarker = new mapboxgl.Marker({ element: elDest }).setLngLat(destCoord).addTo(map);
+      }
+    }
+
+    async function checkUserSession() {
+      const stored = localStorage.getItem('jego_logged_in_user');
+      if (!stored) {
+        showPopup('Akses Ditolak', 'Anda belum login. Silakan login terlebih dahulu.', '🔒', () => {
+          window.location.href = 'loginUser.html';
+        });
+        return false;
+      }
+      try {
+        const userData = JSON.parse(stored);
+        const { data, error } = await supabaseClient
+          .from('users')
+          .select('id, name, phone, email, address, gender, status, rating, perjalanan')
+          .eq('id', userData.userId)
+          .single();
+        if (error || !data) {
+          localStorage.removeItem('jego_logged_in_user');
+          showPopup('Sesi Tidak Valid', 'Akun tidak ditemukan. Silakan login ulang.', '❌', () => {
+            window.location.href = 'loginUser.html';
+          });
+          return false;
+        }
+        currentUser = {
+          id: data.id,
+          name: data.name,
+          phone: data.phone,
+          email: data.email,
+          address: data.address,
+          gender: data.gender,
+          status: data.status,
+          rating: data.rating,
+          perjalanan: data.perjalanan
+        };
+        return true;
+      } catch (e) {
+        console.error(e);
+        localStorage.removeItem('jego_logged_in_user');
+        return false;
+      }
+    }
+
+    function getFullAddress(feature) {
+      const name = feature.properties.name;
+      const fullAddress = feature.properties.full_address || feature.properties.address || '';
+      if (name && name.trim() !== '') {
+        if (fullAddress.toLowerCase().includes(name.toLowerCase())) {
+          return fullAddress;
+        }
+        return `${name}, ${fullAddress}`;
+      }
+      return fullAddress;
+    }
+
+    async function initMap() {
+      mapboxgl.accessToken = MAPBOX_ACCESS_TOKEN;
+      map = new mapboxgl.Map({
+        container: 'map',
+        style: 'mapbox://styles/mapbox/streets-v12',
+        center: [123.0580, 0.5435],
+        zoom: 12
+      });
+      map.addControl(new mapboxgl.NavigationControl(), 'top-right');
+
+      const fromContainer = document.getElementById('from-container');
+      const toContainer = document.getElementById('to-container');
+      const fromSearchEl = document.createElement('mapbox-search-box');
+      const toSearchEl = document.createElement('mapbox-search-box');
+      
+      fromSearchEl.setAttribute('access-token', MAPBOX_ACCESS_TOKEN);
+      toSearchEl.setAttribute('access-token', MAPBOX_ACCESS_TOKEN);
+      fromSearchEl.setAttribute('placeholder', 'Lokasi penjemputan...');
+      toSearchEl.setAttribute('placeholder', 'Lokasi tujuan...');
+
+      // Filter untuk Indonesia - Provinsi Gorontalo
+      const bboxGorontalo = [121.383, 0.317, 123.717, 1.250];
+      fromSearchEl.setAttribute('country', 'ID');
+      fromSearchEl.setAttribute('bbox', bboxGorontalo.join(','));
+      fromSearchEl.setAttribute('language', 'id');
+      toSearchEl.setAttribute('country', 'ID');
+      toSearchEl.setAttribute('bbox', bboxGorontalo.join(','));
+      toSearchEl.setAttribute('language', 'id');
+      
+      fromContainer.appendChild(fromSearchEl);
+      toContainer.appendChild(toSearchEl);
+
+      fromSearchEl.addEventListener('retrieve', (event) => {
+        const feature = event.detail.features[0];
+        if (feature) {
+          pickupCoord = feature.geometry.coordinates;
+          pickupAddress = getFullAddress(feature);
+          updateRoute();
+        }
+      });
+      
+      toSearchEl.addEventListener('retrieve', (event) => {
+        const feature = event.detail.features[0];
+        if (feature) {
+          destCoord = feature.geometry.coordinates;
+          destAddress = getFullAddress(feature);
+          updateRoute();
+        }
+      });
+    }
+
+    async function updateRoute() {
+      if (!pickupCoord || !destCoord) return;
+      if (routeLayer) {
+        map.removeLayer(routeLayer);
+        map.removeSource('route');
+      }
+      const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${pickupCoord[0]},${pickupCoord[1]};${destCoord[0]},${destCoord[1]}?geometries=geojson&access_token=${MAPBOX_ACCESS_TOKEN}`;
+      try {
+        const resp = await fetch(url);
+        const data = await resp.json();
+        if (data.code !== 'Ok' || !data.routes.length) throw new Error('Rute tidak ditemukan');
+        const route = data.routes[0];
+        const distanceMeters = route.distance;
+        const durationSeconds = route.duration;
+        const price = calculatePrice(distanceMeters);
+        currentRoute = {
+          geometry: route.geometry,
+          distance: distanceMeters,
+          duration: durationSeconds,
+          price: price
+        };
+        document.getElementById('routeFrom').innerText = pickupAddress;
+        document.getElementById('routeTo').innerText = destAddress;
+        document.getElementById('routeDuration').innerText = Math.round(durationSeconds / 60) + ' menit';
+        document.getElementById('routePrice').innerHTML = formatRupiah(price);
+        document.getElementById('routeDetails').style.display = 'block';
+        document.getElementById('confirmBtn').disabled = false;
+
+        map.addSource('route', {
+          type: 'geojson',
+          data: {
+            type: 'Feature',
+            geometry: route.geometry,
+            properties: {}
+          }
+        });
+        map.addLayer({
+          id: 'route',
+          type: 'line',
+          source: 'route',
+          layout: { 'line-join': 'round', 'line-cap': 'round' },
+          paint: { 'line-color': '#FF9800', 'line-width': 5, 'line-opacity': 0.8 }
+        });
+        routeLayer = 'route';
+        updateMarkers();
+        const bounds = new mapboxgl.LngLatBounds().extend(pickupCoord).extend(destCoord);
+        map.fitBounds(bounds, { padding: 50 });
+      } catch (err) {
+        console.error(err);
+        showPopup('Error', 'Gagal menghitung rute. Periksa lokasi.', '❌');
+      }
+    }
+
+    async function confirmRoute() {
+      if (!currentRoute || !currentUser) {
+        showPopup('Perhatian', 'Lengkapi asal dan tujuan terlebih dahulu.', '⚠️');
+        return;
+      }
+      const btn = document.getElementById('confirmBtn');
+      btn.disabled = true;
+      btn.innerText = 'Mencari driver...';
+
+      let orderData = {
+        user_id: currentUser.id,
+        transport_type: transportType,
+        pickup_address: pickupAddress,
+        pickup_lat: pickupCoord[1],
+        pickup_lng: pickupCoord[0],
+        destination_address: destAddress,
+        dest_lat: destCoord[1],
+        dest_lng: destCoord[0],
+        distance_meters: currentRoute.distance,
+        duration_seconds: currentRoute.duration,
+        price: currentRoute.price,
+        status: 'waiting',
+        created_at: new Date().toISOString(),
+        passenger_rating: currentUser.rating
+      };
+      if (isCourier && deliveryData) {
+        orderData.sender_phone = deliveryData.senderPhone;
+        orderData.receiver_phone = deliveryData.receiverPhone;
+        orderData.item_category = deliveryData.itemCategory;
+        orderData.item_description = deliveryData.description;
+      }
+
+      try {
+        const { data, error } = await supabaseClient
+          .from('orders')
+          .insert([orderData])
+          .select()
+          .single();
+        if (error) throw error;
+
+        currentOrderId = data.id;
+        localStorage.setItem('current_order_id', currentOrderId);
+
+        showRadarAndWait();
+
+        orderSubscription = supabaseClient
+          .channel(`order-${currentOrderId}`)
+          .on('postgres_changes', {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'orders',
+            filter: `id=eq.${currentOrderId}`
+          }, (payload) => {
+            const newStatus = payload.new.status;
+            console.log('Order status berubah:', newStatus);
+            if (newStatus === 'accepted') {
+              cleanupWaiting();
+              showPopup('Driver Ditemukan', 'Driver sedang menuju lokasi Anda.', '✅', () => {
+                window.location.href = 'tracking.html';
+              });
+            } else if (newStatus === 'cancelled' || newStatus === 'cancelled_by_user') {
+              cleanupWaiting();
+              showPopup('Order Dibatalkan', 'Order telah dibatalkan.', '❌', () => {
+                document.getElementById('confirmBtn').disabled = false;
+                document.getElementById('confirmBtn').innerText = 'Cari Driver';
+              });
+            }
+          })
+          .subscribe();
+
+        // TIMER OTOMATIS DIHAPUS
+
+      } catch (err) {
+        console.error(err);
+        showPopup('Gagal', 'Tidak dapat membuat order. ' + err.message, '❌');
+        btn.disabled = false;
+        btn.innerText = 'Cari Driver';
+      }
+    }
+
+    function showRadarAndWait() {
+      const radarOverlay = document.getElementById('radarOverlay');
+      radarOverlay.style.display = 'flex';
+      document.getElementById('confirmBtn').style.display = 'none';
+      document.getElementById('routeDetails').style.display = 'none';
+    }
+
+    function cleanupWaiting() {
+      if (orderSubscription) {
+        orderSubscription.unsubscribe();
+        orderSubscription = null;
+      }
+      const radarOverlay = document.getElementById('radarOverlay');
+      radarOverlay.style.display = 'none';
+      document.getElementById('confirmBtn').style.display = 'block';
+    }
+
+    async function cancelSearch() {
+      if (!currentOrderId) {
+        console.warn("cancelSearch: Tidak ada order ID aktif.");
+        cleanupWaiting();
+        localStorage.removeItem('current_order_id');
+        document.getElementById('confirmBtn').disabled = false;
+        document.getElementById('confirmBtn').innerText = 'Cari Driver';
+        return;
+      }
+
+      console.log("cancelSearch: Membatalkan order ID:", currentOrderId);
+
+      try {
+        const { data, error } = await supabaseClient
+          .from('orders')
+          .update({ 
+            status: 'cancelled_by_user', 
+            cancelled_at: new Date().toISOString() 
+          })
+          .eq('id', currentOrderId);
+
+        console.log("Response data:", data);
+        if (error) {
+          console.error("Supabase error:", error);
+          showPopup('Error', 'Gagal membatalkan order: ' + error.message, '❌');
+          return;
+        }
+
+        cleanupWaiting();
+        localStorage.removeItem('current_order_id');
+
+        showPopup('Pencarian Dibatalkan', 'Order berhasil dibatalkan.', '✅', () => {
+          document.getElementById('confirmBtn').disabled = false;
+          document.getElementById('confirmBtn').innerText = 'Cari Driver';
+        });
+      } catch (err) {
+        console.error("Exception di cancelSearch:", err);
+        showPopup('Error', 'Terjadi kesalahan saat membatalkan order. Silakan coba lagi.', '❌');
+      }
+    }
+
+    window.onload = async () => {
+      // 1. Ambil token Mapbox dari Supabase
+      await fetchMapboxToken();
+      
+      // 2. Cek sesi user
+      const isLoggedIn = await checkUserSession();
+      if (!isLoggedIn) return;
+      
+      // 3. Muat data transportasi yang dipilih
+      const transportLoaded = await loadSelectedTransport();
+      if (!transportLoaded) return;
+      
+      // 4. Inisialisasi peta dengan token yang sudah didapat
+      await initMap();
+
+      // 5. Event listeners
+      document.getElementById('confirmBtn').addEventListener('click', confirmRoute);
+      document.getElementById('cancelSearchBtn').addEventListener('click', cancelSearch);
+
+      let nightMode = false;
+      document.getElementById('mapModeBtn').addEventListener('click', () => {
+        nightMode = !nightMode;
+        map.setStyle(nightMode ? 'mapbox://styles/mapbox/dark-v11' : 'mapbox://styles/mapbox/streets-v12');
+        document.getElementById('mapModeBtn').innerText = nightMode ? 'Mode Siang' : 'Mode Malam';
+      });
+    };
+  </script>
+</body>
+</html>
