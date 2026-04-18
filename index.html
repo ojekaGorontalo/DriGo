@@ -1262,16 +1262,27 @@
         return;
       }
       addDebugLog("Fetching orders dari Supabase...");
-      // Hanya ambil order dengan status 'waiting' (belum ada driver yang menerima)
-      let query = supabaseClient.from('orders').select('*').eq('status', 'waiting');
-      const { data, error } = await query;
-      if (error) { 
-        addDebugLog(`Error fetch orders: ${error.message}`, "error"); 
-        return; 
-      }
-      addDebugLog(`Ditemukan ${data?.length || 0} order dengan status 'waiting'`);
-      let orders = data || [];
-      // Filter berdasarkan tipe kendaraan driver dan preferensi kurir
+// Hanya ambil order dengan status 'waiting' (belum ada driver yang menerima)
+let query = supabaseClient.from('orders').select('*').eq('status', 'waiting');
+const { data, error } = await query;
+
+// ========== DEBUG: CEK DATA ORDER ==========
+if (data && data.length > 0) {
+  console.log("📦 Sample order dari Supabase:", data[0]);
+  console.log("🔍 customer_name value:", data[0].customer_name);
+  console.log("🔍 Semua key:", Object.keys(data[0]));
+} else {
+  console.log("⚠️ Tidak ada data order atau data kosong");
+}
+// ===========================================
+
+if (error) { 
+  addDebugLog(`Error fetch orders: ${error.message}`, "error"); 
+  return; 
+}
+addDebugLog(`Ditemukan ${data?.length || 0} order dengan status 'waiting'`);
+let orders = data || [];
+// Filter berdasarkan tipe kendaraan driver dan preferensi kurir
       const driverVehicle = currentDriverData.vehicleType;
       orders = orders.filter(order => {
         const isKurir = order.transport_type && order.transport_type.toLowerCase().includes('kurir');
@@ -1303,7 +1314,7 @@
       orders.forEach(order => {
         const orderItem = document.createElement('div');
         orderItem.className = 'order-item';
-        const userName = order.user_data?.name || 'Pelanggan';
+        const userName = order.customer_name || 'Pelanggan';
         const userPhoto = order.user_data?.fotoProfilURL || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png';
         const price = order.price || 0;
         const distanceText = order.distanceToPickup ? `${order.distanceToPickup.toFixed(1)} km` : '? km';
@@ -1338,7 +1349,7 @@
       document.getElementById('modalDuration').innerText = `${Math.round(order.duration_seconds/60)} menit`;
       document.getElementById('modalDistance').innerText = `${(order.distance_meters/1000).toFixed(1)} km`;
       document.getElementById('modalPrice').innerText = `Rp ${(order.price||0).toLocaleString('id-ID')}`;
-      document.getElementById('modalCustomerName').innerText = order.user_data?.name || 'Pelanggan';
+      document.getElementById('modalCustomerName').innerText = order.customer_name || 'Pelanggan';
       const modalPhoto = document.getElementById('modalCustomerPhoto');
       if (order.user_data?.fotoProfilURL) { modalPhoto.src = order.user_data.fotoProfilURL; modalPhoto.style.display = 'block'; }
       else modalPhoto.style.display = 'none';
@@ -1582,7 +1593,7 @@
       orders.forEach(order => {
         const item = document.createElement('div');
         item.className = 'order-item';
-        item.innerHTML = `<div class="order-header"><div class="customer-name">${escapeHtml(order.user_data?.name||'Customer')}</div><span class="status-badge ${order.status==='completed'?'status-completed':'status-cancelled'}">${order.status}</span></div><div class="route-point"><div class="point-marker point-marker-a">A</div><div class="point-address">${escapeHtml(order.pickup_address)}</div></div><div class="route-point"><div class="point-marker point-marker-b">B</div><div class="point-address">${escapeHtml(order.destination_address)}</div></div><div class="order-meta"><span>Rp ${(order.price||0).toLocaleString()}</span><span>${escapeHtml(order.transport_type)}</span></div>`;
+        item.innerHTML = `<div class="order-header"><div class="customer-name">${escapeHtml(order.customer_name || 'Customer')}</div><span class="status-badge ${order.status==='completed'?'status-completed':'status-cancelled'}">${order.status}</span></div><div class="route-point"><div class="point-marker point-marker-a">A</div><div class="point-address">${escapeHtml(order.pickup_address)}</div></div><div class="route-point"><div class="point-marker point-marker-b">B</div><div class="point-address">${escapeHtml(order.destination_address)}</div></div><div class="order-meta"><span>Rp ${(order.price||0).toLocaleString()}</span><span>${escapeHtml(order.transport_type)}</span></div>`;
         item.addEventListener('click', () => showHistoryDetail(order));
         container.appendChild(item);
       });
