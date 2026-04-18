@@ -2,18 +2,20 @@
 <html lang="id">
 <head>
   <meta charset="utf-8" />
-  <title>JeGo Driver - SPA</title>
+  <title>JeGo Driver - SPA (Supabase)</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
-  <!-- Firebase SDK -->
-  <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-database-compat.js"></script>
+  
+  <!-- Supabase SDK -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  
   <!-- Mapbox GL -->
   <script src='https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js'></script>
   <link href='https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css' rel='stylesheet' />
+  
   <!-- Leaflet (riwayat) -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  
+
   <style>
     /* ========== CSS SAMA PERSIS SEPERTI FILE ASLI (tidak diubah) ========== */
     :root {
@@ -163,7 +165,7 @@
       z-index: 9999;
       box-shadow: 0 0 12px rgba(0,0,0,0.5);
       pointer-events: auto;
-      display: none !important;
+      display: block !important; /* Tampilkan debug console */
     }
     .debug-header {
       padding: 6px 10px;
@@ -515,7 +517,7 @@
       gap: 10px;
       font-size: 0.8rem;
     }
-    /* ========== CSS untuk halaman Akun (dari akun.html) ========== */
+    /* ========== CSS untuk halaman Akun ========== */
     .form-container {
       background: white;
       border-radius: 8px;
@@ -836,26 +838,21 @@
   <!-- Guard Login -->
   <script>
     (function () {
+      console.log("[DEBUG] Memeriksa sesi driver...");
       const raw = localStorage.getItem('jego_logged_in_driver');
       if (!raw) {
-        redirectLogin("not_logged_in");
+        console.warn("[DEBUG] Tidak ada data driver di localStorage. Redirect ke loginDriver.html");
+        window.location.href = "loginDriver.html";
         return;
       }
       const driver = JSON.parse(raw);
       const status = driver.status || driver.driverStatus;
+      console.log("[DEBUG] Status driver:", status);
       if (!["active", "approved", "accepted"].includes(status)) {
-        redirectLogin("not_logged_in_or_inactive");
-        return;
-      }
-      function redirectLogin(reason) {
-        const payload = { action: "navigate", target: "login", reason };
-        if (window.AppInventor?.setWebViewString) {
-          window.AppInventor.setWebViewString(JSON.stringify(payload));
-        } else if (window.android?.receiveData) {
-          window.android.receiveData(JSON.stringify(payload));
-        } else {
-          window.location.href = "loginDriver.html";
-        }
+        console.warn("[DEBUG] Status driver tidak aktif. Redirect ke loginDriver.html");
+        window.location.href = "loginDriver.html";
+      } else {
+        console.log("[DEBUG] Driver valid, melanjutkan ke aplikasi.");
       }
     })();
   </script>
@@ -914,7 +911,7 @@
     </div>
   </div>
 
-  <!-- ==================== HALAMAN BERANDA (Permintaan Transportasi) ==================== -->
+  <!-- ==================== HALAMAN BERANDA ==================== -->
   <div id="page-beranda" class="page active">
     <div class="container">
       <div class="orders-list" id="ordersList">
@@ -935,14 +932,11 @@
       </div>
     </div>
     <div class="orders-list" id="historyOrdersList" style="margin: 15px;">
-      <div class="loading">
-        <div class="spinner"></div>
-        <p>Memuat data riwayat...</p>
-      </div>
+      <div class="loading"><div class="spinner"></div><p>Memuat data riwayat...</p></div>
     </div>
   </div>
 
-  <!-- ==================== HALAMAN AKUN (Saya) ==================== -->
+  <!-- ==================== HALAMAN AKUN ==================== -->
   <div id="page-akun" class="page">
     <div class="container">
       <div class="form-container">
@@ -972,49 +966,12 @@
           </div>
         </div>
         <div class="info-cards-container">
-          <div class="info-card">
-            <div class="card-header">
-              <div class="card-title">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
-                Informasi Pribadi
-              </div>
-              <button class="toggle-btn" data-target="personalInfo"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></button>
-            </div>
-            <div class="card-content" id="personalInfo">
-              <div class="info-item"><div class="info-label">Nama Lengkap</div><div class="info-value" id="fullName">-</div></div>
-              <div class="info-item"><div class="info-label">Email</div><div class="info-value" id="email">-</div></div>
-              <div class="info-item"><div class="info-label">No. Telepon</div><div class="info-value" id="phoneNumberContainer"><span id="phoneNumber">-</span><button class="copy-btn" data-copy-target="phoneNumber" title="Salin nomor telepon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></button></div></div>
-              <div class="info-item"><div class="info-label">Alamat</div><div class="info-value" id="address">-</div></div>
-              <div class="info-item"><div class="info-label">No. KTP</div><div class="info-value" id="idCardNumber">-</div></div>
-            </div>
-          </div>
-          <div class="info-card">
-            <div class="card-header">
-              <div class="card-title"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="7" cy="17" r="2"></circle><circle cx="17" cy="17" r="2"></circle><path d="M5 17H3v-6l2-5h9l4 5h3v6h-2m-8 0H9m4 0h2"></path></svg>Informasi Kendaraan</div>
-              <button class="toggle-btn" data-target="vehicleInfo"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></button>
-            </div>
-            <div class="card-content" id="vehicleInfo">
-              <div class="info-item"><div class="info-label">Jenis Kendaraan</div><div class="info-value" id="vehicleType">-</div></div>
-              <div class="info-item"><div class="info-label">Merek Kendaraan</div><div class="info-value" id="vehicleBrand">-</div></div>
-              <div class="info-item"><div class="info-label">Plat Nomor</div><div class="info-value" id="plateNumber">-</div></div>
-            </div>
-          </div>
-          <div class="info-card">
-            <div class="card-header">
-              <div class="card-title"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>Informasi Akun</div>
-              <button class="toggle-btn" data-target="accountInfo"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></button>
-            </div>
-            <div class="card-content" id="accountInfo">
-              <div class="info-item"><div class="info-label">ID Driver</div><div class="info-value" id="driverIdContainer"><span id="driverId">-</span><button class="copy-btn" data-copy-target="driverId" title="Salin ID Driver"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></button></div></div>
-              <div class="info-item"><div class="info-label">Tanggal Daftar</div><div class="info-value" id="registrationDate">-</div></div>
-              <div class="info-item"><div class="info-label">Status Akun</div><div class="info-value" id="verificationStatus"><span class="status-badge status-pending">-</span></div></div>
-              <div class="info-item"><div class="info-label">Total Order</div><div class="info-value" id="totalOrders">0</div></div>
-              <div class="info-item"><div class="info-label">Order Selesai</div><div class="info-value" id="completedOrders">0</div></div>
-            </div>
-          </div>
+          <div class="info-card"><div class="card-header"><div class="card-title">Informasi Pribadi</div><button class="toggle-btn" data-target="personalInfo">▼</button></div><div class="card-content" id="personalInfo"><div class="info-item"><div class="info-label">Nama Lengkap</div><div class="info-value" id="fullName">-</div></div><div class="info-item"><div class="info-label">Email</div><div class="info-value" id="email">-</div></div><div class="info-item"><div class="info-label">No. Telepon</div><div class="info-value" id="phoneNumber">-</div></div><div class="info-item"><div class="info-label">Alamat</div><div class="info-value" id="address">-</div></div><div class="info-item"><div class="info-label">No. KTP</div><div class="info-value" id="idCardNumber">-</div></div></div></div>
+          <div class="info-card"><div class="card-header"><div class="card-title">Informasi Kendaraan</div><button class="toggle-btn" data-target="vehicleInfo">▼</button></div><div class="card-content" id="vehicleInfo"><div class="info-item"><div class="info-label">Jenis Kendaraan</div><div class="info-value" id="vehicleType">-</div></div><div class="info-item"><div class="info-label">Merek Kendaraan</div><div class="info-value" id="vehicleBrand">-</div></div><div class="info-item"><div class="info-label">Plat Nomor</div><div class="info-value" id="plateNumber">-</div></div></div></div>
+          <div class="info-card"><div class="card-header"><div class="card-title">Informasi Akun</div><button class="toggle-btn" data-target="accountInfo">▼</button></div><div class="card-content" id="accountInfo"><div class="info-item"><div class="info-label">ID Driver</div><div class="info-value" id="driverId">-</div></div><div class="info-item"><div class="info-label">Tanggal Daftar</div><div class="info-value" id="registrationDate">-</div></div><div class="info-item"><div class="info-label">Status Akun</div><div class="info-value" id="verificationStatus">-</div></div><div class="info-item"><div class="info-label">Total Order</div><div class="info-value" id="totalOrders">0</div></div><div class="info-item"><div class="info-label">Order Selesai</div><div class="info-value" id="completedOrders">0</div></div></div></div>
         </div>
         <div class="action-buttons">
-          <button class="submit-btn btn-danger" id="logoutBtn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16,17 21,12 16,7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>Logout</button>
+          <button class="submit-btn btn-danger" id="logoutBtn">Logout</button>
         </div>
       </div>
     </div>
@@ -1024,30 +981,20 @@
   <div class="modal" id="orderModal">
     <div class="modal-content">
       <div class="modal-header-with-customer">
-        <div class="modal-title-container">
-          <h3 class="modal-title">Detail Permintaan</h3>
-          <div class="modal-customer-name" id="modalCustomerName"></div>
-        </div>
-        <img id="modalCustomerPhoto" class="modal-customer-photo" src="" alt="" style="display: none;">
+        <div class="modal-title-container"><h3 class="modal-title">Detail Permintaan</h3><div class="modal-customer-name" id="modalCustomerName"></div></div>
+        <img id="modalCustomerPhoto" class="modal-customer-photo" src="" style="display:none;">
         <button class="close-btn" id="closeModal">&times;</button>
       </div>
       <div class="modal-body">
         <div class="modal-map" id="modalMap"></div>
         <div class="modal-details">
-          <div class="modal-route-info">
-            <div class="modal-route-point"><div class="modal-point-marker point-marker-a">A</div><div class="modal-point-address modal-point-address-a" id="modalAddressA">-</div></div>
-            <div class="modal-route-point"><div class="modal-point-marker point-marker-b">B</div><div class="modal-point-address" id="modalAddressB">-</div></div>
-          </div>
-          <div id="modalDeliveryInfo" class="modal-delivery-info" style="display: none;"></div>
-          <div class="modal-order-details">
-            <div class="modal-detail-item"><span class="modal-detail-value" id="modalDuration">-</span><span class="modal-detail-label">Durasi</span></div>
-            <div class="modal-detail-item"><span class="modal-detail-value" id="modalDistance">-</span><span class="modal-detail-label">Jarak</span></div>
-            <div class="modal-detail-item"><span class="modal-detail-value" id="modalPrice">-</span><span class="modal-detail-label">Harga</span></div>
-          </div>
+          <div class="modal-route-info"><div class="modal-route-point"><div class="modal-point-marker point-marker-a">A</div><div class="modal-point-address modal-point-address-a" id="modalAddressA">-</div></div><div class="modal-route-point"><div class="modal-point-marker point-marker-b">B</div><div class="modal-point-address" id="modalAddressB">-</div></div></div>
+          <div id="modalDeliveryInfo" class="modal-delivery-info" style="display:none;"></div>
+          <div class="modal-order-details"><div class="modal-detail-item"><span class="modal-detail-value" id="modalDuration">-</span><span class="modal-detail-label">Durasi</span></div><div class="modal-detail-item"><span class="modal-detail-value" id="modalDistance">-</span><span class="modal-detail-label">Jarak</span></div><div class="modal-detail-item"><span class="modal-detail-value" id="modalPrice">-</span><span class="modal-detail-label">Harga</span></div></div>
         </div>
       </div>
       <div class="modal-footer">
-        <div id="countdownContainer" style="display: none; width: 100%; margin-bottom: 10px;"><div class="progress-container"><div id="countdownProgress" class="progress-bar" style="width: 100%;"></div></div><div class="progress-info"><span>Menunggu konfirmasi customer...</span><span id="countdownSeconds">30 detik</span></div></div>
+        <div id="countdownContainer" style="display:none;"><div class="progress-container"><div id="countdownProgress" class="progress-bar"></div></div><div class="progress-info"><span>Menunggu konfirmasi customer...</span><span id="countdownSeconds">30 detik</span></div></div>
         <button class="ambil-btn" id="ambilBtn">Kirim Penawaran</button>
       </div>
     </div>
@@ -1055,15 +1002,12 @@
 
   <!-- ==================== MODAL RIWAYAT ==================== -->
   <div class="modal" id="historyModal">
-    <div class="modal-content" style="max-width: 500px;">
-      <div class="modal-header" style="background: linear-gradient(135deg, var(--primary), var(--secondary)); border-radius: 12px 12px 0 0; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center;">
-        <h3 class="modal-title" style="color: white; margin:0;">Detail Order</h3>
-        <button class="close-btn" id="closeHistoryModal" style="color: white;">&times;</button>
-      </div>
+    <div class="modal-content" style="max-width:500px;">
+      <div class="modal-header" style="background:linear-gradient(135deg, var(--primary), var(--secondary)); border-radius:12px 12px 0 0; padding:15px 20px; display:flex; justify-content:space-between;"><h3 style="color:white;">Detail Order</h3><button class="close-btn" id="closeHistoryModal" style="color:white;">&times;</button></div>
       <div class="modal-body">
-        <div class="modal-map" id="historyModalMap" style="height: 250px; width: 100%; position: relative;"><div class="route-loading" id="routeLoading" style="display: none;">Memuat peta...</div></div>
+        <div class="modal-map" id="historyModalMap" style="height:250px;"></div>
         <div class="modal-details">
-          <div class="modal-route-info"><div class="modal-route-point"><div class="modal-point-marker point-marker-a">A</div><div class="modal-point-address modal-point-address-a" id="historyAddressA">-</div></div><div class="modal-route-point"><div class="modal-point-marker point-marker-b">B</div><div class="modal-point-address" id="historyAddressB">-</div></div></div>
+          <div class="modal-route-info"><div class="modal-route-point"><div class="modal-point-marker point-marker-a">A</div><div class="modal-point-address" id="historyAddressA">-</div></div><div class="modal-route-point"><div class="modal-point-marker point-marker-b">B</div><div class="modal-point-address" id="historyAddressB">-</div></div></div>
           <div class="modal-order-details"><div class="modal-detail-item"><span class="modal-detail-value" id="historyDuration">-</span><span class="modal-detail-label">Durasi</span></div><div class="modal-detail-item"><span class="modal-detail-value" id="historyDistance">-</span><span class="modal-detail-label">Jarak</span></div><div class="modal-detail-item"><span class="modal-detail-value modal-price-highlight" id="historyPrice">-</span><span class="modal-detail-label">Harga</span></div></div>
           <div class="modal-timeline"><div class="timeline-title">Timeline Order</div><div class="timeline-item"><div class="timeline-time" id="timelineCreated">-</div><div class="timeline-event">Order dibuat</div></div><div class="timeline-item"><div class="timeline-time" id="timelineAccepted">-</div><div class="timeline-event">Driver diterima</div></div><div class="timeline-item"><div class="timeline-time" id="timelineStarted">-</div><div class="timeline-event">Perjalanan dimulai</div></div><div class="timeline-item"><div class="timeline-time" id="timelineArrived">-</div><div class="timeline-event">Tiba di tujuan</div></div><div class="timeline-item"><div class="timeline-time" id="timelineCompleted">-</div><div class="timeline-event">Order selesai</div></div></div>
         </div>
@@ -1071,11 +1015,11 @@
     </div>
   </div>
 
-  <!-- ==================== SIDEBAR ==================== -->
+  <!-- SIDEBAR -->
   <div class="sidebar" id="sidebar">
     <div class="sidebar-overlay" id="sidebarOverlay"></div>
     <div class="sidebar-content">
-      <div class="sidebar-header"><img id="sidebarDriverPhoto" class="sidebar-driver-photo" src="https://cdn-icons-png.flaticon.com/512/3135/3135715.png" alt="Driver"><div class="sidebar-driver-info"><div class="sidebar-driver-name" id="sidebarDriverName">-</div><div class="sidebar-driver-rating"><span>⭐</span><span id="sidebarDriverRating">4.8</span></div></div><button class="close-sidebar" id="closeSidebar">&times;</button></div>
+      <div class="sidebar-header"><img id="sidebarDriverPhoto" class="sidebar-driver-photo" src="https://cdn-icons-png.flaticon.com/512/3135/3135715.png"><div class="sidebar-driver-info"><div class="sidebar-driver-name" id="sidebarDriverName">-</div><div class="sidebar-driver-rating"><span>⭐</span><span id="sidebarDriverRating">4.8</span></div></div><button class="close-sidebar" id="closeSidebar">&times;</button></div>
       <div class="sidebar-body">
         <div class="menu-section"><h4>Preferensi Order</h4><div class="menu-item"><div class="menu-item-label"><span>Terima Kurir</span><span class="menu-item-desc">Tampilkan order pengiriman paket</span></div><label class="toggle-switch"><input type="checkbox" id="acceptKurirToggle"><span class="toggle-slider"></span></label></div></div>
         <div class="menu-section"><h4>Statistik</h4><div class="status-info"><div class="status-item"><span class="status-label">Rating</span><span class="status-value" id="sidebarRating">4.8</span></div><div class="status-item"><span class="status-label">Perjalanan</span><span class="status-value" id="sidebarTrips">0</span></div><div class="status-item"><span class="status-label">Saldo</span><span class="status-value" id="sidebarBalance">Rp 0</span></div></div></div>
@@ -1084,82 +1028,85 @@
     </div>
   </div>
 
-  <!-- ==================== BOTTOM NAVIGASI (4 menu) ==================== -->
+  <!-- BOTTOM NAVIGASI -->
   <div class="bottom-nav">
-    <div class="nav-item active" data-tab="beranda"><div class="nav-icon">🚕</div><div class="nav-label">Permintaan Transportasi</div></div>
+    <div class="nav-item active" data-tab="beranda"><div class="nav-icon">🚕</div><div class="nav-label">Permintaan</div></div>
     <div class="nav-item" data-tab="riwayat"><div class="nav-icon">📋</div><div class="nav-label">Riwayat</div></div>
     <div class="nav-item" data-tab="aktif"><div class="nav-icon">🚗</div><div class="nav-label">Aktif Order</div></div>
     <div class="nav-item" data-tab="saya"><div class="nav-icon">👤</div><div class="nav-label">Saya</div></div>
   </div>
 
-  <!-- Popup, loading overlay, debug console -->
-  <div class="popup-overlay" id="popupOverlay"><div class="popup"><div class="popup-header"><span id="popupIcon">ℹ️</span><h3 id="popupTitle">Pemberitahuan</h3></div><div class="popup-body" id="popupMessage">Pesan akan ditampilkan di sini</div><div class="popup-footer" id="popupFooter"></div></div></div>
+  <!-- Popup & loading -->
+  <div class="popup-overlay" id="popupOverlay"><div class="popup"><div class="popup-header"><span id="popupIcon">ℹ️</span><h3 id="popupTitle">Pemberitahuan</h3></div><div class="popup-body" id="popupMessage"></div><div class="popup-footer" id="popupFooter"></div></div></div>
   <div id="loadingOverlay"><div class="spinner"></div><p>Memuat...</p></div>
-  <div class="debug-console" id="debugConsole"><div class="debug-header"><span>🐞 Debug Log</span><button id="clearDebugBtn">🗑️</button><button id="toggleDebugBtn">▼</button></div><div class="debug-content" id="debugContent"><p class="info">▶️ Memulai debug...</p></div></div>
-
+  <div class="debug-console" id="debugConsole"><div class="debug-header"><span>🐞 Debug</span><button id="clearDebugBtn">🗑️</button><button id="toggleDebugBtn">▼</button></div><div class="debug-content" id="debugContent"><p class="info">▶️ Memulai debug...</p></div></div>
   <audio id="newOrderSound" preload="auto"><source src="https://jegotiem.netlify.app/audio/audiopopupmanual.mp3" type="audio/mpeg"></audio>
-  <audio id="autobidSound" preload="auto"><source src="https://jegotiem.netlify.app/audio/audioautobid.mp3" type="audio/mpeg"></audio>
-  <audio id="orderAcceptedSound" preload="auto"><source src="https://jegotiem.netlify.app/audio/audioorderaccepted.mp3" type="audio/mpeg"></audio>
 
   <script>
-    // ========== DEBUG LOGGER ==========
-    const debugContent = document.getElementById('debugContent');
-    function addDebugLog(message, type = 'info') {
-      const p = document.createElement('p');
-      p.className = type;
-      const time = new Date().toLocaleTimeString();
-      p.textContent = `[${time}] ${message}`;
-      debugContent.appendChild(p);
-      p.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      console.log(`[DEBUG][${type}] ${message}`);
-      while (debugContent.children.length > 200) debugContent.removeChild(debugContent.firstChild);
-    }
-    document.getElementById('clearDebugBtn')?.addEventListener('click', () => { debugContent.innerHTML = ''; addDebugLog('Log dibersihkan', 'info'); });
-    const toggleBtn = document.getElementById('toggleDebugBtn');
-    let debugCollapsed = false;
-    toggleBtn?.addEventListener('click', () => { debugCollapsed = !debugCollapsed; document.getElementById('debugConsole').classList.toggle('collapsed', debugCollapsed); toggleBtn.textContent = debugCollapsed ? '▲' : '▼'; });
+    // ========== KONFIGURASI SUPABASE ==========
+    const SUPABASE_URL = 'https://imrhkvtkpwascicthddo.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImltcmhrdnRrcHdhc2NpY3RoZGRvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY0Mjk1NTUsImV4cCI6MjA5MjAwNTU1NX0.eYMx1pwwACazkch7OzSYyljE0ahtC4SDoI0ydapn068';
+    const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    console.log("[DEBUG] Supabase client initialized");
 
-    // ========== KONFIGURASI FIREBASE ==========
-    const firebaseConfig = {
-      apiKey: "AIzaSyDpGc_CsbNi1igA29n6qDhcX0oDkHNVscc",
-      authDomain: "game-balap-simpel.firebaseapp.com",
-      databaseURL: "https://game-balap-simpel-default-rtdb.firebaseio.com",
-      projectId: "game-balap-simpel",
-      storageBucket: "game-balap-simpel.firebasestorage.app",
-      messagingSenderId: "864576853495",
-      appId: "1:864576853495:web:6f16eb757fd3d8affb0af2"
-    };
-    let database;
-    try {
-      if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
-      database = firebase.database();
-      addDebugLog('Firebase berhasil diinisialisasi', 'success');
-    } catch (error) {
-      addDebugLog(`Error inisialisasi Firebase: ${error.message}`, 'error');
-    }
-
-    // ========== VARIABEL GLOBAL ==========
-    let ordersRef = null, ordersListener = null;
-    let modalMap = null;
-    let currentSelectedOrder = null;
-    let currentDriverId = null, currentDriverData = null;
-    let autobidEnabled = false, driverLocation = { latitude: null, longitude: null };
-    let locationWatchId = null, locationTrackingEnabled = false;
-    let mapboxAccessToken = null;
-    let countdownInterval = null;
-    let countdownOrderId = null;
-    let countdownDriverId = null;
-    let orderStatusListener = null;
+    // Global variables
+    let currentDriverId = null;
+    let currentDriverData = null;
+    let driverLocation = { latitude: null, longitude: null };
+    let locationTrackingEnabled = false;
+    let autobidEnabled = false;
     let acceptKurirEnabled = false;
-    const STORAGE_ACCEPT_KURIR = 'jego_accept_kurir';
-    let previousOrderIds = new Set();
-    let mapMarkers = [];
-    const STORAGE_TRACKING = 'jego_location_tracking';
-    const STORAGE_AUTOBID = 'jego_autobid_enabled';
-    let historyMap = null, historyRoutePolyline = null, historyMarkers = [], historyOrdersRef = null, historyOrdersListener = null, currentFilter = 'all', historyDataLoaded = false;
-    let akunPageInitialized = false;
+    let ordersSubscription = null;
+    let currentSelectedOrder = null;
+    let countdownInterval = null;
+    let orderStatusChannel = null;
+    let modalMap = null;
+    let mapboxAccessToken = null;
 
-    // ========== FUNGSI UTAMA ==========
+    // Helper functions
+    function addDebugLog(msg, type='info') {
+      const debugContent = document.getElementById('debugContent');
+      if (debugContent) {
+        const time = new Date().toLocaleTimeString();
+        const logMsg = `<p class="${type}">[${time}] ${msg}</p>`;
+        debugContent.insertAdjacentHTML('beforeend', logMsg);
+        debugContent.scrollTop = debugContent.scrollHeight;
+      }
+      console.log(`[${type.toUpperCase()}] ${msg}`);
+    }
+
+    function showPopup(title, message, type='info', buttons=null) {
+      addDebugLog(`Popup: ${title} - ${message}`, type);
+      const overlay = document.getElementById('popupOverlay');
+      if (!overlay) return;
+      document.getElementById('popupTitle').innerText = title;
+      document.getElementById('popupMessage').innerHTML = message;
+      const iconMap = { success:'✅', error:'❌', warning:'⚠️', info:'ℹ️' };
+      document.getElementById('popupIcon').innerHTML = iconMap[type]||'ℹ️';
+      const footer = document.getElementById('popupFooter');
+      footer.innerHTML = '';
+      if (buttons && buttons.length) {
+        buttons.forEach(btn => {
+          const b = document.createElement('button');
+          b.className = `popup-button ${btn.class||''}`;
+          b.innerText = btn.text;
+          b.onclick = () => { hidePopup(); if(btn.onClick) btn.onClick(); };
+          footer.appendChild(b);
+        });
+      } else {
+        const ok = document.createElement('button');
+        ok.className = 'popup-button';
+        ok.innerText = 'OK';
+        ok.onclick = hidePopup;
+        footer.appendChild(ok);
+      }
+      overlay.classList.add('active');
+    }
+    function hidePopup() { 
+      const overlay = document.getElementById('popupOverlay');
+      if (overlay) overlay.classList.remove('active'); 
+    }
+
     function calculateDistance(lat1, lon1, lat2, lon2) {
       if (!lat1 || !lon1 || !lat2 || !lon2) return null;
       const R = 6371;
@@ -1170,614 +1117,564 @@
       return R * c;
     }
 
-    function loadStoredSettings() {
-      const savedTracking = localStorage.getItem(STORAGE_TRACKING);
-      locationTrackingEnabled = savedTracking === 'true';
-      updateTrackingButton();
-      const savedAutobid = localStorage.getItem(STORAGE_AUTOBID);
-      autobidEnabled = savedAutobid === 'true';
-      updateAutobidButton();
-      const savedKurir = localStorage.getItem(STORAGE_ACCEPT_KURIR);
-      acceptKurirEnabled = savedKurir === 'true';
-      const toggle = document.getElementById('acceptKurirToggle');
-      if (toggle) toggle.checked = acceptKurirEnabled;
+    // Validasi UUID sederhana
+    function isValidUUID(str) {
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      return uuidRegex.test(str);
     }
 
-    function updateTrackingButton() {
-      const btn = document.getElementById('locationToggleBtn');
-      if (locationTrackingEnabled) {
-        btn.innerHTML = '📍 ON';
-        btn.classList.add('active');
-      } else {
-        btn.innerHTML = '📍 OFF';
-        btn.classList.remove('active');
+    // Load driver data from localStorage & Supabase
+    async function loadDriverData() {
+  addDebugLog("Memuat data driver...");
+  const raw = localStorage.getItem('jego_logged_in_driver');
+  if (!raw) {
+    addDebugLog("Tidak ada data driver di localStorage", "error");
+    window.location.href = 'loginDriver.html';
+    return false;
+  }
+  const driver = JSON.parse(raw);
+  let searchField = 'id';
+  let searchValue = driver.uid;
+
+  // Fungsi normalisasi phone untuk pencarian
+  function normalizePhoneForSearch(phone) {
+    let cleaned = phone.replace(/\D/g, '');
+    if (cleaned.startsWith('0')) cleaned = '62' + cleaned.substring(1);
+    if (!cleaned.startsWith('62')) cleaned = '62' + cleaned;
+    return ['+' + cleaned, '0' + cleaned.slice(2)]; // coba +62... dan 0...
+  }
+
+  if (!isValidUUID(searchValue)) {
+    searchField = 'phone';
+    let phoneVariants = [];
+    if (driver.phone) {
+      phoneVariants = normalizePhoneForSearch(driver.phone);
+    } else if (driver.uid) {
+      phoneVariants = normalizePhoneForSearch(driver.uid);
+    } else {
+      addDebugLog("Tidak ada phone atau uid yang valid", "error");
+      return false;
+    }
+    
+    addDebugLog(`Mencari driver dengan phone: ${phoneVariants.join(' atau ')}`);
+    let found = false;
+    for (let phoneTry of phoneVariants) {
+      const { data, error } = await supabaseClient
+        .from('drivers')
+        .select('*')
+        .eq('phone', phoneTry)
+        .maybeSingle(); // gunakan maybeSingle agar tidak error jika kosong
+      
+      if (data && !error) {
+        currentDriverData = {
+          ...data,
+          driverId: data.id,
+          fullName: data.name,
+          profilePhotoUrl: data.foto_profil_url || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png',
+          vehicleType: data.vehicle_type,
+          balance: data.balance || 0,
+          rating: data.avg_rating || 5,
+          perjalanan: data.total_trips || 0,
+          phone: data.phone
+        };
+        currentDriverId = data.id;
+        found = true;
+        break;
       }
     }
-
-    function updateAutobidButton() {
-      const btn = document.getElementById('autobidBtn');
-      if (autobidEnabled) {
-        btn.innerHTML = 'Autobid: ON';
-        btn.classList.add('active');
-      } else {
-        btn.innerHTML = 'Autobid: OFF';
-        btn.classList.remove('active');
-      }
+    if (!found) {
+      addDebugLog("Driver tidak ditemukan dengan phone manapun", "error");
+      showPopup('Error', 'Data driver tidak ditemukan. Silakan login ulang.', 'error', [
+        { text:'OK', onClick:()=>{ localStorage.clear(); window.location.href='loginDriver.html'; } }
+      ]);
+      return false;
     }
-
-    function updateAcceptKurirSetting() {
-      const toggle = document.getElementById('acceptKurirToggle');
-      if (toggle) {
-        acceptKurirEnabled = toggle.checked;
-        localStorage.setItem(STORAGE_ACCEPT_KURIR, acceptKurirEnabled);
-        loadOrders();
-      }
+  } else {
+    // Jika uid UUID, cari berdasarkan id
+    const { data, error } = await supabaseClient.from('drivers').select('*').eq('id', searchValue).maybeSingle();
+    if (error || !data) {
+      addDebugLog(`Error fetch driver: ${error?.message}`, "error");
+      showPopup('Error', 'Data driver tidak ditemukan. Silakan login ulang.', 'error', [
+        { text:'OK', onClick:()=>{ localStorage.clear(); window.location.href='loginDriver.html'; } }
+      ]);
+      return false;
     }
+    currentDriverData = {
+      ...data,
+      driverId: data.id,
+      fullName: data.name,
+      profilePhotoUrl: data.foto_profil_url || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png',
+      vehicleType: data.vehicle_type,
+      balance: data.balance || 0,
+      rating: data.avg_rating || 5,
+      perjalanan: data.total_trips || 0,
+      phone: data.phone
+    };
+    currentDriverId = data.id;
+  }
 
-    // ========== LOAD ORDERS (DIPERBAIKI) ==========
-    function loadOrders() {
-      if (!currentDriverId) {
-        addDebugLog('Driver ID tidak ditemukan, tidak dapat memuat order', 'warning');
+  addDebugLog("Data driver berhasil dimuat dari Supabase", "success");
+  // Update UI (sama seperti kode asli)
+  const driverPhoto = document.getElementById('driverPhoto');
+  if (driverPhoto) driverPhoto.src = currentDriverData.profilePhotoUrl;
+  const sidebarPhoto = document.getElementById('sidebarDriverPhoto');
+  if (sidebarPhoto) sidebarPhoto.src = currentDriverData.profilePhotoUrl;
+  const sidebarName = document.getElementById('sidebarDriverName');
+  if (sidebarName) sidebarName.innerText = currentDriverData.fullName;
+  const sidebarRating = document.getElementById('sidebarDriverRating');
+  if (sidebarRating) sidebarRating.innerText = currentDriverData.rating.toFixed(1);
+  const sidebarRating2 = document.getElementById('sidebarRating');
+  if (sidebarRating2) sidebarRating2.innerText = currentDriverData.rating.toFixed(1);
+  const sidebarTrips = document.getElementById('sidebarTrips');
+  if (sidebarTrips) sidebarTrips.innerText = currentDriverData.perjalanan;
+  const sidebarBalance = document.getElementById('sidebarBalance');
+  if (sidebarBalance) sidebarBalance.innerText = `Rp ${(currentDriverData.balance||0).toLocaleString('id-ID')}`;
+  return true;
+}
+
+    // Load orders from Supabase realtime
+    async function loadOrders() {
+      if (!currentDriverId || !currentDriverData) {
+        addDebugLog("Driver data belum siap, tunda loadOrders", "warning");
         return;
       }
+      addDebugLog("Memuat daftar order...");
       const ordersList = document.getElementById('ordersList');
-      ordersList.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
-      if (ordersRef && ordersListener) {
-        ordersRef.off('value', ordersListener);
+      if (ordersList) ordersList.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+      if (ordersSubscription) {
+        addDebugLog("Unsubscribe dari orders channel sebelumnya");
+        await ordersSubscription.unsubscribe();
       }
-      ordersRef = database.ref('orders');
-      ordersListener = ordersRef.on('value', (snapshot) => {
-        const orders = snapshot.val();
-        const filteredOrders = [];
-        if (orders) {
-          Object.entries(orders).forEach(([firebaseKey, order]) => {
-            if (order.status !== 'searching') return;
-            const isKurir = order.jenis_layanan === 'kurir' || order.isKurir === true;
-            if (isKurir && !acceptKurirEnabled) return;
-            const orderWithId = {
-              ...order,
-              order_id: order.order_id || firebaseKey,
-              id: firebaseKey
-            };
-            if (driverLocation.latitude && driverLocation.longitude && order.from_lat && order.from_lng) {
-              const distance = calculateDistance(
-                driverLocation.latitude,
-                driverLocation.longitude,
-                order.from_lat,
-                order.from_lng
-              );
-              orderWithId.distanceToPickup = distance;
-              if (distance > 20) return;
-            }
-            filteredOrders.push(orderWithId);
-          });
-        }
-        filteredOrders.sort((a, b) => (a.distanceToPickup || 999) - (b.distanceToPickup || 999));
-        if (filteredOrders.length === 0) {
-          ordersList.innerHTML = `
-            <div class="empty-state">
-              <div style="font-size:3rem; margin-bottom:15px;">🔍</div>
-              <h3>Tidak ada permintaan</h3>
-              <p>Saat ini belum ada order yang tersedia di sekitar Anda.</p>
-            </div>
-          `;
-        } else {
-          renderOrdersList(filteredOrders, ordersList);
-        }
-        const currentIds = new Set(filteredOrders.map(o => o.id));
-        const newOrders = filteredOrders.filter(o => !previousOrderIds.has(o.id));
-        if (newOrders.length > 0 && previousOrderIds.size > 0) {
-          document.getElementById('newOrderSound')?.play().catch(e => {});
-        }
-        previousOrderIds = currentIds;
-      }, (error) => {
-        addDebugLog(`Error memuat order: ${error.message}`, 'error');
-        ordersList.innerHTML = `
-          <div class="empty-state">
-            <div style="font-size:3rem;">⚠️</div>
-            <h3>Gagal memuat data</h3>
-            <p>${error.message}</p>
-            <button onclick="loadOrders()" style="margin-top:15px; padding:8px 16px;">Coba Lagi</button>
-          </div>
+      ordersSubscription = supabaseClient
+        .channel('orders-channel')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, (payload) => {
+          addDebugLog(`Perubahan pada orders: ${payload.eventType} - ${payload.new?.id}`, "info");
+          fetchOrders();
+        })
+        .subscribe();
+      addDebugLog("Subscribed ke orders channel");
+      fetchOrders();
+    }
+
+    async function fetchOrders() {
+      if (!currentDriverData) {
+        addDebugLog("fetchOrders ditunda karena currentDriverData null", "warning");
+        return;
+      }
+      addDebugLog("Fetching orders dari Supabase...");
+      // Hanya ambil order dengan status 'waiting' (belum ada driver yang menerima)
+      let query = supabaseClient.from('orders').select('*').eq('status', 'waiting');
+      const { data, error } = await query;
+      if (error) { 
+        addDebugLog(`Error fetch orders: ${error.message}`, "error"); 
+        return; 
+      }
+      addDebugLog(`Ditemukan ${data?.length || 0} order dengan status 'waiting'`);
+      let orders = data || [];
+      // Filter berdasarkan tipe kendaraan driver dan preferensi kurir
+      const driverVehicle = currentDriverData.vehicleType;
+      orders = orders.filter(order => {
+        const isKurir = order.transport_type && order.transport_type.toLowerCase().includes('kurir');
+        if (isKurir && !acceptKurirEnabled) return false;
+        if (!isKurir && order.transport_type !== driverVehicle) return false;
+        return true;
+      });
+      addDebugLog(`Setelah filter: ${orders.length} order`);
+      // Hitung jarak dari driver ke pickup jika lokasi tersedia
+      if (driverLocation.latitude && driverLocation.longitude) {
+        orders = orders.map(order => {
+          const dist = calculateDistance(driverLocation.latitude, driverLocation.longitude, order.pickup_lat, order.pickup_lng);
+          return { ...order, distanceToPickup: dist };
+        }).filter(o => o.distanceToPickup === null || o.distanceToPickup <= 20);
+        orders.sort((a,b) => (a.distanceToPickup||999) - (b.distanceToPickup||999));
+        addDebugLog(`Setelah filter jarak: ${orders.length} order dalam radius 20km`);
+      }
+      renderOrdersList(orders);
+    }
+
+    function renderOrdersList(orders) {
+      const container = document.getElementById('ordersList');
+      if (!container) return;
+      if (!orders.length) {
+        container.innerHTML = '<div class="empty-state"><div>🔍</div><p>Tidak ada permintaan order saat ini</p></div>';
+        return;
+      }
+      container.innerHTML = '';
+      orders.forEach(order => {
+        const orderItem = document.createElement('div');
+        orderItem.className = 'order-item';
+        const userName = order.user_data?.name || 'Pelanggan';
+        const userPhoto = order.user_data?.fotoProfilURL || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png';
+        const price = order.price || 0;
+        const distanceText = order.distanceToPickup ? `${order.distanceToPickup.toFixed(1)} km` : '? km';
+        orderItem.innerHTML = `
+          <div class="order-header"><div class="customer-name">${escapeHtml(userName)} ${order.transport_type?.includes('kurir') ? '<span class="kurir-badge">Kurir</span>' : ''}</div><div class="order-badges"><span class="promo-badge">${escapeHtml(order.transport_type || 'Motor')}</span></div></div>
+          <div class="route-info-with-photo"><div class="customer-info-left"><img class="customer-photo-left" src="${userPhoto}" onclick="event.stopPropagation(); window.showPhotoModal && window.showPhotoModal('${userPhoto}','${escapeHtml(userName)}')"><div class="customer-name-left">${escapeHtml(userName.split(' ')[0])}</div><div class="customer-rating"><span class="rating-stars">⭐</span><span>${order.passenger_rating?.toFixed(1)||'5.0'}</span></div></div><div class="route-addresses-right"><div class="route-point"><div class="point-marker point-marker-a">A</div><div class="point-address point-address-a">${escapeHtml(order.pickup_address) || '-'}</div></div><div class="route-point"><div class="point-marker point-marker-b">B</div><div class="point-address">${escapeHtml(order.destination_address) || '-'}</div></div></div></div>
+          <div class="order-details"><div class="detail-item"><span class="detail-value">${Math.round(order.duration_seconds/60)||'-'} min</span><span class="detail-label">Durasi</span></div><div class="detail-item"><span class="detail-value">${(order.distance_meters/1000).toFixed(1)||'-'} km</span><span class="detail-label">Jarak</span></div><div class="detail-item"><span class="detail-value price-highlight">Rp ${price.toLocaleString('id-ID')}</span><span class="detail-label">Harga</span></div><div class="detail-item"><span class="detail-value">${distanceText}</span><span class="detail-label">Dari Anda</span></div></div>
         `;
+        orderItem.addEventListener('click', () => showOrderDetail(order));
+        container.appendChild(orderItem);
       });
     }
 
-    // ========== RENDER ORDERS LIST ==========
-    function renderOrdersList(orders, container) {
+    function escapeHtml(str) {
+      if (!str) return '';
+      return str.replace(/[&<>]/g, function(m) {
+        if (m === '&') return '&amp;';
+        if (m === '<') return '&lt;';
+        if (m === '>') return '&gt;';
+        return m;
+      });
+    }
+
+    // Show order detail modal
+    async function showOrderDetail(order) {
+      addDebugLog(`Menampilkan detail order: ${order.id}`);
+      currentSelectedOrder = order;
+      const modal = document.getElementById('orderModal');
+      if (!modal) return;
+      document.getElementById('modalAddressA').innerText = order.pickup_address || '-';
+      document.getElementById('modalAddressB').innerText = order.destination_address || '-';
+      document.getElementById('modalDuration').innerText = `${Math.round(order.duration_seconds/60)} menit`;
+      document.getElementById('modalDistance').innerText = `${(order.distance_meters/1000).toFixed(1)} km`;
+      document.getElementById('modalPrice').innerText = `Rp ${(order.price||0).toLocaleString('id-ID')}`;
+      document.getElementById('modalCustomerName').innerText = order.user_data?.name || 'Pelanggan';
+      const modalPhoto = document.getElementById('modalCustomerPhoto');
+      if (order.user_data?.fotoProfilURL) { modalPhoto.src = order.user_data.fotoProfilURL; modalPhoto.style.display = 'block'; }
+      else modalPhoto.style.display = 'none';
+      // Delivery info jika kurir
+      const deliveryDiv = document.getElementById('modalDeliveryInfo');
+      if (order.sender_phone) {
+        deliveryDiv.innerHTML = `<div class="modal-delivery-item"><span class="modal-delivery-label">Pengirim:</span><span class="modal-delivery-value">${escapeHtml(order.sender_phone)}</span></div><div class="modal-delivery-item"><span class="modal-delivery-label">Penerima:</span><span class="modal-delivery-value">${escapeHtml(order.receiver_phone)}</span></div><div class="modal-delivery-item"><span class="modal-delivery-label">Barang:</span><span class="modal-delivery-value">${escapeHtml(order.item_category)} - ${escapeHtml(order.item_description)}</span></div>`;
+        deliveryDiv.style.display = 'block';
+      } else deliveryDiv.style.display = 'none';
+      modal.style.display = 'flex';
+      // Inisialisasi mapbox sederhana
+      if (!mapboxAccessToken) await fetchMapboxToken();
+      if (mapboxAccessToken && !modalMap) initModalMapbox();
+      if (modalMap) showRouteOnMapbox(order);
+    }
+
+    async function fetchMapboxToken() {
+      addDebugLog("Mengambil Mapbox token dari Supabase...");
+      const { data, error } = await supabaseClient.from('app_config').select('value').eq('key', 'mapbox_access_token').single();
+      if (data) {
+        mapboxAccessToken = data.value;
+        addDebugLog("Mapbox token berhasil diambil", "success");
+      } else {
+        mapboxAccessToken = 'pk.placeholder';
+        addDebugLog("Gagal mengambil Mapbox token, menggunakan placeholder", "error");
+      }
+    }
+    function initModalMapbox() {
+      mapboxgl.accessToken = mapboxAccessToken;
+      modalMap = new mapboxgl.Map({ container: 'modalMap', style: 'mapbox://styles/mapbox/streets-v11', center: [123.0595, 0.5441], zoom: 12 });
+      modalMap.addControl(new mapboxgl.NavigationControl());
+      addDebugLog("Mapbox modal diinisialisasi");
+    }
+    function showRouteOnMapbox(order) {
+      if (!modalMap) return;
+      new mapboxgl.Marker({ color: '#FF9800' }).setLngLat([order.pickup_lng, order.pickup_lat]).addTo(modalMap);
+      new mapboxgl.Marker({ color: '#F44336' }).setLngLat([order.dest_lng, order.dest_lat]).addTo(modalMap);
+      modalMap.fitBounds([[order.pickup_lng, order.pickup_lat], [order.dest_lng, order.dest_lat]], { padding: 50 });
+    }
+    function closeModal() {
+      const modal = document.getElementById('orderModal');
+      if (modal) modal.style.display = 'none';
+      if (countdownInterval) clearInterval(countdownInterval);
+      if (orderStatusChannel) orderStatusChannel.unsubscribe();
+      currentSelectedOrder = null;
+    }
+
+    // Send driver offer
+    async function sendDriverOffer() {
+      if (!currentSelectedOrder || !currentDriverId) { 
+        showPopup('Error', 'Data tidak lengkap', 'error'); 
+        return; 
+      }
+      const orderId = currentSelectedOrder.id;
+      addDebugLog(`Mengirim penawaran untuk order ${orderId}`);
+      const requiredBalance = (currentSelectedOrder.price || 0) * 0.1;
+      if ((currentDriverData.balance||0) < requiredBalance) {
+        showPopup('Saldo Tidak Cukup', `Saldo Anda Rp ${(currentDriverData.balance||0).toLocaleString('id-ID')} tidak cukup untuk deposit 10% (Rp ${requiredBalance.toLocaleString('id-ID')})`, 'warning');
+        return;
+      }
+      const ambilBtn = document.getElementById('ambilBtn');
+      if (ambilBtn) {
+        ambilBtn.disabled = true;
+        ambilBtn.innerText = 'Mengirim...';
+      }
+      const offerData = {
+        driver_id: currentDriverId,
+        driver_name: currentDriverData.fullName,
+        driver_photo: currentDriverData.profilePhotoUrl,
+        offered_at: new Date().toISOString(),
+        status: 'offered'
+      };
+      // Simpan ke tabel driver_offers
+      const { error } = await supabaseClient.from('driver_offers').insert({ order_id: orderId, driver_id: currentDriverId, offer_data: offerData, status: 'offered' });
+      if (error) {
+        addDebugLog(`Gagal mengirim penawaran: ${error.message}`, "error");
+        showPopup('Gagal', 'Gagal mengirim penawaran: '+error.message, 'error');
+        if (ambilBtn) {
+          ambilBtn.disabled = false;
+          ambilBtn.innerText = 'Kirim Penawaran';
+        }
+        return;
+      }
+      addDebugLog(`Penawaran berhasil dikirim untuk order ${orderId}`, "success");
+      if (ambilBtn) ambilBtn.innerText = 'Menunggu Konfirmasi';
+      startCountdown(orderId);
+      listenOfferResponse(orderId);
+    }
+
+    function startCountdown(orderId) {
+      let seconds = 30;
+      const container = document.getElementById('countdownContainer');
+      const progress = document.getElementById('countdownProgress');
+      const secondsSpan = document.getElementById('countdownSeconds');
+      if (container) container.style.display = 'block';
+      countdownInterval = setInterval(() => {
+        seconds--;
+        const percent = (seconds/30)*100;
+        if (progress) progress.style.width = percent+'%';
+        if (secondsSpan) secondsSpan.innerText = seconds+' detik';
+        if (seconds <= 0) {
+          clearInterval(countdownInterval);
+          if (container) container.style.display = 'none';
+          showPopup('Waktu Habis', 'Tidak ada respon dari customer.', 'info');
+          closeModal();
+        }
+      }, 1000);
+      addDebugLog(`Countdown dimulai untuk order ${orderId}`);
+    }
+
+    async function listenOfferResponse(orderId) {
+      if (orderStatusChannel) orderStatusChannel.unsubscribe();
+      orderStatusChannel = supabaseClient
+        .channel(`driver_offers_${orderId}`)
+        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'driver_offers', filter: `order_id=eq.${orderId} AND driver_id=eq.${currentDriverId}` }, (payload) => {
+          const newStatus = payload.new.status;
+          addDebugLog(`Status penawaran untuk order ${orderId} berubah menjadi ${newStatus}`, "info");
+          if (newStatus === 'accepted') {
+            clearInterval(countdownInterval);
+            showPopup('Berhasil!', 'Penawaran Anda diterima oleh customer.', 'success', [{ text:'Lanjut', onClick:()=>{ window.location.href = 'orderAccepted.html'; } }]);
+            closeModal();
+          } else if (newStatus === 'rejected') {
+            clearInterval(countdownInterval);
+            showPopup('Ditolak', 'Penawaran Anda ditolak.', 'warning');
+            closeModal();
+          }
+        })
+        .subscribe();
+    }
+
+    // GPS tracking
+    function startGPS() {
+      if (navigator.geolocation) {
+        navigator.geolocation.watchPosition(pos => {
+          driverLocation = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
+          const gpsDot = document.getElementById('gpsDot');
+          if (gpsDot) gpsDot.className = 'gps-dot gps-active';
+          addDebugLog(`Lokasi driver diperbarui: ${driverLocation.latitude}, ${driverLocation.longitude}`, "info");
+          if (locationTrackingEnabled && currentDriverId) {
+            supabaseClient.from('driver_locations').upsert({ driver_id: currentDriverId, latitude: driverLocation.latitude, longitude: driverLocation.longitude, updated_at: new Date().toISOString() });
+          }
+          if (autobidEnabled) autoBid();
+        }, err => { 
+          addDebugLog(`GPS error: ${err.message}`, "error");
+          const gpsDot = document.getElementById('gpsDot');
+          if (gpsDot) gpsDot.className = 'gps-dot gps-inactive'; 
+        }, { enableHighAccuracy: true });
+      } else {
+        addDebugLog("Geolocation tidak didukung browser", "error");
+      }
+    }
+
+    function autoBid() {
+      addDebugLog("Autobid triggered - implementasi auto bid belum lengkap", "warning");
+    }
+
+    // Load settings
+    function loadStoredSettings() {
+      locationTrackingEnabled = localStorage.getItem('jego_location_tracking') === 'true';
+      autobidEnabled = localStorage.getItem('jego_autobid_enabled') === 'true';
+      acceptKurirEnabled = localStorage.getItem('jego_accept_kurir') === 'true';
+      const acceptToggle = document.getElementById('acceptKurirToggle');
+      if (acceptToggle) acceptToggle.checked = acceptKurirEnabled;
+      updateUIButtons();
+      addDebugLog(`Settings dimuat: locationTracking=${locationTrackingEnabled}, autobid=${autobidEnabled}, acceptKurir=${acceptKurirEnabled}`);
+    }
+    function updateUIButtons() {
+      const locBtn = document.getElementById('locationToggleBtn');
+      if (locBtn) {
+        locBtn.innerHTML = locationTrackingEnabled ? '📍 ON' : '📍 OFF';
+        locBtn.classList.toggle('active', locationTrackingEnabled);
+      }
+      const autoBtn = document.getElementById('autobidBtn');
+      if (autoBtn) {
+        autoBtn.innerHTML = autobidEnabled ? 'Autobid: ON' : 'Autobid: OFF';
+        autoBtn.classList.toggle('active', autobidEnabled);
+      }
+    }
+    function toggleLocation() { 
+      locationTrackingEnabled = !locationTrackingEnabled; 
+      localStorage.setItem('jego_location_tracking', locationTrackingEnabled); 
+      updateUIButtons();
+      addDebugLog(`Location tracking diubah menjadi ${locationTrackingEnabled ? "ON" : "OFF"}`);
+    }
+    function toggleAutobid() { 
+      autobidEnabled = !autobidEnabled; 
+      localStorage.setItem('jego_autobid_enabled', autobidEnabled); 
+      updateUIButtons();
+      addDebugLog(`Autobid diubah menjadi ${autobidEnabled ? "ON" : "OFF"}`);
+    }
+    function toggleAcceptKurir() { 
+      const acceptToggle = document.getElementById('acceptKurirToggle');
+      if (acceptToggle) acceptKurirEnabled = acceptToggle.checked;
+      localStorage.setItem('jego_accept_kurir', acceptKurirEnabled); 
+      loadOrders();
+      addDebugLog(`Accept kurir diubah menjadi ${acceptKurirEnabled ? "ON" : "OFF"}`);
+    }
+    function refreshData() { 
+      addDebugLog("Refresh manual diminta");
+      loadOrders(); 
+    }
+
+    // SPA navigation
+    function showTab(tab) {
+      addDebugLog(`Navigasi ke tab: ${tab}`);
+      document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+      document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+      if (tab === 'beranda') { 
+        document.getElementById('page-beranda').classList.add('active'); 
+        document.querySelector('[data-tab="beranda"]').classList.add('active'); 
+        loadOrders(); 
+      } else if (tab === 'riwayat') { 
+        document.getElementById('page-riwayat').classList.add('active'); 
+        document.querySelector('[data-tab="riwayat"]').classList.add('active'); 
+        loadHistory(); 
+      } else if (tab === 'aktif') { 
+        window.location.href = 'orderAccepted.html'; 
+      } else if (tab === 'saya') { 
+        document.getElementById('page-akun').classList.add('active'); 
+        document.querySelector('[data-tab="saya"]').classList.add('active'); 
+        loadAkunPage(); 
+      }
+    }
+
+    async function loadHistory() {
+      if (!currentDriverId) return;
+      addDebugLog("Memuat riwayat order...");
+      const { data, error } = await supabaseClient.from('orders').select('*').or(`accepted_driver_id.eq.${currentDriverId},driver_id.eq.${currentDriverId}`).in('status', ['completed','cancelled']);
+      if (error) {
+        addDebugLog(`Error load history: ${error.message}`, "error");
+        return;
+      }
+      addDebugLog(`Ditemukan ${data?.length || 0} riwayat order`);
+      renderHistory(data || []);
+    }
+    function renderHistory(orders) {
+      const container = document.getElementById('historyOrdersList');
+      if (!container) return;
+      if (!orders.length) { container.innerHTML = '<div class="empty-state">Belum ada riwayat</div>'; return; }
       container.innerHTML = '';
       orders.forEach(order => {
         const item = document.createElement('div');
         item.className = 'order-item';
-        item.setAttribute('data-order-id', order.id);
-        const userName = order.user_data?.name || 'Pelanggan';
-        const userPhoto = order.user_foto_profil || order.user_data?.fotoProfilURL || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png';
-        const distanceText = order.distanceToPickup ? `${order.distanceToPickup.toFixed(1)} km` : '? km';
-        const price = order.harga_total || 0;
-        const vehicleInfo = order.vehicle_name || 'Motor';
-        const rating = order.user_data?.avgRating?.toFixed(1) || '5.0';
-        const trips = order.user_data?.perjalanan || 0;
-        item.innerHTML = `
-          <div class="order-header">
-            <div class="customer-name">
-              ${userName}
-              <span class="kurir-badge" style="${order.jenis_layanan === 'kurir' ? '' : 'display:none;'}">Kurir</span>
-            </div>
-            <div class="order-badges">
-              <span class="promo-badge">${vehicleInfo}</span>
-            </div>
-          </div>
-          <div class="route-info-with-photo">
-            <div class="customer-info-left">
-              <img class="customer-photo-left" src="${userPhoto}" alt="${userName}" onclick="showPhotoModal('${userPhoto}', '${userName}')">
-              <div class="customer-name-left">${userName.split(' ')[0]}</div>
-              <div class="customer-rating">
-                <span class="rating-stars">⭐</span>
-                <span>${rating}</span>
-              </div>
-              <div class="trip-count">${trips} trip</div>
-            </div>
-            <div class="route-addresses-right">
-              <div class="route-point">
-                <div class="point-marker point-marker-a">A</div>
-                <div class="point-address point-address-a">${order.alamat_a || 'Lokasi penjemputan'}</div>
-              </div>
-              <div class="route-point">
-                <div class="point-marker point-marker-b">B</div>
-                <div class="point-address">${order.alamat_b || 'Tujuan'}</div>
-              </div>
-              <div class="delivery-desc-card">
-                📦 ${order.vehicle_capacity || '1 Penumpang'} • ${order.jarak || '? km'}
-              </div>
-            </div>
-          </div>
-          <div class="order-details">
-            <div class="detail-item"><span class="detail-value">${order.durasi || '-'}</span><span class="detail-label">Durasi</span></div>
-            <div class="detail-item"><span class="detail-value">${order.jarak || '-'}</span><span class="detail-label">Jarak</span></div>
-            <div class="detail-item"><span class="detail-value price-highlight">Rp ${price.toLocaleString('id-ID')}</span><span class="detail-label">Harga</span></div>
-            <div class="detail-item"><span class="detail-value">${distanceText}</span><span class="detail-label">Dari Anda</span></div>
-          </div>
-        `;
-        item.addEventListener('click', () => showOrderDetail(order));
+        item.innerHTML = `<div class="order-header"><div class="customer-name">${escapeHtml(order.user_data?.name||'Customer')}</div><span class="status-badge ${order.status==='completed'?'status-completed':'status-cancelled'}">${order.status}</span></div><div class="route-point"><div class="point-marker point-marker-a">A</div><div class="point-address">${escapeHtml(order.pickup_address)}</div></div><div class="route-point"><div class="point-marker point-marker-b">B</div><div class="point-address">${escapeHtml(order.destination_address)}</div></div><div class="order-meta"><span>Rp ${(order.price||0).toLocaleString()}</span><span>${escapeHtml(order.transport_type)}</span></div>`;
+        item.addEventListener('click', () => showHistoryDetail(order));
         container.appendChild(item);
       });
     }
-
-    // ========== CHECK DRIVER DATA (diperbaiki) ==========
-    function checkDriverData() {
-      try {
-        const raw = localStorage.getItem('jego_logged_in_driver');
-        if (!raw) { showDriverNotRegistered(); return false; }
-        const driverData = JSON.parse(raw);
-        if (driverData.uid && driverData.name) {
-          currentDriverId = driverData.uid; // ⬅️ Penting!
-          currentDriverData = {
-            driverId: driverData.uid,
-            fullName: driverData.name || driverData.fullName || 'Driver',
-            phoneNumber: driverData.phone || '',
-            email: driverData.email || '',
-            profilePhotoUrl: driverData.fotoProfilURL || driverData.profilePhotoUrl || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png',
-            vehicleType: driverData.vehicleType || '',
-            plateNumber: driverData.plateNumber || '',
-            vehicleBrand: driverData.vehicleBrand || '',
-            status: driverData.status || driverData.driverStatus || 'pending',
-            rating: driverData.avgRating || 5,
-            perjalanan: driverData.perjalanan || 0,
-            balance: driverData.Balance || 0,
-            potongan: driverData.Potongan || 0
-          };
-          document.getElementById('driverPhoto').src = currentDriverData.profilePhotoUrl;
-          document.getElementById('sidebarDriverPhoto').src = currentDriverData.profilePhotoUrl;
-          document.getElementById('sidebarDriverName').textContent = currentDriverData.fullName;
-          document.getElementById('sidebarDriverRating').textContent = currentDriverData.rating.toFixed(1);
-          document.getElementById('sidebarRating').textContent = currentDriverData.rating.toFixed(1);
-          document.getElementById('sidebarTrips').textContent = currentDriverData.perjalanan;
-          document.getElementById('sidebarBalance').textContent = `Rp ${currentDriverData.balance.toLocaleString('id-ID')}`;
-          addDebugLog(`Driver data loaded: ${currentDriverData.fullName}`, 'success');
-          return true;
-        } else {
-          showDriverNotRegistered();
-          return false;
-        }
-      } catch (error) {
-        addDebugLog(`Error checking driver data: ${error.message}`, 'error');
-        showDriverNotRegistered();
-        return false;
-      }
+    function showHistoryDetail(order) {
+      document.getElementById('historyAddressA').innerText = order.pickup_address;
+      document.getElementById('historyAddressB').innerText = order.destination_address;
+      document.getElementById('historyDuration').innerText = `${Math.round(order.duration_seconds/60)} min`;
+      document.getElementById('historyDistance').innerText = `${(order.distance_meters/1000).toFixed(1)} km`;
+      document.getElementById('historyPrice').innerText = `Rp ${(order.price||0).toLocaleString()}`;
+      const modal = document.getElementById('historyModal');
+      if (modal) modal.style.display = 'flex';
+    }
+    function closeHistoryModal() { 
+      const modal = document.getElementById('historyModal');
+      if (modal) modal.style.display = 'none'; 
     }
 
-    function showDriverNotRegistered() {
-      showPopup('Akun Tidak Ditemukan', 'Data driver tidak valid. Silakan login kembali.', 'warning', [{
-        text: 'Login',
-        onClick: () => { localStorage.clear(); window.location.href = 'loginDriver.html'; }
-      }]);
-    }
-
-    // ========== POPUP ==========
-    function showPopup(title, message, type = 'info', buttons = null) {
-      const overlay = document.getElementById('popupOverlay');
-      document.getElementById('popupTitle').textContent = title;
-      document.getElementById('popupMessage').textContent = message;
-      const icon = document.getElementById('popupIcon');
-      if (type === 'success') icon.textContent = '✅';
-      else if (type === 'error') icon.textContent = '❌';
-      else if (type === 'warning') icon.textContent = '⚠️';
-      else icon.textContent = 'ℹ️';
-      const footer = document.getElementById('popupFooter');
-      footer.innerHTML = '';
-      if (buttons && buttons.length) {
-        buttons.forEach(btn => {
-          const btnEl = document.createElement('button');
-          btnEl.className = `popup-button ${btn.class || ''}`;
-          btnEl.textContent = btn.text;
-          btnEl.onclick = () => { hidePopup(); if (btn.onClick) btn.onClick(); };
-          footer.appendChild(btnEl);
-        });
-      } else {
-        const okBtn = document.createElement('button');
-        okBtn.className = 'popup-button';
-        okBtn.textContent = 'OK';
-        okBtn.onclick = hidePopup;
-        footer.appendChild(okBtn);
-      }
-      overlay.classList.add('active');
-    }
-
-    function hidePopup() {
-      document.getElementById('popupOverlay').classList.remove('active');
-    }
-
-    // ========== MODAL ORDER ==========
-    function showOrderDetail(order) {
-      currentSelectedOrder = order;
-      const modal = document.getElementById('orderModal');
-      document.getElementById('modalAddressA').textContent = order.alamat_a || '-';
-      document.getElementById('modalAddressB').textContent = order.alamat_b || '-';
-      document.getElementById('modalDuration').textContent = order.durasi || '-';
-      document.getElementById('modalDistance').textContent = order.jarak || '-';
-      document.getElementById('modalPrice').textContent = `Rp ${(order.harga_total || 0).toLocaleString('id-ID')}`;
-      const customerName = order.user_data?.name || 'Pelanggan';
-      document.getElementById('modalCustomerName').textContent = customerName;
-      const photoUrl = order.user_foto_profil || order.user_data?.fotoProfilURL;
-      const photoImg = document.getElementById('modalCustomerPhoto');
-      if (photoUrl) {
-        photoImg.src = photoUrl;
-        photoImg.style.display = 'block';
-      } else {
-        photoImg.style.display = 'none';
-      }
-      modal.style.display = 'flex';
-      if (!modalMap) initModalMapbox();
-      showRouteOnMapbox(order);
-    }
-
-    async function fetchMapboxToken() {
-      const snapshot = await database.ref('Secret/Key').once('value');
-      const token = snapshot.val();
-      if (token && typeof token === 'string') {
-        mapboxAccessToken = token;
-        addDebugLog('Mapbox token berhasil diambil', 'success');
-        return token;
-      }
-      throw new Error('Token tidak valid');
-    }
-
-    function initModalMapbox() {
-      if (!mapboxAccessToken) return;
-      mapboxgl.accessToken = mapboxAccessToken;
-      const mapElement = document.getElementById('modalMap');
-      modalMap = new mapboxgl.Map({
-        container: mapElement,
-        style: 'mapbox://styles/mapbox/streets-v11',
-        center: [123.0595, 0.5441],
-        zoom: 12
-      });
-      modalMap.addControl(new mapboxgl.NavigationControl(), 'bottom-right');
-    }
-
-    function showRouteOnMapbox(order) {
-      if (!modalMap || !mapboxAccessToken) return;
-      // implementasi rute sederhana: tampilkan marker A dan B
-      if (modalMap.getSource('route')) modalMap.removeLayer('route');
-      if (modalMap.getSource('route')) modalMap.removeSource('route');
-      // marker
-      if (order.from_lat && order.from_lng) {
-        new mapboxgl.Marker({ color: '#FF9800' }).setLngLat([order.from_lng, order.from_lat]).setPopup(new mapboxgl.Popup().setText('Penjemputan')).addTo(modalMap);
-      }
-      if (order.to_lat && order.to_lng) {
-        new mapboxgl.Marker({ color: '#F44336' }).setLngLat([order.to_lng, order.to_lat]).setPopup(new mapboxgl.Popup().setText('Tujuan')).addTo(modalMap);
-      }
-      modalMap.fitBounds([[order.from_lng, order.from_lat], [order.to_lng, order.to_lat]], { padding: 50 });
-    }
-
-    function closeModal() {
-      document.getElementById('orderModal').style.display = 'none';
-      stopCountdown();
-      if (orderStatusListener) {
-        orderStatusListener.off();
-        orderStatusListener = null;
-      }
-      currentSelectedOrder = null;
-    }
-
-    // ========== SEND OFFER & COUNTDOWN ==========
-    function sendDriverOffer() {
-      if (!currentSelectedOrder || !currentDriverId || !currentDriverData) {
-        showPopup('Error', 'Data order atau driver tidak lengkap.', 'error');
-        return;
-      }
-      const orderId = currentSelectedOrder.order_id || currentSelectedOrder.id;
-      const hargaTotal = currentSelectedOrder.harga_total || 0;
-      const requiredBalance = hargaTotal * 0.1;
-      const driverBalance = currentDriverData.balance || 0;
-      if (driverBalance < requiredBalance) {
-        showPopup('Saldo Tidak Cukup', `Saldo Anda Rp ${driverBalance.toLocaleString('id-ID')} tidak mencukupi untuk membayar 10% dari tarif (Rp ${requiredBalance.toLocaleString('id-ID')}).`, 'warning');
-        return;
-      }
-      const ambilBtn = document.getElementById('ambilBtn');
-      ambilBtn.disabled = true;
-      ambilBtn.textContent = 'Mengirim...';
-      const driverDataObj = {
-        id: currentDriverId,
-        name: currentDriverData.fullName,
-        plate_number: currentDriverData.plateNumber,
-        vehicle_type: currentDriverData.vehicleType,
-        rating: currentDriverData.rating,
-        profile_photo_url: currentDriverData.profilePhotoUrl,
-        offered_at: new Date().toISOString(),
-        status: 'offered'
-      };
-      database.ref('orders/' + orderId).once('value').then((snapshot) => {
-        const currentOrder = snapshot.val();
-        if (!currentOrder || currentOrder.status !== 'searching') {
-          showPopup('Info', 'Order sudah tidak tersedia.', 'warning');
-          closeModal();
-          return Promise.reject();
-        }
-        return database.ref('orders/' + orderId + '/driver_offers/' + currentDriverId).set(driverDataObj);
-      }).then(() => {
-        ambilBtn.textContent = 'Menunggu Konfirmasi';
-        startCountdown(orderId, currentDriverId);
-        listenDriverOffers(orderId);
-      }).catch(error => {
-        if (error) {
-          addDebugLog(`Error di sendDriverOffer: ${error.message}`, 'error');
-          showPopup('Error', 'Gagal mengirim penawaran: ' + error.message, 'error');
-        }
-        ambilBtn.disabled = false;
-        ambilBtn.textContent = 'Kirim Penawaran';
-      });
-    }
-
-    function stopCountdown() {
-      if (countdownInterval) clearInterval(countdownInterval);
-      countdownInterval = null;
-      document.getElementById('countdownContainer').style.display = 'none';
-    }
-
-    function startCountdown(orderId, driverId) {
-      countdownOrderId = orderId;
-      countdownDriverId = driverId;
-      let secondsLeft = 30;
-      const container = document.getElementById('countdownContainer');
-      const progressBar = document.getElementById('countdownProgress');
-      const secondsSpan = document.getElementById('countdownSeconds');
-      container.style.display = 'block';
-      progressBar.style.width = '100%';
-      secondsSpan.textContent = `${secondsLeft} detik`;
-      countdownInterval = setInterval(() => {
-        secondsLeft--;
-        const percent = (secondsLeft / 30) * 100;
-        progressBar.style.width = `${percent}%`;
-        secondsSpan.textContent = `${secondsLeft} detik`;
-        if (secondsLeft <= 0) {
-          clearInterval(countdownInterval);
-          countdownInterval = null;
-          container.style.display = 'none';
-          showPopup('Waktu Habis', 'Pelanggan tidak merespon penawaran Anda.', 'info');
-          closeModal();
-        }
-      }, 1000);
-    }
-
-    function listenDriverOffers(orderId) {
-      if (orderStatusListener) orderStatusListener.off();
-      orderStatusListener = database.ref(`orders/${orderId}/driver_offers/${currentDriverId}`).on('value', (snapshot) => {
-        const offer = snapshot.val();
-        if (offer && offer.status === 'accepted') {
-          stopCountdown();
-          showPopup('Order Diterima!', 'Selamat! Pelanggan menerima penawaran Anda.', 'success', [{
-            text: 'Lihat Order',
-            onClick: () => { window.location.href = 'orderAccepted.html'; }
-          }]);
-          closeModal();
-        } else if (offer && offer.status === 'rejected') {
-          stopCountdown();
-          showPopup('Ditolak', 'Pelanggan memilih driver lain.', 'warning');
-          closeModal();
-        }
-      });
-    }
-
-    // ========== GPS & TRACKING ==========
-    function startGPSMonitoring() {
-      if (navigator.geolocation) {
-        locationWatchId = navigator.geolocation.watchPosition(
-          (position) => {
-            driverLocation.latitude = position.coords.latitude;
-            driverLocation.longitude = position.coords.longitude;
-            document.getElementById('gpsDot').className = 'gps-dot gps-active';
-            if (locationTrackingEnabled) updateDriverLocation(position);
-          },
-          (error) => {
-            addDebugLog(`GPS Error: ${error.message}`, 'error');
-            document.getElementById('gpsDot').className = 'gps-dot gps-inactive';
-          },
-          { enableHighAccuracy: true, maximumAge: 10000, timeout: 5000 }
-        );
-      }
-    }
-
-    function updateDriverLocation(position) {
-      if (!currentDriverId) return;
-      database.ref(`drivers_locations/${currentDriverId}`).set({
-        latitude: position.coords.latitude,
-        longitude: position.coords.longitude,
-        updated_at: firebase.database.ServerValue.TIMESTAMP
-      });
-    }
-
-    function toggleLocationTracking() {
-      locationTrackingEnabled = !locationTrackingEnabled;
-      localStorage.setItem(STORAGE_TRACKING, locationTrackingEnabled);
-      updateTrackingButton();
-    }
-
-    function toggleAutobid() {
-      autobidEnabled = !autobidEnabled;
-      localStorage.setItem(STORAGE_AUTOBID, autobidEnabled);
-      updateAutobidButton();
-    }
-
-    function refreshData() {
-      loadOrders();
-      addDebugLog('Data di-refresh', 'info');
-    }
-
-    function toggleSidebar() {
-      document.getElementById('sidebar').style.display = document.getElementById('sidebar').style.display === 'block' ? 'none' : 'block';
-    }
-
-    async function checkDriverActiveOrder() {
-      if (!currentDriverId) return false;
-      const snap = await database.ref(`active_orders/${currentDriverId}`).once('value');
-      const active = snap.val();
-      if (active) {
-        window.location.href = 'orderAccepted.html';
-        return true;
-      }
-      return false;
-    }
-
-    window.showPhotoModal = function(photoUrl, name) {
-      // bisa implementasi modal foto sederhana
-      showPopup(name || 'Foto', '', 'info');
-    };
-
-    // ========== RIWAYAT (singkat) ==========
-    function setupHistoryFilters() {
-      document.querySelectorAll('.filter-option').forEach(opt => {
-        opt.addEventListener('click', function() {
-          document.querySelectorAll('.filter-option').forEach(o => o.classList.remove('active'));
-          this.classList.add('active');
-          currentFilter = this.dataset.filter;
-          if (historyDataLoaded) refreshHistoryDisplay();
-        });
-      });
-    }
-
-    function loadHistoryData() {
-      // implementasi minimal
-      document.getElementById('historyOrdersList').innerHTML = '<div class="empty-state">Riwayat belum tersedia.</div>';
-      historyDataLoaded = true;
-    }
-
-    function refreshHistoryDisplay() {}
-
-    function closeHistoryModal() {
-      document.getElementById('historyModal').style.display = 'none';
-    }
-
-    // ========== AKUN ==========
-    function initAkunPage() {
+    async function loadAkunPage() {
+      addDebugLog("Memuat halaman akun...");
+      if (!currentDriverData) await loadDriverData();
       if (!currentDriverData) return;
-      document.getElementById('profileName').textContent = currentDriverData.fullName;
-      document.getElementById('fullName').textContent = currentDriverData.fullName;
-      document.getElementById('phoneNumber').textContent = currentDriverData.phoneNumber;
-      document.getElementById('email').textContent = currentDriverData.email;
-      document.getElementById('vehicleType').textContent = currentDriverData.vehicleType;
-      document.getElementById('plateNumber').textContent = currentDriverData.plateNumber;
-      document.getElementById('driverId').textContent = currentDriverId;
-      document.getElementById('balanceAmount').textContent = `Rp ${currentDriverData.balance.toLocaleString('id-ID')}`;
-      // rating stars
-      const stars = document.getElementById('ratingStars');
-      stars.innerHTML = '';
-      for (let i=1; i<=5; i++) {
-        stars.innerHTML += i <= Math.round(currentDriverData.rating) ? '⭐' : '☆';
+      document.getElementById('profileName').innerText = currentDriverData.fullName;
+      document.getElementById('fullName').innerText = currentDriverData.fullName;
+      document.getElementById('phoneNumber').innerText = currentDriverData.phone || '-';
+      document.getElementById('email').innerText = currentDriverData.email || '-';
+      document.getElementById('vehicleType').innerText = currentDriverData.vehicleType;
+      document.getElementById('plateNumber').innerText = currentDriverData.plate_number || '-';
+      document.getElementById('driverId').innerText = currentDriverId;
+      document.getElementById('balanceAmount').innerText = `Rp ${(currentDriverData.balance||0).toLocaleString()}`;
+      const starsDiv = document.getElementById('ratingStars');
+      if (starsDiv) {
+        starsDiv.innerHTML = '';
+        for (let i=1; i<=5; i++) starsDiv.innerHTML += i<=Math.round(currentDriverData.rating||0) ? '⭐' : '☆';
       }
-      document.getElementById('ratingValue').textContent = currentDriverData.rating.toFixed(1);
-      document.getElementById('todayEarnings').textContent = 'Rp 0';
+      document.getElementById('ratingValue').innerText = (currentDriverData.rating||0).toFixed(1);
     }
 
-    // ========== SPA NAVIGASI ==========
-    function showTab(tab) {
-      document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-      document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
-      if (tab === 'beranda') {
-        document.getElementById('page-beranda').classList.add('active');
-        document.querySelector('[data-tab="beranda"]').classList.add('active');
-        loadOrders();
-      } else if (tab === 'riwayat') {
-        document.getElementById('page-riwayat').classList.add('active');
-        document.querySelector('[data-tab="riwayat"]').classList.add('active');
-        if (!historyDataLoaded) { loadHistoryData(); historyDataLoaded = true; } else refreshHistoryDisplay();
-      } else if (tab === 'aktif') {
-        window.location.href = 'orderAccepted.html';
-      } else if (tab === 'saya') {
-        document.getElementById('page-akun').classList.add('active');
-        document.querySelector('[data-tab="saya"]').classList.add('active');
-        initAkunPage();
-      }
-    }
-
-    // ========== LOGOUT ==========
     function logoutDriver() {
-      showPopup('Konfirmasi Logout', 'Anda yakin ingin keluar?', 'warning', [
-        { text: 'Batal', class: 'popup-button-cancel', onClick: () => {} },
-        { text: 'Logout', class: 'popup-button-danger', onClick: () => {
-          localStorage.clear();
-          window.location.href = 'loginDriver.html';
-        }}
+      showPopup('Logout', 'Apakah Anda yakin ingin keluar?', 'warning', [
+        { text:'Batal', class:'popup-button-cancel', onClick:()=>{} },
+        { text:'Logout', class:'popup-button-danger', onClick:()=>{ localStorage.clear(); window.location.href='loginDriver.html'; } }
       ]);
     }
 
-    // ========== EVENT LISTENER UTAMA ==========
+    window.showPhotoModal = (url,name) => {
+      showPopup(name, `<img src="${url}" style="max-width:100%; border-radius:8px;">`, 'info');
+    };
+
+    // Event listeners
     document.addEventListener('DOMContentLoaded', async () => {
-      addDebugLog('Halaman JeGo Driver SPA dimuat', 'info');
-      if (!checkDriverData()) return;
-      const hasActive = await checkDriverActiveOrder();
-      if (hasActive) return;
-      await fetchMapboxToken().catch(err => addDebugLog(`Mapbox token error: ${err.message}`, 'warning'));
+      addDebugLog("Aplikasi dimulai (DOMContentLoaded)");
+      const success = await loadDriverData();
+      if (!success) return;
+      await fetchMapboxToken();
       loadStoredSettings();
-      startGPSMonitoring();
+      startGPS();
       loadOrders();
-      setupHistoryFilters();
-      document.getElementById('closeHistoryModal')?.addEventListener('click', closeHistoryModal);
-      document.getElementById('historyModal')?.addEventListener('click', (e) => { if (e.target === document.getElementById('historyModal')) closeHistoryModal(); });
-      document.getElementById('menuBtn')?.addEventListener('click', toggleSidebar);
-      document.getElementById('closeSidebar')?.addEventListener('click', toggleSidebar);
-      document.getElementById('sidebarOverlay')?.addEventListener('click', toggleSidebar);
-      document.getElementById('locationToggleBtn')?.addEventListener('click', toggleLocationTracking);
-      document.getElementById('refreshBtn')?.addEventListener('click', refreshData);
-      document.getElementById('closeModal')?.addEventListener('click', closeModal);
-      document.getElementById('ambilBtn')?.addEventListener('click', sendDriverOffer);
-      document.getElementById('autobidBtn')?.addEventListener('click', toggleAutobid);
-      document.getElementById('orderModal')?.addEventListener('click', e => { if (e.target === document.getElementById('orderModal') && !countdownInterval) closeModal(); });
-      document.getElementById('acceptKurirToggle')?.addEventListener('change', updateAcceptKurirSetting);
-      document.getElementById('logoutBtn')?.addEventListener('click', logoutDriver);
-      document.querySelectorAll('.nav-item').forEach(item => { item.addEventListener('click', () => showTab(item.dataset.tab)); });
-      document.querySelectorAll('.toggle-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-          const targetId = btn.dataset.target;
-          const content = document.getElementById(targetId);
-          if (content) content.classList.toggle('collapsed');
-        });
-      });
-      showTab('beranda');
-    });
-    window.addEventListener('beforeunload', () => {
-      if (locationWatchId) navigator.geolocation.clearWatch(locationWatchId);
-      if (ordersRef && ordersListener) ordersRef.off('value', ordersListener);
+      
+      const menuBtn = document.getElementById('menuBtn');
+      if (menuBtn) menuBtn.onclick = () => document.getElementById('sidebar').style.display = 'flex';
+      const closeSidebar = document.getElementById('closeSidebar');
+      if (closeSidebar) closeSidebar.onclick = () => document.getElementById('sidebar').style.display = 'none';
+      const sidebarOverlay = document.getElementById('sidebarOverlay');
+      if (sidebarOverlay) sidebarOverlay.onclick = () => document.getElementById('sidebar').style.display = 'none';
+      const locationToggle = document.getElementById('locationToggleBtn');
+      if (locationToggle) locationToggle.onclick = toggleLocation;
+      const autobidToggle = document.getElementById('autobidBtn');
+      if (autobidToggle) autobidToggle.onclick = toggleAutobid;
+      const refreshBtn = document.getElementById('refreshBtn');
+      if (refreshBtn) refreshBtn.onclick = refreshData;
+      const closeModalBtn = document.getElementById('closeModal');
+      if (closeModalBtn) closeModalBtn.onclick = closeModal;
+      const ambilBtn = document.getElementById('ambilBtn');
+      if (ambilBtn) ambilBtn.onclick = sendDriverOffer;
+      const acceptKurirToggle = document.getElementById('acceptKurirToggle');
+      if (acceptKurirToggle) acceptKurirToggle.onchange = toggleAcceptKurir;
+      const logoutBtn = document.getElementById('logoutBtn');
+      if (logoutBtn) logoutBtn.onclick = logoutDriver;
+      const closeHistoryModalBtn = document.getElementById('closeHistoryModal');
+      if (closeHistoryModalBtn) closeHistoryModalBtn.onclick = closeHistoryModal;
+      document.querySelectorAll('.nav-item').forEach(item => item.addEventListener('click', () => showTab(item.dataset.tab)));
+      document.querySelectorAll('.toggle-btn').forEach(btn => btn.addEventListener('click', () => {
+        const target = document.getElementById(btn.dataset.target);
+        if (target) target.classList.toggle('collapsed');
+      }));
+      
+      // Debug console toggle
+      const toggleDebug = document.getElementById('toggleDebugBtn');
+      if (toggleDebug) toggleDebug.onclick = () => document.getElementById('debugConsole').classList.toggle('collapsed');
+      const clearDebug = document.getElementById('clearDebugBtn');
+      if (clearDebug) clearDebug.onclick = () => document.getElementById('debugContent').innerHTML = '<p class="info">▶️ Debug console dibersihkan</p>';
     });
   </script>
 </body>
