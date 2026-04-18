@@ -1502,9 +1502,153 @@ let orders = data || [];
       }
     }
 
-    function autoBid() {
-      addDebugLog("Autobid triggered - implementasi auto bid belum lengkap", "warning");
-    }
+    // ========== AUTOBID LENGKAP ==========
+async function autoBid() {
+  if (!autobidEnabled) {
+    return; // Autobid tidak aktif
+  }
+  if (!driverLocation.latitude || !driverLocation.longitude) {
+    addDebugLog("Autobid: lokasi driver belum tersedia", "warning");
+    return;
+  }
+
+  addDebugLog("Autobid: memeriksa order terdekat...", "info");
+
+  // Ambil order terdekat dalam radius 5 km
+  const nearbyOrders = await fetchNearbyOrders(3); // radius 3 km
+  if (!nearbyOrders.length) {
+    addDebugLog("Autobid: tidak ada order dalam radius 5 km", "info");
+    return;
+  }
+
+  // Pilih order terbaik (jarak terpendek, belum ditawari)
+  const bestOrder = selectBestOrder(nearbyOrders);
+  if (!bestOrder) {
+    addDebugLog("Autobid: tidak ada order yang layak ditawar", "info");
+    return;
+  }
+
+  // Cek apakah sudah pernah menawar order ini sebelumnya (dalam sesi ini)
+  if (await alreadyOffered(bestOrder.id)) {
+    addDebugLog(`Autobid: sudah pernah menawar order ${bestOrder.id}, lewati`, "warning");
+    return;
+  }
+
+  // Kirim penawaran otomatis
+  addDebugLog(`Autobid: mengirim penawaran otomatis untuk order ${bestOrder.id}`, "success");
+  await sendDriverOfferForOrder(bestOrder);
+}
+
+// Ambil order dengan status 'waiting' dalam radius tertentu
+async function fetchNearbyOrders(radiusKm = 5) {
+  if (!currentDriverId) return [];
+
+  // Ambil semua order waiting
+  const { data: orders, error } = await supabaseClient
+    .from('orders')
+    .select('*')
+    .eq('status', 'waiting');
+
+  if (error || !orders) {
+    addDebugLog(`Autobid: gagal ambil order - ${error?.message}`, "error");
+    return [];
+  }
+
+  // Filter berdasarkan jarak dari driver
+  const nearby = orders.filter(order => {
+    const dist = calculateDistance(
+      driverLocation.latitude, driverLocation.longitude,
+      order.pickup_lat, order.pickup_lng
+    );
+    return dist !== null && dist <= radiusKm;
+  });
+
+  // Tambahkan properti jarak untuk sorting
+  return nearby.map(order => ({
+    ...order,
+    distanceFromDriver: calculateDistance(
+      driverLocation.latitude, driverLocation.longitude,
+      order.pickup_lat, order.pickup_lng
+    )
+  }));
+}
+
+// Pilih order terbaik: jarak terdekat, cocok tipe kendaraan & preferensi kurir
+function selectBestOrder(orders) {
+  if (!orders.length) return null;
+
+  // Filter berdasarkan tipe kendaraan driver dan preferensi kurir
+  const driverVehicle = currentDriverData.vehicleType;
+  let filtered = orders.filter(order => {
+    const isKurir = order.transport_type && order.transport_type.toLowerCase().includes('kurir');
+    if (isKurir && !acceptKurirEnabled) return false;
+    if (!isKurir && order.transport_type !== driverVehicle) return false;
+    return true;
+  });
+
+  if (!filtered.length) return null;
+
+  // Urutkan berdasarkan jarak terdekat
+  filtered.sort((a, b) => a.distanceFromDriver - b.distanceFromDriver);
+  return filtered[0]; // order terdekat
+}
+
+// Cek apakah driver sudah pernah menawar order ini (cek dari tabel driver_offers)
+async function alreadyOffered(orderId) {
+  if (!currentDriverId) return true;
+  const { data, error } = await supabaseClient
+    .from('driver_offers')
+    .select('id')
+    .eq('order_id', orderId)
+    .eq('driver_id', currentDriverId)
+    .maybeSingle();
+
+  if (error) {
+    addDebugLog(`Autobid: error cek penawaran - ${error.message}`, "error");
+    return false; // amankan: anggap belum ditawar
+  }
+  return !!data; // true jika sudah ada
+}
+
+// Kirim penawaran otomatis (mirip dengan sendDriverOffer tapi tanpa popup & countdown)
+async function sendDriverOfferForOrder(order) {
+  if (!order || !currentDriverId) return;
+
+  // Cek saldo (10% dari harga)
+  const requiredBalance = (order.price || 0) * 0.1;
+  if ((currentDriverData.balance || 0) < requiredBalance) {
+    addDebugLog(`Autobid: saldo tidak cukup untuk order ${order.id}`, "warning");
+    return;
+  }
+
+  const offerData = {
+    driver_id: currentDriverId,
+    driver_name: currentDriverData.fullName,
+    driver_photo: currentDriverData.profilePhotoUrl,
+    offered_at: new Date().toISOString(),
+    status: 'offered'
+  };
+
+  const { error } = await supabaseClient
+    .from('driver_offers')
+    .insert({
+      order_id: order.id,
+      driver_id: currentDriverId,
+      offer_data: offerData,
+      status: 'offered'
+    });
+
+  if (error) {
+    addDebugLog(`Autobid: gagal kirim penawaran - ${error.message}`, "error");
+    return;
+  }
+
+  addDebugLog(`Autobid: penawaran berhasil dikirim untuk order ${order.id}`, "success");
+
+  // Opsional: bisa mulai countdown & listen response seperti di manual
+  // Tapi agar tidak terlalu kompleks, cukup log sukses.
+  // Jika ingin mendengarkan respon, bisa panggil fungsi terpisah.
+}
 
     // Load settings
     function loadStoredSettings() {
