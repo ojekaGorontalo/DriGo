@@ -274,7 +274,6 @@
       <div class="route-stat"><div class="stat-value"><span class="price-highlight" id="routePrice">-</span></div><div class="stat-label">Biaya</div></div>
     </div>
   </div>
-  <!-- Tombol Cari Driver -->
   <button class="confirm-btn" id="confirmBtn" disabled>Cari Driver</button>
 
   <!-- Radar Overlay -->
@@ -318,7 +317,6 @@
       measurementId: "G-H5F9TSK50K"
     };
 
-    // Inisialisasi Firebase
     firebase.initializeApp(firebaseConfig);
     const database = firebase.database();
 
@@ -344,7 +342,8 @@
     };
 
     let currentOrderId = null;
-    let orderListener = null; // Listener untuk order status
+    let orderRef = null;            // Referensi ke database ref untuk listener
+    let orderStatusCallback = null; // Fungsi callback listener
 
     // ========== AMBIL TOKEN MAPBOX DARI FIREBASE ==========
     async function fetchMapboxToken() {
@@ -407,7 +406,8 @@
         const dataArray = snapshot.val();
 
         if (dataArray && Array.isArray(dataArray)) {
-          const tarifData = dataArray.find(item => item && item.nama === transportName);
+          // Normalisasi: cari nama yang cocok (case-insensitive)
+          const tarifData = dataArray.find(item => item && item.nama && item.nama.toLowerCase() === transportName.toLowerCase());
           if (tarifData) {
             transportRate = {
               minimal_distance: tarifData.minimal_distance,
@@ -419,36 +419,41 @@
             return true;
           } else {
             console.warn(`Transportasi "${transportName}" tidak ditemukan di DB, menggunakan fallback.`);
-            if (transportName === 'Motor') {
-              transportRate = { minimal_distance: 4, minimal_price: 10000, price_per_km: 2200 };
-              transportIconUrl = 'https://cdn-icons-png.flaticon.com/128/5811/5811823.png';
-            } else if (transportName === 'Bentor') {
-              transportRate = { minimal_distance: 4, minimal_price: 11000, price_per_km: 3000 };
-              transportIconUrl = 'https://cdn-icons-png.flaticon.com/128/7890/7890227.png';
-            } else if (transportName === 'Mobil') {
-              transportRate = { minimal_distance: 4, minimal_price: 15000, price_per_km: 4000 };
-              transportIconUrl = 'https://cdn-icons-png.flaticon.com/128/12689/12689302.png';
-            } else if (transportName === 'Kurir Motor') {
-              transportRate = { minimal_distance: 4, minimal_price: 10000, price_per_km: 2100 };
-              transportIconUrl = 'https://cdn-icons-png.flaticon.com/128/9561/9561688.png';
-            } else if (transportName === 'Kurir Bentor') {
-              transportRate = { minimal_distance: 4, minimal_price: 10000, price_per_km: 2100 };
-              transportIconUrl = 'https://cdn-icons-png.flaticon.com/128/7890/7890227.png';
-            } else {
-              transportRate = { minimal_distance: 4, minimal_price: 10000, price_per_km: 2200 };
-              transportIconUrl = 'https://cdn-icons-png.flaticon.com/128/5811/5811823.png';
-            }
+            fallbackRate(transportName);
             return false;
           }
         } else {
           console.error('Data tarif dari Firebase tidak dalam format array yang valid.');
-          showPopup('Error', 'Data tarif tidak valid. Gunakan tarif default.', '⚠️');
+          fallbackRate(transportName);
           return false;
         }
       } catch (err) {
         console.error('Gagal mengambil data tarif:', err);
-        showPopup('Error', 'Gagal memuat tarif kendaraan. Gunakan tarif default.', '⚠️');
+        fallbackRate(transportName);
         return false;
+      }
+    }
+
+    function fallbackRate(transportName) {
+      const nameLower = transportName.toLowerCase();
+      if (nameLower === 'motor') {
+        transportRate = { minimal_distance: 4, minimal_price: 10000, price_per_km: 2200 };
+        transportIconUrl = 'https://cdn-icons-png.flaticon.com/128/5811/5811823.png';
+      } else if (nameLower === 'bentor') {
+        transportRate = { minimal_distance: 4, minimal_price: 11000, price_per_km: 3000 };
+        transportIconUrl = 'https://cdn-icons-png.flaticon.com/128/7890/7890227.png';
+      } else if (nameLower === 'mobil') {
+        transportRate = { minimal_distance: 4, minimal_price: 15000, price_per_km: 4000 };
+        transportIconUrl = 'https://cdn-icons-png.flaticon.com/128/12689/12689302.png';
+      } else if (nameLower === 'kurir motor') {
+        transportRate = { minimal_distance: 4, minimal_price: 10000, price_per_km: 2100 };
+        transportIconUrl = 'https://cdn-icons-png.flaticon.com/128/9561/9561688.png';
+      } else if (nameLower === 'kurir bentor') {
+        transportRate = { minimal_distance: 4, minimal_price: 10000, price_per_km: 2100 };
+        transportIconUrl = 'https://cdn-icons-png.flaticon.com/128/7890/7890227.png';
+      } else {
+        transportRate = { minimal_distance: 4, minimal_price: 10000, price_per_km: 2200 };
+        transportIconUrl = 'https://cdn-icons-png.flaticon.com/128/5811/5811823.png';
       }
     }
 
@@ -463,7 +468,7 @@
       try {
         selectedTransport = JSON.parse(lastTransport);
         transportType = selectedTransport.type;
-        isCourier = transportType && (transportType.includes('kurir') || selectedTransport.name?.toLowerCase().includes('kurir'));
+        isCourier = transportType && (transportType.toLowerCase().includes('kurir') || selectedTransport.name?.toLowerCase().includes('kurir'));
         await loadTransportRateFromDB(transportType);
         if (isCourier && selectedTransport.deliveryData) {
           deliveryData = selectedTransport.deliveryData;
@@ -728,7 +733,9 @@
 
         showRadarAndWait();
 
-        orderListener = database.ref(`orders/${orderId}/status`).on('value', (snapshot) => {
+        // Setup listener yang benar untuk Firebase compat v8
+        orderRef = database.ref(`orders/${orderId}/status`);
+        orderStatusCallback = (snapshot) => {
           const newStatus = snapshot.val();
           console.log('Order status berubah:', newStatus);
           if (newStatus === 'accepted') {
@@ -737,11 +744,6 @@
               window.location.href = 'orderAccepted.html';
             });
           } else if (newStatus === 'cancelled' || newStatus === 'cancelled_by_user') {
-            // Hanya bersihkan jika bukan inisiatif dari cancelSearch (flag bisa ditambahkan, tapi aman)
-            // Agar tidak double popup, kita cek apakah tombol batalkan sedang tidak ditekan?
-            // Sederhananya, biarkan cleanupWaiting dipanggil namun popup dari cancelSearch akan override.
-            // Tapi kita hindari double cleanup dengan flag sederhana.
-            // Karena cancelSearch akan mematikan listener terlebih dahulu, maka jika sampai ke sini berarti bukan dari cancelSearch.
             cleanupWaiting();
             localStorage.removeItem('current_order_id');
             showPopup('Order Dibatalkan', 'Order telah dibatalkan.', '❌', () => {
@@ -749,7 +751,8 @@
               document.getElementById('confirmBtn').innerText = 'Cari Driver';
             });
           }
-        });
+        };
+        orderRef.on('value', orderStatusCallback);
       } catch (err) {
         console.error(err);
         showPopup('Gagal', 'Tidak dapat membuat order. ' + err.message, '❌');
@@ -766,16 +769,17 @@
     }
 
     function cleanupWaiting() {
-      if (orderListener) {
-        orderListener.off();
-        orderListener = null;
+      // Lepas listener dengan benar
+      if (orderRef && orderStatusCallback) {
+        orderRef.off('value', orderStatusCallback);
+        orderRef = null;
+        orderStatusCallback = null;
       }
       const radarOverlay = document.getElementById('radarOverlay');
       radarOverlay.style.display = 'none';
       document.getElementById('confirmBtn').style.display = 'block';
     }
 
-    // ========== PERBAIKAN UTAMA: cancelSearch yang andal ==========
     async function cancelSearch() {
       if (!currentOrderId) {
         cleanupWaiting();
@@ -789,17 +793,18 @@
       cancelBtn.disabled = true;
 
       try {
-        // Matikan listener order agar tidak mengganggu proses cancel
-        if (orderListener) {
-          orderListener.off();
-          orderListener = null;
+        // Lepas listener agar tidak memicu popup double
+        if (orderRef && orderStatusCallback) {
+          orderRef.off('value', orderStatusCallback);
+          orderRef = null;
+          orderStatusCallback = null;
         }
 
         // Cek status order saat ini
         const statusSnapshot = await database.ref(`orders/${currentOrderId}/status`).once('value');
         const currentStatus = statusSnapshot.val();
+        
         if (currentStatus === 'cancelled' || currentStatus === 'cancelled_by_user') {
-          // Sudah batal, langsung bersihkan
           cleanupWaiting();
           localStorage.removeItem('current_order_id');
           showPopup('Pencarian Dibatalkan', 'Order sudah dibatalkan sebelumnya.', '✅', () => {
@@ -809,13 +814,12 @@
           return;
         }
 
-        // Lakukan update status
+        // Update status order
         await database.ref(`orders/${currentOrderId}`).update({
           status: 'cancelled_by_user',
           cancelled_at: new Date().toISOString()
         });
 
-        // Sukses
         cleanupWaiting();
         localStorage.removeItem('current_order_id');
         showPopup('Pencarian Dibatalkan', 'Order berhasil dibatalkan.', '✅', () => {
@@ -823,12 +827,12 @@
           document.getElementById('confirmBtn').innerText = 'Cari Driver';
         });
       } catch (err) {
-        console.error('Cancel error:', err);
+        console.error('Cancel error detail:', err);
+        
         // Coba cek ulang status di database, mungkin sebenarnya sudah berubah menjadi cancelled
         try {
           const checkSnapshot = await database.ref(`orders/${currentOrderId}/status`).once('value');
           if (checkSnapshot.val() === 'cancelled_by_user') {
-            // Ternyata berhasil walaupun promise reject
             cleanupWaiting();
             localStorage.removeItem('current_order_id');
             showPopup('Pencarian Dibatalkan', 'Order berhasil dibatalkan.', '✅', () => {
@@ -837,13 +841,13 @@
             });
             return;
           }
-        } catch (e) {}
-        // Gagal total
-        showPopup('Error', 'Terjadi kesalahan saat membatalkan order. Silakan coba lagi.', '❌');
-        // Jangan lupa re-enable tombol dan jangan mengubah tampilan radar
+        } catch (e) {
+          console.error('Gagal mengecek ulang status:', e);
+        }
+        
+        showPopup('Error', 'Terjadi kesalahan saat membatalkan order. Silakan coba lagi.\nDetail: ' + (err.message || err), '❌');
         document.getElementById('confirmBtn').disabled = false;
         document.getElementById('confirmBtn').innerText = 'Cari Driver';
-        // Kembalikan tombol batalkan ke non-disabled
       } finally {
         cancelBtn.disabled = false;
       }
