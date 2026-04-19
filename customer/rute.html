@@ -307,20 +307,19 @@
 
   <script>
     // ========== KONFIGURASI FIREBASE ==========
-    // Gunakan konfigurasi Firebase yang sama dengan file registrasi
     const firebaseConfig = {
-  apiKey: "AIzaSyCD0pgeZio-LdKqYDtWxcdXcZwyL4ngYQI",
-  authDomain: "jego-35a2b.firebaseapp.com",
-  databaseURL: "https://jego-35a2b-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "jego-35a2b",
-  storageBucket: "jego-35a2b.firebasestorage.app",
-  messagingSenderId: "600037007040",
-  appId: "1:600037007040:web:ac3243ad9b472647ffd725",
-  measurementId: "G-H5F9TSK50K"
-};
+      apiKey: "AIzaSyCD0pgeZio-LdKqYDtWxcdXcZwyL4ngYQI",
+      authDomain: "jego-35a2b.firebaseapp.com",
+      databaseURL: "https://jego-35a2b-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "jego-35a2b",
+      storageBucket: "jego-35a2b.firebasestorage.app",
+      messagingSenderId: "600037007040",
+      appId: "1:600037007040:web:ac3243ad9b472647ffd725",
+      measurementId: "G-H5F9TSK50K"
+    };
 
-    // Inisialisasi Firebase
-    firebase.initializeApp(FIREBASE_CONFIG);
+    // Inisialisasi Firebase (perbaikan: gunakan firebaseConfig, bukan FIREBASE_CONFIG)
+    firebase.initializeApp(firebaseConfig);
     const database = firebase.database();
 
     // ========== VARIABEL GLOBAL ==========
@@ -401,44 +400,53 @@
       return Math.round(price / 1000) * 1000;
     }
 
-    // ========== AMBIL DATA TARIF DARI FIREBASE ==========
+    // ========== PERBAIKAN: AMBIL DATA TARIF DARI ARRAY JSON ==========
     async function loadTransportRateFromDB(transportName) {
       try {
-        const snapshot = await database.ref('tarif').orderByChild('nama').equalTo(transportName).once('value');
-        const data = snapshot.val();
-        if (data) {
-          // Ambil data pertama (karena hasil query berupa object)
-          const tarifData = Object.values(data)[0];
-          transportRate = {
-            minimal_distance: tarifData.minimal_distance,
-            minimal_price: tarifData.minimal_price,
-            price_per_km: tarifData.price_per_km
-          };
-          transportIconUrl = tarifData.icon_url || '';
-          console.log(`Tarif untuk ${transportName} dimuat dari Firebase:`, transportRate);
-          return true;
-        } else {
-          console.warn(`Transportasi "${transportName}" tidak ditemukan di DB, menggunakan fallback.`);
-          // fallback values
-          if (transportName === 'Motor') {
-            transportRate = { minimal_distance: 4, minimal_price: 10000, price_per_km: 2200 };
-            transportIconUrl = 'https://cdn-icons-png.flaticon.com/128/5811/5811823.png';
-          } else if (transportName === 'Bentor') {
-            transportRate = { minimal_distance: 4, minimal_price: 11000, price_per_km: 3000 };
-            transportIconUrl = 'https://cdn-icons-png.flaticon.com/128/7890/7890227.png';
-          } else if (transportName === 'Mobil') {
-            transportRate = { minimal_distance: 4, minimal_price: 15000, price_per_km: 4000 };
-            transportIconUrl = 'https://cdn-icons-png.flaticon.com/128/12689/12689302.png';
-          } else if (transportName === 'Kurir Motor') {
-            transportRate = { minimal_distance: 4, minimal_price: 10000, price_per_km: 2100 };
-            transportIconUrl = 'https://cdn-icons-png.flaticon.com/128/9561/9561688.png';
-          } else if (transportName === 'Kurir Bentor') {
-            transportRate = { minimal_distance: 4, minimal_price: 10000, price_per_km: 2100 };
-            transportIconUrl = 'https://cdn-icons-png.flaticon.com/128/7890/7890227.png';
+        // Ambil data dari path 'data-jego/tarif' yang berupa array
+        const snapshot = await database.ref('data-jego/tarif').once('value');
+        const dataArray = snapshot.val();
+
+        // Validasi apakah data adalah array dan tidak kosong
+        if (dataArray && Array.isArray(dataArray)) {
+          // Cari item dalam array yang memiliki properti 'nama' sesuai transportName
+          const tarifData = dataArray.find(item => item && item.nama === transportName);
+          if (tarifData) {
+            transportRate = {
+              minimal_distance: tarifData.minimal_distance,
+              minimal_price: tarifData.minimal_price,
+              price_per_km: tarifData.price_per_km
+            };
+            transportIconUrl = tarifData.icon_url || '';
+            console.log(`Tarif untuk ${transportName} dimuat dari Firebase:`, transportRate);
+            return true;
           } else {
-            transportRate = { minimal_distance: 4, minimal_price: 10000, price_per_km: 2200 };
-            transportIconUrl = 'https://cdn-icons-png.flaticon.com/128/5811/5811823.png';
+            console.warn(`Transportasi "${transportName}" tidak ditemukan di DB, menggunakan fallback.`);
+            // fallback values
+            if (transportName === 'Motor') {
+              transportRate = { minimal_distance: 4, minimal_price: 10000, price_per_km: 2200 };
+              transportIconUrl = 'https://cdn-icons-png.flaticon.com/128/5811/5811823.png';
+            } else if (transportName === 'Bentor') {
+              transportRate = { minimal_distance: 4, minimal_price: 11000, price_per_km: 3000 };
+              transportIconUrl = 'https://cdn-icons-png.flaticon.com/128/7890/7890227.png';
+            } else if (transportName === 'Mobil') {
+              transportRate = { minimal_distance: 4, minimal_price: 15000, price_per_km: 4000 };
+              transportIconUrl = 'https://cdn-icons-png.flaticon.com/128/12689/12689302.png';
+            } else if (transportName === 'Kurir Motor') {
+              transportRate = { minimal_distance: 4, minimal_price: 10000, price_per_km: 2100 };
+              transportIconUrl = 'https://cdn-icons-png.flaticon.com/128/9561/9561688.png';
+            } else if (transportName === 'Kurir Bentor') {
+              transportRate = { minimal_distance: 4, minimal_price: 10000, price_per_km: 2100 };
+              transportIconUrl = 'https://cdn-icons-png.flaticon.com/128/7890/7890227.png';
+            } else {
+              transportRate = { minimal_distance: 4, minimal_price: 10000, price_per_km: 2200 };
+              transportIconUrl = 'https://cdn-icons-png.flaticon.com/128/5811/5811823.png';
+            }
+            return false;
           }
+        } else {
+          console.error('Data tarif dari Firebase tidak dalam format array yang valid.');
+          showPopup('Error', 'Data tarif tidak valid. Gunakan tarif default.', '⚠️');
           return false;
         }
       } catch (err) {
