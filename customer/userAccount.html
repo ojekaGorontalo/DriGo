@@ -9,16 +9,16 @@
     <script src="https://www.gstatic.com/firebasejs/11.0.2/firebase-database-compat.js"></script>
     <style>
         :root {
-            --primary: #FF9800;    /* Orange */
-            --secondary: #FF5722;   /* Red-Orange */
-            --accent: #FFC107;     /* Amber/Yellow */
+            --primary: #FF9800;
+            --secondary: #FF5722;
+            --accent: #FFC107;
             --light: #f8f9fa;
             --dark: #343a40;
-            --success: #4CAF50;    /* Green */
-            --danger: #f44336;     /* Red */
-            --warning: #FFC107;    /* Yellow */
-            --info: #2196F3;       /* Blue */
-            --gray: #9E9E9E;       /* Gray */
+            --success: #4CAF50;
+            --danger: #f44336;
+            --warning: #FFC107;
+            --info: #2196F3;
+            --gray: #9E9E9E;
         }
         
         * {
@@ -483,6 +483,7 @@
                     
                     <div class="detail-item"><div class="detail-label">Nomor Telepon</div><div class="detail-value" id="userPhone">-</div></div>
                     <div class="detail-item"><div class="detail-label">Email</div><div class="detail-value" id="userEmailDetail">-</div></div>
+                    <div class="detail-item"><div class="detail-label">Alamat</div><div class="detail-value" id="userAddress">-</div></div>
                     <div class="detail-item"><div class="detail-label">Tanggal Bergabung</div><div class="detail-value" id="joinDate">-</div></div>
                     <div class="detail-item"><div class="detail-label">Rating</div><div class="detail-value" id="userRating">-</div></div>
                     <div class="detail-item"><div class="detail-label">Jumlah Perjalanan</div><div class="detail-value" id="userPerjalanan">-</div></div>
@@ -551,20 +552,19 @@
 
     <script>
         // ======================= KONFIGURASI FIREBASE =======================
-        // GANTI DENGAN KREDENSIAL DARI FIREBASE CONSOLE ANDA (SESUAIKAN DENGAN FILE REGISTRASI)
         const firebaseConfig = {
-  apiKey: "AIzaSyCD0pgeZio-LdKqYDtWxcdXcZwyL4ngYQI",
-  authDomain: "jego-35a2b.firebaseapp.com",
-  databaseURL: "https://jego-35a2b-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "jego-35a2b",
-  storageBucket: "jego-35a2b.firebasestorage.app",
-  messagingSenderId: "600037007040",
-  appId: "1:600037007040:web:ac3243ad9b472647ffd725",
-  measurementId: "G-H5F9TSK50K"
-};
+            apiKey: "AIzaSyCD0pgeZio-LdKqYDtWxcdXcZwyL4ngYQI",
+            authDomain: "jego-35a2b.firebaseapp.com",
+            databaseURL: "https://jego-35a2b-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "jego-35a2b",
+            storageBucket: "jego-35a2b.firebasestorage.app",
+            messagingSenderId: "600037007040",
+            appId: "1:600037007040:web:ac3243ad9b472647ffd725",
+            measurementId: "G-H5F9TSK50K"
+        };
 
         // Inisialisasi Firebase (Realtime Database only)
-        if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
+        if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
         const database = firebase.database();
 
         // Elemen DOM
@@ -572,6 +572,7 @@
         const userEmail = document.getElementById('userEmail');
         const userEmailDetail = document.getElementById('userEmailDetail');
         const userPhone = document.getElementById('userPhone');
+        const userAddress = document.getElementById('userAddress');
         const userStatus = document.getElementById('userStatus');
         const joinDate = document.getElementById('joinDate');
         const userAvatar = document.getElementById('userAvatar');
@@ -611,14 +612,14 @@
             setTimeout(() => el.style.display = 'none', 5000);
         }
 
-        // Tampilkan data user sesuai struktur registrasi (name, phone, email, photoURL, status, rating, perjalanan, createdAt)
+        // Tampilkan data user lengkap (termasuk address)
         function displayUserData(data) {
             userName.textContent = data.name || '-';
             userEmail.textContent = data.email || '-';
             userEmailDetail.textContent = data.email || '-';
             userPhone.textContent = data.phone || '-';
+            userAddress.textContent = data.address || '-';
             
-            // Rating: tampilkan dengan 1 desimal dan bintang
             const rating = data.rating !== undefined ? parseFloat(data.rating).toFixed(1) : '0.0';
             userRating.textContent = `${rating} ⭐`;
             userPerjalanan.textContent = (data.perjalanan || 0) + ' kali';
@@ -631,7 +632,7 @@
             userStatus.textContent = statusText;
             userStatus.className = `status-badge ${statusClass}`;
 
-            // Avatar: gunakan photoURL (dari registrasi)
+            // Avatar: gunakan photoURL jika ada
             if (data.photoURL && data.photoURL.trim() !== '') {
                 avatarImage.src = data.photoURL;
                 avatarImage.style.display = 'block';
@@ -669,7 +670,7 @@
 
         // Buka edit profil (untuk integrasi dengan Kodular, opsional)
         function openEditProfile() {
-            if (window.AppInventor?.setWebViewString) {
+            if (window.AppInventor && window.AppInventor.setWebViewString) {
                 window.AppInventor.setWebViewString('edit_profile');
             } else {
                 console.log('Kodular API tidak tersedia');
