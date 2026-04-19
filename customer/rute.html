@@ -318,7 +318,7 @@
       measurementId: "G-H5F9TSK50K"
     };
 
-    // Inisialisasi Firebase (perbaikan: gunakan firebaseConfig, bukan FIREBASE_CONFIG)
+    // Inisialisasi Firebase
     firebase.initializeApp(firebaseConfig);
     const database = firebase.database();
 
@@ -400,16 +400,13 @@
       return Math.round(price / 1000) * 1000;
     }
 
-    // ========== PERBAIKAN: AMBIL DATA TARIF DARI ARRAY JSON ==========
+    // ========== AMBIL DATA TARIF DARI ARRAY JSON ==========
     async function loadTransportRateFromDB(transportName) {
       try {
-        // Ambil data dari path 'data-jego/tarif' yang berupa array
         const snapshot = await database.ref('data-jego/tarif').once('value');
         const dataArray = snapshot.val();
 
-        // Validasi apakah data adalah array dan tidak kosong
         if (dataArray && Array.isArray(dataArray)) {
-          // Cari item dalam array yang memiliki properti 'nama' sesuai transportName
           const tarifData = dataArray.find(item => item && item.nama === transportName);
           if (tarifData) {
             transportRate = {
@@ -422,7 +419,6 @@
             return true;
           } else {
             console.warn(`Transportasi "${transportName}" tidak ditemukan di DB, menggunakan fallback.`);
-            // fallback values
             if (transportName === 'Motor') {
               transportRate = { minimal_distance: 4, minimal_price: 10000, price_per_km: 2200 };
               transportIconUrl = 'https://cdn-icons-png.flaticon.com/128/5811/5811823.png';
@@ -531,7 +527,8 @@
           email: data.email,
           status: data.status,
           rating: data.rating,
-          perjalanan: data.perjalanan
+          perjalanan: data.perjalanan,
+          photoURL: data.photoURL || ''
         };
         return true;
       } catch (e) {
@@ -574,7 +571,6 @@
       fromSearchEl.setAttribute('placeholder', 'Lokasi penjemputan...');
       toSearchEl.setAttribute('placeholder', 'Lokasi tujuan...');
 
-      // Filter untuk Indonesia - Provinsi Gorontalo
       const bboxGorontalo = [121.383, 0.317, 123.717, 1.250];
       fromSearchEl.setAttribute('country', 'ID');
       fromSearchEl.setAttribute('bbox', bboxGorontalo.join(','));
@@ -695,31 +691,29 @@
       btn.disabled = true;
       btn.innerText = 'Mencari driver...';
 
-      // Generate ID order unik (push ID dari Firebase)
       const ordersRef = database.ref('orders');
       const newOrderRef = ordersRef.push();
       const orderId = newOrderRef.key;
 
       let orderData = {
-  user_id: currentUser.id,
-  customer_name: currentUser.name,
-  transport_type: transportType,
-  pickup_address: pickupAddress,
-  pickup_lat: pickupCoord[1],
-  pickup_lng: pickupCoord[0],
-  destination_address: destAddress,
-  dest_lat: destCoord[1],
-  dest_lng: destCoord[0],
-  distance_meters: currentRoute.distance,
-  duration_seconds: currentRoute.duration,
-  price: currentRoute.price,
-  status: 'waiting',
-  created_at: new Date().toISOString(),
-  passenger_rating: currentUser.rating,
-  // Tambahkan dua baris ini:
-  perjalanan: currentUser.perjalanan,     // jumlah perjalanan user saat order dibuat
-  photoURL: currentUser.photoURL || ''    // URL foto profil user
-};
+        user_id: currentUser.id,
+        customer_name: currentUser.name,
+        transport_type: transportType,
+        pickup_address: pickupAddress,
+        pickup_lat: pickupCoord[1],
+        pickup_lng: pickupCoord[0],
+        destination_address: destAddress,
+        dest_lat: destCoord[1],
+        dest_lng: destCoord[0],
+        distance_meters: currentRoute.distance,
+        duration_seconds: currentRoute.duration,
+        price: currentRoute.price,
+        status: 'waiting',
+        created_at: new Date().toISOString(),
+        passenger_rating: currentUser.rating,
+        perjalanan: currentUser.perjalanan,
+        photoURL: currentUser.photoURL || ''
+      };
       if (isCourier && deliveryData) {
         orderData.sender_phone = deliveryData.senderPhone;
         orderData.receiver_phone = deliveryData.receiverPhone;
@@ -734,7 +728,6 @@
 
         showRadarAndWait();
 
-        // Pasang listener perubahan status order
         orderListener = database.ref(`orders/${orderId}/status`).on('value', (snapshot) => {
           const newStatus = snapshot.val();
           console.log('Order status berubah:', newStatus);
@@ -744,7 +737,13 @@
               window.location.href = 'orderAccepted.html';
             });
           } else if (newStatus === 'cancelled' || newStatus === 'cancelled_by_user') {
+            // Hanya bersihkan jika bukan inisiatif dari cancelSearch (flag bisa ditambahkan, tapi aman)
+            // Agar tidak double popup, kita cek apakah tombol batalkan sedang tidak ditekan?
+            // Sederhananya, biarkan cleanupWaiting dipanggil namun popup dari cancelSearch akan override.
+            // Tapi kita hindari double cleanup dengan flag sederhana.
+            // Karena cancelSearch akan mematikan listener terlebih dahulu, maka jika sampai ke sini berarti bukan dari cancelSearch.
             cleanupWaiting();
+            localStorage.removeItem('current_order_id');
             showPopup('Order Dibatalkan', 'Order telah dibatalkan.', '❌', () => {
               document.getElementById('confirmBtn').disabled = false;
               document.getElementById('confirmBtn').innerText = 'Cari Driver';
@@ -768,7 +767,7 @@
 
     function cleanupWaiting() {
       if (orderListener) {
-        orderListener.off(); // Hentikan listener
+        orderListener.off();
         orderListener = null;
       }
       const radarOverlay = document.getElementById('radarOverlay');
@@ -776,9 +775,9 @@
       document.getElementById('confirmBtn').style.display = 'block';
     }
 
+    // ========== PERBAIKAN UTAMA: cancelSearch yang andal ==========
     async function cancelSearch() {
       if (!currentOrderId) {
-        console.warn("cancelSearch: Tidak ada order ID aktif.");
         cleanupWaiting();
         localStorage.removeItem('current_order_id');
         document.getElementById('confirmBtn').disabled = false;
@@ -786,45 +785,83 @@
         return;
       }
 
-      console.log("cancelSearch: Membatalkan order ID:", currentOrderId);
+      const cancelBtn = document.getElementById('cancelSearchBtn');
+      cancelBtn.disabled = true;
 
       try {
-        await database.ref(`orders/${currentOrderId}`).update({ 
-          status: 'cancelled_by_user', 
-          cancelled_at: new Date().toISOString() 
+        // Matikan listener order agar tidak mengganggu proses cancel
+        if (orderListener) {
+          orderListener.off();
+          orderListener = null;
+        }
+
+        // Cek status order saat ini
+        const statusSnapshot = await database.ref(`orders/${currentOrderId}/status`).once('value');
+        const currentStatus = statusSnapshot.val();
+        if (currentStatus === 'cancelled' || currentStatus === 'cancelled_by_user') {
+          // Sudah batal, langsung bersihkan
+          cleanupWaiting();
+          localStorage.removeItem('current_order_id');
+          showPopup('Pencarian Dibatalkan', 'Order sudah dibatalkan sebelumnya.', '✅', () => {
+            document.getElementById('confirmBtn').disabled = false;
+            document.getElementById('confirmBtn').innerText = 'Cari Driver';
+          });
+          return;
+        }
+
+        // Lakukan update status
+        await database.ref(`orders/${currentOrderId}`).update({
+          status: 'cancelled_by_user',
+          cancelled_at: new Date().toISOString()
         });
 
+        // Sukses
         cleanupWaiting();
         localStorage.removeItem('current_order_id');
-
         showPopup('Pencarian Dibatalkan', 'Order berhasil dibatalkan.', '✅', () => {
           document.getElementById('confirmBtn').disabled = false;
           document.getElementById('confirmBtn').innerText = 'Cari Driver';
         });
       } catch (err) {
-        console.error("Exception di cancelSearch:", err);
+        console.error('Cancel error:', err);
+        // Coba cek ulang status di database, mungkin sebenarnya sudah berubah menjadi cancelled
+        try {
+          const checkSnapshot = await database.ref(`orders/${currentOrderId}/status`).once('value');
+          if (checkSnapshot.val() === 'cancelled_by_user') {
+            // Ternyata berhasil walaupun promise reject
+            cleanupWaiting();
+            localStorage.removeItem('current_order_id');
+            showPopup('Pencarian Dibatalkan', 'Order berhasil dibatalkan.', '✅', () => {
+              document.getElementById('confirmBtn').disabled = false;
+              document.getElementById('confirmBtn').innerText = 'Cari Driver';
+            });
+            return;
+          }
+        } catch (e) {}
+        // Gagal total
         showPopup('Error', 'Terjadi kesalahan saat membatalkan order. Silakan coba lagi.', '❌');
+        // Jangan lupa re-enable tombol dan jangan mengubah tampilan radar
+        document.getElementById('confirmBtn').disabled = false;
+        document.getElementById('confirmBtn').innerText = 'Cari Driver';
+        // Kembalikan tombol batalkan ke non-disabled
+      } finally {
+        cancelBtn.disabled = false;
       }
     }
 
     // ========== INISIALISASI HALAMAN ==========
     window.onload = async () => {
-      // 1. Ambil token Mapbox dari Firebase
       const tokenOk = await fetchMapboxToken();
       if (!tokenOk) return;
       
-      // 2. Cek sesi user
       const isLoggedIn = await checkUserSession();
       if (!isLoggedIn) return;
       
-      // 3. Muat data transportasi yang dipilih
       const transportLoaded = await loadSelectedTransport();
       if (!transportLoaded) return;
       
-      // 4. Inisialisasi peta dengan token yang sudah didapat
       await initMap();
 
-      // 5. Event listeners
       document.getElementById('confirmBtn').addEventListener('click', confirmRoute);
       document.getElementById('cancelSearchBtn').addEventListener('click', cancelSearch);
 
