@@ -165,7 +165,7 @@
       z-index: 9999;
       box-shadow: 0 0 12px rgba(0,0,0,0.5);
       pointer-events: auto;
-      display: block !important; /* Tampilkan debug console */
+      display: block !important;
     }
     .debug-header {
       padding: 6px 10px;
@@ -1117,7 +1117,6 @@
       return R * c;
     }
 
-    // Validasi UUID sederhana
     function isValidUUID(str) {
       const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
       return uuidRegex.test(str);
@@ -1125,47 +1124,78 @@
 
     // Load driver data from localStorage & Supabase
     async function loadDriverData() {
-  addDebugLog("Memuat data driver...");
-  const raw = localStorage.getItem('jego_logged_in_driver');
-  if (!raw) {
-    addDebugLog("Tidak ada data driver di localStorage", "error");
-    window.location.href = 'loginDriver.html';
-    return false;
-  }
-  const driver = JSON.parse(raw);
-  let searchField = 'id';
-  let searchValue = driver.uid;
+      addDebugLog("Memuat data driver...");
+      const raw = localStorage.getItem('jego_logged_in_driver');
+      if (!raw) {
+        addDebugLog("Tidak ada data driver di localStorage", "error");
+        window.location.href = 'loginDriver.html';
+        return false;
+      }
+      const driver = JSON.parse(raw);
+      let searchField = 'id';
+      let searchValue = driver.uid;
 
-  // Fungsi normalisasi phone untuk pencarian
-  function normalizePhoneForSearch(phone) {
-    let cleaned = phone.replace(/\D/g, '');
-    if (cleaned.startsWith('0')) cleaned = '62' + cleaned.substring(1);
-    if (!cleaned.startsWith('62')) cleaned = '62' + cleaned;
-    return ['+' + cleaned, '0' + cleaned.slice(2)]; // coba +62... dan 0...
-  }
+      function normalizePhoneForSearch(phone) {
+        let cleaned = phone.replace(/\D/g, '');
+        if (cleaned.startsWith('0')) cleaned = '62' + cleaned.substring(1);
+        if (!cleaned.startsWith('62')) cleaned = '62' + cleaned;
+        return ['+' + cleaned, '0' + cleaned.slice(2)];
+      }
 
-  if (!isValidUUID(searchValue)) {
-    searchField = 'phone';
-    let phoneVariants = [];
-    if (driver.phone) {
-      phoneVariants = normalizePhoneForSearch(driver.phone);
-    } else if (driver.uid) {
-      phoneVariants = normalizePhoneForSearch(driver.uid);
-    } else {
-      addDebugLog("Tidak ada phone atau uid yang valid", "error");
-      return false;
-    }
-    
-    addDebugLog(`Mencari driver dengan phone: ${phoneVariants.join(' atau ')}`);
-    let found = false;
-    for (let phoneTry of phoneVariants) {
-      const { data, error } = await supabaseClient
-        .from('drivers')
-        .select('*')
-        .eq('phone', phoneTry)
-        .maybeSingle(); // gunakan maybeSingle agar tidak error jika kosong
-      
-      if (data && !error) {
+      if (!isValidUUID(searchValue)) {
+        searchField = 'phone';
+        let phoneVariants = [];
+        if (driver.phone) {
+          phoneVariants = normalizePhoneForSearch(driver.phone);
+        } else if (driver.uid) {
+          phoneVariants = normalizePhoneForSearch(driver.uid);
+        } else {
+          addDebugLog("Tidak ada phone atau uid yang valid", "error");
+          return false;
+        }
+        
+        addDebugLog(`Mencari driver dengan phone: ${phoneVariants.join(' atau ')}`);
+        let found = false;
+        for (let phoneTry of phoneVariants) {
+          const { data, error } = await supabaseClient
+            .from('drivers')
+            .select('*')
+            .eq('phone', phoneTry)
+            .maybeSingle();
+          
+          if (data && !error) {
+            currentDriverData = {
+              ...data,
+              driverId: data.id,
+              fullName: data.name,
+              profilePhotoUrl: data.foto_profil_url || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png',
+              vehicleType: data.vehicle_type,
+              balance: data.balance || 0,
+              rating: data.avg_rating || 5,
+              perjalanan: data.total_trips || 0,
+              phone: data.phone
+            };
+            currentDriverId = data.id;
+            found = true;
+            break;
+          }
+        }
+        if (!found) {
+          addDebugLog("Driver tidak ditemukan dengan phone manapun", "error");
+          showPopup('Error', 'Data driver tidak ditemukan. Silakan login ulang.', 'error', [
+            { text:'OK', onClick:()=>{ localStorage.clear(); window.location.href='loginDriver.html'; } }
+          ]);
+          return false;
+        }
+      } else {
+        const { data, error } = await supabaseClient.from('drivers').select('*').eq('id', searchValue).maybeSingle();
+        if (error || !data) {
+          addDebugLog(`Error fetch driver: ${error?.message}`, "error");
+          showPopup('Error', 'Data driver tidak ditemukan. Silakan login ulang.', 'error', [
+            { text:'OK', onClick:()=>{ localStorage.clear(); window.location.href='loginDriver.html'; } }
+          ]);
+          return false;
+        }
         currentDriverData = {
           ...data,
           driverId: data.id,
@@ -1178,59 +1208,26 @@
           phone: data.phone
         };
         currentDriverId = data.id;
-        found = true;
-        break;
       }
-    }
-    if (!found) {
-      addDebugLog("Driver tidak ditemukan dengan phone manapun", "error");
-      showPopup('Error', 'Data driver tidak ditemukan. Silakan login ulang.', 'error', [
-        { text:'OK', onClick:()=>{ localStorage.clear(); window.location.href='loginDriver.html'; } }
-      ]);
-      return false;
-    }
-  } else {
-    // Jika uid UUID, cari berdasarkan id
-    const { data, error } = await supabaseClient.from('drivers').select('*').eq('id', searchValue).maybeSingle();
-    if (error || !data) {
-      addDebugLog(`Error fetch driver: ${error?.message}`, "error");
-      showPopup('Error', 'Data driver tidak ditemukan. Silakan login ulang.', 'error', [
-        { text:'OK', onClick:()=>{ localStorage.clear(); window.location.href='loginDriver.html'; } }
-      ]);
-      return false;
-    }
-    currentDriverData = {
-      ...data,
-      driverId: data.id,
-      fullName: data.name,
-      profilePhotoUrl: data.foto_profil_url || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png',
-      vehicleType: data.vehicle_type,
-      balance: data.balance || 0,
-      rating: data.avg_rating || 5,
-      perjalanan: data.total_trips || 0,
-      phone: data.phone
-    };
-    currentDriverId = data.id;
-  }
 
-  addDebugLog("Data driver berhasil dimuat dari Supabase", "success");
-  // Update UI (sama seperti kode asli)
-  const driverPhoto = document.getElementById('driverPhoto');
-  if (driverPhoto) driverPhoto.src = currentDriverData.profilePhotoUrl;
-  const sidebarPhoto = document.getElementById('sidebarDriverPhoto');
-  if (sidebarPhoto) sidebarPhoto.src = currentDriverData.profilePhotoUrl;
-  const sidebarName = document.getElementById('sidebarDriverName');
-  if (sidebarName) sidebarName.innerText = currentDriverData.fullName;
-  const sidebarRating = document.getElementById('sidebarDriverRating');
-  if (sidebarRating) sidebarRating.innerText = currentDriverData.rating.toFixed(1);
-  const sidebarRating2 = document.getElementById('sidebarRating');
-  if (sidebarRating2) sidebarRating2.innerText = currentDriverData.rating.toFixed(1);
-  const sidebarTrips = document.getElementById('sidebarTrips');
-  if (sidebarTrips) sidebarTrips.innerText = currentDriverData.perjalanan;
-  const sidebarBalance = document.getElementById('sidebarBalance');
-  if (sidebarBalance) sidebarBalance.innerText = `Rp ${(currentDriverData.balance||0).toLocaleString('id-ID')}`;
-  return true;
-}
+      addDebugLog("Data driver berhasil dimuat dari Supabase", "success");
+      // Update UI
+      const driverPhoto = document.getElementById('driverPhoto');
+      if (driverPhoto) driverPhoto.src = currentDriverData.profilePhotoUrl;
+      const sidebarPhoto = document.getElementById('sidebarDriverPhoto');
+      if (sidebarPhoto) sidebarPhoto.src = currentDriverData.profilePhotoUrl;
+      const sidebarName = document.getElementById('sidebarDriverName');
+      if (sidebarName) sidebarName.innerText = currentDriverData.fullName;
+      const sidebarRating = document.getElementById('sidebarDriverRating');
+      if (sidebarRating) sidebarRating.innerText = currentDriverData.rating.toFixed(1);
+      const sidebarRating2 = document.getElementById('sidebarRating');
+      if (sidebarRating2) sidebarRating2.innerText = currentDriverData.rating.toFixed(1);
+      const sidebarTrips = document.getElementById('sidebarTrips');
+      if (sidebarTrips) sidebarTrips.innerText = currentDriverData.perjalanan;
+      const sidebarBalance = document.getElementById('sidebarBalance');
+      if (sidebarBalance) sidebarBalance.innerText = `Rp ${(currentDriverData.balance||0).toLocaleString('id-ID')}`;
+      return true;
+    }
 
     // Load orders from Supabase realtime
     async function loadOrders() {
@@ -1262,27 +1259,16 @@
         return;
       }
       addDebugLog("Fetching orders dari Supabase...");
-// Hanya ambil order dengan status 'waiting' (belum ada driver yang menerima)
-let query = supabaseClient.from('orders').select('*').eq('status', 'waiting');
-const { data, error } = await query;
-
-// ========== DEBUG: CEK DATA ORDER ==========
-if (data && data.length > 0) {
-  console.log("📦 Sample order dari Supabase:", data[0]);
-  console.log("🔍 customer_name value:", data[0].customer_name);
-  console.log("🔍 Semua key:", Object.keys(data[0]));
-} else {
-  console.log("⚠️ Tidak ada data order atau data kosong");
-}
-// ===========================================
-
-if (error) { 
-  addDebugLog(`Error fetch orders: ${error.message}`, "error"); 
-  return; 
-}
-addDebugLog(`Ditemukan ${data?.length || 0} order dengan status 'waiting'`);
-let orders = data || [];
-// Filter berdasarkan tipe kendaraan driver dan preferensi kurir
+      // Hanya ambil order dengan status 'waiting'
+      let query = supabaseClient.from('orders').select('*').eq('status', 'waiting');
+      const { data, error } = await query;
+      if (error) { 
+        addDebugLog(`Error fetch orders: ${error.message}`, "error"); 
+        return; 
+      }
+      addDebugLog(`Ditemukan ${data?.length || 0} order dengan status 'waiting'`);
+      let orders = data || [];
+      // Filter berdasarkan tipe kendaraan driver dan preferensi kurir
       const driverVehicle = currentDriverData.vehicleType;
       orders = orders.filter(order => {
         const isKurir = order.transport_type && order.transport_type.toLowerCase().includes('kurir');
@@ -1397,44 +1383,84 @@ let orders = data || [];
       currentSelectedOrder = null;
     }
 
-    // Send driver offer
+    // ========== MENGIRIM PENAWARAN (disimpan di orders.driver_offers) ==========
     async function sendDriverOffer() {
-      if (!currentSelectedOrder || !currentDriverId) { 
-        showPopup('Error', 'Data tidak lengkap', 'error'); 
-        return; 
+      if (!currentSelectedOrder || !currentDriverId) {
+        showPopup('Error', 'Data tidak lengkap', 'error');
+        return;
       }
       const orderId = currentSelectedOrder.id;
       addDebugLog(`Mengirim penawaran untuk order ${orderId}`);
+
       const requiredBalance = (currentSelectedOrder.price || 0) * 0.1;
-      if ((currentDriverData.balance||0) < requiredBalance) {
-        showPopup('Saldo Tidak Cukup', `Saldo Anda Rp ${(currentDriverData.balance||0).toLocaleString('id-ID')} tidak cukup untuk deposit 10% (Rp ${requiredBalance.toLocaleString('id-ID')})`, 'warning');
+      if ((currentDriverData.balance || 0) < requiredBalance) {
+        showPopup('Saldo Tidak Cukup', `Saldo Anda Rp ${(currentDriverData.balance || 0).toLocaleString('id-ID')} tidak cukup untuk deposit 10% (Rp ${requiredBalance.toLocaleString('id-ID')})`, 'warning');
         return;
       }
+
       const ambilBtn = document.getElementById('ambilBtn');
       if (ambilBtn) {
         ambilBtn.disabled = true;
         ambilBtn.innerText = 'Mengirim...';
       }
-      const offerData = {
+
+      // Data penawaran baru
+      const newOffer = {
         driver_id: currentDriverId,
         driver_name: currentDriverData.fullName,
         driver_photo: currentDriverData.profilePhotoUrl,
         offered_at: new Date().toISOString(),
         status: 'offered'
       };
-      // Simpan ke tabel driver_offers
-      const { error } = await supabaseClient.from('driver_offers').insert({ order_id: orderId, driver_id: currentDriverId, offer_data: offerData, status: 'offered' });
-      if (error) {
-        addDebugLog(`Gagal mengirim penawaran: ${error.message}`, "error");
-        showPopup('Gagal', 'Gagal mengirim penawaran: '+error.message, 'error');
+
+      // Ambil data orders saat ini
+      const { data: orderData, error: fetchError } = await supabaseClient
+        .from('orders')
+        .select('driver_offers')
+        .eq('id', orderId)
+        .single();
+
+      if (fetchError) {
+        addDebugLog(`Gagal mengambil data order: ${fetchError.message}`, "error");
         if (ambilBtn) {
           ambilBtn.disabled = false;
           ambilBtn.innerText = 'Kirim Penawaran';
         }
         return;
       }
+
+      let currentOffers = orderData.driver_offers || [];
+      // Cegah penawaran ganda dari driver yang sama
+      if (currentOffers.some(offer => offer.driver_id === currentDriverId)) {
+        showPopup('Info', 'Anda sudah pernah menawar order ini sebelumnya.', 'info');
+        if (ambilBtn) {
+          ambilBtn.disabled = false;
+          ambilBtn.innerText = 'Kirim Penawaran';
+        }
+        return;
+      }
+
+      currentOffers.push(newOffer);
+
+      // Update orders dengan array penawaran baru
+      const { error: updateError } = await supabaseClient
+        .from('orders')
+        .update({ driver_offers: currentOffers })
+        .eq('id', orderId);
+
+      if (updateError) {
+        addDebugLog(`Gagal mengirim penawaran: ${updateError.message}`, "error");
+        showPopup('Gagal', 'Gagal mengirim penawaran: ' + updateError.message, 'error');
+        if (ambilBtn) {
+          ambilBtn.disabled = false;
+          ambilBtn.innerText = 'Kirim Penawaran';
+        }
+        return;
+      }
+
       addDebugLog(`Penawaran berhasil dikirim untuk order ${orderId}`, "success");
       if (ambilBtn) ambilBtn.innerText = 'Menunggu Konfirmasi';
+
       startCountdown(orderId);
       listenOfferResponse(orderId);
     }
@@ -1462,22 +1488,153 @@ let orders = data || [];
 
     async function listenOfferResponse(orderId) {
       if (orderStatusChannel) orderStatusChannel.unsubscribe();
+
       orderStatusChannel = supabaseClient
-        .channel(`driver_offers_${orderId}`)
-        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'driver_offers', filter: `order_id=eq.${orderId} AND driver_id=eq.${currentDriverId}` }, (payload) => {
-          const newStatus = payload.new.status;
-          addDebugLog(`Status penawaran untuk order ${orderId} berubah menjadi ${newStatus}`, "info");
-          if (newStatus === 'accepted') {
-            clearInterval(countdownInterval);
-            showPopup('Berhasil!', 'Penawaran Anda diterima oleh customer.', 'success', [{ text:'Lanjut', onClick:()=>{ window.location.href = 'orderAccepted.html'; } }]);
-            closeModal();
-          } else if (newStatus === 'rejected') {
-            clearInterval(countdownInterval);
-            showPopup('Ditolak', 'Penawaran Anda ditolak.', 'warning');
-            closeModal();
+        .channel(`order-offers-${orderId}`)
+        .on('postgres_changes', {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'orders',
+          filter: `id=eq.${orderId}`
+        }, (payload) => {
+          const newOffers = payload.new.driver_offers || [];
+          const myOffer = newOffers.find(offer => offer.driver_id === currentDriverId);
+          if (myOffer) {
+            const newStatus = myOffer.status;
+            addDebugLog(`Status penawaran untuk order ${orderId} berubah menjadi ${newStatus}`, "info");
+            if (newStatus === 'accepted') {
+              clearInterval(countdownInterval);
+              showPopup('Berhasil!', 'Penawaran Anda diterima oleh customer.', 'success', [{
+                text: 'Lanjut',
+                onClick: () => { window.location.href = 'orderAccepted.html'; }
+              }]);
+              closeModal();
+            } else if (newStatus === 'rejected') {
+              clearInterval(countdownInterval);
+              showPopup('Ditolak', 'Penawaran Anda ditolak.', 'warning');
+              closeModal();
+            }
           }
         })
         .subscribe();
+    }
+
+    // ========== AUTOBID (mengirim penawaran otomatis) ==========
+    async function autoBid() {
+      if (!autobidEnabled) return;
+      if (!driverLocation.latitude || !driverLocation.longitude) {
+        addDebugLog("Autobid: lokasi driver belum tersedia", "warning");
+        return;
+      }
+      addDebugLog("Autobid: memeriksa order terdekat...", "info");
+      const nearbyOrders = await fetchNearbyOrders(5); // radius 5 km
+      if (!nearbyOrders.length) {
+        addDebugLog("Autobid: tidak ada order dalam radius 5 km", "info");
+        return;
+      }
+      const bestOrder = selectBestOrder(nearbyOrders);
+      if (!bestOrder) {
+        addDebugLog("Autobid: tidak ada order yang layak ditawar", "info");
+        return;
+      }
+      if (await alreadyOffered(bestOrder.id)) {
+        addDebugLog(`Autobid: sudah pernah menawar order ${bestOrder.id}, lewati`, "warning");
+        return;
+      }
+      addDebugLog(`Autobid: mengirim penawaran otomatis untuk order ${bestOrder.id}`, "success");
+      await sendDriverOfferForOrder(bestOrder);
+    }
+
+    async function fetchNearbyOrders(radiusKm = 5) {
+      if (!currentDriverId) return [];
+      const { data: orders, error } = await supabaseClient
+        .from('orders')
+        .select('*')
+        .eq('status', 'waiting');
+      if (error || !orders) {
+        addDebugLog(`Autobid: gagal ambil order - ${error?.message}`, "error");
+        return [];
+      }
+      const nearby = orders.filter(order => {
+        const dist = calculateDistance(
+          driverLocation.latitude, driverLocation.longitude,
+          order.pickup_lat, order.pickup_lng
+        );
+        return dist !== null && dist <= radiusKm;
+      });
+      return nearby.map(order => ({
+        ...order,
+        distanceFromDriver: calculateDistance(
+          driverLocation.latitude, driverLocation.longitude,
+          order.pickup_lat, order.pickup_lng
+        )
+      }));
+    }
+
+    function selectBestOrder(orders) {
+      if (!orders.length) return null;
+      const driverVehicle = currentDriverData.vehicleType;
+      let filtered = orders.filter(order => {
+        const isKurir = order.transport_type && order.transport_type.toLowerCase().includes('kurir');
+        if (isKurir && !acceptKurirEnabled) return false;
+        if (!isKurir && order.transport_type !== driverVehicle) return false;
+        return true;
+      });
+      if (!filtered.length) return null;
+      filtered.sort((a, b) => a.distanceFromDriver - b.distanceFromDriver);
+      return filtered[0];
+    }
+
+    async function alreadyOffered(orderId) {
+      if (!currentDriverId) return true;
+      const { data, error } = await supabaseClient
+        .from('orders')
+        .select('driver_offers')
+        .eq('id', orderId)
+        .single();
+      if (error || !data) return false;
+      const offers = data.driver_offers || [];
+      return offers.some(offer => offer.driver_id === currentDriverId);
+    }
+
+    async function sendDriverOfferForOrder(order) {
+      if (!order || !currentDriverId) return;
+      const requiredBalance = (order.price || 0) * 0.1;
+      if ((currentDriverData.balance || 0) < requiredBalance) {
+        addDebugLog(`Autobid: saldo tidak cukup untuk order ${order.id}`, "warning");
+        return;
+      }
+      const newOffer = {
+        driver_id: currentDriverId,
+        driver_name: currentDriverData.fullName,
+        driver_photo: currentDriverData.profilePhotoUrl,
+        offered_at: new Date().toISOString(),
+        status: 'offered'
+      };
+      const { data: orderData, error: fetchError } = await supabaseClient
+        .from('orders')
+        .select('driver_offers')
+        .eq('id', order.id)
+        .single();
+      if (fetchError) {
+        addDebugLog(`Autobid: gagal ambil order - ${fetchError.message}`, "error");
+        return;
+      }
+      let currentOffers = orderData.driver_offers || [];
+      if (currentOffers.some(offer => offer.driver_id === currentDriverId)) {
+        addDebugLog(`Autobid: sudah pernah menawar order ${order.id}`, "warning");
+        return;
+      }
+      currentOffers.push(newOffer);
+      const { error: updateError } = await supabaseClient
+        .from('orders')
+        .update({ driver_offers: currentOffers })
+        .eq('id', order.id);
+      if (updateError) {
+        addDebugLog(`Autobid: gagal kirim penawaran - ${updateError.message}`, "error");
+        return;
+      }
+      addDebugLog(`Autobid: penawaran berhasil dikirim untuk order ${order.id}`, "success");
     }
 
     // GPS tracking
@@ -1501,154 +1658,6 @@ let orders = data || [];
         addDebugLog("Geolocation tidak didukung browser", "error");
       }
     }
-
-    // ========== AUTOBID LENGKAP ==========
-async function autoBid() {
-  if (!autobidEnabled) {
-    return; // Autobid tidak aktif
-  }
-  if (!driverLocation.latitude || !driverLocation.longitude) {
-    addDebugLog("Autobid: lokasi driver belum tersedia", "warning");
-    return;
-  }
-
-  addDebugLog("Autobid: memeriksa order terdekat...", "info");
-
-  // Ambil order terdekat dalam radius 5 km
-  const nearbyOrders = await fetchNearbyOrders(3); // radius 3 km
-  if (!nearbyOrders.length) {
-    addDebugLog("Autobid: tidak ada order dalam radius 5 km", "info");
-    return;
-  }
-
-  // Pilih order terbaik (jarak terpendek, belum ditawari)
-  const bestOrder = selectBestOrder(nearbyOrders);
-  if (!bestOrder) {
-    addDebugLog("Autobid: tidak ada order yang layak ditawar", "info");
-    return;
-  }
-
-  // Cek apakah sudah pernah menawar order ini sebelumnya (dalam sesi ini)
-  if (await alreadyOffered(bestOrder.id)) {
-    addDebugLog(`Autobid: sudah pernah menawar order ${bestOrder.id}, lewati`, "warning");
-    return;
-  }
-
-  // Kirim penawaran otomatis
-  addDebugLog(`Autobid: mengirim penawaran otomatis untuk order ${bestOrder.id}`, "success");
-  await sendDriverOfferForOrder(bestOrder);
-}
-
-// Ambil order dengan status 'waiting' dalam radius tertentu
-async function fetchNearbyOrders(radiusKm = 5) {
-  if (!currentDriverId) return [];
-
-  // Ambil semua order waiting
-  const { data: orders, error } = await supabaseClient
-    .from('orders')
-    .select('*')
-    .eq('status', 'waiting');
-
-  if (error || !orders) {
-    addDebugLog(`Autobid: gagal ambil order - ${error?.message}`, "error");
-    return [];
-  }
-
-  // Filter berdasarkan jarak dari driver
-  const nearby = orders.filter(order => {
-    const dist = calculateDistance(
-      driverLocation.latitude, driverLocation.longitude,
-      order.pickup_lat, order.pickup_lng
-    );
-    return dist !== null && dist <= radiusKm;
-  });
-
-  // Tambahkan properti jarak untuk sorting
-  return nearby.map(order => ({
-    ...order,
-    distanceFromDriver: calculateDistance(
-      driverLocation.latitude, driverLocation.longitude,
-      order.pickup_lat, order.pickup_lng
-    )
-  }));
-}
-
-// Pilih order terbaik: jarak terdekat, cocok tipe kendaraan & preferensi kurir
-function selectBestOrder(orders) {
-  if (!orders.length) return null;
-
-  // Filter berdasarkan tipe kendaraan driver dan preferensi kurir
-  const driverVehicle = currentDriverData.vehicleType;
-  let filtered = orders.filter(order => {
-    const isKurir = order.transport_type && order.transport_type.toLowerCase().includes('kurir');
-    if (isKurir && !acceptKurirEnabled) return false;
-    if (!isKurir && order.transport_type !== driverVehicle) return false;
-    return true;
-  });
-
-  if (!filtered.length) return null;
-
-  // Urutkan berdasarkan jarak terdekat
-  filtered.sort((a, b) => a.distanceFromDriver - b.distanceFromDriver);
-  return filtered[0]; // order terdekat
-}
-
-// Cek apakah driver sudah pernah menawar order ini (cek dari tabel driver_offers)
-async function alreadyOffered(orderId) {
-  if (!currentDriverId) return true;
-  const { data, error } = await supabaseClient
-    .from('driver_offers')
-    .select('id')
-    .eq('order_id', orderId)
-    .eq('driver_id', currentDriverId)
-    .maybeSingle();
-
-  if (error) {
-    addDebugLog(`Autobid: error cek penawaran - ${error.message}`, "error");
-    return false; // amankan: anggap belum ditawar
-  }
-  return !!data; // true jika sudah ada
-}
-
-// Kirim penawaran otomatis (mirip dengan sendDriverOffer tapi tanpa popup & countdown)
-async function sendDriverOfferForOrder(order) {
-  if (!order || !currentDriverId) return;
-
-  // Cek saldo (10% dari harga)
-  const requiredBalance = (order.price || 0) * 0.1;
-  if ((currentDriverData.balance || 0) < requiredBalance) {
-    addDebugLog(`Autobid: saldo tidak cukup untuk order ${order.id}`, "warning");
-    return;
-  }
-
-  const offerData = {
-    driver_id: currentDriverId,
-    driver_name: currentDriverData.fullName,
-    driver_photo: currentDriverData.profilePhotoUrl,
-    offered_at: new Date().toISOString(),
-    status: 'offered'
-  };
-
-  const { error } = await supabaseClient
-    .from('driver_offers')
-    .insert({
-      order_id: order.id,
-      driver_id: currentDriverId,
-      offer_data: offerData,
-      status: 'offered'
-    });
-
-  if (error) {
-    addDebugLog(`Autobid: gagal kirim penawaran - ${error.message}`, "error");
-    return;
-  }
-
-  addDebugLog(`Autobid: penawaran berhasil dikirim untuk order ${order.id}`, "success");
-
-  // Opsional: bisa mulai countdown & listen response seperti di manual
-  // Tapi agar tidak terlalu kompleks, cukup log sukses.
-  // Jika ingin mendengarkan respon, bisa panggil fungsi terpisah.
-}
 
     // Load settings
     function loadStoredSettings() {
@@ -1825,7 +1834,6 @@ async function sendDriverOfferForOrder(order) {
         if (target) target.classList.toggle('collapsed');
       }));
       
-      // Debug console toggle
       const toggleDebug = document.getElementById('toggleDebugBtn');
       if (toggleDebug) toggleDebug.onclick = () => document.getElementById('debugConsole').classList.toggle('collapsed');
       const clearDebug = document.getElementById('clearDebugBtn');
