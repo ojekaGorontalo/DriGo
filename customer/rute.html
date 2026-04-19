@@ -2,11 +2,12 @@
 <html lang="id">
 <head>
   <meta charset="utf-8" />
-  <title>Rute - JeGo (Supabase Realtime)</title>
+  <title>Rute - JeGo (Firebase)</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-  <!-- Supabase SDK -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/11.0.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/11.0.2/firebase-database-compat.js"></script>
 
   <!-- Mapbox CSS & JS -->
   <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet" />
@@ -305,14 +306,24 @@
   </div>
 
   <script>
-    // ========== KONFIGURASI SUPABASE ==========
-    const SUPABASE_URL = 'https://imrhkvtkpwascicthddo.supabase.co';
-    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImltcmhrdnRrcHdhc2NpY3RoZGRvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY0Mjk1NTUsImV4cCI6MjA5MjAwNTU1NX0.eYMx1pwwACazkch7OzSYyljE0ahtC4SDoI0ydapn068';
-    const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    // ========== KONFIGURASI FIREBASE ==========
+    // Gunakan konfigurasi Firebase yang sama dengan file registrasi
+    const firebaseConfig = {
+  apiKey: "AIzaSyCD0pgeZio-LdKqYDtWxcdXcZwyL4ngYQI",
+  authDomain: "jego-35a2b.firebaseapp.com",
+  databaseURL: "https://jego-35a2b-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "jego-35a2b",
+  storageBucket: "jego-35a2b.firebasestorage.app",
+  messagingSenderId: "600037007040",
+  appId: "1:600037007040:web:ac3243ad9b472647ffd725",
+  measurementId: "G-H5F9TSK50K"
+};
 
-    // Token Mapbox akan diambil dari Supabase, fallback hardcode hanya untuk development
-    let MAPBOX_ACCESS_TOKEN = '';
+    // Inisialisasi Firebase
+    firebase.initializeApp(FIREBASE_CONFIG);
+    const database = firebase.database();
 
+    // ========== VARIABEL GLOBAL ==========
     let map;
     let currentUser = null;
     let currentRoute = null;
@@ -325,6 +336,7 @@
     let transportIconUrl = '';
     let deliveryData = null;
     let isCourier = false;
+    let mapboxAccessToken = null;
 
     let transportRate = {
       minimal_distance: 4,
@@ -333,33 +345,28 @@
     };
 
     let currentOrderId = null;
-    let orderSubscription = null;
+    let orderListener = null; // Listener untuk order status
 
-    // ========== AMBIL TOKEN MAPBOX DARI SUPABASE ==========
+    // ========== AMBIL TOKEN MAPBOX DARI FIREBASE ==========
     async function fetchMapboxToken() {
       try {
-        const { data, error } = await supabaseClient
-          .from('app_config')
-          .select('value')
-          .eq('key', 'mapbox_access_token')
-          .single();
-        
-        if (error) throw error;
-        if (data && data.value) {
-          MAPBOX_ACCESS_TOKEN = data.value;
-          console.log('✅ Mapbox token loaded from Supabase');
+        const snapshot = await database.ref('data-jego/mapbox_acces_token').once('value');
+        const token = snapshot.val();
+        if (token && typeof token === 'string' && token.trim() !== '') {
+          mapboxAccessToken = token;
+          console.log('✅ Token Mapbox berhasil dimuat dari Firebase');
           return true;
         } else {
-          throw new Error('Token tidak ditemukan di app_config');
+          throw new Error('Token tidak ditemukan atau tidak valid');
         }
       } catch (err) {
-        console.warn('⚠️ Gagal ambil token Mapbox dari Supabase, gunakan fallback:', err);
-        // Fallback token (hanya untuk development, sebaiknya tidak digunakan di production)
-        MAPBOX_ACCESS_TOKEN = 'pk.12346676566666877';
+        console.error('❌ Gagal mengambil token Mapbox:', err);
+        showPopup('Error', 'Gagal memuat token Mapbox. Pastikan konfigurasi database sudah benar.', '⚠️');
         return false;
       }
     }
 
+    // ========== FUNGSI UTILITY ==========
     function showPopup(title, message, icon = '⚠️', onClose = null) {
       document.getElementById('popupTitle').innerText = title;
       document.getElementById('popupMessage').innerHTML = message;
@@ -394,23 +401,21 @@
       return Math.round(price / 1000) * 1000;
     }
 
+    // ========== AMBIL DATA TARIF DARI FIREBASE ==========
     async function loadTransportRateFromDB(transportName) {
       try {
-        const { data, error } = await supabaseClient
-          .from('tarif')
-          .select('id, minimal_distance, minimal_price, price_per_km, icon_url')
-          .eq('nama', transportName)
-          .limit(1)
-          .maybeSingle();
-        if (error) throw error;
+        const snapshot = await database.ref('tarif').orderByChild('nama').equalTo(transportName).once('value');
+        const data = snapshot.val();
         if (data) {
+          // Ambil data pertama (karena hasil query berupa object)
+          const tarifData = Object.values(data)[0];
           transportRate = {
-            minimal_distance: data.minimal_distance,
-            minimal_price: data.minimal_price,
-            price_per_km: data.price_per_km
+            minimal_distance: tarifData.minimal_distance,
+            minimal_price: tarifData.minimal_price,
+            price_per_km: tarifData.price_per_km
           };
-          transportIconUrl = data.icon_url || '';
-          console.log(`Tarif untuk ${transportName} dimuat dari DB:`, transportRate);
+          transportIconUrl = tarifData.icon_url || '';
+          console.log(`Tarif untuk ${transportName} dimuat dari Firebase:`, transportRate);
           return true;
         } else {
           console.warn(`Transportasi "${transportName}" tidak ditemukan di DB, menggunakan fallback.`);
@@ -488,33 +493,7 @@
       `;
     }
 
-    function updateMarkers() {
-      if (pickupMarker) pickupMarker.remove();
-      if (destMarker) destMarker.remove();
-      if (pickupCoord) {
-        const elPickup = document.createElement('div');
-        elPickup.style.backgroundImage = `url(${transportIconUrl})`;
-        elPickup.style.backgroundSize = 'cover';
-        elPickup.style.width = '35px';
-        elPickup.style.height = '35px';
-        elPickup.style.cursor = 'pointer';
-        elPickup.style.borderRadius = '50%';
-        elPickup.style.border = '2px solid white';
-        pickupMarker = new mapboxgl.Marker({ element: elPickup }).setLngLat(pickupCoord).addTo(map);
-      }
-      if (destCoord) {
-        const elDest = document.createElement('div');
-        elDest.style.backgroundImage = `url(${transportIconUrl})`;
-        elDest.style.backgroundSize = 'cover';
-        elDest.style.width = '35px';
-        elDest.style.height = '35px';
-        elDest.style.cursor = 'pointer';
-        elDest.style.borderRadius = '50%';
-        elDest.style.border = '2px solid white';
-        destMarker = new mapboxgl.Marker({ element: elDest }).setLngLat(destCoord).addTo(map);
-      }
-    }
-
+    // ========== CEK SESSION USER DARI FIREBASE ==========
     async function checkUserSession() {
       const stored = localStorage.getItem('jego_logged_in_user');
       if (!stored) {
@@ -525,12 +504,12 @@
       }
       try {
         const userData = JSON.parse(stored);
-        const { data, error } = await supabaseClient
-          .from('users')
-          .select('id, name, phone, email, address, gender, status, rating, perjalanan')
-          .eq('id', userData.userId)
-          .single();
-        if (error || !data) {
+        const uid = userData.uid;
+        if (!uid) throw new Error('UID tidak ditemukan');
+        
+        const snapshot = await database.ref(`users/${uid}`).once('value');
+        const data = snapshot.val();
+        if (!data) {
           localStorage.removeItem('jego_logged_in_user');
           showPopup('Sesi Tidak Valid', 'Akun tidak ditemukan. Silakan login ulang.', '❌', () => {
             window.location.href = 'loginUser.html';
@@ -538,12 +517,10 @@
           return false;
         }
         currentUser = {
-          id: data.id,
+          id: uid,
           name: data.name,
           phone: data.phone,
           email: data.email,
-          address: data.address,
-          gender: data.gender,
           status: data.status,
           rating: data.rating,
           perjalanan: data.perjalanan
@@ -556,6 +533,7 @@
       }
     }
 
+    // ========== FUNGSI PETA DAN RUTE ==========
     function getFullAddress(feature) {
       const name = feature.properties.name;
       const fullAddress = feature.properties.full_address || feature.properties.address || '';
@@ -569,7 +547,7 @@
     }
 
     async function initMap() {
-      mapboxgl.accessToken = MAPBOX_ACCESS_TOKEN;
+      mapboxgl.accessToken = mapboxAccessToken;
       map = new mapboxgl.Map({
         container: 'map',
         style: 'mapbox://styles/mapbox/streets-v12',
@@ -583,8 +561,8 @@
       const fromSearchEl = document.createElement('mapbox-search-box');
       const toSearchEl = document.createElement('mapbox-search-box');
       
-      fromSearchEl.setAttribute('access-token', MAPBOX_ACCESS_TOKEN);
-      toSearchEl.setAttribute('access-token', MAPBOX_ACCESS_TOKEN);
+      fromSearchEl.setAttribute('access-token', mapboxAccessToken);
+      toSearchEl.setAttribute('access-token', mapboxAccessToken);
       fromSearchEl.setAttribute('placeholder', 'Lokasi penjemputan...');
       toSearchEl.setAttribute('placeholder', 'Lokasi tujuan...');
 
@@ -619,13 +597,40 @@
       });
     }
 
+    function updateMarkers() {
+      if (pickupMarker) pickupMarker.remove();
+      if (destMarker) destMarker.remove();
+      if (pickupCoord) {
+        const elPickup = document.createElement('div');
+        elPickup.style.backgroundImage = `url(${transportIconUrl})`;
+        elPickup.style.backgroundSize = 'cover';
+        elPickup.style.width = '35px';
+        elPickup.style.height = '35px';
+        elPickup.style.cursor = 'pointer';
+        elPickup.style.borderRadius = '50%';
+        elPickup.style.border = '2px solid white';
+        pickupMarker = new mapboxgl.Marker({ element: elPickup }).setLngLat(pickupCoord).addTo(map);
+      }
+      if (destCoord) {
+        const elDest = document.createElement('div');
+        elDest.style.backgroundImage = `url(${transportIconUrl})`;
+        elDest.style.backgroundSize = 'cover';
+        elDest.style.width = '35px';
+        elDest.style.height = '35px';
+        elDest.style.cursor = 'pointer';
+        elDest.style.borderRadius = '50%';
+        elDest.style.border = '2px solid white';
+        destMarker = new mapboxgl.Marker({ element: elDest }).setLngLat(destCoord).addTo(map);
+      }
+    }
+
     async function updateRoute() {
       if (!pickupCoord || !destCoord) return;
       if (routeLayer) {
         map.removeLayer(routeLayer);
         map.removeSource('route');
       }
-      const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${pickupCoord[0]},${pickupCoord[1]};${destCoord[0]},${destCoord[1]}?geometries=geojson&access_token=${MAPBOX_ACCESS_TOKEN}`;
+      const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${pickupCoord[0]},${pickupCoord[1]};${destCoord[0]},${destCoord[1]}?geometries=geojson&access_token=${mapboxAccessToken}`;
       try {
         const resp = await fetch(url);
         const data = await resp.json();
@@ -672,6 +677,7 @@
       }
     }
 
+    // ========== ORDER MANAGEMENT ==========
     async function confirmRoute() {
       if (!currentRoute || !currentUser) {
         showPopup('Perhatian', 'Lengkapi asal dan tujuan terlebih dahulu.', '⚠️');
@@ -680,6 +686,11 @@
       const btn = document.getElementById('confirmBtn');
       btn.disabled = true;
       btn.innerText = 'Mencari driver...';
+
+      // Generate ID order unik (push ID dari Firebase)
+      const ordersRef = database.ref('orders');
+      const newOrderRef = ordersRef.push();
+      const orderId = newOrderRef.key;
 
       let orderData = {
         user_id: currentUser.id,
@@ -706,45 +717,29 @@
       }
 
       try {
-        const { data, error } = await supabaseClient
-          .from('orders')
-          .insert([orderData])
-          .select()
-          .single();
-        if (error) throw error;
-
-        currentOrderId = data.id;
+        await newOrderRef.set(orderData);
+        currentOrderId = orderId;
         localStorage.setItem('current_order_id', currentOrderId);
 
         showRadarAndWait();
 
-        orderSubscription = supabaseClient
-          .channel(`order-${currentOrderId}`)
-          .on('postgres_changes', {
-            event: 'UPDATE',
-            schema: 'public',
-            table: 'orders',
-            filter: `id=eq.${currentOrderId}`
-          }, (payload) => {
-            const newStatus = payload.new.status;
-            console.log('Order status berubah:', newStatus);
-            if (newStatus === 'accepted') {
-              cleanupWaiting();
-              showPopup('Driver Ditemukan', 'Driver sedang menuju lokasi Anda.', '✅', () => {
-                window.location.href = 'orderAccepted.html';
-              });
-            } else if (newStatus === 'cancelled' || newStatus === 'cancelled_by_user') {
-              cleanupWaiting();
-              showPopup('Order Dibatalkan', 'Order telah dibatalkan.', '❌', () => {
-                document.getElementById('confirmBtn').disabled = false;
-                document.getElementById('confirmBtn').innerText = 'Cari Driver';
-              });
-            }
-          })
-          .subscribe();
-
-        // TIMER OTOMATIS DIHAPUS
-
+        // Pasang listener perubahan status order
+        orderListener = database.ref(`orders/${orderId}/status`).on('value', (snapshot) => {
+          const newStatus = snapshot.val();
+          console.log('Order status berubah:', newStatus);
+          if (newStatus === 'accepted') {
+            cleanupWaiting();
+            showPopup('Driver Ditemukan', 'Driver sedang menuju lokasi Anda.', '✅', () => {
+              window.location.href = 'orderAccepted.html';
+            });
+          } else if (newStatus === 'cancelled' || newStatus === 'cancelled_by_user') {
+            cleanupWaiting();
+            showPopup('Order Dibatalkan', 'Order telah dibatalkan.', '❌', () => {
+              document.getElementById('confirmBtn').disabled = false;
+              document.getElementById('confirmBtn').innerText = 'Cari Driver';
+            });
+          }
+        });
       } catch (err) {
         console.error(err);
         showPopup('Gagal', 'Tidak dapat membuat order. ' + err.message, '❌');
@@ -761,9 +756,9 @@
     }
 
     function cleanupWaiting() {
-      if (orderSubscription) {
-        orderSubscription.unsubscribe();
-        orderSubscription = null;
+      if (orderListener) {
+        orderListener.off(); // Hentikan listener
+        orderListener = null;
       }
       const radarOverlay = document.getElementById('radarOverlay');
       radarOverlay.style.display = 'none';
@@ -783,20 +778,10 @@
       console.log("cancelSearch: Membatalkan order ID:", currentOrderId);
 
       try {
-        const { data, error } = await supabaseClient
-          .from('orders')
-          .update({ 
-            status: 'cancelled_by_user', 
-            cancelled_at: new Date().toISOString() 
-          })
-          .eq('id', currentOrderId);
-
-        console.log("Response data:", data);
-        if (error) {
-          console.error("Supabase error:", error);
-          showPopup('Error', 'Gagal membatalkan order: ' + error.message, '❌');
-          return;
-        }
+        await database.ref(`orders/${currentOrderId}`).update({ 
+          status: 'cancelled_by_user', 
+          cancelled_at: new Date().toISOString() 
+        });
 
         cleanupWaiting();
         localStorage.removeItem('current_order_id');
@@ -811,9 +796,11 @@
       }
     }
 
+    // ========== INISIALISASI HALAMAN ==========
     window.onload = async () => {
-      // 1. Ambil token Mapbox dari Supabase
-      await fetchMapboxToken();
+      // 1. Ambil token Mapbox dari Firebase
+      const tokenOk = await fetchMapboxToken();
+      if (!tokenOk) return;
       
       // 2. Cek sesi user
       const isLoggedIn = await checkUserSession();
@@ -839,4 +826,4 @@
     };
   </script>
 </body>
-</html
+</html>
