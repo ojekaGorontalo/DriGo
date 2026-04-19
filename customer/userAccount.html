@@ -387,7 +387,6 @@
         
         .modal-title {
             font-size: 1.3rem;
-            color: var(--danger);
             font-weight: bold;
         }
         
@@ -401,8 +400,6 @@
         
         .modal-body {
             margin-bottom: 25px;
-            font-size: 0.95rem;
-            line-height: 1.6;
         }
         
         .modal-footer {
@@ -426,8 +423,85 @@
         }
         
         .modal-btn-confirm {
-            background: var(--danger);
+            background: var(--primary);
             color: white;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: var(--dark);
+        }
+        
+        .form-group input[type="text"] {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 1rem;
+        }
+        
+        .form-group input:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+        
+        .photo-preview {
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            object-fit: cover;
+            margin-top: 10px;
+            border: 2px solid var(--primary);
+            background: #f0f0f0;
+        }
+        
+        .upload-area {
+            margin-top: 10px;
+            text-align: center;
+        }
+        
+        .upload-btn {
+            background: var(--primary);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            display: inline-block;
+            font-size: 0.9rem;
+            border: none;
+            transition: all 0.3s;
+        }
+        
+        .upload-btn:hover {
+            background: var(--secondary);
+        }
+        
+        .upload-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        
+        .loading-small {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid #fff;
+            border-top: 2px solid var(--primary);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-left: 10px;
+            vertical-align: middle;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
         
         @media (max-width: 768px) {
@@ -505,7 +579,7 @@
     <div id="deleteAccountModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
-                <div class="modal-title">Konfirmasi Penghapusan Akun</div>
+                <div class="modal-title" style="color: var(--danger);">Konfirmasi Penghapusan Akun</div>
                 <button class="close-modal" id="closeModal">&times;</button>
             </div>
             <div class="modal-body">
@@ -521,7 +595,7 @@
             </div>
             <div class="modal-footer">
                 <button class="modal-btn modal-btn-cancel" id="cancelDelete">Batal</button>
-                <button class="modal-btn modal-btn-confirm" id="confirmDelete">Ya, Hapus Akun</button>
+                <button class="modal-btn modal-btn-confirm" id="confirmDelete" style="background: var(--danger);">Ya, Hapus Akun</button>
             </div>
         </div>
     </div>
@@ -540,6 +614,37 @@
             <div class="modal-footer">
                 <button class="modal-btn modal-btn-cancel" id="cancelLogout">Batal</button>
                 <button class="modal-btn" id="confirmLogout" style="background: var(--primary); color: white;">Ya, Logout</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Modal Edit Profil (Nama & Foto) - Tanpa input URL -->
+    <div id="editProfileModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title">Edit Profil</div>
+                <button class="close-modal" id="closeEditModal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Nama Lengkap</label>
+                    <input type="text" id="editName" placeholder="Masukkan nama Anda">
+                </div>
+                <div class="form-group">
+                    <label>Foto Profil</label>
+                    <div style="display: flex; flex-direction: column; align-items: center;">
+                        <img id="photoPreview" class="photo-preview" src="" alt="Preview">
+                        <div class="upload-area">
+                            <input type="file" id="photoFile" accept="image/*" style="display: none;">
+                            <button type="button" class="upload-btn" id="uploadPhotoBtn">📷 Upload Foto Baru</button>
+                            <div id="uploadStatus" style="margin-top: 8px; font-size: 0.8rem; color: #666;"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="modal-btn modal-btn-cancel" id="cancelEdit">Batal</button>
+                <button class="modal-btn modal-btn-confirm" id="saveEdit">Simpan Perubahan</button>
             </div>
         </div>
     </div>
@@ -563,7 +668,6 @@
             measurementId: "G-H5F9TSK50K"
         };
 
-        // Inisialisasi Firebase (Realtime Database only)
         if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
         const database = firebase.database();
 
@@ -592,6 +696,23 @@
         const closeLogoutModal = document.getElementById('closeLogoutModal');
         const cancelLogout = document.getElementById('cancelLogout');
         const confirmLogout = document.getElementById('confirmLogout');
+        
+        // Elemen Modal Edit Profil
+        const editProfileModal = document.getElementById('editProfileModal');
+        const closeEditModal = document.getElementById('closeEditModal');
+        const cancelEdit = document.getElementById('cancelEdit');
+        const saveEdit = document.getElementById('saveEdit');
+        const editName = document.getElementById('editName');
+        const photoFile = document.getElementById('photoFile');
+        const uploadPhotoBtn = document.getElementById('uploadPhotoBtn');
+        const photoPreview = document.getElementById('photoPreview');
+        const uploadStatus = document.getElementById('uploadStatus');
+        
+        // Variabel global
+        let currentUserData = null;
+        let currentUid = null;
+        let newPhotoURL = null;
+        let isUploading = false;
 
         // Helper functions
         function getInitials(name) {
@@ -606,14 +727,14 @@
             } catch { return '-'; }
         }
 
-        function showAlert(el, msg) {
+        function showAlert(el, msg, isSuccess = true) {
             if (msg) el.textContent = msg;
             el.style.display = 'block';
-            setTimeout(() => el.style.display = 'none', 5000);
+            setTimeout(() => el.style.display = 'none', 4000);
         }
 
-        // Tampilkan data user lengkap (termasuk address)
         function displayUserData(data) {
+            currentUserData = data;
             userName.textContent = data.name || '-';
             userEmail.textContent = data.email || '-';
             userEmailDetail.textContent = data.email || '-';
@@ -632,7 +753,6 @@
             userStatus.textContent = statusText;
             userStatus.className = `status-badge ${statusClass}`;
 
-            // Avatar: gunakan photoURL jika ada
             if (data.photoURL && data.photoURL.trim() !== '') {
                 avatarImage.src = data.photoURL;
                 avatarImage.style.display = 'block';
@@ -643,17 +763,14 @@
                 avatarInitials.textContent = getInitials(data.name);
             }
 
-            // Sembunyikan tombol hapus jika status sudah delete_account
             deleteAccountBtn.style.display = (status === 'delete_account') ? 'none' : 'block';
         }
 
-        // Logout (hapus localStorage)
         function logout() {
             localStorage.removeItem('jego_logged_in_user');
             window.location.href = 'loginUser.html';
         }
 
-        // Update status akun menjadi 'delete_account' di Firebase
         async function updateAccountStatus(uid) {
             const userRef = database.ref(`users/${uid}`);
             try {
@@ -668,17 +785,175 @@
             }
         }
 
-        // Buka edit profil (untuk integrasi dengan Kodular, opsional)
-        function openEditProfile() {
-            if (window.AppInventor && window.AppInventor.setWebViewString) {
-                window.AppInventor.setWebViewString('edit_profile');
-            } else {
-                console.log('Kodular API tidak tersedia');
-                alert('Fitur edit profil hanya tersedia di aplikasi');
+        // Fungsi upload ke ImgBB yang sudah diperbaiki
+        async function uploadToImgbb(file) {
+            // Validasi ukuran file (maks 5MB)
+            if (file.size > 5 * 1024 * 1024) {
+                throw new Error('Ukuran file terlalu besar. Maksimal 5MB.');
+            }
+
+            const formData = new FormData();
+            formData.append('image', file);
+            // Gunakan API key public ImgBB (bisa diganti dengan key sendiri)
+            const apiKey = '6d207e02198a847aa98d0a2a901485a5';
+            const url = `https://api.imgbb.com/1/upload?key=${apiKey}`;
+            
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    body: formData,
+                    mode: 'cors'
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const result = await response.json();
+                console.log('ImgBB response:', result);
+                
+                if (result.success) {
+                    return result.data.url;
+                } else {
+                    throw new Error(result.error?.message || 'Upload gagal');
+                }
+            } catch (error) {
+                console.error('Upload error detail:', error);
+                throw new Error('Gagal upload gambar: ' + error.message);
             }
         }
 
-        // Event listeners
+        // Buka modal edit profil
+        function openEditProfile() {
+            if (!currentUserData) return;
+            editName.value = currentUserData.name || '';
+            newPhotoURL = null;
+            uploadStatus.innerHTML = '';
+            const currentPhoto = currentUserData.photoURL || '';
+            photoPreview.src = currentPhoto;
+            editProfileModal.style.display = 'flex';
+        }
+
+        function closeEditProfileModal() {
+            editProfileModal.style.display = 'none';
+            photoFile.value = '';
+            newPhotoURL = null;
+            uploadStatus.innerHTML = '';
+            isUploading = false;
+        }
+
+        // Event upload foto
+        uploadPhotoBtn.addEventListener('click', () => {
+            if (isUploading) return;
+            photoFile.click();
+        });
+        
+        photoFile.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            if (!file.type.startsWith('image/')) {
+                showAlert(errorAlert, 'Hanya file gambar yang diperbolehkan!', false);
+                return;
+            }
+            
+            // Preview lokal dulu
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                photoPreview.src = ev.target.result;
+            };
+            reader.readAsDataURL(file);
+            
+            isUploading = true;
+            uploadPhotoBtn.disabled = true;
+            uploadPhotoBtn.innerHTML = 'Mengupload... <span class="loading-small"></span>';
+            uploadStatus.innerHTML = 'Sedang mengupload foto...';
+            
+            try {
+                const imageUrl = await uploadToImgbb(file);
+                newPhotoURL = imageUrl;
+                photoPreview.src = imageUrl;
+                uploadStatus.innerHTML = '✅ Foto berhasil diupload!';
+                showAlert(successAlert, 'Foto berhasil diupload!', true);
+            } catch (err) {
+                console.error(err);
+                uploadStatus.innerHTML = '❌ Gagal upload foto. Silakan coba lagi.';
+                showAlert(errorAlert, err.message, false);
+                // Kembalikan preview ke foto lama
+                photoPreview.src = currentUserData.photoURL || '';
+                newPhotoURL = null;
+            } finally {
+                isUploading = false;
+                uploadPhotoBtn.disabled = false;
+                uploadPhotoBtn.innerHTML = '📷 Upload Foto Baru';
+                setTimeout(() => {
+                    if (uploadStatus.innerHTML !== '❌ Gagal upload foto. Silakan coba lagi.') {
+                        uploadStatus.innerHTML = '';
+                    }
+                }, 3000);
+            }
+        });
+        
+        // Simpan perubahan
+        saveEdit.addEventListener('click', async () => {
+            const newName = editName.value.trim();
+            if (!newName) {
+                showAlert(errorAlert, 'Nama tidak boleh kosong!', false);
+                return;
+            }
+            
+            const nameChanged = (newName !== currentUserData.name);
+            const photoChanged = (newPhotoURL !== null && newPhotoURL !== currentUserData.photoURL);
+            
+            if (!nameChanged && !photoChanged) {
+                closeEditProfileModal();
+                return;
+            }
+            
+            saveEdit.disabled = true;
+            saveEdit.innerHTML = 'Menyimpan...';
+            
+            try {
+                const updates = {};
+                if (nameChanged) updates.name = newName;
+                if (photoChanged) updates.photoURL = newPhotoURL;
+                
+                await database.ref(`users/${currentUid}`).update(updates);
+                
+                const session = localStorage.getItem('jego_logged_in_user');
+                if (session) {
+                    const user = JSON.parse(session);
+                    const updatedUser = { ...user, ...updates };
+                    localStorage.setItem('jego_logged_in_user', JSON.stringify(updatedUser));
+                    displayUserData(updatedUser);
+                } else {
+                    const snapshot = await database.ref(`users/${currentUid}`).once('value');
+                    displayUserData(snapshot.val());
+                }
+                showAlert(successAlert, 'Profil berhasil diperbarui!', true);
+                closeEditProfileModal();
+            } catch (err) {
+                console.error(err);
+                showAlert(errorAlert, 'Gagal menyimpan perubahan: ' + err.message, false);
+            } finally {
+                saveEdit.disabled = false;
+                saveEdit.innerHTML = 'Simpan Perubahan';
+            }
+        });
+        
+        // Event listeners untuk modal edit
+        userAvatar.addEventListener('click', openEditProfile);
+        userName.addEventListener('click', openEditProfile);
+        closeEditModal.addEventListener('click', closeEditProfileModal);
+        cancelEdit.addEventListener('click', closeEditProfileModal);
+        
+        // Tutup modal jika klik di luar
+        window.addEventListener('click', (e) => {
+            if (e.target === editProfileModal) closeEditProfileModal();
+            if (e.target === deleteAccountModal) deleteAccountModal.style.display = 'none';
+            if (e.target === logoutModal) logoutModal.style.display = 'none';
+        });
+        
+        // Logout & hapus akun
         logoutBtn.addEventListener('click', (e) => { e.preventDefault(); logoutModal.style.display = 'flex'; });
         deleteAccountBtn.addEventListener('click', () => deleteAccountModal.style.display = 'flex');
         closeModal.addEventListener('click', () => deleteAccountModal.style.display = 'none');
@@ -686,10 +961,7 @@
         closeLogoutModal.addEventListener('click', () => logoutModal.style.display = 'none');
         cancelLogout.addEventListener('click', () => logoutModal.style.display = 'none');
         confirmLogout.addEventListener('click', () => { logoutModal.style.display = 'none'; logout(); });
-        userAvatar.addEventListener('click', openEditProfile);
-        userName.addEventListener('click', openEditProfile);
 
-        // Konfirmasi hapus akun
         confirmDelete.addEventListener('click', async () => {
             const session = localStorage.getItem('jego_logged_in_user');
             if (!session) {
@@ -701,24 +973,23 @@
                 const user = JSON.parse(session);
                 const uid = user.uid;
                 if (!uid) throw new Error('UID tidak ditemukan');
-                
                 const success = await updateAccountStatus(uid);
                 if (success) {
                     localStorage.removeItem('jego_logged_in_user');
-                    showAlert(successAlert, 'Akun berhasil dihapus. Mengalihkan...');
+                    showAlert(successAlert, 'Akun berhasil dihapus. Mengalihkan...', true);
                     setTimeout(() => window.location.href = 'loginUser.html', 3000);
                 } else {
-                    showAlert(errorAlert, 'Gagal menghapus akun. Coba lagi.');
+                    showAlert(errorAlert, 'Gagal menghapus akun. Coba lagi.', false);
                 }
             } catch (e) {
                 console.error(e);
-                showAlert(errorAlert, 'Kesalahan data');
+                showAlert(errorAlert, 'Kesalahan data', false);
             } finally {
                 deleteAccountModal.style.display = 'none';
             }
         });
 
-        // Inisialisasi halaman: ambil data dari localStorage dan sinkronkan dari Firebase
+        // Inisialisasi halaman
         document.addEventListener('DOMContentLoaded', async () => {
             const session = localStorage.getItem('jego_logged_in_user');
             if (!session) {
@@ -734,7 +1005,7 @@
                     logout();
                     return;
                 }
-                // Tampilkan data dari session sementara
+                currentUid = user.uid;
                 displayUserData(user);
             } catch (e) {
                 console.error(e);
@@ -742,21 +1013,16 @@
                 return;
             }
 
-            // Ambil data terbaru dari Firebase berdasarkan uid
             const uid = user.uid;
             if (uid) {
                 try {
                     const snapshot = await database.ref(`users/${uid}`).once('value');
                     const firebaseData = snapshot.val();
                     if (firebaseData) {
-                        // Gabungkan data dari Firebase dengan session (prioritas Firebase)
                         const merged = { ...user, ...firebaseData };
-                        // Pastikan photoURL tidak hilang jika di Firebase tidak ada
                         if (!merged.photoURL && user.photoURL) merged.photoURL = user.photoURL;
                         displayUserData(merged);
-                        // Simpan kembali ke localStorage agar sinkron
                         localStorage.setItem('jego_logged_in_user', JSON.stringify(merged));
-                        
                         if (firebaseData.status === 'delete_account') {
                             alert('Akun telah dihapus');
                             logout();
@@ -764,7 +1030,7 @@
                     }
                 } catch (err) {
                     console.error('Gagal membaca data dari Firebase:', err);
-                    showAlert(errorAlert, 'Gagal menyinkronkan data. Menampilkan data lokal.');
+                    showAlert(errorAlert, 'Gagal menyinkronkan data. Menampilkan data lokal.', false);
                 }
             }
         });
