@@ -676,8 +676,8 @@
     let orderListenerRef = null;
     let modalMap = null;
     let historyModalMap = null;
-    let pendingOrdersList = [];      // untuk menyimpan order sementara saat penundaan
-    let pendingTimeout = null;
+    let isAutoBiddingInProgress = false;
+    let lastAutoBidOrderId = null;
 
     // Helper functions
     function addDebugLog(msg, type='info') {
@@ -790,15 +790,9 @@
         email: driverData.email,
         address: driverData.address,
         registered_at: driverData.registered_at,
-        status: driverData.status || 'pending',
-        // ========== BACA FIELD PRIORITAS DARI ADMIN ==========
-        priority_score: driverData.priority_score !== undefined ? driverData.priority_score : 0,
-        priority_level: driverData.priority_level || 'basic',
-        deposit_rate: driverData.deposit_rate !== undefined ? driverData.deposit_rate : 0.1,
-        notification_delay: driverData.notification_delay !== undefined ? driverData.notification_delay : 0,
-        autobid_allowed: driverData.autobid_allowed !== undefined ? driverData.autobid_allowed : true
+        status: driverData.status || 'pending'
       };
-      addDebugLog(`Driver berhasil dimuat: ${currentDriverData.fullName}, priority_level=${currentDriverData.priority_level}, delay=${currentDriverData.notification_delay}s`, "success");
+      addDebugLog(`Driver berhasil dimuat: ${currentDriverData.fullName}`, "success");
       
       // Update UI Header & Sidebar
       document.getElementById('driverPhoto').src = currentDriverData.profilePhotoUrl;
@@ -812,7 +806,7 @@
       return true;
     }
 
-    // ========== LOAD ORDERS DARI FIREBASE (REALTIME) DENGAN NOTIFICATION DELAY ==========
+    // ========== LOAD ORDERS DARI FIREBASE (REALTIME) ==========
     let ordersRef = null;
     function listenOrders() {
       if (ordersRef) {
@@ -823,7 +817,7 @@
         addDebugLog("Firebase: orders updated", "info");
         const ordersData = snapshot.val();
         if (!ordersData) {
-          renderOrdersListWithDelay([]);
+          renderOrdersList([]);
           return;
         }
         let orders = Object.keys(ordersData).map(key => ({
@@ -848,41 +842,15 @@
           }).filter(o => o.distanceToPickup === null || o.distanceToPickup <= 20);
           orders.sort((a,b) => (a.distanceToPickup||999) - (b.distanceToPickup||999));
         }
+        renderOrdersList(orders);
         
-        // Terapkan penundaan notifikasi jika diperlukan
-        renderOrdersListWithDelay(orders);
+        // Panggil autobid setelah order list diperbarui (hanya jika autobid aktif dan lokasi tersedia)
+        if (autobidEnabled && driverLocation.latitude && driverLocation.longitude && !isAutoBiddingInProgress) {
+          autoBid();
+        }
       }, (error) => {
         addDebugLog(`Error listening orders: ${error.message}`, "error");
       });
-    }
-    
-    // Fungsi untuk merender dengan penundaan sesuai priority driver
-    function renderOrdersListWithDelay(orders) {
-      const delaySeconds = currentDriverData.notification_delay || 0;
-      // Simpan order ke variabel global
-      pendingOrdersList = orders;
-      
-      // Batalkan timeout sebelumnya jika ada
-      if (pendingTimeout) {
-        clearTimeout(pendingTimeout);
-        pendingTimeout = null;
-      }
-      
-      if (delaySeconds > 0 && orders.length > 0) {
-        // Tampilkan pesan "menunggu prioritas"
-        const container = document.getElementById('ordersList');
-        if (container) {
-          container.innerHTML = `<div class="empty-state">⏳ Prioritas Anda sedang diproses...<br>Order akan muncul dalam ${delaySeconds} detik.</div>`;
-        }
-        // Set timeout untuk menampilkan order sebenarnya
-        pendingTimeout = setTimeout(() => {
-          renderOrdersList(orders);
-          pendingTimeout = null;
-        }, delaySeconds * 1000);
-      } else {
-        // Tanpa penundaan, langsung tampilkan
-        renderOrdersList(orders);
-      }
     }
 
     function renderOrdersList(orders) {
@@ -997,7 +965,7 @@
       }
     }
 
-    // ========== MENGIRIM PENAWARAN (menggunakan deposit_rate dari admin) ==========
+    // ========== MENGIRIM PENAWARAN (dengan rating, trips, plat, vehicle brand) ==========
     async function sendDriverOffer() {
       if (!currentSelectedOrder || !currentDriverId) {
         showPopup('Error', 'Data tidak lengkap', 'error');
@@ -1006,10 +974,9 @@
       const orderId = currentSelectedOrder.id;
       addDebugLog(`Mengirim penawaran untuk order ${orderId}`);
       
-      const depositRate = currentDriverData.deposit_rate || 0.1;
-      const requiredBalance = (currentSelectedOrder.price || 0) * depositRate;
+      const requiredBalance = (currentSelectedOrder.price || 0) * 0.1;
       if ((currentDriverData.balance || 0) < requiredBalance) {
-        showPopup('Saldo Tidak Cukup', `Saldo Anda Rp ${(currentDriverData.balance || 0).toLocaleString('id-ID')} tidak cukup untuk deposit ${(depositRate*100).toFixed(0)}% (Rp ${requiredBalance.toLocaleString('id-ID')})`, 'warning');
+        showPopup('Saldo Tidak Cukup', `Saldo Anda Rp ${(currentDriverData.balance || 0).toLocaleString('id-ID')} tidak cukup untuk deposit 10% (Rp ${requiredBalance.toLocaleString('id-ID')})`, 'warning');
         return;
       }
       
@@ -1104,44 +1071,7 @@
       });
     }
     
-    // ========== AUTOBID (hanya jika autobid_allowed = true) ==========
-    async function autoBid() {
-      if (!autobidEnabled) return;
-      // Cek apakah driver diizinkan autobid oleh admin
-      if (!currentDriverData.autobid_allowed) {
-        addDebugLog("Autobid tidak diizinkan untuk driver ini (kebijakan admin)", "warning");
-        // Jika autobid diaktifkan tapi tidak diizinkan, matikan toggle
-        if (autobidEnabled) {
-          autobidEnabled = false;
-          localStorage.setItem('jego_autobid_enabled', 'false');
-          updateUIButtons();
-          showPopup('Info', 'Fitur Autobid tidak tersedia untuk level prioritas Anda.', 'info');
-        }
-        return;
-      }
-      if (!driverLocation.latitude || !driverLocation.longitude) {
-        addDebugLog("Autobid: lokasi driver belum tersedia", "warning");
-        return;
-      }
-      addDebugLog("Autobid: memeriksa order terdekat...", "info");
-      const nearbyOrders = await fetchNearbyOrders(5);
-      if (!nearbyOrders.length) {
-        addDebugLog("Autobid: tidak ada order dalam radius 5 km", "info");
-        return;
-      }
-      const bestOrder = selectBestOrder(nearbyOrders);
-      if (!bestOrder) {
-        addDebugLog("Autobid: tidak ada order yang layak ditawar", "info");
-        return;
-      }
-      if (await alreadyOffered(bestOrder.id)) {
-        addDebugLog(`Autobid: sudah pernah menawar order ${bestOrder.id}, lewati`, "warning");
-        return;
-      }
-      addDebugLog(`Autobid: mengirim penawaran otomatis untuk order ${bestOrder.id}`, "success");
-      await sendDriverOfferForOrder(bestOrder);
-    }
-    
+    // ========== AUTOBID (dengan data lengkap) ==========
     async function fetchNearbyOrders(radiusKm = 5) {
       const snapshot = await database.ref('orders').once('value');
       const ordersData = snapshot.val();
@@ -1178,12 +1108,11 @@
     }
     
     async function sendDriverOfferForOrder(order) {
-      if (!order || !currentDriverId) return;
-      const depositRate = currentDriverData.deposit_rate || 0.1;
-      const requiredBalance = (order.price || 0) * depositRate;
+      if (!order || !currentDriverId) return false;
+      const requiredBalance = (order.price || 0) * 0.1;
       if ((currentDriverData.balance || 0) < requiredBalance) {
-        addDebugLog(`Autobid: saldo tidak cukup untuk order ${order.id} (deposit ${depositRate*100}%)`, "warning");
-        return;
+        addDebugLog(`Autobid: saldo tidak cukup untuk order ${order.id}`, "warning");
+        return false;
       }
       const offerData = {
         driver_id: currentDriverId,
@@ -1199,15 +1128,92 @@
       try {
         const orderSnapshot = await database.ref(`orders/${order.id}`).once('value');
         const orderData = orderSnapshot.val();
-        if (!orderData) return;
+        if (!orderData) return false;
         let driverOffers = orderData.driver_offers || {};
-        if (driverOffers[currentDriverId]) return;
+        if (driverOffers[currentDriverId]) return false;
         driverOffers[currentDriverId] = offerData;
         await database.ref(`orders/${order.id}/driver_offers`).set(driverOffers);
         addDebugLog(`Autobid: penawaran berhasil dikirim untuk order ${order.id}`, "success");
+        return true;
       } catch(e) {
         addDebugLog(`Autobid error: ${e.message}`, "error");
+        return false;
       }
+    }
+    
+    async function autoBid() {
+      if (!autobidEnabled) return;
+      if (!driverLocation.latitude || !driverLocation.longitude) {
+        addDebugLog("Autobid: lokasi driver belum tersedia", "warning");
+        return;
+      }
+      // Jangan jalankan jika sedang dalam proses autobid atau modal terbuka
+      if (isAutoBiddingInProgress) {
+        addDebugLog("Autobid: sedang berjalan, lewati", "info");
+        return;
+      }
+      const modal = document.getElementById('orderModal');
+      if (modal && modal.style.display === 'flex') {
+        addDebugLog("Autobid: modal sedang terbuka, lewati", "info");
+        return;
+      }
+      
+      addDebugLog("Autobid: memeriksa order terdekat...", "info");
+      const nearbyOrders = await fetchNearbyOrders(5);
+      if (!nearbyOrders.length) {
+        addDebugLog("Autobid: tidak ada order dalam radius 5 km", "info");
+        return;
+      }
+      const bestOrder = selectBestOrder(nearbyOrders);
+      if (!bestOrder) {
+        addDebugLog("Autobid: tidak ada order yang layak ditawar", "info");
+        return;
+      }
+      if (await alreadyOffered(bestOrder.id)) {
+        addDebugLog(`Autobid: sudah pernah menawar order ${bestOrder.id}, lewati`, "warning");
+        return;
+      }
+      // Cek saldo
+      const requiredBalance = (bestOrder.price || 0) * 0.1;
+      if ((currentDriverData.balance || 0) < requiredBalance) {
+        addDebugLog(`Autobid: saldo tidak cukup untuk order ${bestOrder.id}`, "warning");
+        return;
+      }
+      
+      // Tampilkan modal order
+      addDebugLog(`Autobid: menampilkan modal untuk order ${bestOrder.id}`, "success");
+      await showOrderDetail(bestOrder);
+      
+      // Kirim penawaran otomatis setelah modal tampil (delay 1 detik)
+      isAutoBiddingInProgress = true;
+      lastAutoBidOrderId = bestOrder.id;
+      
+      setTimeout(async () => {
+        // Pastikan order yang ditampilkan masih sama dan belum ditawar
+        if (currentSelectedOrder && currentSelectedOrder.id === lastAutoBidOrderId) {
+          const stillNotOffered = await alreadyOffered(lastAutoBidOrderId);
+          if (stillNotOffered) {
+            addDebugLog(`Autobid: mengirim penawaran otomatis untuk order ${lastAutoBidOrderId}`, "success");
+            await sendDriverOfferForOrder(currentSelectedOrder);
+            // Tampilkan notifikasi di dalam modal (opsional)
+            const ambilBtn = document.getElementById('ambilBtn');
+            if (ambilBtn) {
+              ambilBtn.innerText = '✅ Penawaran otomatis dikirim';
+              ambilBtn.disabled = true;
+              setTimeout(() => {
+                if (ambilBtn) ambilBtn.disabled = false;
+              }, 5000);
+            }
+            // Mulai countdown dan listener untuk order ini (karena penawaran sudah dikirim)
+            startCountdown(currentSelectedOrder.id);
+            listenOfferResponse(currentSelectedOrder.id);
+          } else {
+            addDebugLog(`Autobid: order ${lastAutoBidOrderId} sudah ditawar, lewati`, "info");
+          }
+        }
+        isAutoBiddingInProgress = false;
+        lastAutoBidOrderId = null;
+      }, 1000);
     }
     
     // ========== RIWAYAT ORDER ==========
@@ -1267,7 +1273,7 @@
       if (modal) modal.style.display = 'none';
     }
     
-    // ========== HALAMAN AKUN (menampilkan priority_level dari admin) ==========
+    // ========== HALAMAN AKUN ==========
     async function loadAkunPage() {
       if (!currentDriverData) await loadDriverData();
       if (!currentDriverData) return;
@@ -1305,15 +1311,21 @@
       document.getElementById('ratingValue').innerText = (currentDriverData.rating || 0).toFixed(1);
       document.getElementById('ratingCount').innerText = `(${currentDriverData.total_ratings || 0} rating)`;
       
-      // ========== BADGE PRIORITAS DARI DATA ADMIN (bukan hitungan trips lokal) ==========
-      const priorityLevel = currentDriverData.priority_level || 'basic';
+      const trips = currentDriverData.perjalanan || 0;
       const priorityBadge = document.getElementById('priorityBadgeSmall');
-      priorityBadge.className = `priority-badge ${priorityLevel}`;
-      priorityBadge.innerText = priorityLevel.charAt(0).toUpperCase() + priorityLevel.slice(1);
-      
-      // Tampilkan deposit rate di bagian komisi (opsional)
-      const depositPercent = (currentDriverData.deposit_rate || 0.1) * 100;
-      document.getElementById('commissionRate').innerText = `${depositPercent.toFixed(0)}%`;
+      if (trips < 10) {
+        priorityBadge.className = 'priority-badge basic';
+        priorityBadge.innerText = 'Basic';
+      } else if (trips < 50) {
+        priorityBadge.className = 'priority-badge standard';
+        priorityBadge.innerText = 'Standard';
+      } else if (trips < 200) {
+        priorityBadge.className = 'priority-badge regular';
+        priorityBadge.innerText = 'Regular';
+      } else {
+        priorityBadge.className = 'priority-badge essential';
+        priorityBadge.innerText = 'Essential';
+      }
     }
     
     function logoutDriver() {
@@ -1338,7 +1350,10 @@
               updated_at: new Date().toISOString()
             });
           }
-          if (autobidEnabled) autoBid();
+          // Jika autobid aktif dan belum dalam proses, coba lagi
+          if (autobidEnabled && !isAutoBiddingInProgress) {
+            autoBid();
+          }
         }, err => { 
           addDebugLog(`GPS error: ${err.message}`, "error");
           const gpsDot = document.getElementById('gpsDot');
@@ -1376,10 +1391,6 @@
       addDebugLog(`Location tracking diubah menjadi ${locationTrackingEnabled ? "ON" : "OFF"}`);
     }
     function toggleAutobid() { 
-      if (!currentDriverData.autobid_allowed) {
-        showPopup('Info', 'Fitur Autobid tidak tersedia untuk level prioritas Anda.', 'info');
-        return;
-      }
       autobidEnabled = !autobidEnabled; 
       localStorage.setItem('jego_autobid_enabled', autobidEnabled); 
       updateUIButtons();
@@ -1393,6 +1404,7 @@
     }
     function refreshData() { 
       addDebugLog("Refresh manual diminta");
+      // Bisa memicu ulang pembacaan orders jika diperlukan, namun Firebase sudah realtime
     }
     
     // ========== SPA NAVIGATION ==========
@@ -1422,7 +1434,7 @@
     
     // ========== INIT ==========
     document.addEventListener('DOMContentLoaded', async () => {
-      addDebugLog("Aplikasi dimulai (Firebase version dengan prioritas admin)");
+      addDebugLog("Aplikasi dimulai (Firebase version)");
       const success = await loadDriverData();
       if (!success) return;
       loadStoredSettings();
