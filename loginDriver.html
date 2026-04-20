@@ -2,11 +2,12 @@
 <html lang="id">
 <head>
   <meta charset="utf-8" />
-  <title>Login Driver - JeGo (Supabase)</title>
+  <title>Login Driver - JeGo (Firebase)</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   
-  <!-- Supabase SDK -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/11.0.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/11.0.2/firebase-database-compat.js"></script>
   
   <style>
     :root {
@@ -456,7 +457,7 @@
   <div class="header">
     <div class="logo-container">
       <div class="logo">JG</div>
-      <div class="header-title">JeGo - Login Driver (Supabase)</div>
+      <div class="header-title">JeGo - Login Driver (Firebase)</div>
     </div>
   </div>
 
@@ -539,26 +540,33 @@
   </div>
 
   <script>
-    // ================= KONFIGURASI SUPABASE =================
-    const SUPABASE_URL = 'https://imrhkvtkpwascicthddo.supabase.co';
-    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImltcmhrdnRrcHdhc2NpY3RoZGRvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY0Mjk1NTUsImV4cCI6MjA5MjAwNTU1NX0.eYMx1pwwACazkch7OzSYyljE0ahtC4SDoI0ydapn068';
-    // Gunakan nama variabel berbeda untuk menghindari konflik dengan global supabase (jika ada)
-    const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    // ========== KONFIGURASI FIREBASE ==========
+    const firebaseConfig = {
+      apiKey: "AIzaSyCD0pgeZio-LdKqYDtWxcdXcZwyL4ngYQI",
+      authDomain: "jego-35a2b.firebaseapp.com",
+      databaseURL: "https://jego-35a2b-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "jego-35a2b",
+      storageBucket: "jego-35a2b.firebasestorage.app",
+      messagingSenderId: "600037007040",
+      appId: "1:600037007040:web:ac3243ad9b472647ffd725"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const database = firebase.database();
 
-    // ================= KONFIGURASI SMS GATEWAY =================
+    // ========== KONFIGURASI SMS GATEWAY ==========
     const SMS_GATEWAY_CONFIG = {
       user: 'gsmreload',
       pass: 'Jd59dm$jr*dj^hy',
       baseUrl: 'https://srv2.soufasms.com/sms_gateway/'
     };
 
-    // ================= VARIABEL GLOBAL =================
+    // ========== VARIABEL GLOBAL ==========
     let currentPhone = '';          // Nomor yang sedang login (format +62...)
-    let currentDriverId = null;     // UUID driver dari database
+    let currentDriverId = null;     // UID driver dari database
     let otpTimer = null;
     let otpCountdown = 60;
 
-    // ================= ELEMEN DOM =================
+    // ========== ELEMEN DOM ==========
     const phoneForm = document.getElementById('phoneForm');
     const otpSection = document.getElementById('otpSection');
     const phoneStatus = document.getElementById('phoneStatus');
@@ -584,26 +592,25 @@
 
     // ================= FUNGSI UTILITAS =================
     function showPopup(title, message, type = 'info', options = {}) {
-  modalTitleText.textContent = title;
-  modalMessage.innerHTML = message;
-  modalIcon.className = 'modal-icon ' + type;
-  modalIcon.textContent = type === 'success' ? '✓' : type === 'error' ? '✗' : type === 'warning' ? '!' : 'i';
-  modalConfirmBtn.textContent = options.confirmText || 'OK';
-  modalCancelBtn.style.display = options.showCancel ? 'inline-block' : 'none';
-  if (options.showCancel) modalCancelBtn.textContent = options.cancelText || 'Batal';
+      modalTitleText.textContent = title;
+      modalMessage.innerHTML = message;
+      modalIcon.className = 'modal-icon ' + type;
+      modalIcon.textContent = type === 'success' ? '✓' : type === 'error' ? '✗' : type === 'warning' ? '!' : 'i';
+      modalConfirmBtn.textContent = options.confirmText || 'OK';
+      modalCancelBtn.style.display = options.showCancel ? 'inline-block' : 'none';
+      if (options.showCancel) modalCancelBtn.textContent = options.cancelText || 'Batal';
 
-  // Hapus event listener lama dengan mengganti onclick
-  modalConfirmBtn.onclick = null;
-  modalCancelBtn.onclick = null;
-  modalCloseBtn.onclick = null;
-  
-  modalConfirmBtn.onclick = function() { hidePopup(); if (options.onConfirm) options.onConfirm(); };
-  modalCancelBtn.onclick = function() { hidePopup(); if (options.onCancel) options.onCancel(); };
-  modalCloseBtn.onclick = function() { hidePopup(); if (options.onCancel) options.onCancel(); };
+      modalConfirmBtn.onclick = null;
+      modalCancelBtn.onclick = null;
+      modalCloseBtn.onclick = null;
+      
+      modalConfirmBtn.onclick = function() { hidePopup(); if (options.onConfirm) options.onConfirm(); };
+      modalCancelBtn.onclick = function() { hidePopup(); if (options.onCancel) options.onCancel(); };
+      modalCloseBtn.onclick = function() { hidePopup(); if (options.onCancel) options.onCancel(); };
 
-  modalOverlay.classList.add('active');
-  if (options.autoHide) setTimeout(() => { hidePopup(); if (options.onAutoHide) options.onAutoHide(); }, options.autoHideDelay || 3000);
-}
+      modalOverlay.classList.add('active');
+      if (options.autoHide) setTimeout(() => { hidePopup(); if (options.onAutoHide) options.onAutoHide(); }, options.autoHideDelay || 3000);
+    }
 
     function hidePopup() { modalOverlay.classList.remove('active'); }
 
@@ -643,34 +650,30 @@
     }
     function hidePhoneStatus() { phoneStatus.style.display = 'none'; }
 
-    // ================= FUNGSI OTP (Supabase) =================
+    // ========== FUNGSI OTP (FIREBASE) ==========
     async function canSendOTP(phone) {
-      const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
-      const { data, error } = await supabaseClient
-        .from('otp_codes')
-        .select('requested_at')
-        .eq('phone', phone)
-        .gte('requested_at', tenMinutesAgo);
-      if (error) {
-        console.error('Error checking OTP limit:', error);
-        return false;
+      const tenMinutesAgo = Date.now() - 10 * 60 * 1000;
+      const snapshot = await database.ref(`otp_codes/${phone.replace(/\+/g, '')}`).once('value');
+      const records = snapshot.val();
+      if (!records) return true;
+      // Hitung jumlah request dalam 10 menit terakhir
+      let count = 0;
+      for (let key in records) {
+        if (records[key].requested_at > tenMinutesAgo) count++;
       }
-      return (data?.length || 0) < 3;
+      return count < 3;
     }
 
     async function saveOTP(phone, code) {
-      const now = new Date();
-      const expiresAt = new Date(now.getTime() + 5 * 60 * 1000);
-      const { error } = await supabaseClient
-        .from('otp_codes')
-        .insert({
-          phone: phone,
-          code: code,
-          requested_at: now.toISOString(),
-          expires_at: expiresAt.toISOString(),
-          verified: false
-        });
-      if (error) throw error;
+      const now = Date.now();
+      const expiresAt = now + 5 * 60 * 1000;
+      const newRef = database.ref(`otp_codes/${phone.replace(/\+/g, '')}`).push();
+      await newRef.set({
+        code: code,
+        requested_at: now,
+        expires_at: expiresAt,
+        verified: false
+      });
     }
 
     async function sendOTPviaDirectGateway(phone, code) {
@@ -697,7 +700,8 @@
         await saveOTP(phone, code);
         const sent = await sendOTPviaDirectGateway(phone, code);
         if (!sent) {
-          await supabaseClient.from('otp_codes').delete().eq('phone', phone).eq('code', code);
+          // Hapus OTP yang baru disimpan jika gagal kirim
+          await database.ref(`otp_codes/${phone.replace(/\+/g, '')}`).orderByChild('requested_at').limitToLast(1).once('value', snap => snap.ref.remove());
           showErrorMessage('Gagal mengirim OTP. Periksa koneksi internet atau hubungi admin.');
           return false;
         }
@@ -711,53 +715,37 @@
     }
 
     async function verifyOTP(phone, code) {
-      const { data, error } = await supabaseClient
-        .from('otp_codes')
-        .select('*')
-        .eq('phone', phone)
-        .eq('code', code)
-        .eq('verified', false)
-        .order('requested_at', { ascending: false })
-        .limit(1);
-      if (error) {
-        console.error('Error verifying OTP:', error);
-        return false;
+      const snapshot = await database.ref(`otp_codes/${phone.replace(/\+/g, '')}`).orderByChild('requested_at').once('value');
+      const records = snapshot.val();
+      if (!records) return false;
+      // Cari OTP yang belum verified dan belum expired
+      for (let key in records) {
+        const otp = records[key];
+        if (!otp.verified && otp.code === code && otp.expires_at > Date.now()) {
+          await database.ref(`otp_codes/${phone.replace(/\+/g, '')}/${key}`).update({ verified: true });
+          return true;
+        }
       }
-      if (!data || data.length === 0) {
-        showErrorMessage('Kode OTP tidak valid.');
-        return false;
-      }
-      const otpRecord = data[0];
-      if (new Date() > new Date(otpRecord.expires_at)) {
-        showErrorMessage('Kode OTP kadaluarsa.');
-        await supabaseClient.from('otp_codes').delete().eq('id', otpRecord.id);
-        return false;
-      }
-      await supabaseClient.from('otp_codes').update({ verified: true }).eq('id', otpRecord.id);
-      return true;
+      return false;
     }
 
-    // ================= FUNGSI CEK NOMOR DI TABEL DRIVERS =================
+    // ========== FUNGSI CEK NOMOR DI TABEL DRIVERS ==========
     async function checkDriverByPhone(phone) {
-  // phone = '+6282311640444'
-  const phoneLocal = phone.replace(/^\+62/, '0'); // menjadi '082311640444'
-  try {
-    const { data, error } = await supabaseClient
-      .from('drivers')
-      .select('*')
-      .or(`phone.eq.${phone},phone.eq.${phoneLocal}`); // cek kedua format
-    if (error) throw error;
-    if (data && data.length > 0) {
-      return { exists: true, data: data[0] };
+      // Normalisasi phone: simpan di database tanpa '+'
+      const phoneKey = phone.replace(/\+/g, '');
+      const snapshot = await database.ref(`drivers`).orderByChild('phone').equalTo(phone).once('value');
+      let driver = null;
+      snapshot.forEach(child => { driver = child.val(); driver.id = child.key; });
+      if (driver) return { exists: true, data: driver };
+      // Coba cari dengan format lokal (0xxxx)
+      const localPhone = phone.replace(/^\+62/, '0');
+      const snapshotLocal = await database.ref(`drivers`).orderByChild('phone').equalTo(localPhone).once('value');
+      snapshotLocal.forEach(child => { driver = child.val(); driver.id = child.key; });
+      if (driver) return { exists: true, data: driver };
+      return { exists: false };
     }
-    return { exists: false };
-  } catch (e) {
-    console.error('Error checking driver:', e);
-    return { exists: false, error: e.message };
-  }
-}
 
-    // ================= FUNGSI HANDLE STATUS DRIVER =================
+    // ========== FUNGSI HANDLE STATUS DRIVER ==========
     function handleDriverStatus(driver) {
       const status = driver.status || 'pending';
       const ketGagal = driver.rejection_reason || driver.block_reason || 'Tidak ada keterangan.';
@@ -767,7 +755,6 @@
         case 'approved':
         case 'active':
           const sessionDriver = {
-            userId: driver.id,
             uid: driver.id,
             name: driver.name,
             phone: driver.phone,
@@ -775,22 +762,18 @@
             address: driver.address || '',
             status: 'active',
             role: 'driver',
-            fotoProfilURL: driver.photo_url || '',
-            profilePhotoUrl: driver.photo_url || '',
+            photoURL: driver.photoURL || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png',
             vehicleType: driver.vehicle_type || '',
             plateNumber: driver.plate_number || '',
             vehicleBrand: driver.vehicle_brand || '',
-            idCardNumber: '',
-            rating: driver.avg_rating || 5,
-            perjalanan: driver.total_trips || 0,
-            Balance: driver.balance || 0,
-            Potongan: 0,
-            createdAt: driver.registered_at || new Date().toISOString()
+            rating: driver.rating || 5,
+            perjalanan: driver.perjalanan || 0,
+            balance: driver.balance || 0
           };
           localStorage.setItem('jego_logged_in_driver', JSON.stringify(sessionDriver));
           showSuccessMessage('Login berhasil! Mengalihkan...', true);
           setTimeout(() => {
-            window.location.href = 'index.html';
+            window.location.href = 'list1.html'; // dashboard driver
           }, 1500);
           break;
 
@@ -839,7 +822,7 @@
       }
     }
 
-    // ================= EVENT LISTENERS =================
+    // ========== EVENT LISTENERS ==========
     document.getElementById('phoneNumber').addEventListener('input', function() {
       hidePhoneStatus();
     });
@@ -857,7 +840,7 @@
       if (!driverInfo.exists) {
         showErrorMessage('Nomor tidak terdaftar sebagai driver. Silakan daftar terlebih dahulu.', {
           onConfirm: () => {
-            window.location.href = 'daftarDriver.html';
+            window.location.href = 'pendaftaranDriver.html';
           }
         });
         return;
@@ -889,6 +872,7 @@
       if (!valid) {
         verifyOtpBtn.disabled = false;
         verifyOtpBtn.textContent = 'Verifikasi OTP';
+        showErrorMessage('Kode OTP tidak valid atau sudah kadaluarsa.');
         return;
       }
 
@@ -946,10 +930,10 @@
     });
 
     registerBtn.addEventListener('click', function() {
-      window.location.href = 'daftarDriver.html';
+      window.location.href = 'pendaftaranDriver.html';
     });
 
-    // ================= INISIALISASI & CEK SESSION =================
+    // ========== INISIALISASI & CEK SESSION ==========
     document.addEventListener('DOMContentLoaded', function() {
       modalOverlay.addEventListener('click', function(e) { if (e.target === modalOverlay) hidePopup(); });
       document.addEventListener('keydown', function(e) { if (e.key === 'Escape' && modalOverlay.classList.contains('active')) hidePopup(); });
@@ -959,7 +943,7 @@
         try {
           const driver = JSON.parse(loggedInDriver);
           if (driver.status === 'active') {
-            window.location.href = 'index.html';
+            window.location.href = 'list1.html';
           } else {
             localStorage.removeItem('jego_logged_in_driver');
           }
