@@ -25,6 +25,7 @@
         .essential { background: #FF9800; color: white; }
         .action-buttons { display: flex; gap: 5px; justify-content: center; flex-wrap: wrap; }
         .status { margin-top: 15px; padding: 10px; border-radius: 8px; background: #e8f5e9; color: #2e7d32; display: none; }
+        .info-update { font-size: 0.8rem; color: #666; margin-top: 10px; text-align: right; }
         @media (max-width: 768px) { th, td { font-size: 0.7rem; padding: 4px; } input { width: 60px; } }
     </style>
 </head>
@@ -43,10 +44,11 @@
                 <tr><th>ID Driver</th><th>Nama</th><th>Rating</th><th>Trips</th><th>Priority Score</th><th>Level</th><th>Deposit Rate</th><th>Notif Delay (dtk)</th><th>Autobid Allowed</th><th>Aksi</th></tr>
             </thead>
             <tbody id="driverTableBody">
-                <tr><td colspan="10">Memuat data...</td></tr>
+                <tr><td colspan="10">Memuat data......</td></tr>
             </tbody>
         </table>
     </div>
+    <div class="info-update" id="lastUpdateInfo">Terakhir update: --</div>
 </div>
 
 <script>
@@ -89,45 +91,55 @@
         setTimeout(() => { statusDiv.style.display = 'none'; }, 3000);
     }
 
-    // Load semua driver dari Firebase dan render tabel
-    async function loadDrivers() {
+    // Render tabel dari data drivers
+    function renderDriverTable(drivers) {
         const tbody = document.getElementById('driverTableBody');
-        tbody.innerHTML = '<tr><td colspan="10">Memuat data...</td></tr>';
+        if (!drivers) {
+            tbody.innerHTML = '<tr><td colspan="10">Tidak ada driver terdaftar</td></tr>';
+            return;
+        }
+        let rows = '';
+        for (const [id, driver] of Object.entries(drivers)) {
+            const rating = driver.rating || 5.0;
+            const trips = driver.perjalanan || 0;
+            const currentScore = driver.priority_score !== undefined ? driver.priority_score : calculatePriorityScore(rating, trips);
+            const details = getPriorityDetails(currentScore);
+            rows += `<tr data-driverid="${id}">
+                <td>${id.substring(0,8)}...</td>
+                <td>${driver.name || '-'}</td>
+                <td><input type="number" step="0.1" min="0" max="5" class="rating-input" value="${rating}" style="width:60px"></td>
+                <td><input type="number" step="1" min="0" class="trips-input" value="${trips}" style="width:70px"></td>
+                <td class="score-cell">${currentScore}</td>
+                <td><span class="priority-badge ${details.level}">${details.level.toUpperCase()}</span></td>
+                <td><input type="number" step="0.01" min="0" max="0.5" class="deposit-input" value="${driver.deposit_rate !== undefined ? driver.deposit_rate : details.deposit_rate}" style="width:70px"></td>
+                <td><input type="number" step="1" min="0" class="delay-input" value="${driver.notification_delay !== undefined ? driver.notification_delay : details.notification_delay}" style="width:70px"></td>
+                <td><select class="autobid-select">${(driver.autobid_allowed !== undefined ? driver.autobid_allowed : details.autobid_allowed) ? '<option value="true" selected>Ya</option><option value="false">Tidak</option>' : '<option value="true">Ya</option><option value="false" selected>Tidak</option>'}</select></td>
+                <td class="action-buttons"><button class="update-single">💾 Simpan</button><button class="recalc-single">🔄 Hitung Ulang</button></td>
+            </tr>`;
+        }
+        tbody.innerHTML = rows;
+        attachEventListeners();
+        
+        // Update info waktu terakhir
+        const now = new Date();
+        document.getElementById('lastUpdateInfo').innerHTML = `Terakhir update: ${now.toLocaleTimeString('id-ID')} | Auto-refresh setiap 30 detik`;
+    }
+
+    // Memuat data driver (sekali baca)
+    async function loadDrivers() {
         try {
             const snapshot = await database.ref('drivers').once('value');
             const drivers = snapshot.val();
-            if (!drivers) {
-                tbody.innerHTML = '<tr><td colspan="10">Tidak ada driver terdaftar</td></tr>';
-                return;
-            }
-            let rows = '';
-            for (const [id, driver] of Object.entries(drivers)) {
-                const rating = driver.rating || 5.0;
-                const trips = driver.perjalanan || 0;
-                const currentScore = driver.priority_score !== undefined ? driver.priority_score : calculatePriorityScore(rating, trips);
-                const details = getPriorityDetails(currentScore);
-                rows += `<tr data-driverid="${id}">
-                    <td>${id.substring(0,8)}...</td>
-                    <td>${driver.name || '-'}</td>
-                    <td><input type="number" step="0.1" min="0" max="5" class="rating-input" value="${rating}" style="width:60px"></td>
-                    <td><input type="number" step="1" min="0" class="trips-input" value="${trips}" style="width:70px"></td>
-                    <td class="score-cell">${currentScore}</td>
-                    <td><span class="priority-badge ${details.level}">${details.level.toUpperCase()}</span></td>
-                    <td><input type="number" step="0.01" min="0" max="0.5" class="deposit-input" value="${driver.deposit_rate !== undefined ? driver.deposit_rate : details.deposit_rate}" style="width:70px"></td>
-                    <td><input type="number" step="1" min="0" class="delay-input" value="${driver.notification_delay !== undefined ? driver.notification_delay : details.notification_delay}" style="width:70px"></td>
-                    <td><select class="autobid-select">${(driver.autobid_allowed !== undefined ? driver.autobid_allowed : details.autobid_allowed) ? '<option value="true" selected>Ya</option><option value="false">Tidak</option>' : '<option value="true">Ya</option><option value="false" selected>Tidak</option>'}</select></td>
-                    <td class="action-buttons"><button class="update-single">💾 Simpan</button><button class="recalc-single">🔄 Hitung Ulang</button></td>
-                </tr>`;
-            }
-            tbody.innerHTML = rows;
-            attachEventListeners();
+            renderDriverTable(drivers);
+            showStatus('Data berhasil dimuat', false);
         } catch (err) {
             console.error(err);
-            tbody.innerHTML = '<tr><td colspan="10">Error loading data</td></tr>';
+            document.getElementById('driverTableBody').innerHTML = '<tr><td colspan="10">Error loading data</td></tr>';
             showStatus('Gagal memuat driver: ' + err.message, true);
         }
     }
 
+    // Attach event listener untuk tombol update & hitung ulang per baris
     function attachEventListeners() {
         // Tombol update per baris
         document.querySelectorAll('.update-single').forEach(btn => {
@@ -209,8 +221,35 @@
         }
     }
 
-    document.getElementById('refreshBtn').addEventListener('click', loadDrivers);
+    // ========== SETUP AUTO-REFRESH PERIODIK ==========
+    let autoRefreshInterval = null;
+
+    function startAutoRefresh(intervalMs = 30000) {
+        if (autoRefreshInterval) clearInterval(autoRefreshInterval);
+        autoRefreshInterval = setInterval(() => {
+            loadDrivers();
+        }, intervalMs);
+    }
+
+    // Hentikan auto-refresh (opsional, jika dibutuhkan)
+    function stopAutoRefresh() {
+        if (autoRefreshInterval) {
+            clearInterval(autoRefreshInterval);
+            autoRefreshInterval = null;
+        }
+    }
+
+    // Event listeners tombol
+    document.getElementById('refreshBtn').addEventListener('click', () => {
+        loadDrivers();
+        showStatus('Memuat ulang data...', false);
+    });
     document.getElementById('updateAllBtn').addEventListener('click', updateAllDrivers);
+
+    // Mulai auto-refresh 30 detik
+    startAutoRefresh(30000);
+
+    // Load data pertama kali
     loadDrivers();
 </script>
 </body>
