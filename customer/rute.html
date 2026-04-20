@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <title>Rute - JeGo (Firebase)</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-
+  
   <!-- Firebase SDKs -->
   <script src="https://www.gstatic.com/firebasejs/11.0.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/11.0.2/firebase-database-compat.js"></script>
@@ -145,6 +145,8 @@
     .cancel-btn { background: linear-gradient(to right, var(--danger), #e74c3c); display: none; }
     .confirm-btn:hover, .cancel-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 15px rgba(0,0,0,0.25); }
     .confirm-btn:disabled, .cancel-btn:disabled { background: #cccccc; cursor: not-allowed; transform: none; box-shadow: none; opacity: 0.7; }
+    
+    /* Radar Overlay dengan daftar penawaran */
     .radar-overlay {
       position: fixed;
       top: 0;
@@ -158,6 +160,7 @@
       justify-content: center;
       align-items: center;
       backdrop-filter: blur(2px);
+      overflow-y: auto;
     }
     .radar-container {
       position: relative;
@@ -167,6 +170,7 @@
       background: rgba(255,255,255,0.1);
       box-shadow: 0 0 40px rgba(0,0,0,0.2);
       animation: pulse 2s infinite;
+      margin-top: 20px;
     }
     .radar-sweep {
       position: absolute;
@@ -212,6 +216,96 @@
       font-weight: bold;
       cursor: pointer;
     }
+    /* Daftar penawaran driver */
+    .offers-list {
+      width: 90%;
+      max-width: 500px;
+      margin: 20px auto;
+      background: rgba(255,255,255,0.95);
+      border-radius: 16px;
+      padding: 16px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+      max-height: 50vh;
+      overflow-y: auto;
+    }
+    .offers-title {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--primary);
+      margin-bottom: 12px;
+      text-align: center;
+    }
+    .offer-card {
+      background: white;
+      border-radius: 12px;
+      padding: 12px;
+      margin-bottom: 12px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      border-left: 4px solid var(--primary);
+    }
+    .offer-photo {
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 2px solid var(--accent);
+    }
+    .offer-info {
+      flex: 1;
+    }
+    .offer-name {
+      font-weight: 700;
+      color: var(--dark);
+      font-size: 0.9rem;
+    }
+    .offer-detail {
+      font-size: 0.7rem;
+      color: #666;
+      display: flex;
+      gap: 10px;
+      margin-top: 4px;
+    }
+    .offer-rating {
+      color: #ffc107;
+    }
+    .offer-buttons {
+      display: flex;
+      gap: 8px;
+    }
+    .offer-accept, .offer-reject {
+      border: none;
+      border-radius: 20px;
+      padding: 6px 12px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .offer-accept {
+      background: var(--success);
+      color: white;
+    }
+    .offer-reject {
+      background: var(--danger);
+      color: white;
+    }
+    .offer-accept:hover, .offer-reject:hover {
+      transform: scale(1.02);
+    }
+    .offer-status {
+      font-size: 0.7rem;
+      font-weight: 600;
+      padding: 4px 8px;
+      border-radius: 12px;
+      display: inline-block;
+    }
+    .status-accepted { background: #d4edda; color: #155724; }
+    .status-rejected { background: #f8d7da; color: #721c24; }
+    .status-offered { background: #fff3cd; color: #856404; }
+
     .popup-overlay {
       position: fixed;
       top: 0;
@@ -248,6 +342,7 @@
     .popup-button { padding: 10px 20px; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.3s; min-width: 100px; }
     .popup-button-primary { background: linear-gradient(135deg, var(--primary), var(--secondary)); color: white; }
     .popup-button-secondary { background: #f8f9fa; color: var(--dark); border: 1px solid #ddd; }
+    
     .delivery-info-panel { margin-top: 10px; padding-top: 10px; border-top: 1px solid #e9ecef; background: #fef7e0; border-radius: 8px; padding: 10px; margin-bottom: 8px; }
     .delivery-info-title { font-weight: 700; color: var(--primary); margin-bottom: 8px; font-size: 0.9rem; }
     .delivery-info-row { display: flex; margin-bottom: 6px; font-size: 0.8rem; }
@@ -276,14 +371,18 @@
   </div>
   <button class="confirm-btn" id="confirmBtn" disabled>Cari Driver</button>
 
-  <!-- Radar Overlay -->
+  <!-- Radar Overlay dengan daftar penawaran -->
   <div id="radarOverlay" class="radar-overlay">
     <div class="radar-container">
       <div class="radar-sweep"></div>
       <div class="radar-center"></div>
     </div>
     <div class="radar-message">🔍 Mencari Driver Terdekat...</div>
-    <div class="radar-sub">Menunggu driver menerima pesanan Anda</div>
+    <div class="radar-sub">Driver akan mengirim penawaran, pilih driver yang sesuai</div>
+    <div id="offersListContainer" class="offers-list" style="display: none;">
+      <div class="offers-title">📋 Penawaran Driver</div>
+      <div id="offersList"></div>
+    </div>
     <button class="cancel-search-btn" id="cancelSearchBtn">Batalkan Pencarian</button>
   </div>
 
@@ -342,8 +441,10 @@
     };
 
     let currentOrderId = null;
-    let orderRef = null;            // Referensi ke database ref untuk listener
-    let orderStatusCallback = null; // Fungsi callback listener
+    let orderRef = null;            // Referensi ke database ref untuk listener status order
+    let offersRef = null;           // Referensi ke driver_offers
+    let orderStatusCallback = null;
+    let offersCallback = null;
 
     // ========== AMBIL TOKEN MAPBOX DARI FIREBASE ==========
     async function fetchMapboxToken() {
@@ -406,7 +507,6 @@
         const dataArray = snapshot.val();
 
         if (dataArray && Array.isArray(dataArray)) {
-          // Normalisasi: cari nama yang cocok (case-insensitive)
           const tarifData = dataArray.find(item => item && item.nama && item.nama.toLowerCase() === transportName.toLowerCase());
           if (tarifData) {
             transportRate = {
@@ -686,6 +786,108 @@
       }
     }
 
+    // ========== FUNGSI MENAMPILKAN DAFTAR PENAWARAN ==========
+    function renderOffers(offers) {
+      const container = document.getElementById('offersList');
+      const offersContainer = document.getElementById('offersListContainer');
+      if (!container) return;
+      
+      if (!offers || Object.keys(offers).length === 0) {
+        container.innerHTML = '<div style="text-align:center; padding:12px;">Belum ada penawaran driver</div>';
+        offersContainer.style.display = 'block';
+        return;
+      }
+      
+      offersContainer.style.display = 'block';
+      container.innerHTML = '';
+      
+      Object.entries(offers).forEach(([driverId, offer]) => {
+        // Hanya tampilkan yang status 'offered' (belum diproses) atau 'rejected'? Biar semua tapi beri indikasi.
+        // Untuk user, hanya yang 'offered' yang bisa diaccept/reject. Yang sudah diaccept/reject tampilkan status.
+        const isProcessed = offer.status === 'accepted' || offer.status === 'rejected';
+        const card = document.createElement('div');
+        card.className = 'offer-card';
+        card.innerHTML = `
+          <img class="offer-photo" src="${offer.driver_photo || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png'}" alt="Driver">
+          <div class="offer-info">
+            <div class="offer-name">${escapeHtml(offer.driver_name)}</div>
+            <div class="offer-detail">
+              <span>⭐ ${offer.driver_rating || 5}</span>
+              <span>🚕 ${offer.driver_trips || 0} trip</span>
+              <span>🚗 ${offer.driver_plate || '-'}</span>
+            </div>
+            ${offer.driver_vehicle_brand ? `<div class="offer-detail">${offer.driver_vehicle_brand}</div>` : ''}
+            <div><span class="offer-status status-${offer.status}">${offer.status === 'offered' ? 'Menunggu' : (offer.status === 'accepted' ? 'Diterima' : 'Ditolak')}</span></div>
+          </div>
+          <div class="offer-buttons">
+            ${!isProcessed ? `<button class="offer-accept" data-driver="${driverId}" data-status="accept">Terima</button>` : ''}
+            ${!isProcessed ? `<button class="offer-reject" data-driver="${driverId}" data-status="reject">Tolak</button>` : ''}
+          </div>
+        `;
+        container.appendChild(card);
+      });
+      
+      // Tambahkan event listener untuk tombol
+      document.querySelectorAll('.offer-accept').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const driverId = btn.getAttribute('data-driver');
+          acceptOffer(driverId);
+        });
+      });
+      document.querySelectorAll('.offer-reject').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const driverId = btn.getAttribute('data-driver');
+          rejectOffer(driverId);
+        });
+      });
+    }
+    
+    function escapeHtml(str) {
+      if (!str) return '';
+      return str.replace(/[&<>]/g, function(m) {
+        if (m === '&') return '&amp;';
+        if (m === '<') return '&lt;';
+        if (m === '>') return '&gt;';
+        return m;
+      });
+    }
+    
+    async function acceptOffer(driverId) {
+      if (!currentOrderId) return;
+      try {
+        // Update status penawaran driver ini menjadi 'accepted'
+        await database.ref(`orders/${currentOrderId}/driver_offers/${driverId}/status`).set('accepted');
+        // Update order: status menjadi 'accepted', driver_id diisi
+        await database.ref(`orders/${currentOrderId}`).update({
+          status: 'accepted',
+          driver_id: driverId,
+          accepted_at: new Date().toISOString()
+        });
+        // Tampilkan popup sukses dan redirect
+        showPopup('Berhasil', 'Driver telah dipilih. Menunggu driver menuju lokasi.', '✅', () => {
+          window.location.href = 'orderAccepted.html';
+        });
+        cleanupWaiting();
+      } catch (err) {
+        console.error('Gagal menerima penawaran:', err);
+        showPopup('Error', 'Gagal menerima penawaran. Silakan coba lagi.', '❌');
+      }
+    }
+    
+    async function rejectOffer(driverId) {
+      if (!currentOrderId) return;
+      try {
+        await database.ref(`orders/${currentOrderId}/driver_offers/${driverId}/status`).set('rejected');
+        // Tidak perlu update order, cukup hapus dari tampilan nanti karena listener akan merender ulang
+        showPopup('Info', 'Penawaran ditolak.', 'ℹ️');
+      } catch (err) {
+        console.error('Gagal menolak penawaran:', err);
+        showPopup('Error', 'Gagal menolak penawaran.', '❌');
+      }
+    }
+    
     // ========== ORDER MANAGEMENT ==========
     async function confirmRoute() {
       if (!currentRoute || !currentUser) {
@@ -699,6 +901,7 @@
       const ordersRef = database.ref('orders');
       const newOrderRef = ordersRef.push();
       const orderId = newOrderRef.key;
+      currentOrderId = orderId;
 
       let orderData = {
         user_id: currentUser.id,
@@ -728,22 +931,24 @@
 
       try {
         await newOrderRef.set(orderData);
-        currentOrderId = orderId;
+        
+        // Simpan orderId di localStorage
         localStorage.setItem('current_order_id', currentOrderId);
-
+        
+        // Tampilkan radar dan arahkan kamera ke titik pickup
         showRadarAndWait();
-
-        // Setup listener yang benar untuk Firebase compat v8
+        
+        // Pindahkan kamera ke titik penjemputan
+        if (pickupCoord) {
+          map.flyTo({ center: pickupCoord, zoom: 15, duration: 2000 });
+        }
+        
+        // Listener status order (untuk jika driver sudah dipilih melalui cara lain? Tapi kita sudah punya listener offers)
         orderRef = database.ref(`orders/${orderId}/status`);
         orderStatusCallback = (snapshot) => {
           const newStatus = snapshot.val();
           console.log('Order status berubah:', newStatus);
-          if (newStatus === 'accepted') {
-            cleanupWaiting();
-            showPopup('Driver Ditemukan', 'Driver sedang menuju lokasi Anda.', '✅', () => {
-              window.location.href = 'orderAccepted.html';
-            });
-          } else if (newStatus === 'cancelled' || newStatus === 'cancelled_by_user') {
+          if (newStatus === 'cancelled' || newStatus === 'cancelled_by_user') {
             cleanupWaiting();
             localStorage.removeItem('current_order_id');
             showPopup('Order Dibatalkan', 'Order telah dibatalkan.', '❌', () => {
@@ -753,6 +958,16 @@
           }
         };
         orderRef.on('value', orderStatusCallback);
+        
+        // Listener untuk driver_offers
+        offersRef = database.ref(`orders/${orderId}/driver_offers`);
+        offersCallback = (snapshot) => {
+          const offers = snapshot.val();
+          console.log('Driver offers updated:', offers);
+          renderOffers(offers);
+        };
+        offersRef.on('value', offersCallback);
+        
       } catch (err) {
         console.error(err);
         showPopup('Gagal', 'Tidak dapat membuat order. ' + err.message, '❌');
@@ -769,15 +984,23 @@
     }
 
     function cleanupWaiting() {
-      // Lepas listener dengan benar
+      // Lepas listener
       if (orderRef && orderStatusCallback) {
         orderRef.off('value', orderStatusCallback);
         orderRef = null;
         orderStatusCallback = null;
       }
+      if (offersRef && offersCallback) {
+        offersRef.off('value', offersCallback);
+        offersRef = null;
+        offersCallback = null;
+      }
       const radarOverlay = document.getElementById('radarOverlay');
       radarOverlay.style.display = 'none';
       document.getElementById('confirmBtn').style.display = 'block';
+      // Reset tampilan daftar penawaran
+      const offersContainer = document.getElementById('offersListContainer');
+      if (offersContainer) offersContainer.style.display = 'none';
     }
 
     async function cancelSearch() {
@@ -798,6 +1021,11 @@
           orderRef.off('value', orderStatusCallback);
           orderRef = null;
           orderStatusCallback = null;
+        }
+        if (offersRef && offersCallback) {
+          offersRef.off('value', offersCallback);
+          offersRef = null;
+          offersCallback = null;
         }
 
         // Cek status order saat ini
@@ -828,23 +1056,6 @@
         });
       } catch (err) {
         console.error('Cancel error detail:', err);
-        
-        // Coba cek ulang status di database, mungkin sebenarnya sudah berubah menjadi cancelled
-        try {
-          const checkSnapshot = await database.ref(`orders/${currentOrderId}/status`).once('value');
-          if (checkSnapshot.val() === 'cancelled_by_user') {
-            cleanupWaiting();
-            localStorage.removeItem('current_order_id');
-            showPopup('Pencarian Dibatalkan', 'Order berhasil dibatalkan.', '✅', () => {
-              document.getElementById('confirmBtn').disabled = false;
-              document.getElementById('confirmBtn').innerText = 'Cari Driver';
-            });
-            return;
-          }
-        } catch (e) {
-          console.error('Gagal mengecek ulang status:', e);
-        }
-        
         showPopup('Error', 'Terjadi kesalahan saat membatalkan order. Silakan coba lagi.\nDetail: ' + (err.message || err), '❌');
         document.getElementById('confirmBtn').disabled = false;
         document.getElementById('confirmBtn').innerText = 'Cari Driver';
