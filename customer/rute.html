@@ -42,7 +42,7 @@
       border-radius: 12px; 
       box-shadow: 0 4px 15px rgba(0,0,0,0.15); 
       box-sizing: border-box; 
-      overflow: visible !important;
+      overflow: visible !important; /* Pastikan dropdown tidak terpotong */
     }
     
     mapbox-search-box {
@@ -705,129 +705,83 @@
           updateRoute();
         }
       });
-
-      // Setup dropdown positioning after elements are added
-      setupDropdownPositioning(fromSearchEl, toSearchEl);
     }
 
-    // ========== PERBAIKAN DROPDOWN POSITION ==========
-    function setupDropdownPositioning(fromSearch, toSearch) {
-      // Fungsi untuk menyuntikkan CSS ke dalam shadow root agar dropdown bisa di-style dengan position:fixed
-      function injectFixedStyle(shadowRoot) {
-        if (!shadowRoot.querySelector('#fixed-dropdown-style')) {
-          const style = document.createElement('style');
-          style.id = 'fixed-dropdown-style';
-          style.textContent = `
-            .mapbox-search-box-results {
-              position: fixed !important;
-              top: auto !important;
-              bottom: auto !important;
-              left: auto !important;
-              right: auto !important;
-              transform: none !important;
-              z-index: 10000 !important;
-              width: auto !important;
-            }
-          `;
-          shadowRoot.appendChild(style);
-        }
-      }
+    // ========== PERBAIKAN DROPDOWN POSITION (FIXED DI BAWAH #TO-CONTAINER) ==========
+    let dropdownPositionInterval = null;
 
-      // Tunggu custom element terdefinisi lalu akses shadowRoot
-      customElements.whenDefined('mapbox-search-box').then(() => {
-        [fromSearch, toSearch].forEach(el => {
-          if (el.shadowRoot) {
-            injectFixedStyle(el.shadowRoot);
-          } else {
-            const observer = new MutationObserver((mutations, obs) => {
-              if (el.shadowRoot) {
-                injectFixedStyle(el.shadowRoot);
-                obs.disconnect();
-              }
-            });
-            observer.observe(el, { childList: true, subtree: true });
-          }
-        });
-      });
-
-      // Fungsi untuk memposisikan dropdown yang sedang terbuka
-      function repositionDropdowns() {
-        const toContainerRect = document.getElementById('to-container').getBoundingClientRect();
-        const topPos = toContainerRect.bottom + window.scrollY;
-        const leftPos = toContainerRect.left + window.scrollX;
-        const widthVal = toContainerRect.width;
-
-        [fromSearch, toSearch].forEach(searchBox => {
-          if (searchBox.shadowRoot) {
-            const dropdown = searchBox.shadowRoot.querySelector('.mapbox-search-box-results');
-            if (dropdown && dropdown.style.display !== 'none') {
-              dropdown.style.position = 'fixed';
-              dropdown.style.top = `${topPos}px`;
-              dropdown.style.left = `${leftPos}px`;
-              dropdown.style.width = `${widthVal}px`;
-              dropdown.style.maxHeight = '300px';
-              dropdown.style.overflowY = 'auto';
-            }
-          }
-        });
-      }
-
-      // Pemicu reposition: focus, input, scroll, resize
-      const triggerEvents = () => {
-        setTimeout(repositionDropdowns, 10);
-      };
-
-      // Akses input di dalam shadow DOM untuk menambahkan event listener
-      function addInputListeners(searchEl) {
-        if (searchEl.shadowRoot) {
-          const input = searchEl.shadowRoot.querySelector('input');
-          if (input) {
-            input.addEventListener('focus', triggerEvents);
-            input.addEventListener('input', triggerEvents);
-            input.addEventListener('keyup', triggerEvents);
-          } else {
-            // Jika input belum ada, observe
-            const observer = new MutationObserver((mutations, obs) => {
-              const inp = searchEl.shadowRoot.querySelector('input');
-              if (inp) {
-                inp.addEventListener('focus', triggerEvents);
-                inp.addEventListener('input', triggerEvents);
-                inp.addEventListener('keyup', triggerEvents);
-                obs.disconnect();
-              }
-            });
-            observer.observe(searchEl.shadowRoot, { childList: true, subtree: true });
-          }
-        } else {
-          // Tunggu shadowRoot
-          const observer = new MutationObserver((mutations, obs) => {
-            if (searchEl.shadowRoot) {
-              addInputListeners(searchEl);
-              obs.disconnect();
-            }
-          });
-          observer.observe(searchEl, { childList: true, subtree: true });
-        }
-      }
-
-      addInputListeners(fromSearch);
-      addInputListeners(toSearch);
-
-      // Event global
-      window.addEventListener('scroll', triggerEvents);
-      window.addEventListener('resize', triggerEvents);
+    function forceDropdownsBelowToContainer() {
+      const toContainer = document.getElementById('to-container');
+      if (!toContainer) return;
       
-      // Observer untuk perubahan dropdown visibility (misal saat muncul)
-      const dropdownObserver = new MutationObserver(triggerEvents);
-      [fromSearch, toSearch].forEach(searchBox => {
+      const rect = toContainer.getBoundingClientRect();
+      if (rect.width === 0) return;
+      
+      const topPos = rect.bottom + window.scrollY;
+      const leftPos = rect.left + window.scrollX;
+      const widthVal = rect.width;
+      
+      // Fungsi untuk memproses sebuah elemen dropdown
+      function setDropdownPosition(dropdown) {
+        if (!dropdown) return;
+        // Hanya proses jika dropdown terlihat (display bukan none)
+        const style = window.getComputedStyle(dropdown);
+        if (style.display === 'none') return;
+        
+        dropdown.style.position = 'fixed';
+        dropdown.style.top = `${topPos}px`;
+        dropdown.style.left = `${leftPos}px`;
+        dropdown.style.width = `${widthVal}px`;
+        dropdown.style.maxHeight = '300px';
+        dropdown.style.overflowY = 'auto';
+        dropdown.style.zIndex = '999999';
+        dropdown.style.backgroundColor = 'white';
+        dropdown.style.border = '1px solid #ccc';
+        dropdown.style.borderRadius = '8px';
+        dropdown.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
+      }
+      
+      // 1. Cari di semua mapbox-search-box (custom element) melalui shadowRoot
+      const searchBoxes = document.querySelectorAll('mapbox-search-box');
+      searchBoxes.forEach(searchBox => {
         if (searchBox.shadowRoot) {
-          dropdownObserver.observe(searchBox.shadowRoot, { attributes: true, attributeFilter: ['style'], subtree: true });
-          // Amati juga penambahan/penghapusan elemen hasil
-          dropdownObserver.observe(searchBox.shadowRoot, { childList: true, subtree: true });
+          // Cari berbagai kemungkinan kelas dropdown di dalam shadow DOM
+          const possibleDropdowns = [
+            searchBox.shadowRoot.querySelector('.mapbox-search-box-results'),
+            searchBox.shadowRoot.querySelector('.suggestions'),
+            searchBox.shadowRoot.querySelector('ul[role="listbox"]'),
+            searchBox.shadowRoot.querySelector('.mapboxgl-ctrl-geocoder--suggestions')
+          ];
+          possibleDropdowns.forEach(dropdown => {
+            if (dropdown) setDropdownPosition(dropdown);
+          });
         }
       });
+      
+      // 2. Cari di document utama (fallback untuk kemungkinan dropdown tidak di shadow DOM)
+      const globalDropdowns = document.querySelectorAll('.mapbox-search-box-results, .suggestions, ul[role="listbox"], .mapboxgl-ctrl-geocoder--suggestions');
+      globalDropdowns.forEach(dropdown => {
+        // Hindari yang sudah diproses dari shadow DOM? Tidak masalah, set ulang
+        setDropdownPosition(dropdown);
+      });
+    }
+    
+    function startDropdownPositioning() {
+      if (dropdownPositionInterval) clearInterval(dropdownPositionInterval);
+      // Jalankan setiap 300ms untuk memastikan posisi selalu sinkron
+      dropdownPositionInterval = setInterval(() => {
+        forceDropdownsBelowToContainer();
+      }, 300);
+    }
+    
+    function stopDropdownPositioning() {
+      if (dropdownPositionInterval) {
+        clearInterval(dropdownPositionInterval);
+        dropdownPositionInterval = null;
+      }
     }
 
+    // ========== FUNGSI UPDATE MARKER & RUTE (tidak berubah) ==========
     function updateMarkers() {
       if (pickupMarker) pickupMarker.remove();
       if (destMarker) destMarker.remove();
@@ -1181,6 +1135,9 @@
       if (!transportLoaded) return;
       
       await initMap();
+
+      // Mulai interval untuk memaksa posisi dropdown di bawah #to-container
+      startDropdownPositioning();
 
       document.getElementById('confirmBtn').addEventListener('click', confirmRoute);
       document.getElementById('cancelSearchBtn').addEventListener('click', cancelSearch);
