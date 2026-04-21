@@ -48,6 +48,7 @@
     mapbox-search-box {
       z-index: 9999 !important;
       position: relative;
+      display: block;
     }
     
     .input-container { 
@@ -349,16 +350,6 @@
     .delivery-info-label { width: 100px; font-weight: 600; color: #555; }
     .delivery-info-value { flex: 1; color: #333; word-break: break-word; }
     @media (max-width: 768px) { .route-details { max-height: 28vh; } .delivery-info-label { width: 85px; } }
-    /* Dropdown hasil pencarian jadi fixed (tidak ikut posisi input) */
-mapbox-search-box::part(results) {
-  position: fixed !important;
-  top: 130px !important; /* SESUAIKAN dengan posisi bawah input "antar" */
-  left: 10px;
-  right: 10px;
-  z-index: 999999 !important;
-  max-height: 300px;
-  overflow-y: auto;
-}
   </style>
 </head>
 <body>
@@ -451,8 +442,8 @@ mapbox-search-box::part(results) {
     };
 
     let currentOrderId = null;
-    let orderRef = null;            // Referensi ke database ref untuk listener status order
-    let offersRef = null;           // Referensi ke driver_offers
+    let orderRef = null;
+    let offersRef = null;
     let orderStatusCallback = null;
     let offersCallback = null;
 
@@ -714,6 +705,127 @@ mapbox-search-box::part(results) {
           updateRoute();
         }
       });
+
+      // Setup dropdown positioning after elements are added
+      setupDropdownPositioning(fromSearchEl, toSearchEl);
+    }
+
+    // ========== PERBAIKAN DROPDOWN POSITION ==========
+    function setupDropdownPositioning(fromSearch, toSearch) {
+      // Fungsi untuk menyuntikkan CSS ke dalam shadow root agar dropdown bisa di-style dengan position:fixed
+      function injectFixedStyle(shadowRoot) {
+        if (!shadowRoot.querySelector('#fixed-dropdown-style')) {
+          const style = document.createElement('style');
+          style.id = 'fixed-dropdown-style';
+          style.textContent = `
+            .mapbox-search-box-results {
+              position: fixed !important;
+              top: auto !important;
+              bottom: auto !important;
+              left: auto !important;
+              right: auto !important;
+              transform: none !important;
+              z-index: 10000 !important;
+              width: auto !important;
+            }
+          `;
+          shadowRoot.appendChild(style);
+        }
+      }
+
+      // Tunggu custom element terdefinisi lalu akses shadowRoot
+      customElements.whenDefined('mapbox-search-box').then(() => {
+        [fromSearch, toSearch].forEach(el => {
+          if (el.shadowRoot) {
+            injectFixedStyle(el.shadowRoot);
+          } else {
+            const observer = new MutationObserver((mutations, obs) => {
+              if (el.shadowRoot) {
+                injectFixedStyle(el.shadowRoot);
+                obs.disconnect();
+              }
+            });
+            observer.observe(el, { childList: true, subtree: true });
+          }
+        });
+      });
+
+      // Fungsi untuk memposisikan dropdown yang sedang terbuka
+      function repositionDropdowns() {
+        const toContainerRect = document.getElementById('to-container').getBoundingClientRect();
+        const topPos = toContainerRect.bottom + window.scrollY;
+        const leftPos = toContainerRect.left + window.scrollX;
+        const widthVal = toContainerRect.width;
+
+        [fromSearch, toSearch].forEach(searchBox => {
+          if (searchBox.shadowRoot) {
+            const dropdown = searchBox.shadowRoot.querySelector('.mapbox-search-box-results');
+            if (dropdown && dropdown.style.display !== 'none') {
+              dropdown.style.position = 'fixed';
+              dropdown.style.top = `${topPos}px`;
+              dropdown.style.left = `${leftPos}px`;
+              dropdown.style.width = `${widthVal}px`;
+              dropdown.style.maxHeight = '300px';
+              dropdown.style.overflowY = 'auto';
+            }
+          }
+        });
+      }
+
+      // Pemicu reposition: focus, input, scroll, resize
+      const triggerEvents = () => {
+        setTimeout(repositionDropdowns, 10);
+      };
+
+      // Akses input di dalam shadow DOM untuk menambahkan event listener
+      function addInputListeners(searchEl) {
+        if (searchEl.shadowRoot) {
+          const input = searchEl.shadowRoot.querySelector('input');
+          if (input) {
+            input.addEventListener('focus', triggerEvents);
+            input.addEventListener('input', triggerEvents);
+            input.addEventListener('keyup', triggerEvents);
+          } else {
+            // Jika input belum ada, observe
+            const observer = new MutationObserver((mutations, obs) => {
+              const inp = searchEl.shadowRoot.querySelector('input');
+              if (inp) {
+                inp.addEventListener('focus', triggerEvents);
+                inp.addEventListener('input', triggerEvents);
+                inp.addEventListener('keyup', triggerEvents);
+                obs.disconnect();
+              }
+            });
+            observer.observe(searchEl.shadowRoot, { childList: true, subtree: true });
+          }
+        } else {
+          // Tunggu shadowRoot
+          const observer = new MutationObserver((mutations, obs) => {
+            if (searchEl.shadowRoot) {
+              addInputListeners(searchEl);
+              obs.disconnect();
+            }
+          });
+          observer.observe(searchEl, { childList: true, subtree: true });
+        }
+      }
+
+      addInputListeners(fromSearch);
+      addInputListeners(toSearch);
+
+      // Event global
+      window.addEventListener('scroll', triggerEvents);
+      window.addEventListener('resize', triggerEvents);
+      
+      // Observer untuk perubahan dropdown visibility (misal saat muncul)
+      const dropdownObserver = new MutationObserver(triggerEvents);
+      [fromSearch, toSearch].forEach(searchBox => {
+        if (searchBox.shadowRoot) {
+          dropdownObserver.observe(searchBox.shadowRoot, { attributes: true, attributeFilter: ['style'], subtree: true });
+          // Amati juga penambahan/penghapusan elemen hasil
+          dropdownObserver.observe(searchBox.shadowRoot, { childList: true, subtree: true });
+        }
+      });
     }
 
     function updateMarkers() {
@@ -812,8 +924,6 @@ mapbox-search-box::part(results) {
       container.innerHTML = '';
       
       Object.entries(offers).forEach(([driverId, offer]) => {
-        // Hanya tampilkan yang status 'offered' (belum diproses) atau 'rejected'? Biar semua tapi beri indikasi.
-        // Untuk user, hanya yang 'offered' yang bisa diaccept/reject. Yang sudah diaccept/reject tampilkan status.
         const isProcessed = offer.status === 'accepted' || offer.status === 'rejected';
         const card = document.createElement('div');
         card.className = 'offer-card';
@@ -837,7 +947,6 @@ mapbox-search-box::part(results) {
         container.appendChild(card);
       });
       
-      // Tambahkan event listener untuk tombol
       document.querySelectorAll('.offer-accept').forEach(btn => {
         btn.addEventListener('click', (e) => {
           e.stopPropagation();
@@ -867,15 +976,12 @@ mapbox-search-box::part(results) {
     async function acceptOffer(driverId) {
       if (!currentOrderId) return;
       try {
-        // Update status penawaran driver ini menjadi 'accepted'
         await database.ref(`orders/${currentOrderId}/driver_offers/${driverId}/status`).set('accepted');
-        // Update order: status menjadi 'accepted', driver_id diisi
         await database.ref(`orders/${currentOrderId}`).update({
           status: 'accepted',
           driver_id: driverId,
           accepted_at: new Date().toISOString()
         });
-        // Tampilkan popup sukses dan redirect
         showPopup('Berhasil', 'Driver telah dipilih. Menunggu driver menuju lokasi.', '✅', () => {
           window.location.href = 'orderAccepted.html';
         });
@@ -890,7 +996,6 @@ mapbox-search-box::part(results) {
       if (!currentOrderId) return;
       try {
         await database.ref(`orders/${currentOrderId}/driver_offers/${driverId}/status`).set('rejected');
-        // Tidak perlu update order, cukup hapus dari tampilan nanti karena listener akan merender ulang
         showPopup('Info', 'Penawaran ditolak.', 'ℹ️');
       } catch (err) {
         console.error('Gagal menolak penawaran:', err);
@@ -942,18 +1047,14 @@ mapbox-search-box::part(results) {
       try {
         await newOrderRef.set(orderData);
         
-        // Simpan orderId di localStorage
         localStorage.setItem('current_order_id', currentOrderId);
         
-        // Tampilkan radar dan arahkan kamera ke titik pickup
         showRadarAndWait();
         
-        // Pindahkan kamera ke titik penjemputan
         if (pickupCoord) {
           map.flyTo({ center: pickupCoord, zoom: 15, duration: 2000 });
         }
         
-        // Listener status order (untuk jika driver sudah dipilih melalui cara lain? Tapi kita sudah punya listener offers)
         orderRef = database.ref(`orders/${orderId}/status`);
         orderStatusCallback = (snapshot) => {
           const newStatus = snapshot.val();
@@ -969,7 +1070,6 @@ mapbox-search-box::part(results) {
         };
         orderRef.on('value', orderStatusCallback);
         
-        // Listener untuk driver_offers
         offersRef = database.ref(`orders/${orderId}/driver_offers`);
         offersCallback = (snapshot) => {
           const offers = snapshot.val();
@@ -994,7 +1094,6 @@ mapbox-search-box::part(results) {
     }
 
     function cleanupWaiting() {
-      // Lepas listener
       if (orderRef && orderStatusCallback) {
         orderRef.off('value', orderStatusCallback);
         orderRef = null;
@@ -1008,7 +1107,6 @@ mapbox-search-box::part(results) {
       const radarOverlay = document.getElementById('radarOverlay');
       radarOverlay.style.display = 'none';
       document.getElementById('confirmBtn').style.display = 'block';
-      // Reset tampilan daftar penawaran
       const offersContainer = document.getElementById('offersListContainer');
       if (offersContainer) offersContainer.style.display = 'none';
     }
@@ -1026,7 +1124,6 @@ mapbox-search-box::part(results) {
       cancelBtn.disabled = true;
 
       try {
-        // Lepas listener agar tidak memicu popup double
         if (orderRef && orderStatusCallback) {
           orderRef.off('value', orderStatusCallback);
           orderRef = null;
@@ -1038,7 +1135,6 @@ mapbox-search-box::part(results) {
           offersCallback = null;
         }
 
-        // Cek status order saat ini
         const statusSnapshot = await database.ref(`orders/${currentOrderId}/status`).once('value');
         const currentStatus = statusSnapshot.val();
         
@@ -1052,7 +1148,6 @@ mapbox-search-box::part(results) {
           return;
         }
 
-        // Update status order
         await database.ref(`orders/${currentOrderId}`).update({
           status: 'cancelled_by_user',
           cancelled_at: new Date().toISOString()
