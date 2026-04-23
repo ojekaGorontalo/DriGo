@@ -9,9 +9,9 @@
   <script src="https://www.gstatic.com/firebasejs/11.0.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/11.0.2/firebase-database-compat.js"></script>
   
-  <!-- Leaflet (peta) -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <!-- Mapbox GL JS untuk peta dan rute -->
+  <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet" />
+  <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
 
   <style>
     /* ========== CSS SAMA PERSIS SEPERTI FILE ASLI (tidak diubah) ========== */
@@ -678,6 +678,10 @@
     let historyModalMap = null;
     let isAutoBiddingInProgress = false;
     let lastAutoBidOrderId = null;
+    let mapboxAccessToken = null;
+    let isModalClosable = true;
+    let lastOrdersData = null;
+    let offeredOrderIds = new Set();
 
     // Helper functions
     function addDebugLog(msg, type='info') {
@@ -737,6 +741,24 @@
       return R * c;
     }
 
+    // ========== AMBIL TOKEN MAPBOX ==========
+    async function fetchMapboxToken() {
+      try {
+        const snapshot = await database.ref('data-jego/mapbox_acces_token').once('value');
+        const token = snapshot.val();
+        if (token && typeof token === 'string' && token.trim() !== '') {
+          mapboxAccessToken = token;
+          addDebugLog('Token Mapbox berhasil dimuat', 'success');
+          return true;
+        } else {
+          throw new Error('Token tidak ditemukan');
+        }
+      } catch (err) {
+        addDebugLog(`Gagal ambil token Mapbox: ${err.message}`, 'error');
+        return false;
+      }
+    }
+
     // ========== LOAD DRIVER DATA DARI FIREBASE ==========
     async function loadDriverData() {
       addDebugLog("Memuat data driver dari Firebase...");
@@ -794,7 +816,6 @@
       };
       addDebugLog(`Driver berhasil dimuat: ${currentDriverData.fullName}`, "success");
       
-      // Update UI Header & Sidebar
       document.getElementById('driverPhoto').src = currentDriverData.profilePhotoUrl;
       document.getElementById('sidebarDriverPhoto').src = currentDriverData.profilePhotoUrl;
       document.getElementById('sidebarDriverName').innerText = currentDriverData.fullName;
@@ -806,7 +827,48 @@
       return true;
     }
 
-    // ========== LOAD ORDERS DARI FIREBASE (REALTIME) ==========
+    // ========== PROSES FILTER & RENDER ORDER (jarak list: 7 km) ==========
+    function processOrders(ordersData) {
+      if (!ordersData) {
+        renderOrdersList([]);
+        return;
+      }
+      let orders = Object.keys(ordersData).map(key => ({
+        id: key,
+        ...ordersData[key]
+      }));
+      orders = orders.filter(order => order.status === 'waiting');
+      addDebugLog(`Total order waiting: ${orders.length}`);
+      
+      const driverVehicle = currentDriverData.vehicleType;
+      orders = orders.filter(order => {
+        const isKurir = order.transport_type && order.transport_type.toLowerCase().includes('kurir');
+        if (isKurir && !acceptKurirEnabled) return false;
+        if (!isKurir && order.transport_type.toLowerCase() !== driverVehicle.toLowerCase()) return false;
+        return true;
+      });
+      
+      // Filter berdasarkan radius 7 km untuk daftar order
+      if (driverLocation.latitude && driverLocation.longitude) {
+        orders = orders.map(order => {
+          const dist = calculateDistance(driverLocation.latitude, driverLocation.longitude, order.pickup_lat, order.pickup_lng);
+          addDebugLog(`Order ${order.id} jarak: ${dist ? dist.toFixed(2) : '?'} km`);
+          return { ...order, distanceToPickup: dist };
+        }).filter(o => o.distanceToPickup !== null && o.distanceToPickup <= 7); // radius 7 km untuk list
+        orders.sort((a,b) => (a.distanceToPickup||999) - (b.distanceToPickup||999));
+      } else {
+        // Jika lokasi belum tersedia, jangan tampilkan order
+        orders = [];
+      }
+      renderOrdersList(orders);
+      
+      // Panggil autobid (namun autobid akan memfilter sendiri dengan radius 3 km)
+      if (autobidEnabled && driverLocation.latitude && driverLocation.longitude && !isAutoBiddingInProgress) {
+        autoBid();
+      }
+    }
+
+    // ========== LISTEN ORDERS ==========
     let ordersRef = null;
     function listenOrders() {
       if (ordersRef) {
@@ -816,38 +878,8 @@
       ordersRef.on('value', (snapshot) => {
         addDebugLog("Firebase: orders updated", "info");
         const ordersData = snapshot.val();
-        if (!ordersData) {
-          renderOrdersList([]);
-          return;
-        }
-        let orders = Object.keys(ordersData).map(key => ({
-          id: key,
-          ...ordersData[key]
-        }));
-        orders = orders.filter(order => order.status === 'waiting');
-        addDebugLog(`Total order waiting: ${orders.length}`);
-        
-        const driverVehicle = currentDriverData.vehicleType;
-        orders = orders.filter(order => {
-          const isKurir = order.transport_type && order.transport_type.toLowerCase().includes('kurir');
-          if (isKurir && !acceptKurirEnabled) return false;
-          if (!isKurir && order.transport_type.toLowerCase() !== driverVehicle.toLowerCase()) return false;
-          return true;
-        });
-        
-        if (driverLocation.latitude && driverLocation.longitude) {
-          orders = orders.map(order => {
-            const dist = calculateDistance(driverLocation.latitude, driverLocation.longitude, order.pickup_lat, order.pickup_lng);
-            return { ...order, distanceToPickup: dist };
-          }).filter(o => o.distanceToPickup === null || o.distanceToPickup <= 20);
-          orders.sort((a,b) => (a.distanceToPickup||999) - (b.distanceToPickup||999));
-        }
-        renderOrdersList(orders);
-        
-        // Panggil autobid setelah order list diperbarui (hanya jika autobid aktif dan lokasi tersedia)
-        if (autobidEnabled && driverLocation.latitude && driverLocation.longitude && !isAutoBiddingInProgress) {
-          autoBid();
-        }
+        lastOrdersData = ordersData;
+        processOrders(ordersData);
       }, (error) => {
         addDebugLog(`Error listening orders: ${error.message}`, "error");
       });
@@ -857,7 +889,7 @@
       const container = document.getElementById('ordersList');
       if (!container) return;
       if (!orders.length) {
-        container.innerHTML = '<div class="empty-state"><div>🔍</div><p>Tidak ada permintaan order saat ini</p></div>';
+        container.innerHTML = '<div class="empty-state"><div>🔍</div><p>Tidak ada permintaan order dalam radius 7 km</p></div>';
         return;
       }
       container.innerHTML = '';
@@ -873,7 +905,14 @@
           <div class="route-info-with-photo"><div class="customer-info-left"><img class="customer-photo-left" src="${userPhoto}" onclick="event.stopPropagation(); window.showPhotoModal && window.showPhotoModal('${userPhoto}','${escapeHtml(userName)}')"><div class="customer-name-left">${escapeHtml(userName.split(' ')[0])}</div><div class="customer-rating"><span class="rating-stars">⭐</span><span>${order.passenger_rating?.toFixed(1)||'5.0'}</span></div></div><div class="route-addresses-right"><div class="route-point"><div class="point-marker point-marker-a">A</div><div class="point-address point-address-a">${escapeHtml(order.pickup_address) || '-'}</div></div><div class="route-point"><div class="point-marker point-marker-b">B</div><div class="point-address">${escapeHtml(order.destination_address) || '-'}</div></div></div></div>
           <div class="order-details"><div class="detail-item"><span class="detail-value">${Math.round(order.duration_seconds/60)||'-'} min</span><span class="detail-label">Durasi</span></div><div class="detail-item"><span class="detail-value">${(order.distance_meters/1000).toFixed(1)||'-'} km</span><span class="detail-label">Jarak</span></div><div class="detail-item"><span class="detail-value price-highlight">Rp ${price.toLocaleString('id-ID')}</span><span class="detail-label">Harga</span></div><div class="detail-item"><span class="detail-value">${distanceText}</span><span class="detail-label">Dari Anda</span></div></div>
         `;
-        orderItem.addEventListener('click', () => showOrderDetail(order));
+        // Saat klik order, cek jarak dulu, jika > 3 km tolak tampilkan modal
+        orderItem.addEventListener('click', () => {
+          if (order.distanceToPickup > 3) {
+            showPopup('Order Terlalu Jauh', `Jarak order ini ${order.distanceToPickup.toFixed(1)} km dari posisi Anda. Minimal jarak untuk menawar adalah 3 km.`, 'warning');
+          } else {
+            showOrderDetail(order);
+          }
+        });
         container.appendChild(orderItem);
       });
     }
@@ -888,12 +927,22 @@
       });
     }
 
-    // ========== MODAL ORDER DETAIL (Leaflet) ==========
-    async function showOrderDetail(order) {
-      addDebugLog(`Menampilkan detail order: ${order.id}`);
+    // ========== MODAL ORDER DETAIL (hanya dipanggil jika jarak <= 3 km) ==========
+    async function showOrderDetail(order, isManual = true) {
+      addDebugLog(`Menampilkan detail order: ${order.id} (manual: ${isManual})`);
       currentSelectedOrder = order;
       const modal = document.getElementById('orderModal');
       if (!modal) return;
+      
+      isModalClosable = isManual;
+      const closeBtn = document.getElementById('closeModal');
+      if (!isModalClosable) {
+        closeBtn.style.display = 'none';
+        modal.style.pointerEvents = 'auto';
+      } else {
+        closeBtn.style.display = 'flex';
+      }
+      
       document.getElementById('modalAddressA').innerText = order.pickup_address || '-';
       document.getElementById('modalAddressB').innerText = order.destination_address || '-';
       document.getElementById('modalDuration').innerText = `${Math.round(order.duration_seconds/60)} menit`;
@@ -911,16 +960,65 @@
       } else deliveryDiv.style.display = 'none';
       
       modal.style.display = 'flex';
-      setTimeout(() => {
-        if (modalMap) modalMap.remove();
+      
+      setTimeout(async () => {
+        if (modalMap) {
+          modalMap.remove();
+          modalMap = null;
+        }
         const mapContainer = document.getElementById('modalMap');
-        modalMap = L.map(mapContainer).setView([order.pickup_lat, order.pickup_lng], 13);
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; CartoDB'
-        }).addTo(modalMap);
-        L.marker([order.pickup_lat, order.pickup_lng]).addTo(modalMap).bindPopup('Pickup');
-        L.marker([order.dest_lat, order.dest_lng]).addTo(modalMap).bindPopup('Destination');
-        modalMap.fitBounds([[order.pickup_lat, order.pickup_lng], [order.dest_lat, order.dest_lng]]);
+        if (!mapboxAccessToken) {
+          await fetchMapboxToken();
+        }
+        mapboxgl.accessToken = mapboxAccessToken;
+        modalMap = new mapboxgl.Map({
+          container: 'modalMap',
+          style: 'mapbox://styles/mapbox/streets-v11',
+          center: [order.pickup_lng, order.pickup_lat],
+          zoom: 12
+        });
+        
+        new mapboxgl.Marker({ color: '#FF9800' }).setLngLat([order.pickup_lng, order.pickup_lat]).addTo(modalMap);
+        new mapboxgl.Marker({ color: '#FF5722' }).setLngLat([order.dest_lng, order.dest_lat]).addTo(modalMap);
+        
+        const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${order.pickup_lng},${order.pickup_lat};${order.dest_lng},${order.dest_lat}?geometries=geojson&access_token=${mapboxAccessToken}`;
+        try {
+          const resp = await fetch(url);
+          const data = await resp.json();
+          if (data.code === 'Ok' && data.routes.length) {
+            const routeGeo = data.routes[0].geometry;
+            modalMap.addSource('route', {
+              type: 'geojson',
+              data: {
+                type: 'Feature',
+                geometry: routeGeo,
+                properties: {}
+              }
+            });
+            modalMap.addLayer({
+              id: 'route',
+              type: 'line',
+              source: 'route',
+              layout: { 'line-join': 'round', 'line-cap': 'round' },
+              paint: { 'line-color': '#FF9800', 'line-width': 5, 'line-opacity': 0.8 }
+            });
+            const bounds = new mapboxgl.LngLatBounds()
+              .extend([order.pickup_lng, order.pickup_lat])
+              .extend([order.dest_lng, order.dest_lat]);
+            modalMap.fitBounds(bounds, { padding: 50 });
+          } else {
+            const bounds = new mapboxgl.LngLatBounds()
+              .extend([order.pickup_lng, order.pickup_lat])
+              .extend([order.dest_lng, order.dest_lat]);
+            modalMap.fitBounds(bounds, { padding: 50 });
+          }
+        } catch (err) {
+          addDebugLog(`Error mengambil rute: ${err.message}`, 'error');
+          const bounds = new mapboxgl.LngLatBounds()
+            .extend([order.pickup_lng, order.pickup_lat])
+            .extend([order.dest_lng, order.dest_lat]);
+          modalMap.fitBounds(bounds, { padding: 50 });
+        }
       }, 100);
     }
 
@@ -933,31 +1031,26 @@
         orderListenerRef = null;
       }
       currentSelectedOrder = null;
+      isModalClosable = true;
+      const closeBtn = document.getElementById('closeModal');
+      if (closeBtn) closeBtn.style.display = 'flex';
     }
 
     // ========== FUNGSI MENGHAPUS PENAWARAN DRIVER ==========
     async function removeDriverOffer(orderId) {
       if (!orderId || !currentDriverId) return;
-      
       try {
         addDebugLog(`Menghapus penawaran driver ${currentDriverId} untuk order ${orderId}`);
-        
         const orderSnapshot = await database.ref(`orders/${orderId}`).once('value');
         const orderData = orderSnapshot.val();
-        
         if (!orderData || !orderData.driver_offers) return;
-        
         let driverOffers = orderData.driver_offers;
-        
         if (driverOffers[currentDriverId]) {
           delete driverOffers[currentDriverId];
-          
           if (Object.keys(driverOffers).length === 0) {
             await database.ref(`orders/${orderId}/driver_offers`).remove();
-            addDebugLog(`Node driver_offers untuk order ${orderId} dihapus (kosong)`);
           } else {
             await database.ref(`orders/${orderId}/driver_offers`).set(driverOffers);
-            addDebugLog(`Penawaran driver ${currentDriverId} dihapus, ${Object.keys(driverOffers).length} penawaran tersisa`);
           }
         }
       } catch (error) {
@@ -965,7 +1058,7 @@
       }
     }
 
-    // ========== MENGIRIM PENAWARAN (dengan rating, trips, plat, vehicle brand) ==========
+    // ========== MENGIRIM PENAWARAN ==========
     async function sendDriverOffer() {
       if (!currentSelectedOrder || !currentDriverId) {
         showPopup('Error', 'Data tidak lengkap', 'error');
@@ -986,7 +1079,6 @@
         ambilBtn.innerText = 'Mengirim...';
       }
       
-      // Data penawaran dengan informasi lengkap driver
       const offerData = {
         driver_id: currentDriverId,
         driver_name: currentDriverData.fullName,
@@ -1039,12 +1131,12 @@
         if (seconds <= 0) {
           clearInterval(countdownInterval);
           if (container) container.style.display = 'none';
-          
-          // Hapus penawaran driver karena timeout
           await removeDriverOffer(orderId);
-          
           showPopup('Waktu Habis', 'Tidak ada respon dari customer. Penawaran Anda telah dibatalkan.', 'info');
           closeModal();
+          offeredOrderIds.add(orderId);
+          addDebugLog(`Order ${orderId} ditambahkan ke offeredOrderIds (timeout)`, 'info');
+          // Autobid TIDAK dimatikan, hanya order ini yang tidak akan ditawar lagi
         }
       }, 1000);
     }
@@ -1063,20 +1155,20 @@
           closeModal();
         } else if (status === 'rejected') {
           clearInterval(countdownInterval);
-          // Hapus penawaran karena ditolak
           await removeDriverOffer(orderId);
           showPopup('Ditolak', 'Penawaran Anda ditolak oleh customer.', 'warning');
           closeModal();
+          offeredOrderIds.add(orderId);
+          addDebugLog(`Order ${orderId} ditambahkan ke offeredOrderIds (rejected)`, 'info');
+          // Autobid TIDAK dimatikan
         }
       });
     }
     
-    // ========== AUTOBID (dengan data lengkap) ==========
-    async function fetchNearbyOrders(radiusKm = 5) {
-      const snapshot = await database.ref('orders').once('value');
-      const ordersData = snapshot.val();
-      if (!ordersData) return [];
-      let orders = Object.keys(ordersData).map(key => ({ id: key, ...ordersData[key] }));
+    // ========== AUTOBID (hanya untuk jarak <= 3 km) ==========
+    async function fetchNearbyOrdersForBid(radiusKm = 3) {
+      if (!lastOrdersData) return [];
+      let orders = Object.keys(lastOrdersData).map(key => ({ id: key, ...lastOrdersData[key] }));
       orders = orders.filter(o => o.status === 'waiting');
       const nearby = orders.filter(order => {
         const dist = calculateDistance(driverLocation.latitude, driverLocation.longitude, order.pickup_lat, order.pickup_lng);
@@ -1134,6 +1226,7 @@
         driverOffers[currentDriverId] = offerData;
         await database.ref(`orders/${order.id}/driver_offers`).set(driverOffers);
         addDebugLog(`Autobid: penawaran berhasil dikirim untuk order ${order.id}`, "success");
+        offeredOrderIds.add(order.id);
         return true;
       } catch(e) {
         addDebugLog(`Autobid error: ${e.message}`, "error");
@@ -1147,7 +1240,6 @@
         addDebugLog("Autobid: lokasi driver belum tersedia", "warning");
         return;
       }
-      // Jangan jalankan jika sedang dalam proses autobid atau modal terbuka
       if (isAutoBiddingInProgress) {
         addDebugLog("Autobid: sedang berjalan, lewati", "info");
         return;
@@ -1158,10 +1250,10 @@
         return;
       }
       
-      addDebugLog("Autobid: memeriksa order terdekat...", "info");
-      const nearbyOrders = await fetchNearbyOrders(5);
+      addDebugLog("Autobid: memeriksa order terdekat (radius 3 km)...", "info");
+      const nearbyOrders = await fetchNearbyOrdersForBid(3);
       if (!nearbyOrders.length) {
-        addDebugLog("Autobid: tidak ada order dalam radius 5 km", "info");
+        addDebugLog("Autobid: tidak ada order dalam radius 3 km", "info");
         return;
       }
       const bestOrder = selectBestOrder(nearbyOrders);
@@ -1169,33 +1261,33 @@
         addDebugLog("Autobid: tidak ada order yang layak ditawar", "info");
         return;
       }
-      if (await alreadyOffered(bestOrder.id)) {
-        addDebugLog(`Autobid: sudah pernah menawar order ${bestOrder.id}, lewati`, "warning");
+      if (offeredOrderIds.has(bestOrder.id)) {
+        addDebugLog(`Autobid: order ${bestOrder.id} sudah pernah ditawar, lewati`, "warning");
         return;
       }
-      // Cek saldo
+      if (await alreadyOffered(bestOrder.id)) {
+        addDebugLog(`Autobid: sudah pernah menawar order ${bestOrder.id}, lewati`, "warning");
+        offeredOrderIds.add(bestOrder.id);
+        return;
+      }
       const requiredBalance = (bestOrder.price || 0) * 0.1;
       if ((currentDriverData.balance || 0) < requiredBalance) {
         addDebugLog(`Autobid: saldo tidak cukup untuk order ${bestOrder.id}`, "warning");
         return;
       }
       
-      // Tampilkan modal order
-      addDebugLog(`Autobid: menampilkan modal untuk order ${bestOrder.id}`, "success");
-      await showOrderDetail(bestOrder);
+      addDebugLog(`Autobid: menampilkan modal untuk order ${bestOrder.id} (tidak bisa ditutup)`, "success");
+      await showOrderDetail(bestOrder, false);
       
-      // Kirim penawaran otomatis setelah modal tampil (delay 1 detik)
       isAutoBiddingInProgress = true;
       lastAutoBidOrderId = bestOrder.id;
       
       setTimeout(async () => {
-        // Pastikan order yang ditampilkan masih sama dan belum ditawar
         if (currentSelectedOrder && currentSelectedOrder.id === lastAutoBidOrderId) {
           const stillNotOffered = await alreadyOffered(lastAutoBidOrderId);
-          if (stillNotOffered) {
+          if (!stillNotOffered && !offeredOrderIds.has(lastAutoBidOrderId)) {
             addDebugLog(`Autobid: mengirim penawaran otomatis untuk order ${lastAutoBidOrderId}`, "success");
             await sendDriverOfferForOrder(currentSelectedOrder);
-            // Tampilkan notifikasi di dalam modal (opsional)
             const ambilBtn = document.getElementById('ambilBtn');
             if (ambilBtn) {
               ambilBtn.innerText = '✅ Penawaran otomatis dikirim';
@@ -1204,11 +1296,11 @@
                 if (ambilBtn) ambilBtn.disabled = false;
               }, 5000);
             }
-            // Mulai countdown dan listener untuk order ini (karena penawaran sudah dikirim)
             startCountdown(currentSelectedOrder.id);
             listenOfferResponse(currentSelectedOrder.id);
           } else {
             addDebugLog(`Autobid: order ${lastAutoBidOrderId} sudah ditawar, lewati`, "info");
+            closeModal();
           }
         }
         isAutoBiddingInProgress = false;
@@ -1259,13 +1351,18 @@
       setTimeout(() => {
         if (historyModalMap) historyModalMap.remove();
         const mapContainer = document.getElementById('historyModalMap');
-        historyModalMap = L.map(mapContainer).setView([order.pickup_lat, order.pickup_lng], 13);
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; CartoDB'
-        }).addTo(historyModalMap);
-        L.marker([order.pickup_lat, order.pickup_lng]).addTo(historyModalMap).bindPopup('Pickup');
-        L.marker([order.dest_lat, order.dest_lng]).addTo(historyModalMap).bindPopup('Destination');
-        historyModalMap.fitBounds([[order.pickup_lat, order.pickup_lng], [order.dest_lat, order.dest_lng]]);
+        if (!mapboxAccessToken) return;
+        mapboxgl.accessToken = mapboxAccessToken;
+        historyModalMap = new mapboxgl.Map({
+          container: 'historyModalMap',
+          style: 'mapbox://styles/mapbox/streets-v11',
+          center: [order.pickup_lng, order.pickup_lat],
+          zoom: 12
+        });
+        new mapboxgl.Marker({ color: '#FF9800' }).setLngLat([order.pickup_lng, order.pickup_lat]).addTo(historyModalMap);
+        new mapboxgl.Marker({ color: '#FF5722' }).setLngLat([order.dest_lng, order.dest_lat]).addTo(historyModalMap);
+        const bounds = new mapboxgl.LngLatBounds().extend([order.pickup_lng, order.pickup_lat]).extend([order.dest_lng, order.dest_lat]);
+        historyModalMap.fitBounds(bounds, { padding: 50 });
       }, 100);
     }
     function closeHistoryModal() {
@@ -1350,7 +1447,9 @@
               updated_at: new Date().toISOString()
             });
           }
-          // Jika autobid aktif dan belum dalam proses, coba lagi
+          if (lastOrdersData) {
+            processOrders(lastOrdersData);
+          }
           if (autobidEnabled && !isAutoBiddingInProgress) {
             autoBid();
           }
@@ -1399,12 +1498,17 @@
     function toggleAcceptKurir() { 
       const acceptToggle = document.getElementById('acceptKurirToggle');
       if (acceptToggle) acceptKurirEnabled = acceptToggle.checked;
-      localStorage.setItem('jego_accept_kurir', acceptKurirEnabled); 
+      localStorage.setItem('jego_accept_kurir', acceptKurirEnabled);
+      if (lastOrdersData) {
+        processOrders(lastOrdersData);
+      }
       addDebugLog(`Accept kurir diubah menjadi ${acceptKurirEnabled ? "ON" : "OFF"}`);
     }
     function refreshData() { 
       addDebugLog("Refresh manual diminta");
-      // Bisa memicu ulang pembacaan orders jika diperlukan, namun Firebase sudah realtime
+      if (lastOrdersData) {
+        processOrders(lastOrdersData);
+      }
     }
     
     // ========== SPA NAVIGATION ==========
@@ -1434,7 +1538,12 @@
     
     // ========== INIT ==========
     document.addEventListener('DOMContentLoaded', async () => {
-      addDebugLog("Aplikasi dimulai (Firebase version)");
+      addDebugLog("Aplikasi dimulai (Firebase + Mapbox version)");
+      const tokenOk = await fetchMapboxToken();
+      if (!tokenOk) {
+        showPopup('Error', 'Gagal memuat token peta. Periksa koneksi.', 'error');
+        return;
+      }
       const success = await loadDriverData();
       if (!success) return;
       loadStoredSettings();
@@ -1447,7 +1556,10 @@
       document.getElementById('locationToggleBtn').onclick = toggleLocation;
       document.getElementById('autobidBtn').onclick = toggleAutobid;
       document.getElementById('refreshBtn').onclick = refreshData;
-      document.getElementById('closeModal').onclick = closeModal;
+      document.getElementById('closeModal').onclick = () => {
+        if (isModalClosable) closeModal();
+        else showPopup('Info', 'Penawaran sedang diproses, mohon tunggu hingga selesai.', 'info');
+      };
       document.getElementById('ambilBtn').onclick = sendDriverOffer;
       document.getElementById('acceptKurirToggle').onchange = toggleAcceptKurir;
       document.getElementById('logoutBtn').onclick = logoutDriver;
