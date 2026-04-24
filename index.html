@@ -9,12 +9,12 @@
   <script src="https://www.gstatic.com/firebasejs/11.0.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/11.0.2/firebase-database-compat.js"></script>
   
-  <!-- Mapbox GL JS untuk peta dan rute -->
+  <!-- Mapbox GL JS -->
   <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet" />
   <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
 
   <style>
-    /* ========== CSS SAMA PERSIS SEPERTI FILE ASLI (tidak diubah) ========== */
+    /* CSS SAMA PERSIS SEPERTI ASLI (tidak diubah) */
     :root {
       --primary: #FF9800;
       --secondary: #FFB74D;
@@ -437,10 +437,7 @@
     @media (max-width: 768px) { .info-item { flex-direction: column; gap: 5px; align-items: flex-start; } .info-value { text-align: left; max-width: 100%; width: 100%; justify-content: space-between; } }
     @media (max-width: 576px) { .form-title { font-size: 1.3rem; } .profile-stats { flex-direction: column; gap: 10px; } }
     
-    /* Sembunyikan debug console dari UI */
-    .debug-console {
-      display: none !important;
-    }
+    .debug-console { display: none !important; }
   </style>
 </head>
 <body>
@@ -514,7 +511,7 @@
     </div>
   </div>
 
-  <!-- ==================== HALAMAN BERANDA ==================== -->
+  <!-- HALAMAN BERANDA -->
   <div id="page-beranda" class="page active">
     <div class="container">
       <div class="orders-list" id="ordersList">
@@ -523,7 +520,7 @@
     </div>
   </div>
 
-  <!-- ==================== HALAMAN RIWAYAT ==================== -->
+  <!-- HALAMAN RIWAYAT -->
   <div id="page-riwayat" class="page">
     <div style="margin: 15px 15px 0 15px;">
       <div class="filter-container">
@@ -539,7 +536,7 @@
     </div>
   </div>
 
-  <!-- ==================== HALAMAN AKUN ==================== -->
+  <!-- HALAMAN AKUN -->
   <div id="page-akun" class="page">
     <div class="container">
       <div class="form-container">
@@ -554,7 +551,7 @@
           <div class="balance-container" id="balanceContainer">
             <div class="balance-label">Saldo Deposit</div>
             <div class="balance-amount" id="balanceAmount">Rp 0</div>
-            <div class="commission-info">Potongan Komisi: <span id="commissionRate">0%</span></div>
+            <div class="commission-info" id="commissionInfo"></div>
           </div>
           <div class="profile-rating" id="ratingClickable">
             <div class="rating-stars" id="ratingStars"></div>
@@ -580,7 +577,7 @@
     </div>
   </div>
 
-  <!-- ==================== MODAL ORDER ==================== -->
+  <!-- MODAL ORDER -->
   <div class="modal" id="orderModal">
     <div class="modal-content">
       <div class="modal-header-with-customer">
@@ -593,7 +590,11 @@
         <div class="modal-details">
           <div class="modal-route-info"><div class="modal-route-point"><div class="modal-point-marker point-marker-a">A</div><div class="modal-point-address modal-point-address-a" id="modalAddressA">-</div></div><div class="modal-route-point"><div class="modal-point-marker point-marker-b">B</div><div class="modal-point-address" id="modalAddressB">-</div></div></div>
           <div id="modalDeliveryInfo" class="modal-delivery-info" style="display:none;"></div>
-          <div class="modal-order-details"><div class="modal-detail-item"><span class="modal-detail-value" id="modalDuration">-</span><span class="modal-detail-label">Durasi</span></div><div class="modal-detail-item"><span class="modal-detail-value" id="modalDistance">-</span><span class="modal-detail-label">Jarak</span></div><div class="modal-detail-item"><span class="modal-detail-value" id="modalPrice">-</span><span class="modal-detail-label">Harga</span></div></div>
+          <div class="modal-order-details" id="modalOrderDetails">
+            <div class="modal-detail-item"><span class="modal-detail-value" id="modalDuration">-</span><span class="modal-detail-label">Durasi</span></div>
+            <div class="modal-detail-item"><span class="modal-detail-value" id="modalDistance">-</span><span class="modal-detail-label">Jarak</span></div>
+            <div class="modal-detail-item"><span class="modal-detail-value" id="modalPrice">-</span><span class="modal-detail-label">Harga</span></div>
+          </div>
         </div>
       </div>
       <div class="modal-footer">
@@ -603,7 +604,7 @@
     </div>
   </div>
 
-  <!-- ==================== MODAL RIWAYAT ==================== -->
+  <!-- MODAL RIWAYAT -->
   <div class="modal" id="historyModal">
     <div class="modal-content" style="max-width:500px;">
       <div class="modal-header" style="background:linear-gradient(135deg, var(--primary), var(--secondary)); border-radius:12px 12px 0 0; padding:15px 20px; display:flex; justify-content:space-between;"><h3 style="color:white;">Detail Order</h3><button class="close-btn" id="closeHistoryModal" style="color:white;">&times;</button></div>
@@ -643,7 +644,6 @@
   <div class="popup-overlay" id="popupOverlay"><div class="popup"><div class="popup-header"><span id="popupIcon">ℹ️</span><h3 id="popupTitle">Pemberitahuan</h3></div><div class="popup-body" id="popupMessage"></div><div class="popup-footer" id="popupFooter"></div></div></div>
   <div id="loadingOverlay"><div class="spinner"></div><p>Memuat...</p></div>
   
-  <!-- Debug console - DISEMBUNYIKAN -->
   <div class="debug-console" id="debugConsole" style="display:none !important;">
     <div class="debug-header"><span>🐞 Debug</span><button id="clearDebugBtn">🗑️</button><button id="toggleDebugBtn">▼</button></div>
     <div class="debug-content" id="debugContent"><p class="info">▶️ Memulai debug (Firebase)...</p></div>
@@ -664,6 +664,20 @@
     firebase.initializeApp(firebaseConfig);
     const database = firebase.database();
 
+    // ========== KONSTANTA POTONGAN (11,7% fee + PPN 11% dari fee) ==========
+    const FEE_APLIKASI_PERSEN = 0.117;      // 11,7%
+    const PPN_PERSEN = 0.11;                // 11% dari fee aplikasi
+    const TOTAL_POTONGAN = FEE_APLIKASI_PERSEN * (1 + PPN_PERSEN); // 0.12987
+    const PERSEN_DITERIMA = 1 - TOTAL_POTONGAN; // 0.87013
+
+    function hitungPotongan(tarif) {
+      const fee = tarif * FEE_APLIKASI_PERSEN;
+      const ppn = fee * PPN_PERSEN;
+      const totalPotongan = fee + ppn;
+      const bersih = tarif - totalPotongan;
+      return { fee, ppn, totalPotongan, bersih };
+    }
+
     // ========== GLOBAL VARIABLES ==========
     let currentDriverId = null;
     let currentDriverData = null;
@@ -683,7 +697,6 @@
     let lastOrdersData = null;
     let offeredOrderIds = new Set();
 
-    // Helper functions
     function addDebugLog(msg, type='info') {
       console.log(`[${type.toUpperCase()}] ${msg}`);
     }
@@ -759,7 +772,7 @@
       }
     }
 
-    // ========== LOAD DRIVER DATA DARI FIREBASE ==========
+    // ========== LOAD DRIVER DATA DENGAN FIELD PRIORITAS ==========
     async function loadDriverData() {
       addDebugLog("Memuat data driver dari Firebase...");
       const raw = localStorage.getItem('jego_logged_in_driver');
@@ -812,9 +825,12 @@
         email: driverData.email,
         address: driverData.address,
         registered_at: driverData.registered_at,
-        status: driverData.status || 'pending'
+        status: driverData.status || 'pending',
+        notification_delay: driverData.notification_delay !== undefined ? driverData.notification_delay : 0,
+        autobid_allowed: driverData.autobid_allowed === true,
+        priority_level: driverData.priority_level || 'basic'
       };
-      addDebugLog(`Driver berhasil dimuat: ${currentDriverData.fullName}`, "success");
+      addDebugLog(`Driver berhasil dimuat: ${currentDriverData.fullName}, autobid_allowed=${currentDriverData.autobid_allowed}`, "success");
       
       document.getElementById('driverPhoto').src = currentDriverData.profilePhotoUrl;
       document.getElementById('sidebarDriverPhoto').src = currentDriverData.profilePhotoUrl;
@@ -824,10 +840,22 @@
       document.getElementById('sidebarTrips').innerText = currentDriverData.perjalanan;
       document.getElementById('sidebarBalance').innerText = `Rp ${(currentDriverData.balance||0).toLocaleString('id-ID')}`;
       
+      const priorityBadge = document.getElementById('priorityBadgeSmall');
+      const level = currentDriverData.priority_level;
+      priorityBadge.className = `priority-badge ${level}`;
+      priorityBadge.innerText = level.toUpperCase();
+      
+      // Tampilkan info potongan di halaman akun
+      const commissionInfo = document.getElementById('commissionInfo');
+      if (commissionInfo) {
+        commissionInfo.innerHTML = `Potongan: Fee Aplikasi 11,7% + PPN 11% dari fee = <strong>${(TOTAL_POTONGAN*100).toFixed(2)}%</strong> dari tarif order.<br>
+                                    Contoh: Tarif Rp 12.000 → Potongan Rp ${hitungPotongan(12000).totalPotongan.toLocaleString('id-ID')}`;
+      }
+      
       return true;
     }
 
-    // ========== PROSES FILTER & RENDER ORDER (jarak list: 7 km) ==========
+    // ========== PROSES FILTER & RENDER ORDER ==========
     function processOrders(ordersData) {
       if (!ordersData) {
         renderOrdersList([]);
@@ -848,32 +876,25 @@
         return true;
       });
       
-      // Filter berdasarkan radius 7 km untuk daftar order
       if (driverLocation.latitude && driverLocation.longitude) {
         orders = orders.map(order => {
           const dist = calculateDistance(driverLocation.latitude, driverLocation.longitude, order.pickup_lat, order.pickup_lng);
-          addDebugLog(`Order ${order.id} jarak: ${dist ? dist.toFixed(2) : '?'} km`);
           return { ...order, distanceToPickup: dist };
-        }).filter(o => o.distanceToPickup !== null && o.distanceToPickup <= 7); // radius 7 km untuk list
+        }).filter(o => o.distanceToPickup !== null && o.distanceToPickup <= 7);
         orders.sort((a,b) => (a.distanceToPickup||999) - (b.distanceToPickup||999));
       } else {
-        // Jika lokasi belum tersedia, jangan tampilkan order
         orders = [];
       }
       renderOrdersList(orders);
       
-      // Panggil autobid (namun autobid akan memfilter sendiri dengan radius 3 km)
-      if (autobidEnabled && driverLocation.latitude && driverLocation.longitude && !isAutoBiddingInProgress) {
+      if (autobidEnabled && driverLocation.latitude && driverLocation.longitude && !isAutoBiddingInProgress && currentDriverData.autobid_allowed) {
         autoBid();
       }
     }
 
-    // ========== LISTEN ORDERS ==========
     let ordersRef = null;
     function listenOrders() {
-      if (ordersRef) {
-        ordersRef.off();
-      }
+      if (ordersRef) ordersRef.off();
       ordersRef = database.ref('orders');
       ordersRef.on('value', (snapshot) => {
         addDebugLog("Firebase: orders updated", "info");
@@ -900,14 +921,12 @@
         const userPhoto = order.photoURL || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png';
         const price = order.price || 0;
         const distanceText = order.distanceToPickup ? `${order.distanceToPickup.toFixed(1)} km` : '? km';
-        // Menampilkan informasi perjalanan customer di bawah rating
         const customerTrips = order.perjalanan || 0;
         orderItem.innerHTML = `
           <div class="order-header"><div class="customer-name">${escapeHtml(userName)} ${order.transport_type?.includes('kurir') ? '<span class="kurir-badge">Kurir</span>' : ''}</div><div class="order-badges"><span class="promo-badge">${escapeHtml(order.transport_type || 'Motor')}</span></div></div>
           <div class="route-info-with-photo"><div class="customer-info-left"><img class="customer-photo-left" src="${userPhoto}" onclick="event.stopPropagation(); window.showPhotoModal && window.showPhotoModal('${userPhoto}','${escapeHtml(userName)}')"><div class="customer-name-left">${escapeHtml(userName.split(' ')[0])}</div><div class="customer-rating"><span class="rating-stars">⭐</span><span>${order.passenger_rating?.toFixed(1)||'5.0'}</span></div><div class="trip-count">📊 ${customerTrips} trip</div></div><div class="route-addresses-right"><div class="route-point"><div class="point-marker point-marker-a">A</div><div class="point-address point-address-a">${escapeHtml(order.pickup_address) || '-'}</div></div><div class="route-point"><div class="point-marker point-marker-b">B</div><div class="point-address">${escapeHtml(order.destination_address) || '-'}</div></div></div></div>
           <div class="order-details"><div class="detail-item"><span class="detail-value">${Math.round(order.duration_seconds/60)||'-'} min</span><span class="detail-label">Durasi</span></div><div class="detail-item"><span class="detail-value">${(order.distance_meters/1000).toFixed(1)||'-'} km</span><span class="detail-label">Jarak</span></div><div class="detail-item"><span class="detail-value price-highlight">Rp ${price.toLocaleString('id-ID')}</span><span class="detail-label">Harga</span></div><div class="detail-item"><span class="detail-value">${distanceText}</span><span class="detail-label">Dari Anda</span></div></div>
         `;
-        // Saat klik order, cek jarak dulu, jika > 3 km tolak tampilkan modal
         orderItem.addEventListener('click', () => {
           if (order.distanceToPickup > 3) {
             showPopup('Order Terlalu Jauh', `Jarak order ini ${order.distanceToPickup.toFixed(1)} km dari posisi Anda. Minimal jarak untuk menawar adalah 3 km.`, 'warning');
@@ -929,7 +948,7 @@
       });
     }
 
-    // ========== MODAL ORDER DETAIL (hanya dipanggil jika jarak <= 3 km) ==========
+    // ========== MODAL ORDER DETAIL DENGAN RINCIAN POTONGAN ==========
     async function showOrderDetail(order, isManual = true) {
       addDebugLog(`Menampilkan detail order: ${order.id} (manual: ${isManual})`);
       currentSelectedOrder = order;
@@ -960,6 +979,29 @@
         deliveryDiv.innerHTML = `<div class="modal-delivery-item"><span class="modal-delivery-label">Pengirim:</span><span class="modal-delivery-value">${escapeHtml(order.sender_phone)}</span></div><div class="modal-delivery-item"><span class="modal-delivery-label">Penerima:</span><span class="modal-delivery-value">${escapeHtml(order.receiver_phone)}</span></div><div class="modal-delivery-item"><span class="modal-delivery-label">Barang:</span><span class="modal-delivery-value">${escapeHtml(order.item_category)} - ${escapeHtml(order.item_description)}</span></div>`;
         deliveryDiv.style.display = 'block';
       } else deliveryDiv.style.display = 'none';
+      
+      // Tampilkan rincian potongan
+      const tarif = order.price || 0;
+      const { fee, ppn, totalPotongan, bersih } = hitungPotongan(tarif);
+      const modalOrderDetails = document.getElementById('modalOrderDetails');
+      let existingRincian = document.getElementById('rincianPotongan');
+      if (!existingRincian) {
+        const rincianDiv = document.createElement('div');
+        rincianDiv.id = 'rincianPotongan';
+        rincianDiv.className = 'modal-delivery-info';
+        rincianDiv.style.background = '#fff3e0';
+        rincianDiv.style.marginTop = '10px';
+        modalOrderDetails.parentNode.insertBefore(rincianDiv, modalOrderDetails.nextSibling);
+        existingRincian = rincianDiv;
+      }
+      existingRincian.innerHTML = `
+        <div style="font-weight:600; margin-bottom:8px;">💰 Rincian Potongan (PPN + Fee Aplikasi)</div>
+        <div class="modal-delivery-item"><span class="modal-delivery-label">Tarif Order:</span><span class="modal-delivery-value">Rp ${tarif.toLocaleString('id-ID')}</span></div>
+        <div class="modal-delivery-item"><span class="modal-delivery-label">Fee Aplikasi 11,7%:</span><span class="modal-delivery-value">Rp ${fee.toLocaleString('id-ID')}</span></div>
+        <div class="modal-delivery-item"><span class="modal-delivery-label">PPN 11% dari fee:</span><span class="modal-delivery-value">Rp ${ppn.toLocaleString('id-ID')}</span></div>
+        <div class="modal-delivery-item"><span class="modal-delivery-label">Total Potongan:</span><span class="modal-delivery-value" style="color:#d32f2f;">Rp ${totalPotongan.toLocaleString('id-ID')}</span></div>
+        <div class="modal-delivery-item"><span class="modal-delivery-label">Pendapatan Bersih:</span><span class="modal-delivery-value" style="font-weight:700; color:#4caf50;">Rp ${bersih.toLocaleString('id-ID')} (${(PERSEN_DITERIMA*100).toFixed(2)}%)</span></div>
+      `;
       
       modal.style.display = 'flex';
       
@@ -1038,7 +1080,6 @@
       if (closeBtn) closeBtn.style.display = 'flex';
     }
 
-    // ========== FUNGSI MENGHAPUS PENAWARAN DRIVER ==========
     async function removeDriverOffer(orderId) {
       if (!orderId || !currentDriverId) return;
       try {
@@ -1060,7 +1101,7 @@
       }
     }
 
-    // ========== MENGIRIM PENAWARAN ==========
+    // ========== MENGIRIM PENAWARAN (TANPA CEK SALDO) ==========
     async function sendDriverOffer() {
       if (!currentSelectedOrder || !currentDriverId) {
         showPopup('Error', 'Data tidak lengkap', 'error');
@@ -1069,12 +1110,7 @@
       const orderId = currentSelectedOrder.id;
       addDebugLog(`Mengirim penawaran untuk order ${orderId}`);
       
-      const requiredBalance = (currentSelectedOrder.price || 0) * 0.1;
-      if ((currentDriverData.balance || 0) < requiredBalance) {
-        showPopup('Saldo Tidak Cukup', `Saldo Anda Rp ${(currentDriverData.balance || 0).toLocaleString('id-ID')} tidak cukup untuk deposit 10% (Rp ${requiredBalance.toLocaleString('id-ID')})`, 'warning');
-        return;
-      }
-      
+      // Tidak ada pengecekan saldo
       const ambilBtn = document.getElementById('ambilBtn');
       if (ambilBtn) {
         ambilBtn.disabled = true;
@@ -1137,8 +1173,6 @@
           showPopup('Waktu Habis', 'Tidak ada respon dari customer. Penawaran Anda telah dibatalkan.', 'info');
           closeModal();
           offeredOrderIds.add(orderId);
-          addDebugLog(`Order ${orderId} ditambahkan ke offeredOrderIds (timeout)`, 'info');
-          // Autobid TIDAK dimatikan, hanya order ini yang tidak akan ditawar lagi
         }
       }, 1000);
     }
@@ -1161,13 +1195,11 @@
           showPopup('Ditolak', 'Penawaran Anda ditolak oleh customer.', 'warning');
           closeModal();
           offeredOrderIds.add(orderId);
-          addDebugLog(`Order ${orderId} ditambahkan ke offeredOrderIds (rejected)`, 'info');
-          // Autobid TIDAK dimatikan
         }
       });
     }
     
-    // ========== AUTOBID (hanya untuk jarak <= 3 km) ==========
+    // ========== AUTOBID DENGAN NOTIFICATION DELAY ==========
     async function fetchNearbyOrdersForBid(radiusKm = 3) {
       if (!lastOrdersData) return [];
       let orders = Object.keys(lastOrdersData).map(key => ({ id: key, ...lastOrdersData[key] }));
@@ -1203,11 +1235,7 @@
     
     async function sendDriverOfferForOrder(order) {
       if (!order || !currentDriverId) return false;
-      const requiredBalance = (order.price || 0) * 0.1;
-      if ((currentDriverData.balance || 0) < requiredBalance) {
-        addDebugLog(`Autobid: saldo tidak cukup untuk order ${order.id}`, "warning");
-        return false;
-      }
+      // Tidak ada pengecekan saldo
       const offerData = {
         driver_id: currentDriverId,
         driver_name: currentDriverData.fullName,
@@ -1238,6 +1266,10 @@
     
     async function autoBid() {
       if (!autobidEnabled) return;
+      if (!currentDriverData.autobid_allowed) {
+        addDebugLog("Autobid: driver tidak diizinkan oleh admin untuk autobid", "warning");
+        return;
+      }
       if (!driverLocation.latitude || !driverLocation.longitude) {
         addDebugLog("Autobid: lokasi driver belum tersedia", "warning");
         return;
@@ -1272,19 +1304,15 @@
         offeredOrderIds.add(bestOrder.id);
         return;
       }
-      const requiredBalance = (bestOrder.price || 0) * 0.1;
-      if ((currentDriverData.balance || 0) < requiredBalance) {
-        addDebugLog(`Autobid: saldo tidak cukup untuk order ${bestOrder.id}`, "warning");
-        return;
-      }
       
-      addDebugLog(`Autobid: menampilkan modal untuk order ${bestOrder.id} (tidak bisa ditutup)`, "success");
-      await showOrderDetail(bestOrder, false);
+      const delay = currentDriverData.notification_delay || 0;
+      addDebugLog(`Autobid: menampilkan modal setelah delay ${delay} detik untuk order ${bestOrder.id}`, "success");
       
       isAutoBiddingInProgress = true;
       lastAutoBidOrderId = bestOrder.id;
       
       setTimeout(async () => {
+        await showOrderDetail(bestOrder, false);
         if (currentSelectedOrder && currentSelectedOrder.id === lastAutoBidOrderId) {
           const stillNotOffered = await alreadyOffered(lastAutoBidOrderId);
           if (!stillNotOffered && !offeredOrderIds.has(lastAutoBidOrderId)) {
@@ -1307,7 +1335,7 @@
         }
         isAutoBiddingInProgress = false;
         lastAutoBidOrderId = null;
-      }, 1000);
+      }, delay * 1000);
     }
     
     // ========== RIWAYAT ORDER ==========
@@ -1410,21 +1438,10 @@
       document.getElementById('ratingValue').innerText = (currentDriverData.rating || 0).toFixed(1);
       document.getElementById('ratingCount').innerText = `(${currentDriverData.total_ratings || 0} rating)`;
       
-      const trips = currentDriverData.perjalanan || 0;
       const priorityBadge = document.getElementById('priorityBadgeSmall');
-      if (trips < 10) {
-        priorityBadge.className = 'priority-badge basic';
-        priorityBadge.innerText = 'Basic';
-      } else if (trips < 50) {
-        priorityBadge.className = 'priority-badge standard';
-        priorityBadge.innerText = 'Standard';
-      } else if (trips < 200) {
-        priorityBadge.className = 'priority-badge regular';
-        priorityBadge.innerText = 'Regular';
-      } else {
-        priorityBadge.className = 'priority-badge essential';
-        priorityBadge.innerText = 'Essential';
-      }
+      const level = currentDriverData.priority_level;
+      priorityBadge.className = `priority-badge ${level}`;
+      priorityBadge.innerText = level.toUpperCase();
     }
     
     function logoutDriver() {
@@ -1452,7 +1469,7 @@
           if (lastOrdersData) {
             processOrders(lastOrdersData);
           }
-          if (autobidEnabled && !isAutoBiddingInProgress) {
+          if (autobidEnabled && !isAutoBiddingInProgress && currentDriverData.autobid_allowed) {
             autoBid();
           }
         }, err => { 
@@ -1481,6 +1498,10 @@
       }
       const autoBtn = document.getElementById('autobidBtn');
       if (autoBtn) {
+        if (autobidEnabled && !currentDriverData?.autobid_allowed) {
+          autobidEnabled = false;
+          localStorage.setItem('jego_autobid_enabled', 'false');
+        }
         autoBtn.innerHTML = autobidEnabled ? 'Autobid: ON' : 'Autobid: OFF';
         autoBtn.classList.toggle('active', autobidEnabled);
       }
@@ -1492,6 +1513,10 @@
       addDebugLog(`Location tracking diubah menjadi ${locationTrackingEnabled ? "ON" : "OFF"}`);
     }
     function toggleAutobid() { 
+      if (currentDriverData && !currentDriverData.autobid_allowed) {
+        showPopup('Tidak Diizinkan', 'Akun Anda belum diizinkan menggunakan Autobid oleh admin. Silakan tingkatkan performa Anda.', 'warning');
+        return;
+      }
       autobidEnabled = !autobidEnabled; 
       localStorage.setItem('jego_autobid_enabled', autobidEnabled); 
       updateUIButtons();
