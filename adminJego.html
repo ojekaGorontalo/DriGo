@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin JeGo - Prioritas Driver</title>
+    <title>Admin JeGo - Prioritas Driver & Cleanup Order</title>
     <script src="https://www.gstatic.com/firebasejs/11.0.2/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/11.0.2/firebase-database-compat.js"></script>
     <style>
@@ -13,6 +13,10 @@
         h1 { color: #FF9800; margin-top: 0; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; }
         button { background: #FF9800; border: none; padding: 10px 20px; border-radius: 8px; color: white; font-weight: bold; cursor: pointer; margin: 5px; transition: 0.2s; }
         button:hover { background: #e68900; transform: translateY(-2px); }
+        .btn-danger { background: #dc3545; }
+        .btn-danger:hover { background: #c82333; }
+        .btn-secondary { background: #6c757d; }
+        .btn-secondary:hover { background: #5a6268; }
         table { width: 100%; border-collapse: collapse; margin-top: 20px; overflow-x: auto; display: block; }
         th, td { border: 1px solid #ddd; padding: 8px 10px; text-align: center; font-size: 0.85rem; vertical-align: middle; }
         th { background: #FF9800; color: white; position: sticky; top: 0; }
@@ -26,25 +30,32 @@
         .action-buttons { display: flex; gap: 5px; justify-content: center; flex-wrap: wrap; }
         .status { margin-top: 15px; padding: 10px; border-radius: 8px; background: #e8f5e9; color: #2e7d32; display: none; }
         .info-update { font-size: 0.8rem; color: #666; margin-top: 10px; text-align: right; }
+        .section-title { font-size: 1.2rem; font-weight: bold; margin: 20px 0 10px 0; color: #FF9800; border-bottom: 2px solid #FF9800; display: inline-block; }
+        .cleanup-stats { background: #f8f9fa; padding: 10px; border-radius: 8px; margin: 10px 0; font-size: 0.85rem; }
         @media (max-width: 768px) { th, td { font-size: 0.7rem; padding: 4px; } input { width: 60px; } }
     </style>
 </head>
 <body>
 <div class="container">
-    <h1>⚙️ Manajemen Prioritas Driver
+    <h1>⚙️ Manajemen Prioritas Driver & Pembersihan Order
         <div>
             <button id="refreshBtn">🔄 Refresh Data</button>
             <button id="updateAllBtn">📊 Hitung & Update Semua</button>
+            <button id="cleanupOrdersBtn" class="btn-danger">🧹 Hapus Order Waiting > 30 menit</button>
         </div>
     </h1>
     <div class="status" id="statusMsg"></div>
+    
+    <div class="cleanup-stats" id="cleanupStats"></div>
+    
+    <div class="section-title">📋 Daftar Driver & Prioritas</div>
     <div style="overflow-x: auto;">
         <table id="driverTable">
             <thead>
                 <tr><th>ID Driver</th><th>Nama</th><th>Rating</th><th>Trips</th><th>Priority Score</th><th>Level</th><th>Deposit Rate</th><th>Notif Delay (dtk)</th><th>Autobid Allowed</th><th>Aksi</th></tr>
             </thead>
             <tbody id="driverTableBody">
-                <tr><td colspan="10">Memuat data......</td></tr>
+                <tr><td colspan="10">Memuat data...</td></tr>
             </tbody>
         </table>
     </div>
@@ -65,6 +76,7 @@
     firebase.initializeApp(firebaseConfig);
     const database = firebase.database();
 
+    // ==================== FUNGSI PRIORITAS DRIVER ====================
     // Fungsi menghitung skor prioritas (0-100)
     function calculatePriorityScore(rating, trips) {
         const maxTrips = 200;
@@ -122,26 +134,11 @@
         
         // Update info waktu terakhir
         const now = new Date();
-        document.getElementById('lastUpdateInfo').innerHTML = `Terakhir update: ${now.toLocaleTimeString('id-ID')} | Auto-refresh setiap 30 detik`;
-    }
-
-    // Memuat data driver (sekali baca)
-    async function loadDrivers() {
-        try {
-            const snapshot = await database.ref('drivers').once('value');
-            const drivers = snapshot.val();
-            renderDriverTable(drivers);
-            showStatus('Data berhasil dimuat', false);
-        } catch (err) {
-            console.error(err);
-            document.getElementById('driverTableBody').innerHTML = '<tr><td colspan="10">Error loading data</td></tr>';
-            showStatus('Gagal memuat driver: ' + err.message, true);
-        }
+        document.getElementById('lastUpdateInfo').innerHTML = `Terakhir update driver: ${now.toLocaleTimeString('id-ID')} | Auto-refresh setiap 30 detik`;
     }
 
     // Attach event listener untuk tombol update & hitung ulang per baris
     function attachEventListeners() {
-        // Tombol update per baris
         document.querySelectorAll('.update-single').forEach(btn => {
             btn.addEventListener('click', async (e) => {
                 const row = e.target.closest('tr');
@@ -153,12 +150,10 @@
                 const deposit = parseFloat(row.querySelector('.deposit-input').value);
                 const delay = parseInt(row.querySelector('.delay-input').value);
                 const autobid = row.querySelector('.autobid-select').value === 'true';
-                // Update tampilan score dan level
                 row.querySelector('.score-cell').innerText = score;
                 const levelSpan = row.querySelector('.priority-badge');
                 levelSpan.className = `priority-badge ${details.level}`;
                 levelSpan.innerText = details.level.toUpperCase();
-                // Simpan ke Firebase
                 try {
                     await database.ref(`drivers/${driverId}`).update({
                         rating: rating,
@@ -175,7 +170,6 @@
                 }
             });
         });
-        // Tombol hitung ulang per baris (berdasarkan rating & trips)
         document.querySelectorAll('.recalc-single').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 const row = e.target.closest('tr');
@@ -194,7 +188,7 @@
         });
     }
 
-    // Update semua driver berdasarkan data rating & trips yang ada di database (bukan dari input)
+    // Update semua driver berdasarkan data rating & trips yang ada di database
     async function updateAllDrivers() {
         showStatus('Memproses update semua driver...');
         try {
@@ -215,14 +209,95 @@
             }
             await database.ref('drivers').update(updates);
             showStatus(`✅ Berhasil update ${Object.keys(updates).length} driver`);
-            loadDrivers(); // refresh tabel
+            loadDrivers();
         } catch (err) {
             showStatus('Gagal update semua: ' + err.message, true);
         }
     }
 
-    // ========== SETUP AUTO-REFRESH PERIODIK ==========
+    // Memuat data driver (sekali baca)
+    async function loadDrivers() {
+        try {
+            const snapshot = await database.ref('drivers').once('value');
+            const drivers = snapshot.val();
+            renderDriverTable(drivers);
+            showStatus('Data driver berhasil dimuat', false);
+        } catch (err) {
+            console.error(err);
+            document.getElementById('driverTableBody').innerHTML = '<tr><td colspan="10">Error loading data</td></tr>';
+            showStatus('Gagal memuat driver: ' + err.message, true);
+        }
+    }
+
+    // ==================== PEMBERSIHAN ORDER WAITING LAMA ====================
+    // Fungsi menghapus order dengan status 'waiting' yang sudah lebih dari batas waktu (menit)
+    async function cleanupOldWaitingOrders(limitMinutes = 30) {
+        const statsDiv = document.getElementById('cleanupStats');
+        statsDiv.innerHTML = '<span>🔄 Sedang memeriksa order waiting...</span>';
+        try {
+            const snapshot = await database.ref('orders').once('value');
+            const orders = snapshot.val();
+            if (!orders) {
+                statsDiv.innerHTML = '<span>✅ Tidak ada order ditemukan.</span>';
+                return;
+            }
+
+            const now = new Date();
+            const deletePromises = [];
+            let deletedCount = 0;
+            let skippedCount = 0;
+
+            for (const [orderId, order] of Object.entries(orders)) {
+                // Hanya proses order dengan status 'waiting'
+                if (order.status !== 'waiting') continue;
+                
+                // Ambil waktu dibuat (created_at) -> format ISO string
+                const createdAt = order.created_at;
+                if (!createdAt) {
+                    console.warn(`Order ${orderId} tidak memiliki created_at, dilewati`);
+                    skippedCount++;
+                    continue;
+                }
+                
+                const createdDate = new Date(createdAt);
+                const diffMinutes = (now - createdDate) / (1000 * 60);
+                
+                if (diffMinutes > limitMinutes) {
+                    // Hapus order
+                    deletePromises.push(database.ref(`orders/${orderId}`).remove());
+                    deletedCount++;
+                    console.log(`Menghapus order ${orderId} (${diffMinutes.toFixed(1)} menit)`);
+                } else {
+                    skippedCount++;
+                }
+            }
+            
+            if (deletePromises.length > 0) {
+                await Promise.all(deletePromises);
+                statsDiv.innerHTML = `<span>✅ Berhasil menghapus ${deletedCount} order waiting yang sudah lebih dari ${limitMinutes} menit. (${skippedCount} order masih dalam batas)</span>`;
+                showStatus(`🧹 Dihapus ${deletedCount} order lama`, false);
+            } else {
+                statsDiv.innerHTML = `<span>✅ Tidak ada order waiting yang melebihi ${limitMinutes} menit. (${skippedCount} order dalam batas)</span>`;
+                showStatus(`Tidak ada order lama ditemukan`, false);
+            }
+        } catch (err) {
+            console.error('Gagal cleanup order:', err);
+            statsDiv.innerHTML = `<span>❌ Error: ${err.message}</span>`;
+            showStatus('Gagal membersihkan order: ' + err.message, true);
+        }
+        
+        // Hilangkan pesan stats setelah 10 detik
+        setTimeout(() => {
+            const stats = document.getElementById('cleanupStats');
+            if (stats && stats.innerHTML !== '') {
+                stats.innerHTML = '';
+            }
+        }, 10000);
+    }
+
+    // ==================== AUTO REFRESH & CLEANUP PERIODIK ====================
     let autoRefreshInterval = null;
+    let autoCleanupInterval = null;
 
     function startAutoRefresh(intervalMs = 30000) {
         if (autoRefreshInterval) clearInterval(autoRefreshInterval);
@@ -230,25 +305,49 @@
             loadDrivers();
         }, intervalMs);
     }
-
-    // Hentikan auto-refresh (opsional, jika dibutuhkan)
+    
+    function startAutoCleanup(intervalMs = 3600000) { // 1 jam
+        if (autoCleanupInterval) clearInterval(autoCleanupInterval);
+        autoCleanupInterval = setInterval(() => {
+            console.log('Auto-cleanup: menjalankan pembersihan order waiting > 30 menit');
+            cleanupOldWaitingOrders(30);
+        }, intervalMs);
+    }
+    
     function stopAutoRefresh() {
         if (autoRefreshInterval) {
             clearInterval(autoRefreshInterval);
             autoRefreshInterval = null;
         }
     }
+    
+    function stopAutoCleanup() {
+        if (autoCleanupInterval) {
+            clearInterval(autoCleanupInterval);
+            autoCleanupInterval = null;
+        }
+    }
 
-    // Event listeners tombol
+    // ==================== INITIALIZATION ====================
     document.getElementById('refreshBtn').addEventListener('click', () => {
         loadDrivers();
-        showStatus('Memuat ulang data...', false);
+        showStatus('Memuat ulang data driver...', false);
     });
     document.getElementById('updateAllBtn').addEventListener('click', updateAllDrivers);
+    document.getElementById('cleanupOrdersBtn').addEventListener('click', () => {
+        cleanupOldWaitingOrders(30);
+    });
 
-    // Mulai auto-refresh 30 detik
+    // Mulai auto-refresh driver setiap 30 detik
     startAutoRefresh(30000);
-
+    // Mulai auto-cleanup order setiap 1 jam
+    startAutoCleanup(3600000);
+    
+    // Jalankan cleanup sekali saat halaman dimuat (optional)
+    setTimeout(() => {
+        cleanupOldWaitingOrders(30);
+    }, 5000);
+    
     // Load data pertama kali
     loadDrivers();
 </script>
