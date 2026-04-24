@@ -643,17 +643,12 @@
   <div class="popup-overlay" id="popupOverlay"><div class="popup"><div class="popup-header"><span id="popupIcon">ℹ️</span><h3 id="popupTitle">Pemberitahuan</h3></div><div class="popup-body" id="popupMessage"></div><div class="popup-footer" id="popupFooter"></div></div></div>
   <div id="loadingOverlay"><div class="spinner"></div><p>Memuat...</p></div>
   
-  <!-- Audio Elements -->
-  <audio id="newOrderSound" preload="auto" src="https://jegotiem.netlify.app/audio/audiopopupmanual.mp3"></audio>
-  <audio id="audioBeep" preload="auto" src="https://jegotiem.netlify.app/audio/beek.mp3"></audio>
-  <audio id="audioAutobid" preload="auto" src="https://jegotiem.netlify.app/audio/audioautobid.mp3"></audio>
-  <audio id="audioAccepted" preload="auto" src="https://jegotiem.netlify.app/audio/audioorderaccepted.mp3"></audio>
-
   <!-- Debug console - DISEMBUNYIKAN -->
   <div class="debug-console" id="debugConsole" style="display:none !important;">
     <div class="debug-header"><span>🐞 Debug</span><button id="clearDebugBtn">🗑️</button><button id="toggleDebugBtn">▼</button></div>
     <div class="debug-content" id="debugContent"><p class="info">▶️ Memulai debug (Firebase)...</p></div>
   </div>
+  <audio id="newOrderSound" preload="auto"><source src="https://jegotiem.netlify.app/audio/audiopopupmanual.mp3" type="audio/mpeg"></audio>
 
   <script>
     // ========== KONFIGURASI FIREBASE ==========
@@ -688,26 +683,13 @@
     let lastOrdersData = null;
     let offeredOrderIds = new Set();
 
-    // Untuk deteksi order baru
-    let previousOrderIds = new Set();
-    let isFirstLoad = true;
-
     // Helper functions
     function addDebugLog(msg, type='info') {
       console.log(`[${type.toUpperCase()}] ${msg}`);
     }
 
-    function playSound(audioElementId) {
-      const audio = document.getElementById(audioElementId);
-      if (audio) {
-        audio.play().catch(err => console.warn('Audio play gagal:', err));
-      }
-    }
-
     function showPopup(title, message, type='info', buttons=null) {
       addDebugLog(`Popup: ${title} - ${message}`, type);
-      // Putar suara popup manual
-      playSound('newOrderSound');
       const overlay = document.getElementById('popupOverlay');
       if (!overlay) return;
       document.getElementById('popupTitle').innerText = title;
@@ -867,35 +849,18 @@
       });
       
       // Filter berdasarkan radius 7 km untuk daftar order
-      let filteredOrders = [];
       if (driverLocation.latitude && driverLocation.longitude) {
-        filteredOrders = orders.map(order => {
+        orders = orders.map(order => {
           const dist = calculateDistance(driverLocation.latitude, driverLocation.longitude, order.pickup_lat, order.pickup_lng);
           addDebugLog(`Order ${order.id} jarak: ${dist ? dist.toFixed(2) : '?'} km`);
           return { ...order, distanceToPickup: dist };
-        }).filter(o => o.distanceToPickup !== null && o.distanceToPickup <= 7);
-        filteredOrders.sort((a,b) => (a.distanceToPickup||999) - (b.distanceToPickup||999));
+        }).filter(o => o.distanceToPickup !== null && o.distanceToPickup <= 7); // radius 7 km untuk list
+        orders.sort((a,b) => (a.distanceToPickup||999) - (b.distanceToPickup||999));
       } else {
-        filteredOrders = [];
+        // Jika lokasi belum tersedia, jangan tampilkan order
+        orders = [];
       }
-      
-      // Deteksi order baru (suara beep)
-      if (!isFirstLoad && driverLocation.latitude && driverLocation.longitude) {
-        const currentOrderIds = new Set(filteredOrders.map(o => o.id));
-        for (let newId of currentOrderIds) {
-          if (!previousOrderIds.has(newId)) {
-            playSound('audioBeep');
-            addDebugLog(`Order baru terdeteksi: ${newId}`, 'info');
-            break;
-          }
-        }
-        previousOrderIds = currentOrderIds;
-      } else if (isFirstLoad) {
-        previousOrderIds = new Set(filteredOrders.map(o => o.id));
-        isFirstLoad = false;
-      }
-      
-      renderOrdersList(filteredOrders);
+      renderOrdersList(orders);
       
       // Panggil autobid (namun autobid akan memfilter sendiri dengan radius 3 km)
       if (autobidEnabled && driverLocation.latitude && driverLocation.longitude && !isAutoBiddingInProgress) {
@@ -935,11 +900,14 @@
         const userPhoto = order.photoURL || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png';
         const price = order.price || 0;
         const distanceText = order.distanceToPickup ? `${order.distanceToPickup.toFixed(1)} km` : '? km';
+        // Menampilkan informasi perjalanan customer di bawah rating
+        const customerTrips = order.perjalanan || 0;
         orderItem.innerHTML = `
           <div class="order-header"><div class="customer-name">${escapeHtml(userName)} ${order.transport_type?.includes('kurir') ? '<span class="kurir-badge">Kurir</span>' : ''}</div><div class="order-badges"><span class="promo-badge">${escapeHtml(order.transport_type || 'Motor')}</span></div></div>
-          <div class="route-info-with-photo"><div class="customer-info-left"><img class="customer-photo-left" src="${userPhoto}" onclick="event.stopPropagation(); window.showPhotoModal && window.showPhotoModal('${userPhoto}','${escapeHtml(userName)}')"><div class="customer-name-left">${escapeHtml(userName.split(' ')[0])}</div><div class="customer-rating"><span class="rating-stars">⭐</span><span>${order.passenger_rating?.toFixed(1)||'5.0'}</span></div></div><div class="route-addresses-right"><div class="route-point"><div class="point-marker point-marker-a">A</div><div class="point-address point-address-a">${escapeHtml(order.pickup_address) || '-'}</div></div><div class="route-point"><div class="point-marker point-marker-b">B</div><div class="point-address">${escapeHtml(order.destination_address) || '-'}</div></div></div></div>
+          <div class="route-info-with-photo"><div class="customer-info-left"><img class="customer-photo-left" src="${userPhoto}" onclick="event.stopPropagation(); window.showPhotoModal && window.showPhotoModal('${userPhoto}','${escapeHtml(userName)}')"><div class="customer-name-left">${escapeHtml(userName.split(' ')[0])}</div><div class="customer-rating"><span class="rating-stars">⭐</span><span>${order.passenger_rating?.toFixed(1)||'5.0'}</span></div><div class="trip-count">📊 ${customerTrips} trip</div></div><div class="route-addresses-right"><div class="route-point"><div class="point-marker point-marker-a">A</div><div class="point-address point-address-a">${escapeHtml(order.pickup_address) || '-'}</div></div><div class="route-point"><div class="point-marker point-marker-b">B</div><div class="point-address">${escapeHtml(order.destination_address) || '-'}</div></div></div></div>
           <div class="order-details"><div class="detail-item"><span class="detail-value">${Math.round(order.duration_seconds/60)||'-'} min</span><span class="detail-label">Durasi</span></div><div class="detail-item"><span class="detail-value">${(order.distance_meters/1000).toFixed(1)||'-'} km</span><span class="detail-label">Jarak</span></div><div class="detail-item"><span class="detail-value price-highlight">Rp ${price.toLocaleString('id-ID')}</span><span class="detail-label">Harga</span></div><div class="detail-item"><span class="detail-value">${distanceText}</span><span class="detail-label">Dari Anda</span></div></div>
         `;
+        // Saat klik order, cek jarak dulu, jika > 3 km tolak tampilkan modal
         orderItem.addEventListener('click', () => {
           if (order.distanceToPickup > 3) {
             showPopup('Order Terlalu Jauh', `Jarak order ini ${order.distanceToPickup.toFixed(1)} km dari posisi Anda. Minimal jarak untuk menawar adalah 3 km.`, 'warning');
@@ -1087,8 +1055,6 @@
             await database.ref(`orders/${orderId}/driver_offers`).set(driverOffers);
           }
         }
-        // Hapus dari set offeredOrderIds agar bisa menawar ulang
-        offeredOrderIds.delete(orderId);
       } catch (error) {
         addDebugLog(`Gagal menghapus penawaran: ${error.message}`, "error");
       }
@@ -1102,19 +1068,6 @@
       }
       const orderId = currentSelectedOrder.id;
       addDebugLog(`Mengirim penawaran untuk order ${orderId}`);
-      
-      // Cek apakah sudah ada penawaran yang pending/accepted? Izin jika sudah dihapus
-      const existingOfferSnap = await database.ref(`orders/${orderId}/driver_offers/${currentDriverId}`).once('value');
-      if (existingOfferSnap.exists()) {
-        const existingStatus = existingOfferSnap.val().status;
-        if (existingStatus === 'offered' || existingStatus === 'accepted') {
-          showPopup('Info', 'Anda sudah pernah menawar order ini sebelumnya dan masih dalam proses.', 'info');
-          return;
-        } else {
-          // Jika status rejected, kita hapus dulu supaya bisa menawar ulang
-          await removeDriverOffer(orderId);
-        }
-      }
       
       const requiredBalance = (currentSelectedOrder.price || 0) * 0.1;
       if ((currentDriverData.balance || 0) < requiredBalance) {
@@ -1172,10 +1125,6 @@
       const progress = document.getElementById('countdownProgress');
       const secondsSpan = document.getElementById('countdownSeconds');
       if (container) container.style.display = 'block';
-      // Disable tombol selama countdown
-      const ambilBtn = document.getElementById('ambilBtn');
-      if (ambilBtn) ambilBtn.disabled = true;
-      
       countdownInterval = setInterval(async () => {
         seconds--;
         const percent = (seconds/30)*100;
@@ -1187,7 +1136,9 @@
           await removeDriverOffer(orderId);
           showPopup('Waktu Habis', 'Tidak ada respon dari customer. Penawaran Anda telah dibatalkan.', 'info');
           closeModal();
-          // Tombol akan aktif kembali saat modal dibuka ulang
+          offeredOrderIds.add(orderId);
+          addDebugLog(`Order ${orderId} ditambahkan ke offeredOrderIds (timeout)`, 'info');
+          // Autobid TIDAK dimatikan, hanya order ini yang tidak akan ditawar lagi
         }
       }, 1000);
     }
@@ -1199,7 +1150,6 @@
         const status = snapshot.val();
         if (status === 'accepted') {
           clearInterval(countdownInterval);
-          playSound('audioAccepted'); // Suara penawaran diterima
           showPopup('Berhasil!', 'Penawaran Anda diterima oleh customer.', 'success', [{
             text: 'Lanjut',
             onClick: () => { window.location.href = 'orderAccepted.html'; }
@@ -1210,6 +1160,9 @@
           await removeDriverOffer(orderId);
           showPopup('Ditolak', 'Penawaran Anda ditolak oleh customer.', 'warning');
           closeModal();
+          offeredOrderIds.add(orderId);
+          addDebugLog(`Order ${orderId} ditambahkan ke offeredOrderIds (rejected)`, 'info');
+          // Autobid TIDAK dimatikan
         }
       });
     }
@@ -1245,10 +1198,7 @@
     
     async function alreadyOffered(orderId) {
       const snapshot = await database.ref(`orders/${orderId}/driver_offers/${currentDriverId}`).once('value');
-      if (!snapshot.exists()) return false;
-      const status = snapshot.val().status;
-      // Jika status rejected, anggap belum menawar (bisa kirim ulang)
-      return status === 'offered' || status === 'accepted';
+      return snapshot.exists();
     }
     
     async function sendDriverOfferForOrder(order) {
@@ -1318,7 +1268,7 @@
         return;
       }
       if (await alreadyOffered(bestOrder.id)) {
-        addDebugLog(`Autobid: sudah pernah menawar order ${bestOrder.id} (status aktif), lewati`, "warning");
+        addDebugLog(`Autobid: sudah pernah menawar order ${bestOrder.id}, lewati`, "warning");
         offeredOrderIds.add(bestOrder.id);
         return;
       }
@@ -1330,8 +1280,6 @@
       
       addDebugLog(`Autobid: menampilkan modal untuk order ${bestOrder.id} (tidak bisa ditutup)`, "success");
       await showOrderDetail(bestOrder, false);
-      // Putar suara autobid
-      playSound('audioAutobid');
       
       isAutoBiddingInProgress = true;
       lastAutoBidOrderId = bestOrder.id;
