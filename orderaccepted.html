@@ -10,6 +10,7 @@
   <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <style>
+    /* [CSS SAMA PERSIS SEPERTI ASLI - tidak diubah] */
     :root {
       --primary: #FF9800;
       --secondary: #FF5722;
@@ -164,7 +165,6 @@
     .spinner { width: 50px; height: 50px; border: 5px solid rgba(40, 150, 114, 0.2); border-radius: 50%; border-top-color: var(--secondary); animation: spin 1s linear infinite; margin-bottom: 20px; }
     .error-message { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 50px; text-align: center; color: var(--danger); flex: 1; }
     .error-icon { font-size: 48px; margin-bottom: 20px; }
-    /* Toast notification */
     .toast {
       position: fixed;
       bottom: 80px;
@@ -188,7 +188,6 @@
       opacity: 1;
       transform: translateX(-50%) scale(1);
     }
-    /* Chat overlay */
     .chat-overlay {
       position: fixed;
       top: 0;
@@ -262,7 +261,6 @@
       font-size: 12px;
       font-weight: bold;
     }
-    /* Rating modal */
     .rating-modal {
       display: none;
       position: fixed;
@@ -302,7 +300,6 @@
     .modal-submit { background: var(--primary); color: white; }
     .modal-submit:hover { background: var(--secondary); }
     .modal-submit:disabled { background: #6c757d; cursor: not-allowed; }
-    /* Confirmation modal */
     .confirmation-modal, .info-modal {
       display: none;
       position: fixed;
@@ -383,7 +380,7 @@
         <div class="info-section">
           <div class="section-title">Informasi Perjalanan</div>
           <div class="info-grid">
-            <div class="info-row"><div class="info-item"><div class="info-label">Jenis Layanan</div><div class="info-value" id="serviceType">-</div></div><div class="info-item"><div class="info-label">Kapasitas</div><div class="info-value" id="serviceCapacity">-</div></div><div class="info-item"><div class="info-label">Durasi</div><div class="info-value" id="tripDuration">-</div></div></div>
+            <div class="info-row"><div class="info-item"><div class="info-label">Jenis Layanan</div><div class="info-value" id="serviceType">-</div></div><div class="info-item"><div class="info-label">Durasi</div><div class="info-value" id="tripDuration">-</div></div></div>
             <div class="info-row"><div class="info-item"><div class="info-label">Jarak</div><div class="info-value" id="tripDistance">-</div></div><div class="info-item"><div class="info-label">Waktu Order</div><div class="info-value" id="orderTime">-</div></div></div>
             <div class="info-row"><div class="info-item"><div class="info-label">Biaya</div><div class="info-value"><div id="priceContainer"><span class="price-highlight" id="tripPrice">-</span></div></div></div></div>
           </div>
@@ -457,7 +454,6 @@
     </div>
   </div>
 
-  <!-- Info Modal (hanya untuk fallback, tapi tidak dipakai lagi) -->
   <div id="infoModal" class="info-modal">
     <div class="info-modal-content">
       <div class="info-title" id="infoTitle">Informasi</div>
@@ -468,7 +464,6 @@
     </div>
   </div>
 
-  <!-- Toast Container -->
   <div id="toast" class="toast"></div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -483,8 +478,44 @@
       messagingSenderId: "864576853495",
       appId: "1:864576853495:web:6f16eb757fd3d8affb0af2"
     };
-    if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
+    // Perhatikan: konfigurasi di atas berbeda dengan aplikasi driver sebelumnya.
+    // Jika Anda menggunakan database yang sama dengan list1.html, ganti dengan konfigurasi yang benar:
+    /*
+    const FIREBASE_CONFIG = {
+      apiKey: "AIzaSyCD0pgeZio-LdKqYDtWxcdXcZwyL4ngYQI",
+      authDomain: "jego-35a2b.firebaseapp.com",
+      databaseURL: "https://jego-35a2b-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "jego-35a2b",
+      storageBucket: "jego-35a2b.firebasestorage.app",
+      messagingSenderId: "600037007040",
+      appId: "1:600037007040:web:ac3243ad9b472647ffd725"
+    };
+    */
+    // Gunakan konfigurasi yang sesuai dengan project Anda:
+    const CORRECT_CONFIG = {
+      apiKey: "AIzaSyCD0pgeZio-LdKqYDtWxcdXcZwyL4ngYQI",
+      authDomain: "jego-35a2b.firebaseapp.com",
+      databaseURL: "https://jego-35a2b-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "jego-35a2b",
+      storageBucket: "jego-35a2b.firebasestorage.app",
+      messagingSenderId: "600037007040",
+      appId: "1:600037007040:web:ac3243ad9b472647ffd725"
+    };
+    if (!firebase.apps.length) firebase.initializeApp(CORRECT_CONFIG);
     const database = firebase.database();
+
+    // ==================== KONSTANTA POTONGAN ====================
+    const FEE_APLIKASI_PERSEN = 0.117;   // 11.7%
+    const PPN_PERSEN = 0.11;             // 11% dari fee
+    const TOTAL_POTONGAN_PERSEN = FEE_APLIKASI_PERSEN * (1 + PPN_PERSEN); // 0.12987
+
+    function hitungPotongan(harga) {
+      const fee = harga * FEE_APLIKASI_PERSEN;
+      const ppn = fee * PPN_PERSEN;
+      const total = fee + ppn;
+      const bersih = harga - total;
+      return { fee, ppn, total, bersih };
+    }
 
     let orderData = null, customerData = null, driverData = null, orderId = null, orderRef = null, orderUpdateHandler = null;
     let confirmCallback = null, chatRef = null, chatListener = null, unreadMessages = 0, chatOpen = false, currentOrderStatus = '';
@@ -496,12 +527,10 @@
       const toast = document.getElementById('toast');
       toast.textContent = message;
       toast.classList.add('show');
-      setTimeout(() => {
-        toast.classList.remove('show');
-      }, duration);
+      setTimeout(() => toast.classList.remove('show'), duration);
     }
 
-    // ==================== MODAL KONFIRMASI ====================
+    // ==================== MODAL ====================
     function showConfirmationModal(title, message, callback) {
       document.getElementById('confirmationTitle').textContent = title;
       document.getElementById('confirmationMessage').textContent = message;
@@ -516,8 +545,11 @@
       if (confirmCallback) confirmCallback();
       closeConfirmationModal();
     }
+    function closeInfoModal() {
+      document.getElementById('infoModal').style.display = 'none';
+    }
 
-    // ==================== MODAL RATING ====================
+    // ==================== RATING ====================
     function showRatingModal() {
       if (!customerData) { showToast('Data customer tidak tersedia'); return; }
       selectedRating = 0;
@@ -546,23 +578,21 @@
     }
     function submitRating() {
       if (selectedRating === 0) { showToast('Pilih rating terlebih dahulu'); return; }
-      if (!customerData) { showToast('Data customer tidak ada'); return; }
-      const custId = customerData.firebase_key || customerData.id || customerData.uid;
-      if (!custId) { showToast('ID customer tidak ditemukan'); return; }
+      if (!customerId) { showToast('ID customer tidak ditemukan'); return; }
       const comment = document.getElementById('ratingComment').value.trim();
       const btn = document.getElementById('submitRatingBtn');
       btn.disabled = true; btn.textContent = 'Mengirim...';
-      const ratingRef = database.ref(`users/${custId}/ratings`).push();
+      const ratingRef = database.ref(`users/${customerId}/ratings`).push();
       ratingRef.set({
         rating: selectedRating,
         order_id: orderId,
-        customer_id: custId,
-        driver_id: driverData?.driverId || 'unknown',
+        customer_id: customerId,
+        driver_id: driverData?.driverId || driverData?.id || 'unknown',
         driver_name: driverData?.name || 'Driver',
         comment: comment,
         rated_at: new Date().toISOString(),
         timestamp: Date.now()
-      }).then(() => updateCustomerRating(custId, selectedRating))
+      }).then(() => updateCustomerRating(customerId, selectedRating))
         .catch(err => { btn.disabled = false; btn.textContent = 'Kirim Rating'; showToast('Gagal mengirim rating: ' + err.message); });
     }
     function updateCustomerRating(custId, newRating) {
@@ -593,7 +623,12 @@
     // ==================== FUNGSI DASAR ====================
     function getDriverData() {
       const raw = localStorage.getItem('jego_logged_in_driver');
-      return raw ? JSON.parse(raw) : null;
+      if (raw) {
+        try {
+          return JSON.parse(raw);
+        } catch(e) { return null; }
+      }
+      return null;
     }
     function getActiveOrderFromLocalStorage() {
       try {
@@ -624,7 +659,7 @@
         if (od) {
           updateOrderStatus(od.status, od);
           if (od.user_data) updateCustomerData(od.user_data);
-          if (od.alamat_a || od.alamat_b) updateRouteData(od);
+          updateRouteData(od);
         } else if (!loadFromLocalStorage()) showError('Data perjalanan tidak ditemukan');
       };
       orderRef.on('value', orderUpdateHandler);
@@ -685,8 +720,8 @@
     function updateCustomerData(customer) {
       document.getElementById('customerName').textContent = customer.name || '-';
       document.getElementById('customerPhone').textContent = customer.phone || '-';
-      document.getElementById('customerPhoto').src = customer.fotoProfilURL || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png';
-      const ratingValue = customer.avgRating ? customer.avgRating.toFixed(1) : '5.0';
+      document.getElementById('customerPhoto').src = customer.fotoProfilURL || customer.photoURL || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png';
+      const ratingValue = customer.avgRating ? customer.avgRating.toFixed(1) : (customer.passenger_rating ? customer.passenger_rating.toFixed(1) : '5.0');
       document.getElementById('customerRating').textContent = ratingValue;
       const starsContainer = document.querySelector('.stars');
       if (starsContainer) {
@@ -694,18 +729,24 @@
         starsContainer.innerHTML = '★'.repeat(fullStars) + '☆'.repeat(5 - fullStars);
       }
     }
-    function updateRouteData(route) {
-      document.getElementById('pickupAddress').textContent = route.alamat_a || '-';
-      document.getElementById('destinationAddress').textContent = route.alamat_b || '-';
-      document.getElementById('serviceType').textContent = route.vehicle_name || route.vehicle || '-';
-      document.getElementById('serviceCapacity').textContent = route.vehicle_capacity || '-';
-      if (route.durasi) document.getElementById('tripDuration').textContent = route.durasi;
-      if (route.jarak) document.getElementById('tripDistance').textContent = route.jarak;
-      if (route.created_at) {
-        const t = new Date(route.created_at);
+    function updateRouteData(order) {
+      document.getElementById('pickupAddress').textContent = order.pickup_address || '-';
+      document.getElementById('destinationAddress').textContent = order.destination_address || '-';
+      document.getElementById('serviceType').textContent = order.transport_type || order.vehicle_name || '-';
+      if (order.duration_seconds) {
+        const mins = Math.round(order.duration_seconds / 60);
+        document.getElementById('tripDuration').textContent = mins + ' menit';
+      } else if (order.durasi) document.getElementById('tripDuration').textContent = order.durasi;
+      if (order.distance_meters) {
+        const km = (order.distance_meters / 1000).toFixed(1);
+        document.getElementById('tripDistance').textContent = km + ' km';
+      } else if (order.jarak) document.getElementById('tripDistance').textContent = order.jarak;
+      if (order.created_at) {
+        const t = new Date(order.created_at);
         document.getElementById('orderTime').textContent = t.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
       }
-      if (route.harga_total) document.getElementById('tripPrice').textContent = 'Rp ' + route.harga_total.toLocaleString('id-ID');
+      const price = order.price || order.harga_total || 0;
+      document.getElementById('tripPrice').textContent = 'Rp ' + price.toLocaleString('id-ID');
     }
     function displayOrderData() {
       document.getElementById('loading').style.display = 'none';
@@ -713,14 +754,14 @@
       document.getElementById('actionsSection').style.display = 'flex';
       updateCustomerData(customerData);
       updateRouteData(orderData);
-      if (orderData && orderData.from_lat && orderData.from_lng && orderData.to_lat && orderData.to_lng) {
+      if (orderData && orderData.pickup_lat && orderData.pickup_lng && orderData.dest_lat && orderData.dest_lng) {
         document.getElementById('mapSection').style.display = 'block';
-        const centerLat = (orderData.from_lat + orderData.to_lat) / 2;
-        const centerLng = (orderData.from_lng + orderData.to_lng) / 2;
+        const centerLat = (orderData.pickup_lat + orderData.dest_lat) / 2;
+        const centerLng = (orderData.pickup_lng + orderData.dest_lng) / 2;
         initMap(centerLat, centerLng);
-        addPickupMarker(orderData.from_lat, orderData.from_lng, orderData.alamat_a);
-        addDestinationMarker(orderData.to_lat, orderData.to_lng, orderData.alamat_b);
-        setTimeout(() => drawRouteOnMap(orderData.from_lat, orderData.from_lng, orderData.to_lat, orderData.to_lng), 500);
+        addPickupMarker(orderData.pickup_lat, orderData.pickup_lng, orderData.pickup_address);
+        addDestinationMarker(orderData.dest_lat, orderData.dest_lng, orderData.destination_address);
+        setTimeout(() => drawRouteOnMap(orderData.pickup_lat, orderData.pickup_lng, orderData.dest_lat, orderData.dest_lng), 500);
       } else document.getElementById('mapSection').style.display = 'none';
       if (orderData && orderData.status) updateOrderStatus(orderData.status, orderData);
     }
@@ -806,22 +847,26 @@
       loadExistingMessages();
     }
     function loadExistingMessages() {
+      if (!chatRef) return;
       chatRef.once('value').then(snap => {
         const msgs = snap.val();
-        document.getElementById('chatMessages').innerHTML = '';
+        const container = document.getElementById('chatMessages');
+        if (container) container.innerHTML = '';
         if (msgs) Object.keys(msgs).forEach(key => displayMessage(msgs[key]));
         scrollChatToBottom();
       });
     }
     function displayMessage(msg) {
       const container = document.getElementById('chatMessages');
+      if (!container) return;
       const div = document.createElement('div');
       div.className = `message-bubble ${msg.sender === 'driver' ? 'message-right' : 'message-left'}`;
-      div.innerHTML = `${msg.message}<div class="message-time">${new Date(msg.timestamp).getHours().toString().padStart(2,'0')}:${new Date(msg.timestamp).getMinutes().toString().padStart(2,'0')}</div>`;
+      const time = new Date(msg.timestamp);
+      div.innerHTML = `${msg.message}<div class="message-time">${time.getHours().toString().padStart(2,'0')}:${time.getMinutes().toString().padStart(2,'0')}</div>`;
       container.appendChild(div);
       scrollChatToBottom();
     }
-    function scrollChatToBottom() { const cm = document.getElementById('chatMessages'); cm.scrollTop = cm.scrollHeight; }
+    function scrollChatToBottom() { const cm = document.getElementById('chatMessages'); if (cm) cm.scrollTop = cm.scrollHeight; }
     function showChatNotification(msg) {
       const notif = document.getElementById('chatNotification');
       document.getElementById('notificationMessage').textContent = msg.message;
@@ -841,7 +886,7 @@
       setupChatUI();
       loadExistingMessages();
       document.getElementById('chatOverlay').style.display = 'flex';
-      setTimeout(() => document.getElementById('chatInput').focus(), 300);
+      setTimeout(() => document.getElementById('chatInput')?.focus(), 300);
       document.getElementById('chatNotification').style.display = 'none';
     }
     function closeChat() { chatOpen = false; document.getElementById('chatOverlay').style.display = 'none'; }
@@ -849,8 +894,14 @@
       if (!customerData) return;
       document.getElementById('chatName').textContent = customerData.name || 'Customer';
       const chatAvatar = document.getElementById('chatAvatar');
-      if (customerData.fotoProfilURL) chatAvatar.innerHTML = `<img src="${customerData.fotoProfilURL}" alt="${customerData.name}">`;
-      else { chatAvatar.innerHTML = ''; chatAvatar.style.backgroundImage = "url('data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"%23006699\"><path d=\"M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z\"/></svg>')"; chatAvatar.style.backgroundColor = '#cce7ff'; chatAvatar.style.backgroundRepeat = 'no-repeat'; chatAvatar.style.backgroundPosition = 'center'; chatAvatar.style.backgroundSize = '60%'; }
+      const photoUrl = customerData.fotoProfilURL || customerData.photoURL;
+      if (photoUrl) chatAvatar.innerHTML = `<img src="${photoUrl}" alt="${customerData.name}">`;
+      else {
+        chatAvatar.innerHTML = '';
+        chatAvatar.style.background = "url('data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"%23006699\"><path d=\"M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z\"/></svg>') no-repeat center center";
+        chatAvatar.style.backgroundColor = '#cce7ff';
+        chatAvatar.style.backgroundSize = '60%';
+      }
       document.getElementById('chatSendBtn').onclick = sendChatMessage;
       document.getElementById('chatInput').onkeypress = (e) => { if (e.key === 'Enter') sendChatMessage(); };
     }
@@ -859,7 +910,7 @@
       const msg = input.value.trim();
       if (!msg) { showToast('Pesan tidak boleh kosong'); return; }
       if (!driverData) { showToast('Data driver tidak tersedia'); return; }
-      const senderId = driverData.uid || driverData.driverId || driverData.id;
+      const senderId = driverData.driverId || driverData.id || driverData.uid;
       if (!senderId) { showToast('ID driver tidak ditemukan'); return; }
       if (!chatRef && orderId) initializeChatSystem(orderId);
       if (!chatRef) { showToast('Kesalahan inisialisasi chat'); return; }
@@ -868,7 +919,7 @@
         .catch(err => showToast('Gagal mengirim pesan: ' + err.message));
     }
 
-    // ==================== START TRIP (DENGAN PPN) ====================
+    // ==================== START TRIP DENGAN POTONGAN ====================
     function startTrip() {
       if (!orderData || !orderId) { showToast('Data order tidak tersedia.'); return; }
       let newStatus = '', actionText = '', navigateTo = null;
@@ -876,7 +927,7 @@
         case 'accepted':
           newStatus = 'on_the_way';
           actionText = 'mulai menuju lokasi penjemputan';
-          navigateTo = { lat: orderData.from_lat, lng: orderData.from_lng };
+          navigateTo = { lat: orderData.pickup_lat, lng: orderData.pickup_lng };
           break;
         case 'on_the_way':
           newStatus = 'arrived';
@@ -886,7 +937,7 @@
         case 'arrived':
           newStatus = 'on_trip';
           actionText = 'memulai perjalanan ke tujuan';
-          navigateTo = { lat: orderData.to_lat, lng: orderData.to_lng };
+          navigateTo = { lat: orderData.dest_lat, lng: orderData.dest_lng };
           break;
         default:
           showToast(`Tidak dapat melakukan aksi ini. Status saat ini: ${currentOrderStatus}`);
@@ -896,47 +947,38 @@
         database.ref('orders/' + orderId).update({ status: newStatus, updated_at: new Date().toISOString() }).then(() => {
           showToast('Status berhasil diperbarui.');
           if (navigateTo && navigateTo.lat && navigateTo.lng) openGoogleMaps(navigateTo.lat, navigateTo.lng);
+          // Potongan hanya sekali saat perjalanan dimulai (status on_trip)
           if (newStatus === 'on_trip') {
-            const driverId = driverData?.driverId || driverData?.uid || driverData?.id;
-            if (driverId) {
-              database.ref('drivers/' + driverId).once('value').then((snap) => {
-                const driverInfo = snap.val();
-                if (driverInfo) {
-                  const feePersen = driverInfo.Potongan || 0;
-                  const hargaTotal = orderData?.harga_total || 0;
-                  const fee = hargaTotal * (feePersen / 100);
-                  const ppn = fee * 0.11;
-                  const totalPotongan = Math.round(fee + ppn);
-                  if (totalPotongan > 0) {
-                    database.ref('drivers/' + driverId + '/Balance').transaction((currentBalance) => {
-                      return (currentBalance || 0) - totalPotongan;
-                    }).then((result) => {
-                      if (result.committed) {
-                        if (driverData) {
-                          driverData.Balance = (driverData.Balance || 0) - totalPotongan;
-                          localStorage.setItem('jego_logged_in_driver', JSON.stringify(driverData));
-                        }
-                        showToast(`Saldo dipotong Rp ${totalPotongan.toLocaleString('id-ID')} (fee ${feePersen}% + PPN 11%)`);
-                        const transactionRef = database.ref('drivers/' + driverId + '/transactions').push();
-                        transactionRef.set({
-                          type: 'potongan_komisi_ppn',
-                          amount: -totalPotongan,
-                          order_id: orderId,
-                          description: `Potongan fee ${feePersen}% + PPN 11% dari order ${orderId}`,
-                          timestamp: Date.now(),
-                          date: new Date().toISOString()
-                        }).catch(err => console.error('Gagal simpan transaksi:', err));
-                      }
-                    }).catch((err) => { showToast('Gagal memperbarui saldo: ' + err.message); });
+            const driverIdKey = driverData?.driverId || driverData?.id;
+            if (driverIdKey) {
+              const harga = orderData.price || orderData.harga_total || 0;
+              const { total: totalPotongan } = hitungPotongan(harga);
+              const potonganRupiah = Math.round(totalPotongan);
+              if (potonganRupiah > 0) {
+                database.ref('drivers/' + driverIdKey + '/balance').transaction((currentBalance) => {
+                  return (currentBalance || 0) - potonganRupiah;
+                }).then((result) => {
+                  if (result.committed) {
+                    if (driverData) {
+                      driverData.balance = (driverData.balance || 0) - potonganRupiah;
+                      localStorage.setItem('jego_logged_in_driver', JSON.stringify(driverData));
+                    }
+                    showToast(`Saldo dipotong Rp ${potonganRupiah.toLocaleString('id-ID')} (Fee 11,7% + PPN 11%)`);
+                    const transactionRef = database.ref('drivers/' + driverIdKey + '/transactions').push();
+                    transactionRef.set({
+                      type: 'potongan_komisi_ppn',
+                      amount: -potonganRupiah,
+                      order_id: orderId,
+                      description: `Potongan fee 11.7% + PPN 11% dari order ${orderId}`,
+                      timestamp: Date.now(),
+                      date: new Date().toISOString()
+                    }).catch(err => console.error('Gagal simpan transaksi:', err));
                   }
-                }
-              }).catch((err) => { showToast('Gagal mengambil data driver: ' + err.message); });
+                }).catch(err => showToast('Gagal memperbarui saldo: ' + err.message));
+              }
             }
           }
-          let payload = { event: 'driver_status_update', order_id: orderId, status: newStatus };
-          if (newStatus === 'on_the_way') { payload.lat = orderData.from_lat; payload.lng = orderData.from_lng; payload.type = 'pickup'; }
-          else if (newStatus === 'on_trip') { payload.lat = orderData.to_lat; payload.lng = orderData.to_lng; payload.type = 'destination'; }
-          if (payload.lat && payload.lng) sendToKodular(payload);
+          sendToKodular({ event: 'driver_status_update', order_id: orderId, status: newStatus });
         }).catch(err => { showToast('Gagal memperbarui status: ' + err.message); });
       });
     }
@@ -980,8 +1022,13 @@
         orderId = directOrderId;
         database.ref('orders/' + orderId).once('value').then(snap => {
           const od = snap.val();
-          if (od) { orderData = od; customerData = od.user_data; displayOrderData(); listenToOrderUpdates(orderId); }
-          else loadFromLocalStorage();
+          if (od) {
+            orderData = od;
+            customerData = od.user_data || { name: od.customer_name, photoURL: od.photoURL, phone: od.customer_phone, avgRating: od.passenger_rating, id: od.user_id };
+            customerId = od.user_id || (customerData?.id);
+            displayOrderData();
+            listenToOrderUpdates(orderId);
+          } else loadFromLocalStorage();
         }).catch(() => loadFromLocalStorage());
       } else { loadFromLocalStorage(); }
     };
