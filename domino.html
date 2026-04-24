@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Domino Online - Firebase Realtime Database</title>
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+            user-select: none;
+        }
+        body {
+            background: linear-gradient(145deg, #1a472a 0%, #0e2a1a 100%);
+            font-family: 'Segoe UI', 'Poppins', sans-serif;
+            margin: 0;
+            padding: 20px;
+        }
+        .game-container {
+            max-width: 1300px;
+            margin: auto;
+            background: rgba(0,0,0,0.3);
+            border-radius: 48px;
+            padding: 20px;
+        }
+        .panel {
+            background: #2c2b26e0;
+            border-radius: 48px;
+            padding: 15px;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .panel button, .panel input {
+            padding: 10px 20px;
+            border-radius: 40px;
+            border: none;
+            font-weight: bold;
+            background: #ffb347;
+            cursor: pointer;
+            font-size: 1rem;
+        }
+        .panel input {
+            background: white;
+            width: 200px;
+            text-align: center;
+        }
+        .status {
+            background: #1f2a1bdd;
+            border-radius: 3rem;
+            padding: 10px;
+            margin: 15px 0;
+            color: #ffefcf;
+            text-align: center;
+            font-weight: bold;
+        }
+        .board {
+            background: #2b4b2a;
+            min-height: 150px;
+            border-radius: 48px;
+            padding: 20px;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 12px;
+            margin: 20px 0;
+        }
+        .domino {
+            background: #fef9e6;
+            width: 75px;
+            height: 110px;
+            border-radius: 14px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.8rem;
+            font-weight: bold;
+            box-shadow: 0 6px 0 #b97f3a;
+            cursor: pointer;
+            transition: 0.1s;
+        }
+        .domino span {
+            display: block;
+        }
+        .hand-domino:hover {
+            transform: translateY(-6px);
+            background: #fff3cf;
+        }
+        .hand-section {
+            background: #1f2c18aa;
+            border-radius: 48px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+        .hand-cards {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 14px;
+        }
+        .action-buttons {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            margin: 20px 0 10px;
+        }
+        .action-buttons button {
+            background: #4a6741;
+            color: white;
+            padding: 8px 24px;
+            font-size: 1rem;
+            border: none;
+            border-radius: 40px;
+            cursor: pointer;
+        }
+        .log {
+            background: #22201bc9;
+            border-radius: 28px;
+            padding: 10px;
+            margin-top: 15px;
+            color: #ffe2b5;
+            font-size: 0.9rem;
+            text-align: center;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        @media (max-width: 700px) {
+            .domino { width: 60px; height: 90px; font-size: 1.3rem; }
+        }
+    </style>
+</head>
+<body>
+<div class="game-container">
+    <div class="panel">
+        <button id="hostBtn">🎮 Host Game (Buat Room)</button>
+        <input type="text" id="roomIdInput" placeholder="Masukkan Room ID">
+        <button id="joinBtn">🔗 Gabung ke Room</button>
+        <button id="resetBtn">⟳ Reset / Keluar</button>
+    </div>
+    <div class="status" id="statusText">⚡ Belum terhubung</div>
+    <div class="board" id="boardArea"></div>
+    <div class="hand-section">
+        <div class="hand-cards" id="handContainer"></div>
+        <div class="action-buttons">
+            <button id="drawBtn" disabled>🎲 Ambil Ubin</button>
+            <button id="skipBtn" disabled>⏭️ Lewati</button>
+        </div>
+    </div>
+    <div class="log" id="logArea">
+        📢 PETUNJUK:<br>
+        1. Aturan Firebase Realtime Database harus mode test (read/write true).<br>
+        2. Host buat room → copy Room ID → kirim ke teman.<br>
+        3. Client masukkan Room ID → gabung.<br>
+        4. Setelah 2 pemain terkumpul, game dimulai otomatis.<br>
+        5. Klik domino di tangan lalu pilih sisi (Kiri/Kanan).
+    </div>
+</div>
+
+<script>
+    const firebaseConfig = {
+        apiKey: "AIzaSyAhr02IVonB6H7UgP7b5tBhRfVdL7UAGpo",
+        authDomain: "wingo-bot-analytics.firebaseapp.com",
+        databaseURL: "https://wingo-bot-analytics-default-rtdb.firebaseio.com",
+        projectId: "wingo-bot-analytics",
+        storageBucket: "wingo-bot-analytics.firebasestorage.app",
+        messagingSenderId: "47484612778",
+        appId: "1:47484612778:web:8d8213b32f239e862be0d3",
+        measurementId: "G-HXHNNCVZ2Q"
+    };
+    
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+    
+    // Game state
+    let myPlayerId = null;       // 'host' atau 'client'
+    let roomId = null;
+    let gameActive = false;
+    let myHand = [];
+    let opponentHandCount = 0;
+    let boardTiles = [];
+    let stock = [];
+    let myTurn = false;
+    
+    // Listener references
+    let roomStatusListener = null;
+    let gameStateListener = null;
+    
+    // DOM elements
+    const boardDiv = document.getElementById('boardArea');
+    const handDiv = document.getElementById('handContainer');
+    const statusSpan = document.getElementById('statusText');
+    const logDiv = document.getElementById('logArea');
+    const hostBtn = document.getElementById('hostBtn');
+    const joinBtn = document.getElementById('joinBtn');
+    const resetBtn = document.getElementById('resetBtn');
+    const drawBtn = document.getElementById('drawBtn');
+    const skipBtn = document.getElementById('skipBtn');
+    const roomInput = document.getElementById('roomIdInput');
+    
+    function addLog(msg, isError = false) {
+        const prefix = isError ? '❌ ' : '📢 ';
+        logDiv.innerHTML = `${prefix}${msg}<br>${logDiv.innerHTML}`;
+        console.log(msg);
+    }
+    
+    // ----------------- DOMINO GAME LOGIC -----------------
+    function generateFullSet() {
+        let set = [];
+        for (let i = 0; i <= 6; i++) {
+            for (let j = i; j <= 6; j++) set.push({ l: i, r: j });
+        }
+        return set;
+    }
+    function shuffleArray(arr) {
+        for (let i = arr.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [arr[i], arr[j]] = [arr[j], arr[i]];
+        }
+        return arr;
+    }
+    function getBoardEnds() {
+        if (boardTiles.length === 0) return { left: null, right: null };
+        return { left: boardTiles[0].l, right: boardTiles[boardTiles.length - 1].r };
+    }
+    function canPlaceOnEnd(tile, endVal) {
+        return tile.l === endVal || tile.r === endVal;
+    }
+    function getPossibleMoves(hand) {
+        const ends = getBoardEnds();
+        if (boardTiles.length === 0) {
+            return hand.map((tile, idx) => ({ tileIndex: idx, side: 'first', newTile: { l: tile.l, r: tile.r } }));
+        }
+        let moves = [];
+        for (let i = 0; i < hand.length; i++) {
+            const tile = hand[i];
+            if (ends.left !== null && canPlaceOnEnd(tile, ends.left)) {
+                let newTile = (tile.l === ends.left) ? { l: tile.l, r: tile.r } : { l: tile.r, r: tile.l };
+                moves.push({ tileIndex: i, side: 'left', newTile });
+            }
+            if (ends.right !== null && canPlaceOnEnd(tile, ends.right)) {
+                let newTile = (tile.r === ends.right) ? { l: tile.l, r: tile.r } : { l: tile.r, r: tile.l };
+                moves.push({ tileIndex: i, side: 'right', newTile });
+            }
+        }
+        return moves;
+    }
+    function placeTileFromHand(hand, tileIndex, side, newTileForm) {
+        const moves = getPossibleMoves(hand);
+        const valid = moves.find(m => m.tileIndex === tileIndex && m.side === side);
+        if (!valid && boardTiles.length !== 0) return false;
+        hand.splice(tileIndex, 1);
+        if (boardTiles.length === 0) boardTiles.push({ ...newTileForm });
+        else if (side === 'left') boardTiles.unshift({ ...newTileForm });
+        else boardTiles.push({ ...newTileForm });
+        return true;
+    }
+    function drawFromStock() {
+        if (stock.length === 0) return false;
+        const drawn = stock.pop();
+        myHand.push(drawn);
+        addLog(`Ambil ubin [${drawn.l}|${drawn.r}]. Sisa stock: ${stock.length}`);
+        return true;
+    }
+    function hasValidMove(hand) {
+        return getPossibleMoves(hand).length > 0;
+    }
+    
+    function renderUI() {
+        // Render board
+        boardDiv.innerHTML = '';
+        if (boardTiles.length === 0) {
+            boardDiv.innerHTML = '<div style="color:#ffefb9;">⬅️ Tempatkan domino pertama ➡️</div>';
+        } else {
+            boardTiles.forEach(t => {
+                const card = document.createElement('div');
+                card.className = 'domino';
+                card.innerHTML = `<span>${t.l}</span><span>•</span><span>${t.r}</span>`;
+                boardDiv.appendChild(card);
+            });
+        }
+        
+        // Render hand
+        handDiv.innerHTML = '';
+        if (!gameActive) {
+            handDiv.innerHTML = '<div style="color:#ffd966;">Game selesai atau menunggu pemain lain.</div>';
+        } else {
+            myHand.forEach((tile, idx) => {
+                const card = document.createElement('div');
+                card.className = 'domino hand-domino';
+                card.innerHTML = `<span>${tile.l}</span><span>•</span><span>${tile.r}</span>`;
+                if (myTurn && gameActive) {
+                    card.onclick = () => onTileClick(idx);
+                } else {
+                    card.style.opacity = '0.6';
+                    card.style.cursor = 'not-allowed';
+                }
+                handDiv.appendChild(card);
+            });
+        }
+        
+        drawBtn.disabled = !gameActive || !myTurn;
+        skipBtn.disabled = !gameActive || !myTurn;
+        const turnText = gameActive ? (myTurn ? "GILIRAN ANDA" : "Giliran Lawan") : "Game Selesai";
+        statusSpan.innerText = `${turnText} | Stock: ${stock.length} | Ubin Anda: ${myHand.length} | Lawan: ${opponentHandCount} ubin`;
+    }
+    
+    async function onTileClick(tileIndex) {
+        if (!myTurn || !gameActive) return;
+        const moves = getPossibleMoves(myHand);
+        const validForTile = moves.filter(m => m.tileIndex === tileIndex);
+        if (validForTile.length === 0) {
+            addLog("❌ Ubin ini tidak bisa diletakkan.");
+            return;
+        }
+        let chosenMove;
+        if (validForTile.length === 1) {
+            chosenMove = validForTile[0];
+        } else {
+            const sideChoice = confirm(`Pilih sisi: OK = KIRI, Batal = KANAN`);
+            const chosenSide = sideChoice ? 'left' : 'right';
+            chosenMove = validForTile.find(m => m.side === chosenSide);
+        }
+        if (chosenMove) {
+            const success = placeTileFromHand(myHand, chosenMove.tileIndex, chosenMove.side, chosenMove.newTile);
+            if (success) {
+                addLog(`Meletakkan di sisi ${chosenMove.side === 'left' ? 'KIRI' : 'KANAN'}`);
+                await updateGameStateToDB();
+                if (myHand.length === 0) {
+                    await endGame(true);
+                    return;
+                }
+                myTurn = false;
+                await updateTurnInDB();
+                renderUI();
+                addLog("Giliran lawan...");
+            } else {
+                addLog("Gagal meletakkan.");
+            }
+        }
+    }
+    
+    async function updateGameStateToDB() {
+        if (!roomId) return;
+        const gameRef = db.ref(`domino_games/${roomId}`);
+        await gameRef.update({
+            board: boardTiles,
+            myHandCount: myHand.length,
+            opponentHandCount: opponentHandCount,
+            stock: stock,
+            myTurn: myTurn,
+            gameActive: gameActive,
+            lastUpdate: firebase.database.ServerValue.TIMESTAMP
+        });
+    }
+    
+    async function updateTurnInDB() {
+        if (!roomId) return;
+        await db.ref(`domino_games/${roomId}`).update({ myTurn: myTurn });
+    }
+    
+    async function endGame(win) {
+        gameActive = false;
+        if (!roomId) return;
+        await db.ref(`domino_games/${roomId}`).update({ gameActive: false, winner: win ? 'me' : 'opponent' });
+        statusSpan.innerText = win ? "🏆 ANDA MENANG! 🏆" : "😭 LAWAN MENANG! 😭";
+        addLog(win ? "Selamat! Anda menang." : "Anda kalah.");
+        renderUI();
+    }
+    
+    // ----------------- HOST INIT GAME -----------------
+    async function startGameAsHost() {
+        let fullSet = shuffleArray(generateFullSet());
+        let handHost = [];
+        let handClient = [];
+        for (let i = 0; i < 7; i++) handHost.push(fullSet.pop());
+        for (let i = 0; i < 7; i++) handClient.push(fullSet.pop());
+        let remainingStock = fullSet;
+        
+        let bestDouble = -1;
+        let starter = 'host';
+        [...handHost, ...handClient].forEach(t => {
+            if (t.l === t.r && t.l > bestDouble) bestDouble = t.l;
+        });
+        if (bestDouble !== -1) {
+            const hostHasDouble = handHost.some(t => t.l === t.r && t.l === bestDouble);
+            starter = hostHasDouble ? 'host' : 'client';
+        }
+        
+        myHand = handHost;
+        opponentHandCount = handClient.length;
+        boardTiles = [];
+        stock = remainingStock;
+        myTurn = (starter === 'host');
+        gameActive = true;
+        
+        const gameRef = db.ref(`domino_games/${roomId}`);
+        await gameRef.set({
+            hostHand: handHost,
+            clientHand: handClient,
+            board: boardTiles,
+            stock: remainingStock,
+            myTurn: myTurn,
+            gameActive: true,
+            starter: starter,
+            lastUpdate: firebase.database.ServerValue.TIMESTAMP
+        });
+        addLog(`Game dimulai. ${myTurn ? 'Anda duluan' : 'Tunggu lawan...'}`);
+        renderUI();
+    }
+    
+    // ----------------- SINKRONISASI CLIENT -----------------
+    function syncGameState(snapshot) {
+        const data = snapshot.val();
+        if (!data) return;
+        if (data.hostHand && myPlayerId === 'client') {
+            myHand = data.clientHand;
+            opponentHandCount = data.hostHand.length;
+            boardTiles = data.board || [];
+            stock = data.stock || [];
+            myTurn = data.myTurn === false ? false : (data.myTurn && myPlayerId === 'client');
+            gameActive = data.gameActive || false;
+            addLog("State game diterima dari host.");
+            renderUI();
+        } else if (data.board !== undefined && myPlayerId === 'host') {
+            boardTiles = data.board || [];
+            stock = data.stock || [];
+            myTurn = data.myTurn;
+            gameActive = data.gameActive;
+            if (data.hostHand && myPlayerId === 'host') myHand = data.hostHand;
+            if (data.clientHand && myPlayerId === 'client') myHand = data.clientHand;
+            opponentHandCount = (myPlayerId === 'host') ? (data.clientHand?.length || 0) : (data.hostHand?.length || 0);
+            renderUI();
+        }
+        if (data.winner) {
+            gameActive = false;
+            const win = (data.winner === 'me' && myPlayerId === 'host') || (data.winner === 'opponent' && myPlayerId === 'client');
+            statusSpan.innerText = win ? "🏆 ANDA MENANG! 🏆" : "😭 LAWAN MENANG! 😭";
+            renderUI();
+        }
+    }
+    
+    async function createRoom() {
+        await resetAndLeave();
+        roomId = Math.random().toString(36).substring(2, 10).toUpperCase();
+        myPlayerId = 'host';
+        const roomRef = db.ref(`domino_rooms/${roomId}`);
+        await roomRef.set({
+            hostId: 'host',
+            status: 'waiting',
+            createdAt: firebase.database.ServerValue.TIMESTAMP
+        });
+        // Listener perubahan status room
+        if (roomStatusListener) roomStatusListener.off();
+        roomStatusListener = db.ref(`domino_rooms/${roomId}/status`).on('value', async (snap) => {
+            if (snap.val() === 'ready') {
+                addLog("Client telah bergabung! Memulai game...");
+                await startGameAsHost();
+                if (roomStatusListener) roomStatusListener.off();
+                roomStatusListener = null;
+            }
+        });
+        // Listener state game
+        if (gameStateListener) gameStateListener.off();
+        gameStateListener = db.ref(`domino_games/${roomId}`).on('value', syncGameState);
+        statusSpan.innerText = `Host - Room ID: ${roomId}`;
+        addLog(`Room dibuat: ${roomId}. Kirimkan ID ini ke teman Anda.`);
+    }
+    
+    async function joinRoom(roomIdParam) {
+        await resetAndLeave();
+        roomId = roomIdParam;
+        myPlayerId = 'client';
+        const roomRef = db.ref(`domino_rooms/${roomId}`);
+        const snap = await roomRef.get();
+        if (!snap.exists()) {
+            addLog(`Room ${roomId} tidak ditemukan!`, true);
+            return;
+        }
+        await roomRef.update({ status: 'ready', clientId: 'client' });
+        if (gameStateListener) gameStateListener.off();
+        gameStateListener = db.ref(`domino_games/${roomId}`).on('value', syncGameState);
+        statusSpan.innerText = `Client - Room: ${roomId}`;
+        addLog(`Bergabung ke room ${roomId}, menunggu host memulai game...`);
+    }
+    
+    async function resetAndLeave() {
+        // Matikan semua listener dengan aman
+        if (roomStatusListener && typeof roomStatusListener.off === 'function') {
+            roomStatusListener.off();
+        }
+        if (gameStateListener && typeof gameStateListener.off === 'function') {
+            gameStateListener.off();
+        }
+        roomStatusListener = null;
+        gameStateListener = null;
+        
+        if (roomId) {
+            if (myPlayerId === 'host') {
+                await db.ref(`domino_rooms/${roomId}`).remove();
+                await db.ref(`domino_games/${roomId}`).remove();
+            } else if (myPlayerId === 'client') {
+                // Hanya update status room kembali ke waiting
+                const roomRef = db.ref(`domino_rooms/${roomId}`);
+                const roomSnap = await roomRef.get();
+                if (roomSnap.exists()) {
+                    await roomRef.update({ status: 'waiting' });
+                    await roomRef.child('clientId').remove();
+                }
+            }
+        }
+        myPlayerId = null;
+        roomId = null;
+        gameActive = false;
+        myHand = [];
+        opponentHandCount = 0;
+        boardTiles = [];
+        stock = [];
+        myTurn = false;
+        statusSpan.innerText = "⚡ Koneksi direset. Buat atau gabung room.";
+        addLog("Keluar dari game.");
+        renderUI();
+    }
+    
+    async function handleDraw() {
+        if (!myTurn || !gameActive) return;
+        if (stock.length === 0) { addLog("Stock kosong!"); return; }
+        drawFromStock();
+        renderUI();
+        await updateGameStateToDB();
+        if (!hasValidMove(myHand) && stock.length === 0) {
+            addLog("Tidak ada langkah, otomatis skip.");
+            myTurn = false;
+            await updateTurnInDB();
+            renderUI();
+            await updateGameStateToDB();
+        }
+    }
+    
+    async function handleSkip() {
+        if (!myTurn || !gameActive) return;
+        if (hasValidMove(myHand)) { addLog("Masih ada langkah! Tidak bisa skip."); return; }
+        if (stock.length > 0) { addLog("Stock masih ada, harus ambil ubin dulu."); return; }
+        addLog("Melewati giliran.");
+        myTurn = false;
+        await updateTurnInDB();
+        renderUI();
+        await updateGameStateToDB();
+    }
+    
+    hostBtn.onclick = async () => { await createRoom(); };
+    joinBtn.onclick = async () => {
+        const rid = roomInput.value.trim();
+        if (!rid) { alert("Masukkan Room ID"); return; }
+        await joinRoom(rid);
+    };
+    resetBtn.onclick = async () => { await resetAndLeave(); };
+    drawBtn.onclick = handleDraw;
+    skipBtn.onclick = handleSkip;
+    
+    console.log("Ready. Pastikan aturan database: { 'rules': { '.read': true, '.write': true } }");
+</script>
+</body>
+</html>
