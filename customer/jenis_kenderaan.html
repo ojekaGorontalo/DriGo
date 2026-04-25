@@ -5,9 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pilih Transportasi - JeGo</title>
 
-    <!-- Firebase SDKs -->
-    <script src="https://www.gstatic.com/firebasejs/11.0.2/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/11.0.2/firebase-database-compat.js"></script>
+    <!-- Firebase SDK hanya untuk Realtime Database -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
 
     <style>
         :root {
@@ -716,7 +716,7 @@
 
     <div class="container">
         <div class="alert alert-success" id="successAlert">
-            ✅ Transportasi berhasil dipilih! Data telah disimpan.
+            ✅ Transportasi berhasil dipilih! Data telah disimpan dan dikirim ke aplikasi JeGo.
         </div>
 
         <div class="alert alert-danger" id="errorAlert">
@@ -845,33 +845,49 @@
     </footer>
 
     <script>
-        // ========== KONFIGURASI FIREBASE ==========
-        const firebaseConfig = {
-            apiKey: "AIzaSyCD0pgeZio-LdKqYDtWxcdXcZwyL4ngYQI",
-            authDomain: "jego-35a2b.firebaseapp.com",
-            databaseURL: "https://jego-35a2b-default-rtdb.asia-southeast1.firebasedatabase.app",
-            projectId: "jego-35a2b",
-            storageBucket: "jego-35a2b.firebasestorage.app",
-            messagingSenderId: "600037007040",
-            appId: "1:600037007040:web:ac3243ad9b472647ffd725",
-            measurementId: "G-H5F9TSK50K"
+        // ================================================
+        // KONFIGURASI FIREBASE
+        // ================================================
+        const FIREBASE_CONFIG = {
+            apiKey: "AIzaSyDpGc_CsbNi1igA29n6qDhcX0oDkHNVscc",
+            authDomain: "game-balap-simpel.firebaseapp.com",
+            databaseURL: "https://game-balap-simpel-default-rtdb.firebaseio.com",
+            projectId: "game-balap-simpel",
+            storageBucket: "game-balap-simpel.firebasestorage.app",
+            messagingSenderId: "864576853495",
+            appId: "1:864576853495:web:6f16eb757fd3d8affb0af2",
+            measurementId: "G-YWJPK7Y3J4"
         };
 
-        // Inisialisasi Firebase
-        firebase.initializeApp(firebaseConfig);
-        const database = firebase.database();
+        // Inisialisasi Firebase (hanya database)
+        let firebaseDatabase = null;
+
+        async function initializeFirebase() {
+            try {
+                console.log('🔄 Menginisialisasi Firebase Database...');
+                if (typeof firebase === 'undefined') {
+                    throw new Error('Firebase SDK belum dimuat');
+                }
+                if (!firebase.apps.length) {
+                    firebase.initializeApp(FIREBASE_CONFIG);
+                }
+                firebaseDatabase = firebase.database();
+                console.log('✅ Firebase Database siap');
+                return true;
+            } catch (error) {
+                console.error('❌ Error Firebase:', error);
+                return false;
+            }
+        }
 
         // ================================================
         // VARIABEL GLOBAL
         // ================================================
-        let transportList = []; // akan diisi dari Firebase (array)
+        let transportData = {};
+        let tariffRates = {};
         let currentUser = null;
-        let selectedTransport = null;
-        let selectedCategory = null;
-        let currentContactField = null;
-        let isProcessing = false;
-
-        // Elemen DOM
+        let transportCards = [];
+        
         const transportOptions = document.getElementById('transportOptions');
         const successAlert = document.getElementById('successAlert');
         const errorAlert = document.getElementById('errorAlert');
@@ -885,49 +901,49 @@
         const headerLoginBtn = document.getElementById('headerLoginBtn');
         const globalLoading = document.getElementById('globalLoading');
 
+        const transportNameMapping = {
+            'Bentor': 'bentor',
+            'Kurir Bentor': 'kurir_bentor',
+            'Kurir Motor': 'kurir_motor',
+            'Mobil': 'mobil',
+            'Motor': 'motor'
+        };
+
+        let selectedTransport = null;
+        let selectedCategory = null;
+        let currentContactField = null;
+        let isProcessing = false;
+
         // ================================================
         // FUNGSI UTAMA
         // ================================================
 
-        // Fungsi untuk cek login (sama dengan rute.html)
-        async function checkUserSession() {
-            const stored = localStorage.getItem('jego_logged_in_user');
-            if (!stored) {
-                showLoginRequired();
-                return false;
-            }
-            try {
-                const userData = JSON.parse(stored);
-                const uid = userData.uid;
-                if (!uid) throw new Error('UID tidak ditemukan');
-                
-                const snapshot = await database.ref(`users/${uid}`).once('value');
-                const data = snapshot.val();
-                if (!data) {
-                    localStorage.removeItem('jego_logged_in_user');
+        function checkLogin() {
+            const loggedInUser = localStorage.getItem('jego_logged_in_user');
+            if (loggedInUser) {
+                try {
+                    currentUser = JSON.parse(loggedInUser);
+                    mainContent.style.display = 'block';
+                    loginRequiredContent.style.display = 'none';
+                    headerRegisterBtn.style.display = 'none';
+                    headerLoginBtn.style.display = 'none';
+                    userInfo.innerHTML = `Halo, <strong>${currentUser.name}</strong>`;
+                    console.log('✅ User login:', currentUser.name);
+                    initializeFirebase().then(firebaseReady => {
+                        if (firebaseReady) {
+                            fetchTransportData();
+                        } else {
+                            showLoading(false);
+                            loadFallbackData();
+                        }
+                    });
+                    return true;
+                } catch (error) {
+                    console.error('Error user data:', error);
                     showLoginRequired();
                     return false;
                 }
-                currentUser = {
-                    id: uid,
-                    name: data.name,
-                    phone: data.phone,
-                    email: data.email,
-                    status: data.status,
-                    rating: data.rating,
-                    perjalanan: data.perjalanan
-                };
-                // Tampilkan konten utama
-                mainContent.style.display = 'block';
-                loginRequiredContent.style.display = 'none';
-                headerRegisterBtn.style.display = 'none';
-                headerLoginBtn.style.display = 'none';
-                userInfo.innerHTML = `Halo, <strong>${currentUser.name}</strong>`;
-                console.log('✅ User terdeteksi:', currentUser.name);
-                return true;
-            } catch (e) {
-                console.error(e);
-                localStorage.removeItem('jego_logged_in_user');
+            } else {
                 showLoginRequired();
                 return false;
             }
@@ -941,89 +957,52 @@
             headerLoginBtn.style.display = 'inline-block';
         }
 
-        // Fungsi untuk mengambil data transportasi dari Firebase (array di data-jego/tarif)
         async function fetchTransportData() {
             try {
+                if (!firebaseDatabase) throw new Error('Firebase belum siap');
                 showLoading(true);
-                console.log('📡 Mengambil data transportasi dari Firebase...');
+                console.log('📡 Mengambil data transportasi...');
+                const snapshot = await firebaseDatabase.ref('tarif').once('value');
+                const firebaseData = snapshot.val();
+                if (!firebaseData) throw new Error('Data tarif kosong');
                 
-                const snapshot = await database.ref('data-jego/tarif').once('value');
-                const dataArray = snapshot.val();
-                
-                if (!dataArray || !Array.isArray(dataArray)) {
-                    throw new Error('Data tarif tidak valid atau bukan array');
+                transportData = {};
+                tariffRates = {};
+                for (const [firebaseName, data] of Object.entries(firebaseData)) {
+                    const internalName = transportNameMapping[firebaseName];
+                    if (internalName && data) {
+                        transportData[internalName] = {
+                            name: data.Nama || firebaseName,
+                            capacity: data.Capacity || "N/A",
+                            description: data.Deskripsi || "Tidak ada deskripsi",
+                            icon: data.Icon || "https://cdn-icons-png.flaticon.com/128/7890/7890227.png",
+                            minimalDistance: data.MinimalDistance || 4,
+                            minimalPrice: data.MinimalPrice || 10000
+                        };
+                        tariffRates[internalName] = data.PricePerKm || 2000;
+                    }
                 }
-                
-                // Filter data yang valid (hilangkan null)
-                transportList = dataArray.filter(item => item !== null && item.nama);
-                console.log('📊 Data transportasi diterima:', transportList);
-                
-                if (transportList.length === 0) {
-                    throw new Error('Tidak ada data transportasi');
-                }
-                
                 renderTransportCards();
                 showLoading(false);
             } catch (error) {
-                console.error('❌ Error mengambil data dari Firebase:', error);
+                console.error('❌ Gagal fetch:', error);
                 showLoading(false);
-                showAlert(errorAlert, 'Gagal mengambil data transportasi. Menggunakan data lokal...');
                 loadFallbackData();
+                showAlert(errorAlert, 'Gagal ambil data, menggunakan data lokal');
             }
         }
 
-        // Fallback data (mirip dengan rute.html)
         function loadFallbackData() {
-            console.log('🔄 Menggunakan data fallback (offline)...');
-            transportList = [
-                {
-                    nama: "Motor",
-                    capacity: "1 Penumpang",
-                    deskripsi: "Cepat dan ekonomis untuk perjalanan solo",
-                    icon_url: "https://cdn-icons-png.flaticon.com/128/5811/5811823.png",
-                    minimal_distance: 4,
-                    minimal_price: 10000,
-                    price_per_km: 2200
-                },
-                {
-                    nama: "Bentor",
-                    capacity: "2 Penumpang",
-                    deskripsi: "Nyaman untuk perjalanan dalam kota",
-                    icon_url: "https://cdn-icons-png.flaticon.com/128/7890/7890227.png",
-                    minimal_distance: 4,
-                    minimal_price: 11000,
-                    price_per_km: 3000
-                },
-                {
-                    nama: "Mobil",
-                    capacity: "4 Penumpang",
-                    deskripsi: "Nyaman untuk perjalanan dengan grup",
-                    icon_url: "https://cdn-icons-png.flaticon.com/128/12689/12689302.png",
-                    minimal_distance: 4,
-                    minimal_price: 15000,
-                    price_per_km: 4000
-                },
-                {
-                    nama: "Kurir Motor",
-                    capacity: "Paket Kecil",
-                    deskripsi: "Pengiriman cepat dengan motor",
-                    icon_url: "https://cdn-icons-png.flaticon.com/128/9561/9561688.png",
-                    minimal_distance: 4,
-                    minimal_price: 10000,
-                    price_per_km: 2100
-                },
-                {
-                    nama: "Kurir Bentor",
-                    capacity: "Paket Sedang",
-                    deskripsi: "Pengiriman dengan kapasitas lebih besar",
-                    icon_url: "https://cdn-icons-png.flaticon.com/128/7890/7890227.png",
-                    minimal_distance: 4,
-                    minimal_price: 10000,
-                    price_per_km: 2100
-                }
-            ];
+            console.log('🔄 Data fallback');
+            transportData = {
+                motor: { name: "Motor", capacity: "1 Penumpang", description: "Cepat dan ekonomis", icon: "https://cdn-icons-png.flaticon.com/128/5811/5811823.png", minimalDistance: 4, minimalPrice: 10000 },
+                bentor: { name: "Bentor", capacity: "2 Penumpang", description: "Nyaman dalam kota", icon: "https://cdn-icons-png.flaticon.com/128/7890/7890227.png", minimalDistance: 4, minimalPrice: 11000 },
+                mobil: { name: "Mobil", capacity: "4 Penumpang", description: "Nyaman untuk grup", icon: "https://cdn-icons-png.flaticon.com/128/12689/12689302.png", minimalDistance: 4, minimalPrice: 15000 },
+                kurir_motor: { name: "Kurir Motor", capacity: "Paket Kecil", description: "Pengiriman cepat", icon: "https://cdn-icons-png.flaticon.com/128/9561/9561688.png", minimalDistance: 4, minimalPrice: 10000 },
+                kurir_bentor: { name: "Kurir Bentor", capacity: "Paket Sedang", description: "Kapasitas lebih besar", icon: "https://cdn-icons-png.flaticon.com/128/7890/7890227.png", minimalDistance: 4, minimalPrice: 10000 }
+            };
+            tariffRates = { motor: 2200, bentor: 3000, mobil: 4000, kurir_motor: 2100, kurir_bentor: 2100 };
             renderTransportCards();
-            showAlert(successAlert, 'Menggunakan data lokal (mode offline).');
         }
 
         function showLoading(show) {
@@ -1037,67 +1016,51 @@
 
         function renderTransportCards() {
             transportOptions.innerHTML = '';
-            transportList.forEach(transport => {
-                const card = document.createElement('div');
-                card.className = 'transport-card';
-                card.setAttribute('data-type', transport.nama);
-                card.setAttribute('data-capacity', transport.capacity || 'N/A');
-                
-                card.innerHTML = `
-                    <div class="transport-icon">
-                        <img src="${transport.icon_url || 'https://cdn-icons-png.flaticon.com/128/7890/7890227.png'}" alt="${transport.nama}">
-                    </div>
-                    <div class="transport-name">${transport.nama}</div>
-                    <div class="transport-capacity">${transport.capacity || 'N/A'}</div>
-                    <div class="transport-description">${transport.deskripsi || 'Tidak ada deskripsi'}</div>
-                `;
-                
-                card.addEventListener('click', function() {
-                    if (isProcessing) return;
-                    showGlobalLoading(true);
-                    isProcessing = true;
-                    
-                    // Hapus kelas selected dari semua card
-                    document.querySelectorAll('.transport-card').forEach(c => c.classList.remove('selected'));
-                    this.classList.add('selected');
-                    
-                    selectedTransport = {
-                        type: transport.nama,  // Nama persis seperti 'Motor', 'Bentor', 'Kurir Motor', dll.
-                        name: transport.nama,
-                        capacity: transport.capacity || 'N/A',
-                        icon: transport.icon_url || '',
-                        description: transport.deskripsi || '',
-                        tariff: transport.price_per_km || 2200,
-                        minimalDistance: transport.minimal_distance || 4,
-                        minimalPrice: transport.minimal_price || 10000
-                    };
-                    
-                    console.log(`✅ Transportasi dipilih: ${selectedTransport.name}`);
-                    
-                    // Cek apakah kurir (nama mengandung 'Kurir')
-                    if (transport.nama.toLowerCase().includes('kurir')) {
-                        showGlobalLoading(false);
-                        isProcessing = false;
-                        showKurirModal();
-                    } else {
-                        setTimeout(() => {
-                            processTransportSelection(selectedTransport);
-                        }, 800);
-                    }
-                });
-                
-                transportOptions.appendChild(card);
+            transportCards = [];
+            const order = ['motor', 'bentor', 'mobil', 'kurir_motor', 'kurir_bentor'];
+            order.forEach(type => {
+                if (transportData[type]) {
+                    const t = transportData[type];
+                    const card = document.createElement('div');
+                    card.className = 'transport-card';
+                    card.setAttribute('data-type', type);
+                    card.setAttribute('data-capacity', t.capacity);
+                    card.innerHTML = `
+                        <div class="transport-icon"><img src="${t.icon}" alt="${t.name}"></div>
+                        <div class="transport-name">${t.name}</div>
+                        <div class="transport-capacity">${t.capacity}</div>
+                        <div class="transport-description">${t.description}</div>
+                    `;
+                    card.addEventListener('click', () => {
+                        if (isProcessing) return;
+                        showGlobalLoading(true);
+                        isProcessing = true;
+                        transportCards.forEach(c => c.classList.remove('selected'));
+                        card.classList.add('selected');
+                        selectedTransport = {
+                            type: type,
+                            name: t.name,
+                            capacity: t.capacity,
+                            icon: t.icon,
+                            description: t.description,
+                            tariff: tariffRates[type],
+                            minimalDistance: t.minimalDistance,
+                            minimalPrice: t.minimalPrice
+                        };
+                        console.log(`✅ Dipilih: ${selectedTransport.name}`);
+                        if (type.includes('kurir')) {
+                            showGlobalLoading(false);
+                            isProcessing = false;
+                            showKurirModal();
+                        } else {
+                            setTimeout(() => processTransportSelection(selectedTransport), 800);
+                        }
+                    });
+                    transportOptions.appendChild(card);
+                    transportCards.push(card);
+                }
             });
         }
-
-        // Event listener untuk kategori barang
-        categoryButtons.forEach(button => {
-            button.addEventListener('click', function() {
-                categoryButtons.forEach(btn => btn.classList.remove('selected'));
-                this.classList.add('selected');
-                selectedCategory = this.getAttribute('data-category');
-            });
-        });
 
         function showKurirModal() {
             kurirModal.style.display = 'flex';
@@ -1113,89 +1076,76 @@
             isProcessing = false;
         }
 
-        // Fungsi untuk memilih kontak - untuk integrasi Kodular (opsional)
         function pickContact(field) {
             currentContactField = field;
-            // Di web, bisa menggunakan prompt atau integrasi kontak sederhana
-            const phone = prompt(`Masukkan nomor telepon untuk ${field === 'sender' ? 'pengirim' : 'penerima'}:`);
-            if (phone && phone.trim()) {
-                setContactNumber(phone.trim(), field);
+            console.log('Pilih kontak untuk field:', field);
+            if (typeof window.AppInventor !== 'undefined' && window.AppInventor.setWebViewString) {
+                window.AppInventor.setWebViewString(JSON.stringify({ action: 'open_contact_picker', field: field }));
+            } else {
+                alert('Fitur kontak hanya tersedia di dalam aplikasi JeGo.');
             }
         }
 
-        function setContactNumber(phoneNumber, field) {
-            if (field === 'sender') {
-                document.getElementById('senderPhone').value = phoneNumber;
-            } else if (field === 'receiver') {
-                document.getElementById('receiverPhone').value = phoneNumber;
-            }
-            showAlert(successAlert, `Nomor ${field === 'sender' ? 'pengirim' : 'penerima'} diisi: ${phoneNumber}`);
-        }
-
-        // Untuk kompatibilitas dengan Kodular (dipanggil dari luar)
-        window.setContactNumber = setContactNumber;
+        window.setContactNumber = function(phoneNumber, field) {
+            if (field === 'sender') document.getElementById('senderPhone').value = phoneNumber;
+            else if (field === 'receiver') document.getElementById('receiverPhone').value = phoneNumber;
+            showAlert(successAlert, `Nomor ${field === 'sender' ? 'pengirim' : 'penerima'} terisi`);
+        };
 
         function saveDeliveryData() {
             const senderPhone = document.getElementById('senderPhone').value;
             const receiverPhone = document.getElementById('receiverPhone').value;
             const description = document.getElementById('description').value;
-            
             if (!senderPhone || !receiverPhone || !selectedCategory) {
-                showAlert(errorAlert, 'Harap isi semua data yang diperlukan');
+                showAlert(errorAlert, 'Harap isi semua data pengiriman');
                 return;
             }
-            
             showGlobalLoading(true);
-            
             selectedTransport.deliveryData = {
-                senderPhone: senderPhone,
-                receiverPhone: receiverPhone,
-                itemCategory: selectedCategory,
-                description: description,
+                senderPhone, receiverPhone, itemCategory: selectedCategory, description,
                 timestamp: new Date().toISOString()
             };
-            
             closeModal();
-            
-            setTimeout(() => {
-                processTransportSelection(selectedTransport);
-            }, 800);
+            setTimeout(() => processTransportSelection(selectedTransport), 800);
         }
 
         function processTransportSelection(transport) {
-            console.log('Memproses pilihan transportasi:', transport.name);
+            console.log('🚀 Memproses:', transport.name);
             saveToLocalStorage(transport);
             showAlert(successAlert, `${transport.name} berhasil dipilih!`);
             setTimeout(() => {
                 showGlobalLoading(true);
+                // REDIRECT KE rute.html
                 window.location.href = "rute.html";
             }, 1200);
         }
 
-        function saveToLocalStorage(transportData) {
-            // Simpan ke localStorage dengan format yang sama dengan yang dibaca rute.html
-            localStorage.setItem('jego_last_transport', JSON.stringify(transportData));
-            console.log('Data transportasi disimpan ke localStorage:', transportData);
+        function saveToLocalStorage(transport) {
+            const history = JSON.parse(localStorage.getItem('jego_transport_history')) || [];
+            const record = { ...transport, userId: currentUser?.uid || 'anonymous', timestamp: new Date().toISOString() };
+            history.unshift(record);
+            localStorage.setItem('jego_transport_history', JSON.stringify(history));
+            localStorage.setItem('jego_last_transport', JSON.stringify(transport));
         }
 
         function showAlert(alertElement, message) {
             alertElement.textContent = message;
             alertElement.style.display = 'block';
-            setTimeout(() => {
-                alertElement.style.display = 'none';
-            }, 3000);
+            setTimeout(() => alertElement.style.display = 'none', 3000);
         }
 
-        // ================================================
-        // INITIALIZATION
-        // ================================================
-        window.onload = async () => {
-            console.log('🚀 jenis_kenderaan.html loaded (Firebase version)');
-            const isLoggedIn = await checkUserSession();
-            if (isLoggedIn) {
-                await fetchTransportData();
-            }
-        };
+        categoryButtons.forEach(btn => {
+            btn.addEventListener('click', function() {
+                categoryButtons.forEach(b => b.classList.remove('selected'));
+                this.classList.add('selected');
+                selectedCategory = this.getAttribute('data-category');
+            });
+        });
+
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('🚀 Halaman jenis_kenderaan siap');
+            checkLogin();
+        });
     </script>
 </body>
 </html>
