@@ -81,7 +81,7 @@
   </div>
 
   <script>
-    // Firebase config
+    // KONFIGURASI FIREBASE
     const FIREBASE_CONFIG = {
       apiKey: "AIzaSyDpGc_CsbNi1igA29n6qDhcX0oDkHNVscc",
       authDomain: "game-balap-simpel.firebaseapp.com",
@@ -94,6 +94,7 @@
     if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
     const database = firebase.database();
 
+    // SMS GATEWAY
     const SMS_GATEWAY = { user: 'gsmreload', pass: 'Jd59dm$jr*dj^hy', baseUrl: 'https://srv2.soufasms.com/sms_gateway/' };
 
     let pendingGoogleUser = null;
@@ -217,20 +218,21 @@
       }, 1000);
     }
 
-    // ================= HANDLER PLUGIN MEDIAN (DIPERBAIKI) =================
-    window.onGoogleLoginSuccess = async function(response) {
-      console.log('Raw response from plugin:', response);
-      // Coba ekstrak user object dari berbagai kemungkinan
+    // ========== HANDLER PLUGIN SOCIAL LOGIN MEDIAN (berdasarkan dokumentasi) ==========
+    // Berdasarkan petunjuk Median, plugin akan memanggil fungsi global yang sudah ditentukan.
+    // Biasanya callback akan menerima parameter: { success: true, user: {...} } atau langsung user object.
+    // Fungsi ini harus didefinisikan sebagai global.
+    window.onGoogleLoginSuccess = function(response) {
+      console.log('Google login response:', response);
       let user = null;
-      if (response.userDetails) user = response.userDetails;
-      else if (response.user) user = response.user;
+      // Coba ekstrak user dari berbagai kemungkinan format
+      if (response.user) user = response.user;
+      else if (response.userDetails) user = response.userDetails;
       else if (response.id) user = response;
       else if (response.userId) user = { id: response.userId, ...response };
       
       if (!user || !user.id) {
-        // Jika masih gagal, tampilkan detail error
-        showStatus('Gagal mendapatkan data pengguna. Silakan coba lagi.', 'error');
-        console.error('Unrecognized response structure:', response);
+        showStatus('Gagal mendapatkan data dari Google. Silakan coba lagi.', 'error');
         return;
       }
       const googleUser = {
@@ -240,29 +242,41 @@
         photoUrl: user.photoUrl || user.photoURL || ''
       };
       pendingGoogleUser = googleUser;
-      const hasPhone = await checkUserHasPhone(googleUser);
-      if (!hasPhone) {
-        document.getElementById('phoneForm').style.display = 'block';
-        showStatus('Lengkapi nomor HP untuk melanjutkan', 'info');
-      }
+      checkUserHasPhone(googleUser).then(hasPhone => {
+        if (!hasPhone) {
+          document.getElementById('phoneForm').style.display = 'block';
+          showStatus('Lengkapi nomor HP untuk melanjutkan', 'info');
+        }
+      });
     };
 
     window.onGoogleLoginError = function(error) {
       console.error('Google login error:', error);
-      let errMsg = error.message || error;
-      if (typeof error === 'string') errMsg = error;
-      showStatus('Login Google gagal: ' + errMsg, 'error');
+      let msg = error.message || error;
+      if (typeof error === 'string') msg = error;
+      showStatus('Login Google gagal: ' + msg, 'error');
     };
 
-    // Tombol Google
-    const googleBtn = document.getElementById('googleBtn');
-    googleBtn.addEventListener('click', () => {
-      if (typeof median !== 'undefined' && median.socialLogin && median.socialLogin.google) {
-        median.socialLogin.google.login({ callback: 'onGoogleLoginSuccess' });
-      } else {
-        showStatus('Fitur hanya tersedia di aplikasi JeGo.', 'error');
+    // Fungsi untuk memicu login via Median bridge
+    function triggerGoogleLogin() {
+      // Coba berbagai kemungkinan bridge yang tersedia
+      if (window.MedianSocialLogin && typeof window.MedianSocialLogin.loginWithGoogle === 'function') {
+        window.MedianSocialLogin.loginWithGoogle('onGoogleLoginSuccess');
+      } 
+      else if (window.median && window.median.socialLogin && window.median.socialLogin.google) {
+        // Versi lama
+        window.median.socialLogin.google.login({ callback: 'onGoogleLoginSuccess' });
       }
-    });
+      else if (window.MedianSocialLogin && typeof window.MedianSocialLogin.googleLogin === 'function') {
+        window.MedianSocialLogin.googleLogin('onGoogleLoginSuccess');
+      }
+      else {
+        showStatus('Plugin Social Login tidak tersedia. Pastikan aplikasi dijalankan di Median.co', 'error');
+      }
+    }
+
+    // Tombol Google
+    document.getElementById('googleBtn').addEventListener('click', triggerGoogleLogin);
 
     // Kirim OTP
     document.getElementById('sendOtpBtn').addEventListener('click', async () => {
