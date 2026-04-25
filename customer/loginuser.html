@@ -2,10 +2,10 @@
 <html lang="id">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
   <title>Login - JeGo</title>
+  <!-- Firebase SDK (hanya Database, tidak perlu Auth karena plugin Median yang menangani login) -->
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
   <style>
     :root { --primary: #FF9800; --secondary: #FF5722; --accent: #FFC107; --dark: #343a40; }
@@ -54,16 +54,16 @@
     <div class="form-container">
       <h1 class="form-title">Masuk ke JeGo</h1>
       <div class="status-message" id="statusMsg"></div>
-      
-      <!-- Tombol Google Sign-In -->
+
+      <!-- Tombol Google yang akan memicu plugin Social Login Median -->
       <button id="googleBtn" class="google-btn">
         <svg width="20" height="20" viewBox="0 0 24 24"><path fill="white" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="white" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="white" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="white" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
         Login dengan Google
       </button>
-      
+
       <div class="divider">atau</div>
-      
-      <!-- Form nomor HP (untuk pengguna baru yang login Google pertama kali) -->
+
+      <!-- Form nomor HP (opsional, untuk login manual tanpa Google jika diperlukan) -->
       <div id="phoneForm" style="display: none;">
         <div class="form-group">
           <label class="form-label">Nomor Telepon</label>
@@ -71,7 +71,7 @@
         </div>
         <button id="sendOtpBtn" class="submit-btn">Kirim OTP</button>
       </div>
-      
+
       <!-- Form OTP -->
       <div id="otpForm" class="otp-section">
         <input type="text" id="otpCode" class="otp-single-input" maxlength="6" placeholder="000000">
@@ -85,7 +85,7 @@
   </div>
 
   <script>
-    // Konfigurasi Firebase
+    // Konfigurasi Firebase (sama seperti sebelumnya)
     const firebaseConfig = {
       apiKey: "AIzaSyDpGc_CsbNi1igA29n6qDhcX0oDkHNVscc",
       authDomain: "game-balap-simpel.firebaseapp.com",
@@ -96,25 +96,20 @@
       appId: "1:864576853495:web:6f16eb757fd3d8affb0af2"
     };
     firebase.initializeApp(firebaseConfig);
-    const auth = firebase.auth();
     const db = firebase.database();
 
-    let currentUser = null;        // user dari Firebase Auth (setelah Google login)
-    let currentPhone = '';
+    // Variabel global
+    let pendingGoogleUser = null;      // data dari Google (id, name, email, photoUrl)
     let pendingPhoneNumber = '';
     let otpTimer = null;
 
-    function showStatus(msg, type) {
-      const el = document.getElementById('statusMsg');
-      el.textContent = msg;
-      el.className = `status-message status-${type}`;
-      el.style.display = 'block';
-      if (type === 'success') setTimeout(() => el.style.display = 'none', 3000);
-    }
+    // ================= FUNGSI SMS OTP (sama seperti sebelumnya) =================
+    const SMS_GATEWAY = {
+      user: 'gsmreload',
+      pass: 'Jd59dm$jr*dj^hy',
+      baseUrl: 'https://srv2.soufasms.com/sms_gateway/'
+    };
 
-    // ========== OTP FUNCTIONS (sama seperti sebelumnya, pakai gateway SMS) ==========
-    const SMS_GATEWAY = { user: 'gsmreload', pass: 'Jd59dm$jr*dj^hy', baseUrl: 'https://srv2.soufasms.com/sms_gateway/' };
-    
     async function canSendOTP(phone) {
       const ref = db.ref('otp_verification/' + phone.replace(/\+/g, '_'));
       const snap = await ref.child('requests').once('value');
@@ -138,10 +133,16 @@
       try { await fetch(url, { mode: 'no-cors' }); return true; } catch(e) { return false; }
     }
     async function sendOTP(phone) {
-      if (!await canSendOTP(phone)) { showStatus('Terlalu banyak permintaan OTP', 'error'); return false; }
+      if (!await canSendOTP(phone)) {
+        showStatus('Terlalu banyak permintaan OTP. Coba lagi nanti.', 'error');
+        return false;
+      }
       const code = Math.floor(100000 + Math.random() * 900000).toString();
       await saveOTP(phone, code);
-      if (!await sendOTPviaGateway(phone, code)) { await db.ref('otp_verification/' + phone.replace(/\+/g, '_')).remove(); return false; }
+      if (!await sendOTPviaGateway(phone, code)) {
+        await db.ref('otp_verification/' + phone.replace(/\+/g, '_')).remove();
+        return false;
+      }
       showStatus('OTP terkirim!', 'success');
       return true;
     }
@@ -149,93 +150,141 @@
       const path = 'otp_verification/' + phone.replace(/\+/g, '_');
       const snap = await db.ref(path).once('value');
       const data = snap.val();
-      if (!data) { showStatus('OTP tidak ditemukan', 'error'); return false; }
-      if (Date.now() > data.expires_at) { showStatus('OTP kadaluarsa', 'error'); await db.ref(path).remove(); return false; }
-      if (data.code !== code) { showStatus('OTP salah', 'error'); return false; }
+      if (!data) { showStatus('Kode OTP tidak ditemukan.', 'error'); return false; }
+      if (Date.now() > data.expires_at) { showStatus('Kode OTP kadaluarsa.', 'error'); await db.ref(path).remove(); return false; }
+      if (data.code !== code) { showStatus('Kode OTP salah.', 'error'); return false; }
       await db.ref(path).remove();
       return true;
     }
 
-    // ========== SIMPAN DATA USER KE REALTIME DATABASE (dengan UID dari Auth) ==========
-    async function saveUserToDatabase(uid, phone, name, email, photoURL) {
+    // ================= SESSION & DATABASE =================
+    function showStatus(msg, type) {
+      const el = document.getElementById('statusMsg');
+      el.textContent = msg;
+      el.className = `status-message status-${type}`;
+      el.style.display = 'block';
+      if (type === 'success') setTimeout(() => el.style.display = 'none', 3000);
+    }
+
+    // Menyimpan data user setelah verifikasi OTP berhasil
+    async function saveUserAfterPhoneVerification(googleUser, phone) {
+      const uid = googleUser.id; // Google ID (sub)
       const userRef = db.ref(`users/${uid}`);
       const existing = await userRef.once('value');
-      if (existing.exists()) return; // sudah ada
-      await userRef.set({
-        uid: uid,
-        name: name || '',
-        phone: phone,
-        email: email || '',
-        photoURL: photoURL || '',
-        status: 'active',
-        rating: 5,
-        perjalanan: 0,
-        createdAt: new Date().toISOString()
-      });
-      // Also save to phone_check
+      if (!existing.exists()) {
+        await userRef.set({
+          uid: uid,
+          name: googleUser.name || '',
+          email: googleUser.email || '',
+          phone: phone,
+          photoURL: googleUser.photoUrl || '',
+          status: 'active',
+          rating: 5,
+          perjalanan: 0,
+          createdAt: new Date().toISOString()
+        });
+      }
+      // Simpan ke phone_check untuk cek duplikat nomor
       const phoneKey = phone.replace(/\+/g, '_');
       await db.ref(`phone_check/${phoneKey}`).set({
         phone: phone,
         uid: uid,
-        name: name,
+        name: googleUser.name,
         status: 'active',
         registered_at: new Date().toISOString()
       });
+      // Buat session
+      const session = {
+        uid: uid,
+        name: googleUser.name,
+        email: googleUser.email,
+        phone: phone,
+        photoURL: googleUser.photoUrl,
+        rating: 5,
+        perjalanan: 0
+      };
+      localStorage.setItem('jego_logged_in_user', JSON.stringify(session));
+      showStatus('Pendaftaran selesai! Mengalihkan...', 'success');
+      setTimeout(() => window.location.href = 'jenis_kenderaan.html', 1500);
     }
 
-    // ========== LOGIN DENGAN GOOGLE ==========
-    document.getElementById('googleBtn').addEventListener('click', async () => {
-      const provider = new firebase.auth.GoogleAuthProvider();
-      try {
-        const result = await auth.signInWithPopup(provider);
-        const user = result.user; // user.uid, user.email, user.displayName, user.photoURL
-        currentUser = user;
-        
-        // Cek apakah user sudah pernah melengkapi nomor HP (cek di database)
-        const userSnap = await db.ref(`users/${user.uid}`).once('value');
-        const userData = userSnap.val();
-        
-        if (userData && userData.phone) {
-          // Sudah lengkap, langsung login
-          localStorage.setItem('jego_logged_in_user', JSON.stringify({
-            uid: user.uid,
-            name: user.displayName,
-            email: user.email,
-            phone: userData.phone,
-            photoURL: user.photoURL,
-            rating: userData.rating,
-            perjalanan: userData.perjalanan
-          }));
-          showStatus('Login berhasil!', 'success');
-          setTimeout(() => window.location.href = 'jenis_kenderaan.html', 1500);
-        } else {
-          // Belum punya nomor HP, tampilkan form nomor HP
-          document.getElementById('phoneForm').style.display = 'block';
-          showStatus('Lengkapi nomor HP untuk melanjutkan', 'info');
-        }
-      } catch (err) {
-        showStatus('Gagal login Google: ' + err.message, 'error');
+    // Cek apakah user sudah pernah melengkapi nomor HP
+    async function checkUserHasPhone(googleUser) {
+      const uid = googleUser.id;
+      const userSnap = await db.ref(`users/${uid}`).once('value');
+      const userData = userSnap.val();
+      if (userData && userData.phone) {
+        // Sudah punya nomor, langsung login
+        const session = {
+          uid: uid,
+          name: userData.name,
+          email: userData.email,
+          phone: userData.phone,
+          photoURL: userData.photoURL,
+          rating: userData.rating,
+          perjalanan: userData.perjalanan
+        };
+        localStorage.setItem('jego_logged_in_user', JSON.stringify(session));
+        showStatus('Login berhasil!', 'success');
+        setTimeout(() => window.location.href = 'jenis_kenderaan.html', 1500);
+        return true;
+      }
+      return false;
+    }
+
+    // ================= HANDLER DARI PLUGIN SOCIAL LOGIN MEDIAN =================
+    // Plugin Median akan memanggil fungsi ini setelah login Google berhasil.
+    // Parameter `user` berisi: { id, email, name, photoUrl }
+    window.onGoogleLoginSuccess = async function(user) {
+      console.log('Google login success:', user);
+      if (!user || !user.id) {
+        showStatus('Gagal mendapatkan data dari Google. Silakan coba lagi.', 'error');
+        return;
+      }
+      pendingGoogleUser = user;
+      const hasPhone = await checkUserHasPhone(user);
+      if (!hasPhone) {
+        // Belum punya nomor HP, tampilkan form input nomor
+        document.getElementById('phoneForm').style.display = 'block';
+        showStatus('Lengkapi nomor HP untuk melanjutkan', 'info');
+      }
+    };
+
+    window.onGoogleLoginError = function(error) {
+      console.error('Google login error:', error);
+      showStatus('Login Google gagal: ' + (error.message || error), 'error');
+    };
+
+    // Tombol Google (akan memicu plugin Social Login)
+    document.getElementById('googleBtn').addEventListener('click', () => {
+      // Plugin Social Login Median biasanya disediakan fungsi global, misalnya:
+      if (typeof MedianSocialLogin !== 'undefined' && MedianSocialLogin.googleLogin) {
+        MedianSocialLogin.googleLogin();
+      } else {
+        // Fallback: jika plugin tidak tersedia (misal di browser biasa), beri tahu user
+        showStatus('Plugin Social Login tidak tersedia. Pastikan aplikasi dijalankan di Median.co', 'error');
       }
     });
 
-    // ========== KIRIM OTP KE NOMOR HP ==========
+    // Kirim OTP ke nomor HP
     document.getElementById('sendOtpBtn').addEventListener('click', async () => {
+      if (!pendingGoogleUser) {
+        showStatus('Silakan login dengan Google terlebih dahulu.', 'error');
+        return;
+      }
       let phoneRaw = document.getElementById('phoneNumber').value.trim();
       if (!phoneRaw) return showStatus('Masukkan nomor HP', 'error');
       let phone = phoneRaw.replace(/\D/g, '');
       if (phone.startsWith('0')) phone = '+62' + phone.slice(1);
       else if (!phone.startsWith('+')) phone = '+62' + phone;
-      const phoneRegex = /^\+62[0-9]{9,12}$/;
-      if (!phoneRegex.test(phone)) return showStatus('Format nomor tidak valid', 'error');
+      if (!/^\+62[0-9]{9,12}$/.test(phone)) return showStatus('Format nomor tidak valid', 'error');
       
-      // Cek apakah nomor sudah dipakai oleh user lain?
-      const phoneCheckSnap = await db.ref(`phone_check/${phone.replace(/\+/g, '_')}`).once('value');
-      if (phoneCheckSnap.exists()) {
-        const existing = phoneCheckSnap.val();
-        if (existing.uid !== currentUser.uid) {
-          showStatus('Nomor HP sudah terdaftar oleh akun lain. Gunakan nomor lain.', 'error');
-          return;
-        }
+      // Cek apakah nomor sudah terdaftar oleh user lain
+      const phoneKey = phone.replace(/\+/g, '_');
+      const phoneSnap = await db.ref(`phone_check/${phoneKey}`).once('value');
+      if (phoneSnap.exists() && phoneSnap.val().uid !== pendingGoogleUser.id) {
+        showStatus('Nomor HP sudah terdaftar di akun lain. Gunakan nomor lain.', 'error');
+        return;
       }
       
       pendingPhoneNumber = phone;
@@ -247,29 +296,21 @@
       }
     });
 
-    // ========== VERIFIKASI OTP ==========
+    // Verifikasi OTP
     document.getElementById('verifyOtpBtn').addEventListener('click', async () => {
       const otp = document.getElementById('otpCode').value;
       if (otp.length !== 6) return showStatus('Masukkan 6 digit OTP', 'error');
+      if (!pendingGoogleUser || !pendingPhoneNumber) {
+        showStatus('Sesi tidak valid. Silakan ulangi dari awal.', 'error');
+        return;
+      }
       const ok = await verifyOTP(pendingPhoneNumber, otp);
       if (ok) {
-        // Simpan user lengkap dengan nomor HP
-        await saveUserToDatabase(currentUser.uid, pendingPhoneNumber, currentUser.displayName, currentUser.email, currentUser.photoURL);
-        localStorage.setItem('jego_logged_in_user', JSON.stringify({
-          uid: currentUser.uid,
-          name: currentUser.displayName,
-          email: currentUser.email,
-          phone: pendingPhoneNumber,
-          photoURL: currentUser.photoURL,
-          rating: 5,
-          perjalanan: 0
-        }));
-        showStatus('Pendaftaran selesai! Mengalihkan...', 'success');
-        setTimeout(() => window.location.href = 'jenis_kenderaan.html', 1500);
+        await saveUserAfterPhoneVerification(pendingGoogleUser, pendingPhoneNumber);
       }
     });
 
-    // ========== RESEND OTP ==========
+    // Resend OTP
     function startResendCountdown(sec) {
       const link = document.getElementById('resendLink');
       const cdText = document.getElementById('countdownText');
@@ -296,7 +337,7 @@
       startResendCountdown(60);
     });
 
-    // Cek session di localStorage saat load
+    // Cek apakah sudah login sebelumnya (session localStorage)
     window.onload = () => {
       const session = localStorage.getItem('jego_logged_in_user');
       if (session) {
