@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <title>Rute - JeGo (Mapbox)</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
   
   <!-- Firebase SDK (sama dengan jenis_kenderaan.html) -->
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
@@ -17,7 +17,7 @@
   <script id="search-js" defer src="https://api.mapbox.com/search-js/v1.5.0/web.js"></script>
 
   <style>
-    /* ===== STYLE SAMA SEPERTI SEBELUMNYA (tidak diubah untuk menghemat ruang) ===== */
+    /* ===== STYLE ===== */
     :root { --primary: #FF9800; --secondary: #FF5722; --accent: #FFC107; --light: #f8f9fa; --dark: #343a40; --success: #4CAF50; --danger: #f44336; --warning: #FFC107; --info: #2196F3; --gray: #9E9E9E; --confirm-bottom: 80px; --confirm-height: 54px; --confirm-gap: 10px; }
     html, body, #map { height: 100%; margin: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
     .panel { position: absolute; top: 10px; left: 10px; right: 10px; background: rgba(255,255,255,0.98); padding: 15px; z-index: 5; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.15); box-sizing: border-box; }
@@ -39,7 +39,24 @@
     .stat-value { font-weight: 600; color: var(--primary); font-size: 1rem; }
     .stat-label { font-size: 0.75rem; color: #666; }
     .price-highlight { font-weight: 700; color: var(--success); font-size: 1.1rem; }
-    .confirm-btn, .cancel-btn { position: fixed; bottom: 20px; left: 20px; right: 20px; color: white; border: none; border-radius: 10px; padding: 16px; font-size: 16px; font-weight: 600; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.2); z-index: 9; transition: all 0.3s; }
+    /* PERBAIKAN: z-index lebih tinggi dan stabil */
+    .confirm-btn, .cancel-btn {
+      position: fixed;
+      bottom: 20px;
+      left: 20px;
+      right: 20px;
+      color: white;
+      border: none;
+      border-radius: 10px;
+      padding: 16px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+      z-index: 10000;
+      transition: all 0.3s;
+      transform: translateZ(0);
+    }
     .confirm-btn { background: linear-gradient(to right, var(--primary), var(--secondary)); }
     .cancel-btn { background: linear-gradient(to right, var(--danger), #e74c3c); display: none; }
     .confirm-btn:hover, .cancel-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 15px rgba(0,0,0,0.25); }
@@ -51,7 +68,7 @@
     .radar span { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: var(--secondary); font-weight: bold; background: rgba(255,255,255,0.95); padding: 10px 15px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); text-align: center; font-size: 14px; white-space: nowrap; }
     @keyframes radarPulse { 0% { transform: scale(0.4); opacity: 1; } 100% { transform: scale(1.5); opacity: 0; } }
     .search-status { position: fixed; top: 100px; left: 50%; transform: translateX(-50%); background: rgba(255,255,255,0.95); padding: 12px 20px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.2); z-index: 1000; font-weight: 600; text-align: center; max-width: 80%; border-left: 4px solid var(--primary); }
-    .popup-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 10000; opacity: 0; visibility: hidden; transition: all 0.3s ease; }
+    .popup-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 100000; opacity: 0; visibility: hidden; transition: all 0.3s ease; }
     .popup-overlay.active { opacity: 1; visibility: visible; }
     .popup { background: white; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); width: 90%; max-width: 400px; max-height: 80vh; overflow: hidden; transform: scale(0.9); transition: transform 0.3s ease; }
     .popup-overlay.active .popup { transform: scale(1); }
@@ -184,7 +201,7 @@
   </div>
 
   <script>
-    // ========== KONFIGURASI FIREBASE (SAMA DENGAN JENIS_KENDERAAN.HTML) ==========
+    // ========== KONFIGURASI FIREBASE ==========
     const FIREBASE_CONFIG = {
       apiKey: "AIzaSyDpGc_CsbNi1igA29n6qDhcX0oDkHNVscc",
       authDomain: "game-balap-simpel.firebaseapp.com",
@@ -230,7 +247,7 @@
     let priceOfferTimer = null;
     let priceOfferShown = false;
 
-    // Fungsi-fungsi utility yang sama (formatRupiah, calculatePrice, dll)
+    // Fungsi utility
     function showPopup(title, message, icon = '⚠️', onClose = null) {
       document.getElementById('popupTitle').innerText = title;
       document.getElementById('popupMessage').innerHTML = message;
@@ -265,7 +282,7 @@
       return Math.round(price / 1000) * 1000;
     }
 
-    // ========== AMBIL TOKEN MAPBOX ==========
+    // AMBIL TOKEN MAPBOX
     async function fetchMapboxToken() {
       try {
         const snapshot = await database.ref('data-jego/mapbox_acces_token').once('value');
@@ -281,7 +298,7 @@
       }
     }
 
-    // LOAD TARIF (sama)
+    // LOAD TARIF
     async function loadTransportRateFromDB(transportName) {
       try {
         const snapshot = await database.ref('tarif').once('value');
@@ -384,7 +401,7 @@
       }
     }
 
-    // ========== FUNGSI PETA & RUTE ==========
+    // FUNGSI PETA & RUTE
     function getFullAddress(feature) {
       const name = feature.properties?.name;
       const fullAddress = feature.properties?.full_address || feature.properties?.address || '';
@@ -410,7 +427,6 @@
       return null;
     }
 
-    // Fungsi untuk mengisi input box pickup secara manual
     async function setPickupInputField(address) {
       const fromBox = document.querySelector('#from-container mapbox-search-box');
       if (fromBox && fromBox.shadowRoot) {
@@ -421,7 +437,6 @@
           input.dispatchEvent(new Event('change', { bubbles: true }));
         }
       } else {
-        // fallback
         const fallbackInput = document.querySelector('#from-container input');
         if (fallbackInput) {
           fallbackInput.value = address;
@@ -435,7 +450,6 @@
         if (!navigator.geolocation) { resolve(false); return; }
         navigator.geolocation.getCurrentPosition(async (position) => {
           const { latitude, longitude } = position.coords;
-          // Ambil alamat dari reverse geocode
           let address = await reverseGeocode(longitude, latitude);
           if (!address || address.trim() === '') {
             address = '(Jalan Tanpa Nama)';
@@ -444,7 +458,6 @@
           pickupAddress = address;
           updateMarkers();
           if (map) map.flyTo({ center: pickupCoord, zoom: 14, duration: 1500 });
-          // Isi input box dengan alamat (termasuk "(Jalan Tanpa Nama)")
           await setPickupInputField(pickupAddress);
           if (destCoord) await updateRoute();
           resolve(true);
@@ -531,7 +544,6 @@
         document.getElementById('routePrice').innerHTML = formatRupiah(price);
         document.getElementById('routeDetails').style.display = 'block';
         document.getElementById('confirmBtn').disabled = false;
-        // Update tombol dengan teks dinamis berisi tarif
         document.getElementById('confirmBtn').innerHTML = `CARI DRIVER | ${formatRupiah(price)}`;
         map.addSource('route', { type: 'geojson', data: { type: 'Feature', geometry: route.geometry } });
         map.addLayer({ id: 'route', type: 'line', source: 'route', layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: { 'line-color': '#FF9800', 'line-width': 5 } });
@@ -542,7 +554,7 @@
       } catch (err) { showPopup('Error', 'Gagal menghitung rute.', '⚠️'); }
     }
 
-    // ========== EFEK RADAR DAN ZOOM OUT ==========
+    // EFEK RADAR DAN ZOOM OUT
     let currentZoomAnimation = null;
     function startSlowZoomOut() {
       if (!map || !pickupCoord) return;
@@ -574,7 +586,7 @@
       }
     }
 
-    // ========== ORDER & DRIVER OFFERS ==========
+    // ORDER & DRIVER OFFERS
     function renderOffers(offers) {
       const container = document.getElementById('driverOfferList');
       if (!container) return;
@@ -621,6 +633,7 @@
       await database.ref(`orders/${currentOrderId}/driver_offers/${driverId}/status`).set('rejected');
     }
 
+    // Fungsi utama ketika tombol "CARI DRIVER" diklik
     async function confirmRoute() {
       if (!currentRoute || !currentUser) {
         showPopup('Perhatian', 'Lengkapi asal dan tujuan.', '⚠️');
@@ -628,24 +641,27 @@
       }
       const btn = document.getElementById('confirmBtn');
       btn.disabled = true;
+      
+      // Hentikan semua animasi peta yang mungkin berjalan
+      if (map) map.stop();
+      
       // Ubah teks tombol menjadi "Batalkan Pencarian"
       btn.innerHTML = 'Batalkan Pencarian';
-      // Tampilkan tombol cancel (yang sebenarnya adalah tombol yang sama, kita ganti fungsi onclick)
-      // Kita akan tetap menggunakan tombol confirmBtn tapi dengan fungsi cancelSearch
-      // Namun lebih baik kita memiliki dua tombol? Sesuai minta: tombol CARI DRIVER berubah menjadi Batalkan Pencarian ketika diklik.
-      // Maka kita ubah event listener sementara.
-      // Hapus event listener lama, pasang yang baru untuk cancel.
+      // Ganti event listener
       btn.removeEventListener('click', confirmRoute);
       btn.addEventListener('click', cancelSearchHandler);
       btn.disabled = false;
-
+      
+      // Pastikan tombol terlihat di layar (scroll halus)
+      setTimeout(() => {
+        btn.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 100);
+      
       document.getElementById('routeDetails').style.display = 'none';
       document.getElementById('radar').style.display = 'block';
       setTimeout(() => document.getElementById('radar').classList.add('expanding'), 100);
       
-      // Efek radar pada marker pickup
       activateRadarOnPickup();
-      // Zoom out perlahan
       startSlowZoomOut();
       
       const newOrderRef = database.ref('orders').push();
@@ -704,7 +720,6 @@
       }, 30000);
     }
 
-    // Handler untuk cancel pencarian dari tombol yang sudah berubah
     async function cancelSearchHandler() {
       await cancelSearch();
     }
@@ -764,7 +779,7 @@
       document.getElementById('radar').style.display = 'none';
       document.getElementById('radar').classList.remove('expanding');
       document.getElementById('driverOffers').style.display = 'none';
-      // Kembalikan tombol ke mode semula
+      
       const btn = document.getElementById('confirmBtn');
       btn.removeEventListener('click', cancelSearchHandler);
       btn.addEventListener('click', confirmRoute);
@@ -773,12 +788,12 @@
       document.getElementById('cancelBtn').style.display = 'none';
       document.getElementById('routeDetails').style.display = 'block';
       currentOrderId = null;
-      // Hentikan radar dan zoom
+      
       deactivateRadarOnPickup();
       stopSlowZoomOut();
     }
 
-    // ========== INISIALISASI ==========
+    // INISIALISASI
     window.onload = async () => {
       const tokenOk = await fetchMapboxToken();
       if (!tokenOk) return;
@@ -801,7 +816,7 @@
     };
   </script>
   <style>
-    /* Efek radar pada marker */
+    /* Efek radar pada marker (sama seperti sebelumnya) */
     .radar-marker-effect {
       position: relative;
     }
