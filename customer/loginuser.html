@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
   <title>Login - JeGo</title>
-  <!-- Firebase SDK (hanya Database, tidak perlu Auth karena plugin Median yang menangani login) -->
+  <!-- Firebase SDK (hanya Database, karena login native ditangani plugin Median) -->
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
   <style>
@@ -42,10 +42,12 @@
     .status-message { padding: 12px; border-radius: 6px; margin-bottom: 15px; display: none; }
     .status-success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
     .status-error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+    .status-info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
     .otp-section { margin-top: 20px; padding-top: 20px; border-top: 1px solid #eee; display: none; }
-    .otp-single-input { width: 100%; padding: 15px; text-align: center; font-size: 2rem; letter-spacing: 10px; border: 2px solid #ddd; border-radius: 8px; font-family: monospace; }
+    .otp-single-input { width: 100%; padding: 15px; text-align: center; font-size: 2rem; letter-spacing: 10px; border: 2px solid #ddd; border-radius: 8px; font-family: monospace; margin-bottom: 10px; }
     .resend-link { color: var(--primary); cursor: pointer; text-decoration: underline; font-size: 0.85rem; }
     .resend-link.disabled { color: #999; cursor: not-allowed; }
+    .countdown-text { font-size: 0.85rem; color: #666; display: none; }
   </style>
 </head>
 <body>
@@ -55,38 +57,37 @@
       <h1 class="form-title">Masuk ke JeGo</h1>
       <div class="status-message" id="statusMsg"></div>
 
-      <!-- Tombol Google yang akan memicu plugin Social Login Median -->
+      <!-- Tombol Google (akan memicu plugin native di Median.co) -->
       <button id="googleBtn" class="google-btn">
         <svg width="20" height="20" viewBox="0 0 24 24"><path fill="white" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="white" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="white" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="white" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
         Login dengan Google
       </button>
 
-      <div class="divider">atau</div>
-
-      <!-- Form nomor HP (opsional, untuk login manual tanpa Google jika diperlukan) -->
+      <!-- Form nomor HP (ditampilkan jika pengguna baru belum punya nomor) -->
       <div id="phoneForm" style="display: none;">
         <div class="form-group">
           <label class="form-label">Nomor Telepon</label>
           <input type="tel" id="phoneNumber" class="form-input" placeholder="08123456789">
+          <p style="font-size: 0.8rem; color: #666; margin-top: 5px;">Masukkan nomor WhatsApp aktif untuk verifikasi.</p>
         </div>
-        <button id="sendOtpBtn" class="submit-btn">Kirim OTP</button>
+        <button id="sendOtpBtn" class="submit-btn">Kirim Kode OTP</button>
       </div>
 
       <!-- Form OTP -->
       <div id="otpForm" class="otp-section">
-        <input type="text" id="otpCode" class="otp-single-input" maxlength="6" placeholder="000000">
+        <input type="text" id="otpCode" class="otp-single-input" maxlength="6" placeholder="000000" inputmode="numeric">
         <button id="verifyOtpBtn" class="submit-btn" style="margin-top: 10px;">Verifikasi OTP</button>
-        <div class="resend-otp" style="text-align: center; margin-top: 10px;">
+        <div class="resend-otp" style="text-align: center; margin-top: 15px;">
           <span id="resendLink" class="resend-link">Kirim ulang OTP</span>
-          <span id="countdownText" style="display: none;"> (Tunggu <span id="countdown">60</span> detik)</span>
+          <span id="countdownText" class="countdown-text"> (Tunggu <span id="countdown">60</span> detik)</span>
         </div>
       </div>
     </div>
   </div>
 
   <script>
-    // Konfigurasi Firebase (sama seperti sebelumnya)
-    const firebaseConfig = {
+    // ================= KONFIGURASI FIREBASE =================
+    const FIREBASE_CONFIG = {
       apiKey: "AIzaSyDpGc_CsbNi1igA29n6qDhcX0oDkHNVscc",
       authDomain: "game-balap-simpel.firebaseapp.com",
       databaseURL: "https://game-balap-simpel-default-rtdb.firebaseio.com",
@@ -95,43 +96,87 @@
       messagingSenderId: "864576853495",
       appId: "1:864576853495:web:6f16eb757fd3d8affb0af2"
     };
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.database();
+    if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
+    const database = firebase.database();
 
-    // Variabel global
-    let pendingGoogleUser = null;      // data dari Google (id, name, email, photoUrl)
-    let pendingPhoneNumber = '';
-    let otpTimer = null;
-
-    // ================= FUNGSI SMS OTP (sama seperti sebelumnya) =================
+    // ================= KONFIGURASI GATEWAY SMS =================
     const SMS_GATEWAY = {
       user: 'gsmreload',
       pass: 'Jd59dm$jr*dj^hy',
       baseUrl: 'https://srv2.soufasms.com/sms_gateway/'
     };
 
+    // ================= VARIABEL GLOBAL =================
+    let pendingGoogleUser = null;       // { id, email, name, photoUrl }
+    let pendingPhoneNumber = '';
+    let otpTimer = null;
+    let resendCountdown = 0;
+
+    // DOM elements
+    const statusMsg = document.getElementById('statusMsg');
+    const phoneForm = document.getElementById('phoneForm');
+    const otpForm = document.getElementById('otpForm');
+    const phoneInput = document.getElementById('phoneNumber');
+    const sendOtpBtn = document.getElementById('sendOtpBtn');
+    const verifyOtpBtn = document.getElementById('verifyOtpBtn');
+    const otpCodeInput = document.getElementById('otpCode');
+    const resendLink = document.getElementById('resendLink');
+    const countdownText = document.getElementById('countdownText');
+    const countdownSpan = document.getElementById('countdown');
+
+    // ================= UTILITY =================
+    function showStatus(msg, type) {
+      statusMsg.textContent = msg;
+      statusMsg.className = `status-message status-${type}`;
+      statusMsg.style.display = 'block';
+      if (type === 'success') setTimeout(() => statusMsg.style.display = 'none', 4000);
+    }
+
+    function formatPhoneNumber(phoneRaw) {
+      let cleaned = phoneRaw.replace(/\D/g, '');
+      if (cleaned.startsWith('0')) cleaned = '+62' + cleaned.substring(1);
+      else if (cleaned.startsWith('62')) cleaned = '+' + cleaned;
+      else if (!cleaned.startsWith('+')) cleaned = '+62' + cleaned;
+      return cleaned;
+    }
+
+    function validatePhone(phone) {
+      return /^\+62[0-9]{9,12}$/.test(phone);
+    }
+
+    // ================= OTP FUNCTIONS =================
     async function canSendOTP(phone) {
-      const ref = db.ref('otp_verification/' + phone.replace(/\+/g, '_'));
+      const ref = database.ref('otp_verification/' + phone.replace(/\+/g, '_'));
       const snap = await ref.child('requests').once('value');
       const requests = snap.val() || [];
-      const recent = requests.filter(ts => ts > Date.now() - 10*60*1000);
-      return recent.length < 3;
+      const now = Date.now();
+      const tenMinutesAgo = now - 10 * 60 * 1000;
+      return requests.filter(ts => ts > tenMinutesAgo).length < 3;
     }
+
     async function saveOTP(phone, code) {
       const path = 'otp_verification/' + phone.replace(/\+/g, '_');
-      const ref = db.ref(path);
+      const ref = database.ref(path);
       const now = Date.now();
       const snap = await ref.child('requests').once('value');
       let requests = snap.val() || [];
-      requests = requests.filter(ts => ts > now - 10*60*1000);
+      requests = requests.filter(ts => ts > now - 10 * 60 * 1000);
       requests.push(now);
-      await ref.set({ code, created_at: now, expires_at: now + 5*60*1000, requests });
+      await ref.set({ code, created_at: now, expires_at: now + 5 * 60 * 1000, requests });
     }
+
     async function sendOTPviaGateway(phone, code) {
       const no = phone.replace('+', '');
       const url = `${SMS_GATEWAY.baseUrl}?user=${SMS_GATEWAY.user}&pass=${SMS_GATEWAY.pass}&no=${no}&msg=Kode OTP JeGo: ${code}&max=1`;
-      try { await fetch(url, { mode: 'no-cors' }); return true; } catch(e) { return false; }
+      try {
+        await fetch(url, { mode: 'no-cors' });
+        return true;
+      } catch (e) {
+        console.error('Gateway error:', e);
+        return false;
+      }
     }
+
     async function sendOTP(phone) {
       if (!await canSendOTP(phone)) {
         showStatus('Terlalu banyak permintaan OTP. Coba lagi nanti.', 'error');
@@ -139,37 +184,33 @@
       }
       const code = Math.floor(100000 + Math.random() * 900000).toString();
       await saveOTP(phone, code);
-      if (!await sendOTPviaGateway(phone, code)) {
-        await db.ref('otp_verification/' + phone.replace(/\+/g, '_')).remove();
+      const sent = await sendOTPviaGateway(phone, code);
+      if (!sent) {
+        await database.ref('otp_verification/' + phone.replace(/\+/g, '_')).remove();
+        showStatus('Gagal mengirim OTP. Periksa koneksi internet.', 'error');
         return false;
       }
-      showStatus('OTP terkirim!', 'success');
+      showStatus('OTP terkirim! Cek SMS Anda.', 'success');
       return true;
     }
+
     async function verifyOTP(phone, code) {
       const path = 'otp_verification/' + phone.replace(/\+/g, '_');
-      const snap = await db.ref(path).once('value');
+      const snap = await database.ref(path).once('value');
       const data = snap.val();
-      if (!data) { showStatus('Kode OTP tidak ditemukan.', 'error'); return false; }
-      if (Date.now() > data.expires_at) { showStatus('Kode OTP kadaluarsa.', 'error'); await db.ref(path).remove(); return false; }
+      if (!data) { showStatus('Kode OTP tidak ditemukan. Kirim ulang.', 'error'); return false; }
+      if (Date.now() > data.expires_at) { showStatus('Kode OTP kadaluarsa. Kirim ulang.', 'error'); await database.ref(path).remove(); return false; }
       if (data.code !== code) { showStatus('Kode OTP salah.', 'error'); return false; }
-      await db.ref(path).remove();
+      await database.ref(path).remove();
       return true;
     }
 
-    // ================= SESSION & DATABASE =================
-    function showStatus(msg, type) {
-      const el = document.getElementById('statusMsg');
-      el.textContent = msg;
-      el.className = `status-message status-${type}`;
-      el.style.display = 'block';
-      if (type === 'success') setTimeout(() => el.style.display = 'none', 3000);
-    }
-
-    // Menyimpan data user setelah verifikasi OTP berhasil
+    // ================= DATABASE (simpan user setelah verifikasi HP) =================
     async function saveUserAfterPhoneVerification(googleUser, phone) {
       const uid = googleUser.id; // Google ID (sub)
-      const userRef = db.ref(`users/${uid}`);
+      const userRef = database.ref(`users/${uid}`);
+      const now = new Date().toISOString();
+      
       const existing = await userRef.once('value');
       if (!existing.exists()) {
         await userRef.set({
@@ -181,19 +222,24 @@
           status: 'active',
           rating: 5,
           perjalanan: 0,
-          createdAt: new Date().toISOString()
+          createdAt: now
         });
+      } else {
+        // update jika perlu (misal phone mungkin berbeda)
+        await userRef.update({ phone: phone });
       }
-      // Simpan ke phone_check untuk cek duplikat nomor
+
+      // Simpan ke phone_check untuk mencegah duplikasi nomor
       const phoneKey = phone.replace(/\+/g, '_');
-      await db.ref(`phone_check/${phoneKey}`).set({
+      await database.ref(`phone_check/${phoneKey}`).set({
         phone: phone,
         uid: uid,
         name: googleUser.name,
         status: 'active',
-        registered_at: new Date().toISOString()
+        registered_at: now
       });
-      // Buat session
+
+      // Buat session di localStorage
       const session = {
         uid: uid,
         name: googleUser.name,
@@ -205,145 +251,166 @@
       };
       localStorage.setItem('jego_logged_in_user', JSON.stringify(session));
       showStatus('Pendaftaran selesai! Mengalihkan...', 'success');
-      setTimeout(() => window.location.href = 'jenis_kenderaan.html', 1500);
+      setTimeout(() => { window.location.href = 'jenis_kenderaan.html'; }, 1500);
     }
 
-    // Cek apakah user sudah pernah melengkapi nomor HP
+    // Cek apakah user sudah punya nomor HP di database
     async function checkUserHasPhone(googleUser) {
       const uid = googleUser.id;
-      const userSnap = await db.ref(`users/${uid}`).once('value');
-      const userData = userSnap.val();
+      const snap = await database.ref(`users/${uid}`).once('value');
+      const userData = snap.val();
       if (userData && userData.phone) {
         // Sudah punya nomor, langsung login
         const session = {
           uid: uid,
-          name: userData.name,
-          email: userData.email,
+          name: userData.name || googleUser.name,
+          email: userData.email || googleUser.email,
           phone: userData.phone,
-          photoURL: userData.photoURL,
-          rating: userData.rating,
-          perjalanan: userData.perjalanan
+          photoURL: userData.photoURL || googleUser.photoUrl,
+          rating: userData.rating || 5,
+          perjalanan: userData.perjalanan || 0
         };
         localStorage.setItem('jego_logged_in_user', JSON.stringify(session));
-        showStatus('Login berhasil!', 'success');
-        setTimeout(() => window.location.href = 'jenis_kenderaan.html', 1500);
+        showStatus('Login berhasil! Mengalihkan...', 'success');
+        setTimeout(() => { window.location.href = 'jenis_kenderaan.html'; }, 1500);
         return true;
       }
       return false;
     }
 
-    // ================= HANDLER DARI PLUGIN SOCIAL LOGIN MEDIAN =================
-    // Plugin Median akan memanggil fungsi ini setelah login Google berhasil.
-    // Parameter `user` berisi: { id, email, name, photoUrl }
-    window.onGoogleLoginSuccess = async function(user) {
-      console.log('Google login success:', user);
+    // ================= RESEND COUNTDOWN =================
+    function startResendCountdown(seconds) {
+      if (otpTimer) clearInterval(otpTimer);
+      resendLink.classList.add('disabled');
+      countdownText.style.display = 'inline';
+      let remaining = seconds;
+      countdownSpan.innerText = remaining;
+      otpTimer = setInterval(() => {
+        remaining--;
+        countdownSpan.innerText = remaining;
+        if (remaining <= 0) {
+          clearInterval(otpTimer);
+          resendLink.classList.remove('disabled');
+          countdownText.style.display = 'none';
+        }
+      }, 1000);
+    }
+
+    // ================= HANDLER LOGIN GOOGLE (dipanggil plugin Median) =================
+    // Fungsi global yang akan dipanggil oleh Social Login plugin saat sukses
+    window.onGoogleLoginSuccess = async function(response) {
+      console.log('Google login success response:', response);
+      // Plugin Median biasanya mengembalikan user details di dalam response.userDetails
+      let user = response.userDetails || response;
       if (!user || !user.id) {
-        showStatus('Gagal mendapatkan data dari Google. Silakan coba lagi.', 'error');
+        showStatus('Gagal mendapatkan data pengguna dari Google.', 'error');
         return;
       }
-      pendingGoogleUser = user;
-      const hasPhone = await checkUserHasPhone(user);
+      // Normalisasi field (plugin mungkin mengirim id, email, name, photoUrl)
+      const googleUser = {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        photoUrl: user.photoUrl || user.photoURL || ''
+      };
+      pendingGoogleUser = googleUser;
+      const hasPhone = await checkUserHasPhone(googleUser);
       if (!hasPhone) {
-        // Belum punya nomor HP, tampilkan form input nomor
-        document.getElementById('phoneForm').style.display = 'block';
+        phoneForm.style.display = 'block';
         showStatus('Lengkapi nomor HP untuk melanjutkan', 'info');
       }
     };
 
     window.onGoogleLoginError = function(error) {
       console.error('Google login error:', error);
-      showStatus('Login Google gagal: ' + (error.message || error), 'error');
+      let errMsg = error.message || error;
+      if (typeof error === 'string') errMsg = error;
+      showStatus('Login Google gagal: ' + errMsg, 'error');
     };
 
-    // Tombol Google (akan memicu plugin Social Login)
-    document.getElementById('googleBtn').addEventListener('click', () => {
-      // Plugin Social Login Median biasanya disediakan fungsi global, misalnya:
-      if (typeof MedianSocialLogin !== 'undefined' && MedianSocialLogin.googleLogin) {
-        MedianSocialLogin.googleLogin();
+    // ================= TOMBOL GOOGLE =================
+    const googleBtn = document.getElementById('googleBtn');
+    googleBtn.addEventListener('click', () => {
+      // Deteksi apakah berada di Median.co app (user agent mengandung "median" atau ada objek median)
+      const isMedianApp = typeof median !== 'undefined' && median.socialLogin && median.socialLogin.google;
+      if (isMedianApp) {
+        console.log('Memanggil plugin Median Social Login');
+        median.socialLogin.google.login({
+          callback: 'onGoogleLoginSuccess',
+          // 'scope': 'profile email'
+        });
       } else {
-        // Fallback: jika plugin tidak tersedia (misal di browser biasa), beri tahu user
-        showStatus('Plugin Social Login tidak tersedia. Pastikan aplikasi dijalankan di Median.co', 'error');
+        // Fallback untuk testing di browser biasa (misal menggunakan Firebase Auth popup)
+        showStatus('Fitur hanya tersedia di aplikasi JeGo. Silakan buka aplikasi.', 'error');
+        console.warn('Plugin Median tidak tersedia, fallback tidak diimplementasikan');
       }
     });
 
-    // Kirim OTP ke nomor HP
-    document.getElementById('sendOtpBtn').addEventListener('click', async () => {
+    // ================= KIRIM OTP =================
+    sendOtpBtn.addEventListener('click', async () => {
       if (!pendingGoogleUser) {
         showStatus('Silakan login dengan Google terlebih dahulu.', 'error');
         return;
       }
-      let phoneRaw = document.getElementById('phoneNumber').value.trim();
-      if (!phoneRaw) return showStatus('Masukkan nomor HP', 'error');
-      let phone = phoneRaw.replace(/\D/g, '');
-      if (phone.startsWith('0')) phone = '+62' + phone.slice(1);
-      else if (!phone.startsWith('+')) phone = '+62' + phone;
-      if (!/^\+62[0-9]{9,12}$/.test(phone)) return showStatus('Format nomor tidak valid', 'error');
-      
-      // Cek apakah nomor sudah terdaftar oleh user lain
+      const rawPhone = phoneInput.value.trim();
+      if (!rawPhone) {
+        showStatus('Masukkan nomor telepon', 'error');
+        return;
+      }
+      const phone = formatPhoneNumber(rawPhone);
+      if (!validatePhone(phone)) {
+        showStatus('Format nomor tidak valid. Gunakan +62xxx', 'error');
+        return;
+      }
+      // Cek apakah nomor sudah dipakai oleh user lain (melalui phone_check)
       const phoneKey = phone.replace(/\+/g, '_');
-      const phoneSnap = await db.ref(`phone_check/${phoneKey}`).once('value');
+      const phoneSnap = await database.ref(`phone_check/${phoneKey}`).once('value');
       if (phoneSnap.exists() && phoneSnap.val().uid !== pendingGoogleUser.id) {
         showStatus('Nomor HP sudah terdaftar di akun lain. Gunakan nomor lain.', 'error');
         return;
       }
-      
       pendingPhoneNumber = phone;
       const sent = await sendOTP(phone);
       if (sent) {
-        document.getElementById('phoneForm').style.display = 'none';
-        document.getElementById('otpForm').style.display = 'block';
+        phoneForm.style.display = 'none';
+        otpForm.style.display = 'block';
+        otpCodeInput.value = '';
         startResendCountdown(60);
       }
     });
 
-    // Verifikasi OTP
-    document.getElementById('verifyOtpBtn').addEventListener('click', async () => {
-      const otp = document.getElementById('otpCode').value;
-      if (otp.length !== 6) return showStatus('Masukkan 6 digit OTP', 'error');
+    // ================= VERIFIKASI OTP =================
+    verifyOtpBtn.addEventListener('click', async () => {
+      const code = otpCodeInput.value.trim();
+      if (code.length !== 6) {
+        showStatus('Masukkan 6 digit kode OTP', 'error');
+        return;
+      }
       if (!pendingGoogleUser || !pendingPhoneNumber) {
         showStatus('Sesi tidak valid. Silakan ulangi dari awal.', 'error');
         return;
       }
-      const ok = await verifyOTP(pendingPhoneNumber, otp);
-      if (ok) {
+      const valid = await verifyOTP(pendingPhoneNumber, code);
+      if (valid) {
         await saveUserAfterPhoneVerification(pendingGoogleUser, pendingPhoneNumber);
       }
     });
 
-    // Resend OTP
-    function startResendCountdown(sec) {
-      const link = document.getElementById('resendLink');
-      const cdText = document.getElementById('countdownText');
-      const cdSpan = document.getElementById('countdown');
-      link.classList.add('disabled');
-      cdText.style.display = 'inline';
-      let count = sec;
-      cdSpan.innerText = count;
-      if (otpTimer) clearInterval(otpTimer);
-      otpTimer = setInterval(() => {
-        count--;
-        cdSpan.innerText = count;
-        if (count <= 0) {
-          clearInterval(otpTimer);
-          link.classList.remove('disabled');
-          cdText.style.display = 'none';
-        }
-      }, 1000);
-    }
-    document.getElementById('resendLink').addEventListener('click', async () => {
-      if (document.getElementById('resendLink').classList.contains('disabled')) return;
+    // ================= RESEND OTP =================
+    resendLink.addEventListener('click', async () => {
+      if (resendLink.classList.contains('disabled')) return;
       if (!pendingPhoneNumber) return;
       await sendOTP(pendingPhoneNumber);
       startResendCountdown(60);
     });
 
-    // Cek apakah sudah login sebelumnya (session localStorage)
+    // ================= CEK SESSION LOAD =================
     window.onload = () => {
       const session = localStorage.getItem('jego_logged_in_user');
       if (session) {
         const user = JSON.parse(session);
         showStatus(`Selamat datang kembali, ${user.name}`, 'info');
-        setTimeout(() => window.location.href = 'jenis_kenderaan.html', 1500);
+        setTimeout(() => { window.location.href = 'jenis_kenderaan.html'; }, 1500);
       }
     };
   </script>
