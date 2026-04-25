@@ -17,696 +17,100 @@
   <script id="search-js" defer src="https://api.mapbox.com/search-js/v1.5.0/web.js"></script>
 
   <style>
-    /* ===== STYLE DARI PENGGUNA (TIDAK DIUBAH) ===== */
-    :root {
-      --primary: #FF9800;
-      --secondary: #FF5722;
-      --accent: #FFC107;
-      --light: #f8f9fa;
-      --dark: #343a40;
-      --success: #4CAF50;
-      --danger: #f44336;
-      --warning: #FFC107;
-      --info: #2196F3;
-      --gray: #9E9E9E;
-      --confirm-bottom: 80px;
-      --confirm-height: 54px;
-      --confirm-gap: 10px;
-    }
-
-    html, body, #map {
-      height: 100%;
-      margin: 0;
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    }
-
-    .panel {
-      position: absolute;
-      top: 10px;
-      left: 10px;
-      right: 10px;
-      background: rgba(255, 255, 255, 0.98);
-      padding: 15px;
-      z-index: 5;
-      border-radius: 12px;
-      box-shadow: 0 4px 15px rgba(0,0,0,0.15);
-      box-sizing: border-box;
-    }
-
-    .input-container {
-      position: relative;
-      margin-bottom: 12px;
-    }
-
-    .mapbox-search-input {
-      width: 100%;
-      padding: 12px 40px 12px 15px;
-      font-size: 14px;
-      box-sizing: border-box;
-      border: 2px solid #e9ecef;
-      border-radius: 8px;
-      background: white;
-      transition: all 0.3s;
-    }
-    .mapbox-search-input:focus {
-      outline: none;
-      border-color: var(--secondary);
-      box-shadow: 0 0 0 3px rgba(40, 150, 114, 0.1);
-    }
-
-    .clear-btn, .location-btn {
-      position: absolute;
-      top: 50%;
-      transform: translateY(-50%);
-      background: none;
-      border: none;
-      cursor: pointer;
-      width: 20px;
-      height: 20px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      z-index: 10;
-    }
-
-    .clear-btn {
-      right: 35px;
-      color: #999;
-      font-size: 18px;
-    }
-
-    .location-btn {
-      right: 8px;
-      color: var(--primary);
-      font-size: 18px;
-    }
-
-    .map-mode-btn {
-      position: absolute;
-      bottom: 120px;
-      right: 20px;
-      background: var(--primary);
-      color: white;
-      border: none;
-      border-radius: 8px;
-      padding: 10px 15px;
-      cursor: pointer;
-      z-index: 5;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-      font-weight: 600;
-      transition: all 0.3s;
-    }
-
-    .map-mode-btn:hover {
-      background: var(--secondary);
-      transform: translateY(-2px);
-    }
-
-    .route-details {
-      position: fixed;
-      bottom: 90px;
-      left: 20px;
-      right: 20px;
-      background: #fff;
-      border-radius: 12px;
-      padding: 12px 16px;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-      z-index: 8;
-      max-height: 30vh;
-      overflow-y: auto;
-      display: none;
-      transition: all 0.25s ease;
-    }
-
-    .route-info {
-      margin-bottom: 12px;
-    }
-
-    .route-address {
-      display: flex;
-      align-items: flex-start;
-      margin-bottom: 8px;
-      font-size: 0.85rem;
-    }
-
-    .route-address .label {
-      min-width: 70px;
-      color: var(--primary);
-      font-weight: 600;
-      margin-right: 8px;
-    }
-
-    .route-address .value {
-      flex: 1;
-      color: var(--dark);
-      line-height: 1.4;
-    }
-
-    .route-stats {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-top: 10px;
-      padding-top: 10px;
-      border-top: 1px solid #e9ecef;
-    }
-
-    .route-stat {
-      text-align: center;
-      flex: 1;
-    }
-
-    .stat-value {
-      font-weight: 600;
-      color: var(--primary);
-      font-size: 1rem;
-    }
-
-    .stat-label {
-      font-size: 0.75rem;
-      color: #666;
-    }
-
-    .price-highlight {
-      font-weight: 700;
-      color: var(--success);
-      font-size: 1.1rem;
-    }
-
-    .confirm-btn, .cancel-btn {
-      position: fixed;
-      bottom: 20px;
-      left: 20px;
-      right: 20px;
-      color: white;
-      border: none;
-      border-radius: 10px;
-      padding: 16px;
-      font-size: 16px;
-      font-weight: 600;
-      cursor: pointer;
-      box-shadow: 0 4px 10px rgba(0,0,0,0.2);
-      z-index: 9;
-      transition: all 0.3s;
-    }
-
-    .confirm-btn {
-      background: linear-gradient(to right, var(--primary), var(--secondary));
-    }
-
-    .cancel-btn {
-      background: linear-gradient(to right, var(--danger), #e74c3c);
-      display: none;
-    }
-
-    .confirm-btn:hover, .cancel-btn:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 6px 15px rgba(0,0,0,0.25);
-    }
-
-    .confirm-btn:disabled, .cancel-btn:disabled {
-      background: #cccccc;
-      cursor: not-allowed;
-      transform: none;
-      box-shadow: none;
-      opacity: 0.7;
-    }
-
-    .radar {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      width: 100px;
-      height: 100px;
-      transform: translate(-50%, -50%);
-      z-index: 999;
-      transition: all 2s ease-in-out;
-      display: none;
-    }
-
-    .radar.expanding {
-      width: 300px;
-      height: 300px;
-    }
-
-    .radar::before, .radar::after {
-      content: "";
-      position: absolute;
-      width: 100%;
-      height: 100%;
-      border: 2px solid var(--secondary);
-      border-radius: 50%;
-      animation: radarPulse 3s infinite ease-out;
-    }
-
-    .radar::after {
-      animation-delay: 1.5s;
-    }
-
-    .radar span {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      color: var(--secondary);
-      font-weight: bold;
-      background: rgba(255, 255, 255, 0.95);
-      padding: 10px 15px;
-      border-radius: 8px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-      text-align: center;
-      font-size: 14px;
-      white-space: nowrap;
-    }
-
-    @keyframes radarPulse {
-      0% { transform: scale(0.4); opacity: 1; }
-      100% { transform: scale(1.5); opacity: 0; }
-    }
-
-    .search-status {
-      position: fixed;
-      top: 100px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: rgba(255, 255, 255, 0.95);
-      padding: 12px 20px;
-      border-radius: 8px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-      z-index: 1000;
-      font-weight: 600;
-      text-align: center;
-      max-width: 80%;
-      border-left: 4px solid var(--primary);
-    }
-
-    .popup-overlay {
-      position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background-color: rgba(0, 0, 0, 0.5);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      z-index: 10000;
-      opacity: 0;
-      visibility: hidden;
-      transition: all 0.3s ease;
-    }
-
-    .popup-overlay.active {
-      opacity: 1;
-      visibility: visible;
-    }
-
-    .popup {
-      background: white;
-      border-radius: 12px;
-      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
-      width: 90%;
-      max-width: 400px;
-      max-height: 80vh;
-      overflow: hidden;
-      transform: scale(0.9);
-      transition: transform 0.3s ease;
-    }
-
-    .popup-overlay.active .popup {
-      transform: scale(1);
-    }
-
-    .popup-header {
-      padding: 16px 20px;
-      border-bottom: 1px solid #eee;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-    }
-
-    .popup-title {
-      font-size: 18px;
-      font-weight: 600;
-      color: var(--dark);
-      margin: 0;
-    }
-
-    .popup-close {
-      background: none;
-      border: none;
-      font-size: 24px;
-      color: #999;
-      cursor: pointer;
-      padding: 0;
-      width: 30px;
-      height: 30px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .popup-content {
-      padding: 20px;
-      text-align: center;
-    }
-
-    .popup-icon {
-      font-size: 48px;
-      margin-bottom: 16px;
-    }
-
-    .popup-message {
-      font-size: 16px;
-      line-height: 1.5;
-      color: var(--dark);
-      margin-bottom: 20px;
-    }
-
-    .popup-buttons {
-      display: flex;
-      gap: 12px;
-      justify-content: center;
-    }
-
-    .popup-button {
-      padding: 10px 20px;
-      border: none;
-      border-radius: 8px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all 0.3s;
-      min-width: 100px;
-    }
-
-    .popup-button-primary {
-      background: linear-gradient(135deg, var(--primary), var(--secondary));
-      color: white;
-    }
-
-    .popup-button-secondary {
-      background: #f8f9fa;
-      color: var(--dark);
-      border: 1px solid #ddd;
-    }
-
-    .popup-button-warning {
-      background: linear-gradient(135deg, var(--warning), #ff9800);
-      color: white;
-    }
-
-    .popup-button-danger {
-      background: linear-gradient(135deg, var(--danger), #e74c3c);
-      color: white;
-    }
-
-    .popup-button:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-    }
-
-    .delivery-info-panel {
-      margin-top: 10px;
-      padding-top: 10px;
-      border-top: 1px solid #e9ecef;
-      display: none;
-    }
-
-    .delivery-item {
-      display: flex;
-      margin-bottom: 6px;
-      font-size: 0.9rem;
-    }
-
-    .delivery-label {
-      font-weight: 600;
-      color: var(--primary);
-      min-width: 100px;
-      margin-right: 10px;
-    }
-
-    .delivery-value {
-      flex: 1;
-      color: var(--dark);
-    }
-
-    .star-rating {
-      display: inline-flex;
-      align-items: center;
-      gap: 1px;
-      flex-wrap: nowrap;
-    }
-
-    .star {
-      color: #ddd;
-      font-size: 12px;
-    }
-
-    .star.filled {
-      color: #ffc107;
-    }
-
-    .star.half {
-      position: relative;
-      color: #ddd;
-    }
-
-    .star.half::before {
-      content: '★';
-      position: absolute;
-      left: 0;
-      width: 50%;
-      overflow: hidden;
-      color: #ffc107;
-    }
-
-    .driver-offer-card {
-      display: flex;
-      flex-direction: column;
-      align-items: stretch;
-      background: #fff;
-      padding: 10px;
-      border-radius: 10px;
-      margin-bottom: 8px;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-      border-left: 4px solid #e9ecef;
-      transition: all 0.3s ease;
-    }
-
-    .driver-offer-card:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-    }
-
-    .driver-info {
-      display: flex;
-      gap: 10px;
-      align-items: center;
-    }
-
-    .driver-photo {
-      width: 50px;
-      height: 50px;
-      border-radius: 50%;
-      object-fit: cover;
-      border: 3px solid #e9ecef;
-      flex-shrink: 0;
-    }
-
-    .driver-details {
-      flex: 1;
-      min-width: 0;
-    }
-
-    .driver-name {
-      font-weight: 700;
-      font-size: 14px;
-      margin-bottom: 4px;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      flex-wrap: wrap;
-    }
-
-    .driver-name-text {
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      max-width: 120px;
-    }
-
-    .driver-vehicle {
-      font-size: 12px;
-      color: #444;
-      margin-bottom: 3px;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .driver-rating-container {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 11px;
-      color: #666;
-      flex-wrap: wrap;
-    }
-
-    .driver-action-buttons {
-      display: flex;
-      gap: 10px;
-      margin-top: 12px;
-      width: 100%;
-    }
-
-    .accept-btn, .reject-btn {
-      border: none;
-      border-radius: 8px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all 0.3s ease;
-      font-size: 14px;
-      padding: 12px 20px;
-      min-width: 100px;
-      text-align: center;
-      flex: 1;
-    }
-
-    .accept-btn {
-      background: linear-gradient(135deg, #28a745, #218838);
-      color: white;
-    }
-
-    .accept-btn:hover {
-      background: linear-gradient(135deg, #218838, #1e7e34);
-      transform: translateY(-2px);
-      box-shadow: 0 4px 8px rgba(40, 167, 69, 0.3);
-    }
-
-    .reject-btn {
-      background: linear-gradient(135deg, #dc3545, #c82333);
-      color: white;
-    }
-
-    .reject-btn:hover {
-      background: linear-gradient(135deg, #c82333, #bd2130);
-      transform: translateY(-2px);
-      box-shadow: 0 4px 8px rgba(220, 53, 69, 0.3);
-    }
-
-    .accept-btn:disabled, .reject-btn:disabled {
-      background: #6c757d;
-      cursor: not-allowed;
-      transform: none;
-      box-shadow: none;
-      opacity: 0.7;
-    }
-
-    .priority-badge, .top-driver-badge, .position-badge {
-      display: inline-block;
-      padding: 3px 6px;
-      border-radius: 10px;
-      font-size: 9px;
-      font-weight: 700;
-      text-transform: uppercase;
-      margin-left: 5px;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-      white-space: nowrap;
-    }
-
+    /* ===== STYLE SAMA SEPERTI SEBELUMNYA (tidak diubah untuk menghemat ruang) ===== */
+    :root { --primary: #FF9800; --secondary: #FF5722; --accent: #FFC107; --light: #f8f9fa; --dark: #343a40; --success: #4CAF50; --danger: #f44336; --warning: #FFC107; --info: #2196F3; --gray: #9E9E9E; --confirm-bottom: 80px; --confirm-height: 54px; --confirm-gap: 10px; }
+    html, body, #map { height: 100%; margin: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    .panel { position: absolute; top: 10px; left: 10px; right: 10px; background: rgba(255,255,255,0.98); padding: 15px; z-index: 5; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.15); box-sizing: border-box; }
+    .input-container { position: relative; margin-bottom: 12px; }
+    .mapbox-search-input { width: 100%; padding: 12px 40px 12px 15px; font-size: 14px; box-sizing: border-box; border: 2px solid #e9ecef; border-radius: 8px; background: white; transition: all 0.3s; }
+    .mapbox-search-input:focus { outline: none; border-color: var(--secondary); box-shadow: 0 0 0 3px rgba(40,150,114,0.1); }
+    .clear-btn, .location-btn { position: absolute; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; z-index: 10; }
+    .clear-btn { right: 35px; color: #999; font-size: 18px; }
+    .location-btn { right: 8px; color: var(--primary); font-size: 18px; }
+    .map-mode-btn { position: absolute; bottom: 120px; right: 20px; background: var(--primary); color: white; border: none; border-radius: 8px; padding: 10px 15px; cursor: pointer; z-index: 5; box-shadow: 0 4px 12px rgba(0,0,0,0.2); font-weight: 600; transition: all 0.3s; }
+    .map-mode-btn:hover { background: var(--secondary); transform: translateY(-2px); }
+    .route-details { position: fixed; bottom: 90px; left: 20px; right: 20px; background: #fff; border-radius: 12px; padding: 12px 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 8; max-height: 30vh; overflow-y: auto; display: none; transition: all 0.25s ease; }
+    .route-info { margin-bottom: 12px; }
+    .route-address { display: flex; align-items: flex-start; margin-bottom: 8px; font-size: 0.85rem; }
+    .route-address .label { min-width: 70px; color: var(--primary); font-weight: 600; margin-right: 8px; }
+    .route-address .value { flex: 1; color: var(--dark); line-height: 1.4; }
+    .route-stats { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; padding-top: 10px; border-top: 1px solid #e9ecef; }
+    .route-stat { text-align: center; flex: 1; }
+    .stat-value { font-weight: 600; color: var(--primary); font-size: 1rem; }
+    .stat-label { font-size: 0.75rem; color: #666; }
+    .price-highlight { font-weight: 700; color: var(--success); font-size: 1.1rem; }
+    .confirm-btn, .cancel-btn { position: fixed; bottom: 20px; left: 20px; right: 20px; color: white; border: none; border-radius: 10px; padding: 16px; font-size: 16px; font-weight: 600; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.2); z-index: 9; transition: all 0.3s; }
+    .confirm-btn { background: linear-gradient(to right, var(--primary), var(--secondary)); }
+    .cancel-btn { background: linear-gradient(to right, var(--danger), #e74c3c); display: none; }
+    .confirm-btn:hover, .cancel-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 15px rgba(0,0,0,0.25); }
+    .confirm-btn:disabled, .cancel-btn:disabled { background: #cccccc; cursor: not-allowed; transform: none; box-shadow: none; opacity: 0.7; }
+    .radar { position: absolute; top: 50%; left: 50%; width: 100px; height: 100px; transform: translate(-50%, -50%); z-index: 999; transition: all 2s ease-in-out; display: none; }
+    .radar.expanding { width: 300px; height: 300px; }
+    .radar::before, .radar::after { content: ""; position: absolute; width: 100%; height: 100%; border: 2px solid var(--secondary); border-radius: 50%; animation: radarPulse 3s infinite ease-out; }
+    .radar::after { animation-delay: 1.5s; }
+    .radar span { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: var(--secondary); font-weight: bold; background: rgba(255,255,255,0.95); padding: 10px 15px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); text-align: center; font-size: 14px; white-space: nowrap; }
+    @keyframes radarPulse { 0% { transform: scale(0.4); opacity: 1; } 100% { transform: scale(1.5); opacity: 0; } }
+    .search-status { position: fixed; top: 100px; left: 50%; transform: translateX(-50%); background: rgba(255,255,255,0.95); padding: 12px 20px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.2); z-index: 1000; font-weight: 600; text-align: center; max-width: 80%; border-left: 4px solid var(--primary); }
+    .popup-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 10000; opacity: 0; visibility: hidden; transition: all 0.3s ease; }
+    .popup-overlay.active { opacity: 1; visibility: visible; }
+    .popup { background: white; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); width: 90%; max-width: 400px; max-height: 80vh; overflow: hidden; transform: scale(0.9); transition: transform 0.3s ease; }
+    .popup-overlay.active .popup { transform: scale(1); }
+    .popup-header { padding: 16px 20px; border-bottom: 1px solid #eee; display: flex; align-items: center; justify-content: space-between; }
+    .popup-title { font-size: 18px; font-weight: 600; color: var(--dark); margin: 0; }
+    .popup-close { background: none; border: none; font-size: 24px; color: #999; cursor: pointer; padding: 0; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; }
+    .popup-content { padding: 20px; text-align: center; }
+    .popup-icon { font-size: 48px; margin-bottom: 16px; }
+    .popup-message { font-size: 16px; line-height: 1.5; color: var(--dark); margin-bottom: 20px; }
+    .popup-buttons { display: flex; gap: 12px; justify-content: center; }
+    .popup-button { padding: 10px 20px; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.3s; min-width: 100px; }
+    .popup-button-primary { background: linear-gradient(135deg, var(--primary), var(--secondary)); color: white; }
+    .popup-button-secondary { background: #f8f9fa; color: var(--dark); border: 1px solid #ddd; }
+    .popup-button-warning { background: linear-gradient(135deg, var(--warning), #ff9800); color: white; }
+    .popup-button-danger { background: linear-gradient(135deg, var(--danger), #e74c3c); color: white; }
+    .popup-button:hover { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.2); }
+    .delivery-info-panel { margin-top: 10px; padding-top: 10px; border-top: 1px solid #e9ecef; display: none; }
+    .delivery-item { display: flex; margin-bottom: 6px; font-size: 0.9rem; }
+    .delivery-label { font-weight: 600; color: var(--primary); min-width: 100px; margin-right: 10px; }
+    .delivery-value { flex: 1; color: var(--dark); }
+    .star-rating { display: inline-flex; align-items: center; gap: 1px; flex-wrap: nowrap; }
+    .star { color: #ddd; font-size: 12px; }
+    .star.filled { color: #ffc107; }
+    .star.half { position: relative; color: #ddd; }
+    .star.half::before { content: '★'; position: absolute; left: 0; width: 50%; overflow: hidden; color: #ffc107; }
+    .driver-offer-card { display: flex; flex-direction: column; align-items: stretch; background: #fff; padding: 10px; border-radius: 10px; margin-bottom: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); border-left: 4px solid #e9ecef; transition: all 0.3s ease; }
+    .driver-offer-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+    .driver-info { display: flex; gap: 10px; align-items: center; }
+    .driver-photo { width: 50px; height: 50px; border-radius: 50%; object-fit: cover; border: 3px solid #e9ecef; flex-shrink: 0; }
+    .driver-details { flex: 1; min-width: 0; }
+    .driver-name { font-weight: 700; font-size: 14px; margin-bottom: 4px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+    .driver-name-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 120px; }
+    .driver-vehicle { font-size: 12px; color: #444; margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .driver-rating-container { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #666; flex-wrap: wrap; }
+    .driver-action-buttons { display: flex; gap: 10px; margin-top: 12px; width: 100%; }
+    .accept-btn, .reject-btn { border: none; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.3s ease; font-size: 14px; padding: 12px 20px; min-width: 100px; text-align: center; flex: 1; }
+    .accept-btn { background: linear-gradient(135deg, #28a745, #218838); color: white; }
+    .accept-btn:hover { background: linear-gradient(135deg, #218838, #1e7e34); transform: translateY(-2px); box-shadow: 0 4px 8px rgba(40,167,69,0.3); }
+    .reject-btn { background: linear-gradient(135deg, #dc3545, #c82333); color: white; }
+    .reject-btn:hover { background: linear-gradient(135deg, #c82333, #bd2130); transform: translateY(-2px); box-shadow: 0 4px 8px rgba(220,53,69,0.3); }
+    .accept-btn:disabled, .reject-btn:disabled { background: #6c757d; cursor: not-allowed; transform: none; box-shadow: none; opacity: 0.7; }
+    .priority-badge, .top-driver-badge, .position-badge { display: inline-block; padding: 3px 6px; border-radius: 10px; font-size: 9px; font-weight: 700; text-transform: uppercase; margin-left: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); white-space: nowrap; }
     .priority-basic { background: #6c757d; color: white; }
     .priority-standard { background: #17a2b8; color: white; }
     .priority-regular { background: #28a745; color: white; }
     .priority-essential { background: linear-gradient(135deg, #ffc107, #e0a800); color: #333; }
     .top-driver-badge { background: linear-gradient(135deg, #FFD700, #FFA500); color: #000; }
     .position-badge { background: #6c757d; color: white; border-radius: 50%; padding: 2px 5px; }
-
-    .driver-offer-card.highlighted {
-      border: 2px solid #FFD700;
-      box-shadow: 0 0 15px rgba(255, 215, 0, 0.5);
-      transform: scale(1.02);
-      transition: all 0.3s ease;
-    }
-
-    .driver-dot {
-      position: absolute;
-      width: 12px;
-      height: 12px;
-      border-radius: 50%;
-      background-color: #4285F4;
-      box-shadow: 0 0 0 0 rgba(66, 133, 244, 0.7);
-      animation: driverPulse 2s infinite;
-      z-index: 10;
-    }
-
-    @keyframes driverPulse {
-      0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(66, 133, 244, 0.7); }
-      70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(66, 133, 244, 0); }
-      100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(66, 133, 244, 0); }
-    }
-
-    #driverOffers {
-      position: fixed;
-      top: 10px;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 92%;
-      max-width: 420px;
-      z-index: 99999;
-      display: none;
-    }
-
-    #driverOffers > div {
-      background: rgba(255,255,255,0.98);
-      border-radius: 12px;
-      box-shadow: 0 6px 24px rgba(0,0,0,0.12);
-      overflow: hidden;
-    }
-
-    #driverOffers > div > div:first-child {
-      padding: 12px 16px;
-      border-bottom: 1px solid #eee;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      background: linear-gradient(135deg, var(--primary), var(--secondary));
-      color: white;
-    }
-
-    #driverOffers > div > div:first-child strong {
-      color: white;
-    }
-
-    #closeDriverOffers {
-      background: none;
-      border: none;
-      font-weight: 600;
-      cursor: pointer;
-      color: white;
-      font-size: 18px;
-    }
-
-    #driverOfferList {
-      max-height: 60vh;
-      overflow: auto;
-      padding: 12px;
-    }
-
-    @media (max-width: 768px) {
-      .route-details { max-height: 28vh; padding: 6px 10px; }
-      .driver-photo { width: 45px; height: 45px; }
-      .accept-btn, .reject-btn { padding: 10px 16px; font-size: 13px; min-width: 90px; }
-      .popup-buttons { flex-direction: column; }
-    }
-
-    @media (max-width: 480px) {
-      .driver-photo { width: 40px; height: 40px; }
-      .driver-name-text { max-width: 90px; }
-      .accept-btn, .reject-btn { padding: 8px 12px; font-size: 12px; min-width: 70px; }
-    }
-
-    /* sembunyikan watermark Mapbox */
+    .driver-offer-card.highlighted { border: 2px solid #FFD700; box-shadow: 0 0 15px rgba(255,215,0,0.5); transform: scale(1.02); transition: all 0.3s ease; }
+    .driver-dot { position: absolute; width: 12px; height: 12px; border-radius: 50%; background-color: #4285F4; box-shadow: 0 0 0 0 rgba(66,133,244,0.7); animation: driverPulse 2s infinite; z-index: 10; }
+    @keyframes driverPulse { 0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(66,133,244,0.7); } 70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(66,133,244,0); } 100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(66,133,244,0); } }
+    #driverOffers { position: fixed; top: 10px; left: 50%; transform: translateX(-50%); width: 92%; max-width: 420px; z-index: 99999; display: none; }
+    #driverOffers > div { background: rgba(255,255,255,0.98); border-radius: 12px; box-shadow: 0 6px 24px rgba(0,0,0,0.12); overflow: hidden; }
+    #driverOffers > div > div:first-child { padding: 12px 16px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; background: linear-gradient(135deg, var(--primary), var(--secondary)); color: white; }
+    #driverOffers > div > div:first-child strong { color: white; }
+    #closeDriverOffers { background: none; border: none; font-weight: 600; cursor: pointer; color: white; font-size: 18px; }
+    #driverOfferList { max-height: 60vh; overflow: auto; padding: 12px; }
+    @media (max-width: 768px) { .route-details { max-height: 28vh; padding: 6px 10px; } .driver-photo { width: 45px; height: 45px; } .accept-btn, .reject-btn { padding: 10px 16px; font-size: 13px; min-width: 90px; } .popup-buttons { flex-direction: column; } }
+    @media (max-width: 480px) { .driver-photo { width: 40px; height: 40px; } .driver-name-text { max-width: 90px; } .accept-btn, .reject-btn { padding: 8px 12px; font-size: 12px; min-width: 70px; } }
     .mapboxgl-ctrl-attrib { display: none; }
     .mapboxgl-ctrl-logo { display: none; }
   </style>
@@ -725,10 +129,7 @@
 
   <div id="driverOffers">
     <div>
-      <div>
-        <strong>🏆 Penawaran Driver</strong>
-        <button id="closeDriverOffers">✕</button>
-      </div>
+      <div><strong>🏆 Penawaran Driver</strong><button id="closeDriverOffers">✕</button></div>
       <div id="driverOfferList"></div>
     </div>
   </div>
@@ -829,7 +230,7 @@
     let priceOfferTimer = null;
     let priceOfferShown = false;
 
-    // ========== FUNGSI UTILITY ==========
+    // Fungsi-fungsi utility yang sama (formatRupiah, calculatePrice, dll)
     function showPopup(title, message, icon = '⚠️', onClose = null) {
       document.getElementById('popupTitle').innerText = title;
       document.getElementById('popupMessage').innerHTML = message;
@@ -880,7 +281,7 @@
       }
     }
 
-    // ========== LOAD TARIF (SESUAI STRUKTUR JENIS_KENDERAAN) ==========
+    // LOAD TARIF (sama)
     async function loadTransportRateFromDB(transportName) {
       try {
         const snapshot = await database.ref('tarif').once('value');
@@ -908,25 +309,12 @@
 
     function fallbackRate(transportName) {
       const nameLower = transportName.toLowerCase();
-      if (nameLower === 'motor') {
-        transportRate = { minimal_distance: 4, minimal_price: 10000, price_per_km: 2200 };
-        transportIconUrl = 'https://cdn-icons-png.flaticon.com/128/5811/5811823.png';
-      } else if (nameLower === 'bentor') {
-        transportRate = { minimal_distance: 4, minimal_price: 11000, price_per_km: 3000 };
-        transportIconUrl = 'https://cdn-icons-png.flaticon.com/128/7890/7890227.png';
-      } else if (nameLower === 'mobil') {
-        transportRate = { minimal_distance: 4, minimal_price: 15000, price_per_km: 4000 };
-        transportIconUrl = 'https://cdn-icons-png.flaticon.com/128/12689/12689302.png';
-      } else if (nameLower === 'kurir motor') {
-        transportRate = { minimal_distance: 4, minimal_price: 10000, price_per_km: 2100 };
-        transportIconUrl = 'https://cdn-icons-png.flaticon.com/128/9561/9561688.png';
-      } else if (nameLower === 'kurir bentor') {
-        transportRate = { minimal_distance: 4, minimal_price: 10000, price_per_km: 2100 };
-        transportIconUrl = 'https://cdn-icons-png.flaticon.com/128/7890/7890227.png';
-      } else {
-        transportRate = { minimal_distance: 4, minimal_price: 10000, price_per_km: 2200 };
-        transportIconUrl = 'https://cdn-icons-png.flaticon.com/128/5811/5811823.png';
-      }
+      if (nameLower === 'motor') { transportRate = { minimal_distance: 4, minimal_price: 10000, price_per_km: 2200 }; transportIconUrl = 'https://cdn-icons-png.flaticon.com/128/5811/5811823.png'; }
+      else if (nameLower === 'bentor') { transportRate = { minimal_distance: 4, minimal_price: 11000, price_per_km: 3000 }; transportIconUrl = 'https://cdn-icons-png.flaticon.com/128/7890/7890227.png'; }
+      else if (nameLower === 'mobil') { transportRate = { minimal_distance: 4, minimal_price: 15000, price_per_km: 4000 }; transportIconUrl = 'https://cdn-icons-png.flaticon.com/128/12689/12689302.png'; }
+      else if (nameLower === 'kurir motor') { transportRate = { minimal_distance: 4, minimal_price: 10000, price_per_km: 2100 }; transportIconUrl = 'https://cdn-icons-png.flaticon.com/128/9561/9561688.png'; }
+      else if (nameLower === 'kurir bentor') { transportRate = { minimal_distance: 4, minimal_price: 10000, price_per_km: 2100 }; transportIconUrl = 'https://cdn-icons-png.flaticon.com/128/7890/7890227.png'; }
+      else { transportRate = { minimal_distance: 4, minimal_price: 10000, price_per_km: 2200 }; transportIconUrl = 'https://cdn-icons-png.flaticon.com/128/5811/5811823.png'; }
     }
 
     async function loadSelectedTransport() {
@@ -966,7 +354,7 @@
       }
     }
 
-    // ========== CEK SESSION USER ==========
+    // CEK SESSION USER
     async function checkUserSession() {
       const stored = localStorage.getItem('jego_logged_in_user');
       if (!stored) {
@@ -1022,27 +410,45 @@
       return null;
     }
 
+    // Fungsi untuk mengisi input box pickup secara manual
+    async function setPickupInputField(address) {
+      const fromBox = document.querySelector('#from-container mapbox-search-box');
+      if (fromBox && fromBox.shadowRoot) {
+        const input = fromBox.shadowRoot.querySelector('input');
+        if (input) {
+          input.value = address;
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+          input.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+      } else {
+        // fallback
+        const fallbackInput = document.querySelector('#from-container input');
+        if (fallbackInput) {
+          fallbackInput.value = address;
+          fallbackInput.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+      }
+    }
+
     async function autoFillPickupLocation() {
       return new Promise((resolve) => {
         if (!navigator.geolocation) { resolve(false); return; }
         navigator.geolocation.getCurrentPosition(async (position) => {
           const { latitude, longitude } = position.coords;
-          let address = await reverseGeocode(longitude, latitude) || '(Lokasi Anda)';
+          // Ambil alamat dari reverse geocode
+          let address = await reverseGeocode(longitude, latitude);
+          if (!address || address.trim() === '') {
+            address = '(Jalan Tanpa Nama)';
+          }
           pickupCoord = [longitude, latitude];
           pickupAddress = address;
           updateMarkers();
           if (map) map.flyTo({ center: pickupCoord, zoom: 14, duration: 1500 });
-          const fromBox = document.querySelector('#from-container mapbox-search-box');
-          if (fromBox && fromBox.shadowRoot) {
-            const input = fromBox.shadowRoot.querySelector('input');
-            if (input) {
-              input.value = pickupAddress;
-              input.dispatchEvent(new Event('input', { bubbles: true }));
-            }
-          }
+          // Isi input box dengan alamat (termasuk "(Jalan Tanpa Nama)")
+          await setPickupInputField(pickupAddress);
           if (destCoord) await updateRoute();
           resolve(true);
-        }, () => resolve(false), { enableHighAccuracy: true });
+        }, () => resolve(false), { enableHighAccuracy: true, timeout: 10000 });
       });
     }
 
@@ -1125,6 +531,8 @@
         document.getElementById('routePrice').innerHTML = formatRupiah(price);
         document.getElementById('routeDetails').style.display = 'block';
         document.getElementById('confirmBtn').disabled = false;
+        // Update tombol dengan teks dinamis berisi tarif
+        document.getElementById('confirmBtn').innerHTML = `CARI DRIVER | ${formatRupiah(price)}`;
         map.addSource('route', { type: 'geojson', data: { type: 'Feature', geometry: route.geometry } });
         map.addLayer({ id: 'route', type: 'line', source: 'route', layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: { 'line-color': '#FF9800', 'line-width': 5 } });
         routeLayer = 'route';
@@ -1132,6 +540,38 @@
         const bounds = new mapboxgl.LngLatBounds().extend(pickupCoord).extend(destCoord);
         map.fitBounds(bounds, { padding: 50 });
       } catch (err) { showPopup('Error', 'Gagal menghitung rute.', '⚠️'); }
+    }
+
+    // ========== EFEK RADAR DAN ZOOM OUT ==========
+    let currentZoomAnimation = null;
+    function startSlowZoomOut() {
+      if (!map || !pickupCoord) return;
+      if (currentZoomAnimation) {
+        map.stop();
+        currentZoomAnimation = null;
+      }
+      currentZoomAnimation = map.flyTo({
+        center: pickupCoord,
+        zoom: 9,
+        duration: 30000,
+        easing: function(t) { return t; }
+      });
+    }
+    function stopSlowZoomOut() {
+      if (currentZoomAnimation) {
+        map.stop();
+        currentZoomAnimation = null;
+      }
+    }
+    function activateRadarOnPickup() {
+      if (pickupMarker && pickupMarker.getElement()) {
+        pickupMarker.getElement().classList.add('radar-marker-effect');
+      }
+    }
+    function deactivateRadarOnPickup() {
+      if (pickupMarker && pickupMarker.getElement()) {
+        pickupMarker.getElement().classList.remove('radar-marker-effect');
+      }
     }
 
     // ========== ORDER & DRIVER OFFERS ==========
@@ -1179,7 +619,6 @@
     async function rejectOffer(driverId) {
       if (!currentOrderId) return;
       await database.ref(`orders/${currentOrderId}/driver_offers/${driverId}/status`).set('rejected');
-      // tidak perlu popup, hanya refresh list
     }
 
     async function confirmRoute() {
@@ -1189,11 +628,25 @@
       }
       const btn = document.getElementById('confirmBtn');
       btn.disabled = true;
-      btn.style.display = 'none';
-      document.getElementById('cancelBtn').style.display = 'block';
+      // Ubah teks tombol menjadi "Batalkan Pencarian"
+      btn.innerHTML = 'Batalkan Pencarian';
+      // Tampilkan tombol cancel (yang sebenarnya adalah tombol yang sama, kita ganti fungsi onclick)
+      // Kita akan tetap menggunakan tombol confirmBtn tapi dengan fungsi cancelSearch
+      // Namun lebih baik kita memiliki dua tombol? Sesuai minta: tombol CARI DRIVER berubah menjadi Batalkan Pencarian ketika diklik.
+      // Maka kita ubah event listener sementara.
+      // Hapus event listener lama, pasang yang baru untuk cancel.
+      btn.removeEventListener('click', confirmRoute);
+      btn.addEventListener('click', cancelSearchHandler);
+      btn.disabled = false;
+
       document.getElementById('routeDetails').style.display = 'none';
       document.getElementById('radar').style.display = 'block';
       setTimeout(() => document.getElementById('radar').classList.add('expanding'), 100);
+      
+      // Efek radar pada marker pickup
+      activateRadarOnPickup();
+      // Zoom out perlahan
+      startSlowZoomOut();
       
       const newOrderRef = database.ref('orders').push();
       currentOrderId = newOrderRef.key;
@@ -1244,12 +697,16 @@
       offersCallback = (snapshot) => renderOffers(snapshot.val());
       offersRef.on('value', offersCallback);
       
-      // Timer untuk menampilkan popup naikkan tarif setelah 30 detik
       priceOfferTimer = setTimeout(() => {
         if (isSearching && currentOrderId) {
           showPriceOfferPopup();
         }
       }, 30000);
+    }
+
+    // Handler untuk cancel pencarian dari tombol yang sudah berubah
+    async function cancelSearchHandler() {
+      await cancelSearch();
     }
 
     function showPriceOfferPopup() {
@@ -1307,11 +764,18 @@
       document.getElementById('radar').style.display = 'none';
       document.getElementById('radar').classList.remove('expanding');
       document.getElementById('driverOffers').style.display = 'none';
-      document.getElementById('confirmBtn').style.display = 'block';
-      document.getElementById('confirmBtn').disabled = false;
+      // Kembalikan tombol ke mode semula
+      const btn = document.getElementById('confirmBtn');
+      btn.removeEventListener('click', cancelSearchHandler);
+      btn.addEventListener('click', confirmRoute);
+      btn.innerHTML = currentPrice ? `CARI DRIVER | ${formatRupiah(currentPrice)}` : 'Konfirmasi Rute';
+      btn.disabled = false;
       document.getElementById('cancelBtn').style.display = 'none';
       document.getElementById('routeDetails').style.display = 'block';
       currentOrderId = null;
+      // Hentikan radar dan zoom
+      deactivateRadarOnPickup();
+      stopSlowZoomOut();
     }
 
     // ========== INISIALISASI ==========
@@ -1326,7 +790,6 @@
       await autoFillPickupLocation();
       
       document.getElementById('confirmBtn').addEventListener('click', confirmRoute);
-      document.getElementById('cancelBtn').addEventListener('click', cancelSearch);
       document.getElementById('closeDriverOffers').addEventListener('click', () => document.getElementById('driverOffers').style.display = 'none');
       
       let nightMode = false;
@@ -1337,5 +800,50 @@
       });
     };
   </script>
+  <style>
+    /* Efek radar pada marker */
+    .radar-marker-effect {
+      position: relative;
+    }
+    .radar-marker-effect::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 60px;
+      height: 60px;
+      margin-left: -30px;
+      margin-top: -30px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(255,152,0,0.4) 0%, rgba(255,152,0,0) 70%);
+      animation: radarPulse 1.5s infinite ease-out;
+      pointer-events: none;
+      z-index: -1;
+    }
+    .radar-marker-effect::before {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 80px;
+      height: 80px;
+      margin-left: -40px;
+      margin-top: -40px;
+      border-radius: 50%;
+      border: 2px solid rgba(255,152,0,0.8);
+      border-top-color: transparent;
+      animation: radarSpin 2s infinite linear;
+      pointer-events: none;
+      z-index: -1;
+    }
+    @keyframes radarPulse {
+      0% { transform: scale(0.5); opacity: 0.7; }
+      100% { transform: scale(2); opacity: 0; }
+    }
+    @keyframes radarSpin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  </style>
 </body>
 </html>
