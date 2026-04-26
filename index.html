@@ -345,6 +345,7 @@
     let previousOrderIds = new Set();  // untuk deteksi order baru (simpan string orderId)
     let mapMarkers = [];
     let globalCurrentUid = null;       // UID dari Firebase Auth (driver)
+    let gpsReady = false;
 
     function calculateDistance(lat1, lon1, lat2, lon2) {
       if (!lat1 || !lon1 || !lat2 || !lon2) return null;
@@ -395,6 +396,12 @@
         return;
       }
       if (!checkDriverData()) return;
+      
+       // TAMBAHKAN BLOK INI - CEK GPS READY
+  if (!gpsReady || !driverLocation.latitude || !driverLocation.longitude) {
+    ordersList.innerHTML = '<div class="loading"><div class="spinner"></div><p>Mendapatkan sinyal GPS...</p></div>';
+    return;
+  }
 
       // Pastikan vehicleType tersedia
       if (!currentDriverData?.vehicleType) {
@@ -778,6 +785,12 @@
     function updateDriverLocation(position) {
       driverLocation = { latitude: position.coords.latitude, longitude: position.coords.longitude };
       document.getElementById('gpsDot').className = 'gps-dot gps-active';
+      
+      if (!gpsReady) {
+    gpsReady = true;
+    loadOrders();   // setelah GPS siap, muat order
+  }
+  
       if (locationTrackingEnabled && currentDriverData && globalCurrentUid) {
         database.ref('drivers/' + globalCurrentUid).update({
           latitude: driverLocation.latitude, longitude: driverLocation.longitude, last_update: new Date().toISOString()
@@ -898,7 +911,6 @@
           await fetchMapboxToken().catch(()=>console.warn('Mapbox token tidak tersedia'));
           loadStoredSettings();
           setTimeout(startGPSMonitoring, 1000);
-          setTimeout(loadOrders, 500);
         } else {
           console.warn('❌ Driver tidak login, redirect ke loginDriver.html');
           window.location.href = 'loginDriver.html';
