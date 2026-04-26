@@ -597,23 +597,26 @@
 
       // ===== LOGIKA SUARA OTOMATIS BERDASARKAN `fromAuto` dan `autobidEnabled` =====
       if (fromAuto) {
-        if (autobidEnabled) {
-          // Kasus 2: Autobid ON -> suara audioautobid.mp3, lalu kirim penawaran otomatis
-          const autoSound = document.getElementById('autobidSound');
-          if (autoSound) {
-            autoSound.play().catch(e => console.log('Audio play error (autobid):', e));
-          }
-          // Kirim penawaran setelah delay 500ms agar suara sempat diputar
-          setTimeout(() => sendDriverOffer(), 500);
-        } else {
-          // Kasus 1: Tracking ON, Autobid OFF -> suara audiopopupmanual.mp3 (manual klik penawaran)
-          const manualSound = document.getElementById('manualPopupSound');
-          if (manualSound) {
-            manualSound.play().catch(e => console.log('Audio play error (manual popup):', e));
-          }
-          // Tidak otomatis kirim, driver harus klik tombol Kirim Penawaran
-        }
-      }
+  // Cek apakah order ini adalah kurir
+  const orderType = currentOrder.transport_type || '';
+  const isKurir = orderType.includes('kurir');
+  
+  if (autobidEnabled && !isKurir) {
+    // Autobid ON dan BUKAN kurir -> otomatis kirim penawaran
+    const autoSound = document.getElementById('autobidSound');
+    if (autoSound) {
+      autoSound.play().catch(e => console.log('Audio play error (autobid):', e));
+    }
+    setTimeout(() => sendDriverOffer(), 500);
+  } else {
+    // Kondisi: Autobid OFF ATAU order adalah kurir -> hanya munculkan modal manual
+    const manualSound = document.getElementById('manualPopupSound');
+    if (manualSound) {
+      manualSound.play().catch(e => console.log('Audio play error (manual popup):', e));
+    }
+    // Tidak otomatis kirim, driver harus klik tombol Kirim Penawaran
+  }
+}
 
       if (mapboxAccessToken) {
         if (!modalMap) initModalMapbox();
