@@ -1,541 +1,835 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-  <meta charset="utf-8" />
-  <title>Daftar Driver - JeGo</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-
-  <!-- Firebase SDKs: Auth + Database -->
-  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
-
-  <style>
-    /* ==================== Gaya (sama seperti sebelumnya) ==================== */
-    :root { --primary: #FF9800; --secondary: #FF5722; --accent: #FFC107; --light: #f8f9fa; --dark: #343a40; --success: #4CAF50; --danger: #f44336; --warning: #FFC107; --info: #2196F3; --gray: #9E9E9E; }
-    * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-    body { background-color: #f5f5f5; color: #333; line-height: 1.4; font-size: 0.85rem; }
-    .header { background: linear-gradient(135deg, var(--primary), var(--secondary)); color: white; padding: 15px 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.2); display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; }
-    .logo-container { display: flex; align-items: center; }
-    .logo { width: 40px; height: 40px; background-color: var(--accent); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-right: 10px; font-weight: bold; font-size: 16px; color: var(--primary); }
-    .header-title { font-size: 1.2rem; font-weight: 600; }
-    .back-btn { background: rgba(255,255,255,0.2); color: white; border: none; border-radius: 8px; padding: 8px 15px; cursor: pointer; font-weight: 600; transition: all 0.3s; display: flex; align-items: center; gap: 5px; font-size: 0.85rem; text-decoration: none; }
-    .back-btn:hover { background: rgba(255,255,255,0.3); }
-    .container { max-width: 100%; padding: 15px; }
-    .form-container { background: white; border-radius: 8px; padding: 20px; box-shadow: 0 2px 6px rgba(0,0,0,0.08); max-width: 600px; margin: 0 auto; }
-    .form-title { font-size: 1.5rem; font-weight: 600; color: var(--primary); margin-bottom: 20px; text-align: center; }
-    .form-group { margin-bottom: 15px; }
-    .form-label { display: block; margin-bottom: 5px; font-weight: 600; color: var(--dark); font-size: 0.9rem; }
-    .form-input { width: 100%; padding: 10px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 0.9rem; transition: border-color 0.3s; }
-    .form-input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(255, 152, 0, 0.1); }
-    .form-row { display: flex; gap: 15px; }
-    .form-row .form-group { flex: 1; }
-    .auth-step { display: none; }
-    .auth-step.active { display: block; }
-    .step-indicator { display: flex; justify-content: center; margin-bottom: 30px; gap: 10px; }
-    .step { width: 30px; height: 30px; border-radius: 50%; background-color: #e9ecef; color: #6c757d; display: flex; align-items: center; justify-content: center; font-weight: bold; position: relative; }
-    .step.active { background-color: var(--primary); color: white; }
-    .step.completed { background-color: var(--success); color: white; }
-    .step-line { flex: 1; height: 2px; background-color: #e9ecef; align-self: center; max-width: 50px; }
-    .step-line.active { background-color: var(--primary); }
-    .step-label { position: absolute; top: 35px; left: 50%; transform: translateX(-50%); white-space: nowrap; font-size: 0.8rem; color: #6c757d; }
-    .step.active .step-label { color: var(--primary); font-weight: 600; }
-    .phone-format { font-size: 0.85rem; color: #666; margin-top: 5px; }
-    .phone-format .example { font-weight: bold; color: var(--primary); }
-    .phone-status { padding: 10px; border-radius: 8px; margin-top: 8px; font-size: 0.9rem; display: none; }
-    .phone-status.available { background-color: rgba(76, 175, 80, 0.1); color: var(--success); border-left: 3px solid var(--success); display: block; }
-    .phone-status.registered { background-color: rgba(255, 193, 7, 0.1); color: var(--warning); border-left: 3px solid var(--warning); display: block; }
-    .phone-status.error { background-color: rgba(244, 67, 54, 0.1); color: var(--danger); border-left: 3px solid var(--danger); display: block; }
-    .phone-status-message { display: flex; align-items: center; gap: 8px; }
-    .phone-status-icon { font-size: 1.1rem; }
-    .phone-status-actions { margin-top: 8px; display: flex; gap: 10px; }
-    .phone-status-btn { padding: 6px 12px; border-radius: 6px; font-size: 0.85rem; font-weight: 600; cursor: pointer; border: none; transition: all 0.3s; }
-    .vehicle-options { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin-top: 10px; }
-    .vehicle-option { border: 2px solid #ddd; border-radius: 8px; padding: 12px; text-align: center; cursor: pointer; transition: all 0.3s; }
-    .vehicle-option.selected { border-color: var(--primary); background-color: rgba(255, 152, 0, 0.05); }
-    .vehicle-icon { font-size: 24px; margin-bottom: 5px; }
-    .vehicle-name { font-weight: 600; }
-    .terms-container { background-color: #f9f9f9; border-radius: 8px; padding: 15px; margin: 20px 0; max-height: 200px; overflow-y: auto; border: 1px solid #eee; }
-    .terms-title { font-weight: 600; margin-bottom: 10px; color: var(--primary); }
-    .terms-content { font-size: 0.8rem; line-height: 1.5; }
-    .checkbox-group { display: flex; align-items: flex-start; margin-bottom: 20px; }
-    .checkbox-group input { margin-right: 10px; margin-top: 3px; }
-    .submit-btn { background: linear-gradient(to right, var(--primary), var(--secondary)); color: white; border: none; border-radius: 8px; padding: 12px 25px; font-size: 1rem; font-weight: 600; cursor: pointer; transition: all 0.3s; box-shadow: 0 4px 10px rgba(0,0,0,0.15); width: 100%; }
-    .submit-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 15px rgba(0,0,0,0.2); }
-    .submit-btn:disabled { background: var(--gray); cursor: not-allowed; }
-    .file-upload-container { background-color: rgba(255, 152, 0, 0.05); border: 2px dashed var(--primary); border-radius: 8px; padding: 20px; text-align: center; cursor: pointer; transition: all 0.3s; margin-bottom: 15px; }
-    .file-upload-container:hover { background-color: rgba(255, 152, 0, 0.1); }
-    .upload-icon { font-size: 2rem; color: var(--primary); margin-bottom: 10px; }
-    .file-input { display: none; }
-    .file-preview { margin-top: 15px; max-width: 200px; margin: 15px auto; display: none; }
-    .file-preview img { width: 100%; border-radius: 6px; border: 2px solid var(--gray); }
-    .upload-progress { margin-top: 10px; height: 20px; background-color: #e0e0e0; border-radius: 10px; overflow: hidden; display: none; position: relative; }
-    .upload-progress-bar { height: 100%; background: linear-gradient(to right, var(--primary), var(--accent)); width: 0%; transition: width 0.3s; }
-    .upload-percentage { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 0.75rem; font-weight: bold; color: white; text-shadow: 1px 1px 2px rgba(0,0,0,0.5); }
-    .upload-stats { margin-top: 15px; display: flex; justify-content: space-between; align-items: center; }
-    .upload-count { font-size: 0.9rem; color: var(--primary); font-weight: 600; }
-    .success-section { background-color: rgba(76, 175, 80, 0.1); border: 1px solid var(--success); border-radius: 8px; padding: 20px; margin-top: 20px; display: none; text-align: center; }
-    .whatsapp-btn { background: linear-gradient(to right, #25D366, #128C7E); color: white; border: none; border-radius: 8px; padding: 12px; font-size: 1rem; font-weight: 600; cursor: pointer; width: 100%; margin-bottom: 10px; display: flex; justify-content: center; gap: 10px; }
-    .otp-input-container { display: flex; justify-content: center; gap: 10px; margin-bottom: 20px; }
-    .otp-input { width: 45px; height: 45px; text-align: center; font-size: 1.2rem; border: 1px solid #ddd; border-radius: 8px; }
-    .otp-input:focus { border-color: var(--primary); outline: none; }
-    .resend-otp { text-align: center; margin-top: 10px; font-size: 0.85rem; }
-    .resend-link { color: var(--primary); cursor: pointer; text-decoration: underline; }
-    .resend-link.disabled { color: #999; cursor: not-allowed; text-decoration: none; }
-    .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000; opacity: 0; visibility: hidden; transition: all 0.3s ease; }
-    .modal-overlay.active { opacity: 1; visibility: visible; }
-    .modal { background: white; border-radius: 12px; width: 90%; max-width: 500px; padding: 20px; }
-    .loading-modal .modal-body { text-align: center; }
-    .loading-spinner { width: 50px; height: 50px; border: 4px solid #f3f3f3; border-top: 4px solid var(--primary); border-radius: 50%; animation: spin 1s linear infinite; margin: 20px auto; }
-    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-    @media (max-width: 768px) { .form-row { flex-direction: column; gap: 0; } .otp-input { width: 40px; height: 40px; } }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>Daftar Driver - JeGo (Firebase Auth + ImgBB)</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/11.0.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/11.0.2/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/11.0.2/firebase-database-compat.js"></script>
+    <style>
+        /* ========== CSS SAMA PERSIS (tidak diubah) ========== */
+        :root {
+            --primary: #FF9800;
+            --primary-dark: #F57C00;
+            --secondary: #FF5722;
+            --light: #f5f5f5;
+            --dark: #343a40;
+            --success: #4CAF50;
+            --danger: #f44336;
+        }
+        
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Poppins', sans-serif;
+        }
+        
+        body {
+            background-color: var(--light);
+            color: var(--dark);
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        header {
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            color: white;
+            padding: 20px 0;
+            text-align: center;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        
+        .logo {
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: 5px;
+        }
+        
+        .tagline {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+        
+        .info-section, .form-section {
+            background-color: white;
+            border-radius: 12px;
+            padding: 25px;
+            margin: 30px 0;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+        }
+        
+        h1, h2, h3 {
+            color: var(--primary);
+            margin-bottom: 15px;
+        }
+        
+        h2 {
+            font-size: 22px;
+            border-bottom: 2px solid var(--primary);
+            padding-bottom: 8px;
+            margin-top: 25px;
+        }
+        
+        ul {
+            padding-left: 20px;
+            margin-bottom: 20px;
+        }
+        
+        li {
+            margin-bottom: 8px;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        
+        th, td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        
+        th {
+            background-color: var(--primary);
+            color: white;
+        }
+        
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        
+        .btn {
+            display: inline-block;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            color: white;
+            padding: 12px 28px;
+            border: none;
+            border-radius: 40px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            text-decoration: none;
+            transition: transform 0.2s, box-shadow 0.2s;
+            margin-top: 10px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+        }
+        
+        .btn-outline {
+            background: transparent;
+            border: 2px solid var(--primary);
+            color: var(--primary);
+            box-shadow: none;
+        }
+        
+        .btn-outline:hover {
+            background: var(--primary);
+            color: white;
+        }
+        
+        .hidden {
+            display: none;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+        
+        input, select {
+            width: 100%;
+            padding: 12px 15px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border 0.2s;
+        }
+        
+        input:focus, select:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 2px rgba(255,152,0,0.2);
+        }
+        
+        .file-upload {
+            border: 2px dashed #ddd;
+            padding: 20px;
+            text-align: center;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: border-color 0.3s;
+            position: relative;
+            background: #fafafa;
+        }
+        
+        .file-upload:hover {
+            border-color: var(--primary);
+        }
+        
+        .file-upload input {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            cursor: pointer;
+        }
+        
+        .file-upload p {
+            margin: 0;
+            color: #666;
+        }
+        
+        .file-preview {
+            max-width: 100%;
+            max-height: 150px;
+            margin-top: 10px;
+            border-radius: 8px;
+            display: none;
+            object-fit: cover;
+        }
+        
+        .progress-container {
+            margin-top: 30px;
+            display: none;
+        }
+        
+        .progress-bar {
+            height: 10px;
+            background-color: #e0e0e0;
+            border-radius: 5px;
+            overflow: hidden;
+            margin-bottom: 10px;
+        }
+        
+        .progress {
+            height: 100%;
+            background-color: var(--primary);
+            width: 0%;
+            transition: width 0.3s;
+        }
+        
+        .success-message {
+            background-color: var(--success);
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+            margin-top: 20px;
+            display: none;
+        }
+        
+        .error-message {
+            background-color: var(--danger);
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+            margin-top: 20px;
+            display: none;
+        }
+        
+        footer {
+            text-align: center;
+            padding: 20px;
+            color: #777;
+            font-size: 14px;
+            margin-top: 50px;
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                padding: 15px;
+            }
+            th, td {
+                padding: 8px 10px;
+                font-size: 14px;
+            }
+            .btn {
+                width: 100%;
+                text-align: center;
+            }
+        }
+        
+        .debug-panel {
+            position: fixed;
+            bottom: 10px;
+            right: 10px;
+            background: rgba(0,0,0,0.8);
+            color: #0f0;
+            font-family: monospace;
+            font-size: 11px;
+            padding: 8px;
+            border-radius: 6px;
+            max-width: 300px;
+            max-height: 200px;
+            overflow-y: auto;
+            z-index: 9999;
+            display: none;
+        }
+        .debug-panel.show {
+            display: block;
+        }
+    </style>
 </head>
 <body>
-  <div class="header">
-    <div class="logo-container"><div class="logo">JG</div><div class="header-title">JeGo - Daftar Driver</div></div>
-    <a href="list.html" class="back-btn">← Kembali</a>
-  </div>
-  <div class="container">
-    <div class="form-container">
-      <div class="step-indicator">
-        <div class="step active" id="step1">1<span class="step-label">Data Diri</span></div>
-        <div class="step-line" id="line1"></div>
-        <div class="step" id="step2">2<span class="step-label">Verifikasi OTP</span></div>
-        <div class="step-line" id="line2"></div>
-        <div class="step" id="step3">3<span class="step-label">Dokumen</span></div>
-      </div>
-      <h1 class="form-title">Form Pendaftaran Driver</h1>
-
-      <!-- Step 1: Data Diri + Email/Password + Telepon -->
-      <div class="auth-step active" id="step1-content">
-        <form id="driverFormStep1">
-          <div class="form-group"><label class="form-label">Nama Lengkap *</label><input type="text" class="form-input" id="fullName" required></div>
-          <div class="form-group"><label class="form-label">Email *</label><input type="email" class="form-input" id="email" required></div>
-          <div class="form-group"><label class="form-label">Password *</label><input type="password" class="form-input" id="password" minlength="6" required></div>
-          <div class="form-row">
-            <div class="form-group"><label class="form-label">Nomor Telepon *</label><input type="tel" class="form-input" id="phoneNumber" placeholder="+628123456789" required>
-              <div class="phone-format">Format: <span class="example">+628123456789</span></div>
-              <div id="phoneStatus" class="phone-status"></div>
-            </div>
-          </div>
-          <div class="form-group"><label class="form-label">Alamat *</label><input type="text" class="form-input" id="address" required></div>
-          <button type="button" class="submit-btn" id="sendOtpBtn">Kirim Kode OTP</button>
-        </form>
-      </div>
-
-      <!-- Step 2: OTP -->
-      <div class="auth-step" id="step2-content">
-        <h2 class="form-title">Verifikasi Nomor Telepon</h2>
-        <div class="otp-info"><p>Kami telah mengirimkan kode OTP 6 digit via SMS ke nomor Anda.</p></div>
-        <div class="form-group"><label>Nomor Telepon</label><input type="text" id="verifiedPhone" class="form-input" readonly style="background:#f8f9fa;"></div>
-        <div class="otp-input-container">
-          <input type="text" class="otp-input" id="otp1" maxlength="1"> <input type="text" class="otp-input" id="otp2" maxlength="1">
-          <input type="text" class="otp-input" id="otp3" maxlength="1"> <input type="text" class="otp-input" id="otp4" maxlength="1">
-          <input type="text" class="otp-input" id="otp5" maxlength="1"> <input type="text" class="otp-input" id="otp6" maxlength="1">
+    <header>
+        <div class="container">
+            <div class="logo">JeGo Driver</div>
+            <div class="tagline">Mitra Pengemudi & Kurir Gorontalo</div>
         </div>
-        <button type="button" class="submit-btn" id="verifyOtpBtn">Verifikasi OTP</button>
-        <div class="resend-otp">
-          <span id="resendText">Tidak menerima kode? </span>
-          <span class="resend-link" id="resendOtpLink">Kirim ulang OTP</span>
-          <span id="countdownText" style="display: none;"> (Tunggu <span id="countdown">60</span> detik)</span>
-        </div>
-        <button type="button" class="submit-btn" style="background: var(--gray); margin-top: 10px;" id="backToStep1Btn">Kembali</button>
-      </div>
-
-      <!-- Step 3: Dokumen dan Data Kendaraan -->
-      <div class="auth-step" id="step3-content">
-        <form id="driverFormStep3">
-          <div class="form-group"><label class="form-label">Jenis Kendaraan *</label><div class="vehicle-options">
-            <div class="vehicle-option" data-type="motor"><div class="vehicle-icon">🏍️</div><div class="vehicle-name">Motor</div></div>
-            <div class="vehicle-option" data-type="bentor"><div class="vehicle-icon">🛺</div><div class="vehicle-name">Bentor</div></div>
-            <div class="vehicle-option" data-type="mobil"><div class="vehicle-icon">🚗</div><div class="vehicle-name">Mobil</div></div>
-          </div><input type="hidden" id="vehicleType" required></div>
-          <div class="form-row"><div class="form-group"><label>Merk Kendaraan *</label><input type="text" id="vehicleBrand" class="form-input" required></div>
-          <div class="form-group"><label>Plat Nomor *</label><input type="text" id="plateNumber" class="form-input" required></div></div>
-          <div class="form-group"><label>Nomor KTP *</label><input type="text" id="idCardNumber" class="form-input" required></div>
-
-          <!-- Upload fields -->
-          <div class="form-group"><label>Foto Profil *</label><div class="file-upload-container" id="profileUploadContainer"><div class="upload-icon">📷</div><p>Klik atau drag foto</p><input type="file" class="file-input" id="profileFile" accept="image/*" required><div class="upload-progress" id="profileProgress"><div class="upload-progress-bar" id="profileProgressBar"></div><div class="upload-percentage" id="profilePercentage">0%</div></div><div class="file-info" id="profileInfo"></div></div><div class="file-preview" id="profilePreview"></div></div>
-          <div class="form-group"><label>Foto KTP *</label><div class="file-upload-container" id="ktpUploadContainer"><div class="upload-icon">📄</div><input type="file" class="file-input" id="ktpFile" accept="image/*" required><div class="upload-progress" id="ktpProgress"><div class="upload-progress-bar" id="ktpProgressBar"></div><div class="upload-percentage" id="ktpPercentage">0%</div></div><div class="file-info" id="ktpInfo"></div></div><div class="file-preview" id="ktpPreview"></div></div>
-          <div class="form-group"><label>Foto SIM *</label><div class="file-upload-container" id="simUploadContainer"><div class="upload-icon">📄</div><input type="file" class="file-input" id="simFile" accept="image/*" required><div class="upload-progress" id="simProgress"><div class="upload-progress-bar" id="simProgressBar"></div><div class="upload-percentage" id="simPercentage">0%</div></div><div class="file-info" id="simInfo"></div></div><div class="file-preview" id="simPreview"></div></div>
-          <div class="form-group"><label>Foto STNK *</label><div class="file-upload-container" id="stnkUploadContainer"><div class="upload-icon">📄</div><input type="file" class="file-input" id="stnkFile" accept="image/*" required><div class="upload-progress" id="stnkProgress"><div class="upload-progress-bar" id="stnkProgressBar"></div><div class="upload-percentage" id="stnkPercentage">0%</div></div><div class="file-info" id="stnkInfo"></div></div><div class="file-preview" id="stnkPreview"></div></div>
-          <div class="form-group"><label>Foto Kendaraan Depan *</label><div class="file-upload-container" id="vehicleFrontUploadContainer"><div class="upload-icon">🚗</div><input type="file" class="file-input" id="vehicleFrontFile" accept="image/*" required><div class="upload-progress" id="vehicleFrontProgress"><div class="upload-progress-bar" id="vehicleFrontProgressBar"></div><div class="upload-percentage" id="vehicleFrontPercentage">0%</div></div><div class="file-info" id="vehicleFrontInfo"></div></div><div class="file-preview" id="vehicleFrontPreview"></div></div>
-          <div class="form-group"><label>Foto Kendaraan Belakang *</label><div class="file-upload-container" id="vehicleBackUploadContainer"><div class="upload-icon">🚗</div><input type="file" class="file-input" id="vehicleBackFile" accept="image/*" required><div class="upload-progress" id="vehicleBackProgress"><div class="upload-progress-bar" id="vehicleBackProgressBar"></div><div class="upload-percentage" id="vehicleBackPercentage">0%</div></div><div class="file-info" id="vehicleBackInfo"></div></div><div class="file-preview" id="vehicleBackPreview"></div></div>
-
-          <div class="terms-container"><div class="terms-title">Syarat dan Ketentuan</div><div class="terms-content"><p>1. Driver harus memiliki SIM yang sesuai.</p><p>2. Kendaraan dalam kondisi baik.</p><p>3. Berperilaku sopan.</p><p>4. Tidak menolak order tanpa alasan.</p><p>5. Mematuhi lalu lintas.</p><p>6. Data yang diberikan adalah benar.</p><p>7. JeGo berhak menonaktifkan akun jika melanggar.</p></div></div>
-          <div class="checkbox-group"><input type="checkbox" id="agreeTerms" required><label>Saya menyetujui syarat dan ketentuan</label></div>
-          <div class="upload-stats"><div class="upload-count"><span id="uploadedCount">0</span> dari <span id="totalFiles">6</span> file terupload</div><div id="uploadStatusText"></div></div>
-          <button type="submit" class="submit-btn" id="submitBtn">Daftar sebagai Driver</button>
-        </form>
-      </div>
-
-      <div class="success-section" id="successSection">
-        <div class="success-icon">✅</div><h2>Pendaftaran Berhasil!</h2>
-        <p>Data Anda sedang diverifikasi oleh admin. Hubungi WhatsApp untuk info lebih lanjut.</p>
-        <button class="whatsapp-btn" id="whatsappBtn"><span>📱</span> Hubungi Admin JeGo</button>
-        <a href="list.html" class="submit-btn" style="background: gray;">Kembali ke Beranda</a>
-      </div>
-    </div>
-  </div>
-
-  <!-- Modal -->
-  <div id="modalOverlay" class="modal-overlay"><div class="modal"><div class="modal-header" style="display:flex; justify-content:space-between;"><span id="modalTitle">Pesan</span><button id="modalCloseBtn" style="background:none; border:none; font-size:1.5rem;">&times;</button></div><div class="modal-body"><p id="modalMessage"></p></div><div class="modal-footer" style="text-align:right; margin-top:15px;"><button id="modalConfirmBtn" style="background:var(--primary); color:white; border:none; padding:8px 16px; border-radius:6px;">OK</button></div></div></div>
-  <div id="loadingModal" class="modal-overlay"><div class="modal loading-modal"><div class="modal-body"><div class="loading-spinner"></div><p id="loadingText">Memproses...</p></div></div></div>
-
-  <script>
-    // FIREBASE KONFIGURASI PROYEK BARU
-    const FIREBASE_CONFIG = {
-      apiKey: "AIzaSyCD0pgeZio-LdKqYDtWxcdXcZwyL4ngYQI",
-      authDomain: "jego-35a2b.firebaseapp.com",
-      databaseURL: "https://jego-35a2b-default-rtdb.asia-southeast1.firebasedatabase.app",
-      projectId: "jego-35a2b",
-      storageBucket: "jego-35a2b.firebasestorage.app",
-      messagingSenderId: "600037007040",
-      appId: "1:600037007040:web:ac3243ad9b472647ffd725"
-    };
-    if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
-    const auth = firebase.auth();
-    const database = firebase.database();
-
-    // Konfigurasi gateway SMS (sama)
-    const SMS_GATEWAY_CONFIG = { user: 'gsmreload', pass: 'Jd59dm$jr*dj^hy', baseUrl: 'https://srv2.soufasms.com/sms_gateway/' };
+    </header>
     
-    // Global vars
-    let currentPhone = '';
-    let driverData = {};
-    let uploadedFilesCount = 0;
-    const totalFilesRequired = 6;
-    let imgbbApiKey = null;
-    let otpTimer = null, otpCountdown = 60;
-    let currentUser = null;
+    <div class="container">
+        <div id="infoSection" class="info-section">
+            <h1>Pendaftaran Driver JeGo</h1>
+            <p>Bergabunglah sebagai driver JeGo dan raih penghasilan fleksibel dengan menjadi mitra transportasi & kurir kebanggaan Gorontalo.</p>
+            
+            <h2>Persyaratan Umum</h2>
+            <ul>
+                <li>Usia minimal 21 tahun</li>
+                <li>Memiliki SIM C (motor) atau SIM A (mobil) yang masih berlaku</li>
+                <li>Kendaraan pribadi dalam kondisi baik dan layak jalan</li>
+                <li>Memiliki SKCK (Surat Keterangan Catatan Kepolisian)</li>
+                <li>KTP asli (WNI) atau KITAS/KITAP (WNA)</li>
+                <li>Bersedia mengikuti aturan dan standar layanan JeGo</li>
+            </ul>
+            
+            <h2>Dokumen yang Dibutuhkan</h2>
+            <table>
+                <tr><th>Dokumen</th><th>Keterangan</th></tr>
+                <tr><td>Foto KTP</td><td>Jelas, terbaca, dan full color</td></tr>
+                <tr><td>Foto SIM</td><td>SIM C/A yang masih aktif</td></tr>
+                <tr><td>Foto STNK</td><td>Bukti kepemilikan kendaraan</td></tr>
+                <tr><td>Foto SKCK</td><td>Surat keterangan bebas dari kepolisian</td></tr>
+                <tr><td>Pas foto</td><td>Ukuran 3x4 atau 4x6 (background merah/biru)</td></tr>
+            </table>
+            
+            <h2>Persyaratan Kendaraan</h2>
+            <h3>Motor</h3>
+            <ul><li>Minimal 110cc, kondisi mesin dan rem baik, plat hitam/kuning</li></ul>
+            <h3>Mobil</h3>
+            <ul><li>Minimal 1300cc, AC berfungsi, tahun maksimal 10 tahun</li></ul>
+            <h3>Pickup / Bentor</h3>
+            <ul><li>Minimal 1500cc, bagasi baik, tahun maksimal 12 tahun</li></ul>
+            
+            <button id="startRegistration" class="btn">Mulai Pendaftaran</button>
+        </div>
+        
+        <div id="formSection" class="form-section hidden">
+            <h1>Formulir Pendaftaran Driver</h1>
+            <p>Isi data dengan benar. Semua file maksimal 2MB (format JPG/PNG).</p>
+            
+            <form id="driverForm">
+                <h2>Data Pribadi & Akun</h2>
+                <div class="form-group">
+                    <label for="fullName">Nama Lengkap (sesuai KTP)</label>
+                    <input type="text" id="fullName" required>
+                </div>
+                <div class="form-group">
+                    <label for="email">Email (akan digunakan untuk login driver) *</label>
+                    <input type="email" id="email" required>
+                    <small style="color:#666;">Email ini akan menjadi akun login driver Anda.</small>
+                </div>
+                <div class="form-group">
+                    <label for="password">Password (minimal 6 karakter) *</label>
+                    <input type="password" id="password" minlength="6" required>
+                </div>
+                <div class="form-group">
+                    <label for="phone">Nomor HP (WhatsApp) *</label>
+                    <input type="tel" id="phone" placeholder="08123456789" required>
+                    <small style="color:#666;">Contoh: 08123456789 (akan otomatis disimpan dengan format +628...)</small>
+                </div>
+                <div class="form-group">
+                    <label for="dob">Tanggal Lahir</label>
+                    <input type="date" id="dob" required>
+                </div>
+                <div class="form-group">
+                    <label for="address">Alamat Lengkap</label>
+                    <input type="text" id="address" required>
+                </div>
+                
+                <h2>Data Kendaraan</h2>
+                <div class="form-group">
+                    <label for="vehicleType">Jenis Kendaraan</label>
+                    <select id="vehicleType" required>
+                        <option value="">Pilih Jenis Kendaraan</option>
+                        <option value="motor">Motor</option>
+                        <option value="mobil">Mobil</option>
+                        <option value="bentor">Bentor (Roda Tiga)</option>
+                        <option value="pickup">Pickup</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="vehicleBrand">Merek & Model Kendaraan</label>
+                    <input type="text" id="vehicleBrand" placeholder="Contoh: Honda Beat, Toyota Avanza" required>
+                </div>
+                <div class="form-group">
+                    <label for="vehicleYear">Tahun Kendaraan</label>
+                    <input type="number" id="vehicleYear" min="1990" max="2026" required>
+                </div>
+                <div class="form-group">
+                    <label for="plateNumber">Nomor Plat Kendaraan</label>
+                    <input type="text" id="plateNumber" placeholder="DM 1234 AB" required>
+                </div>
+                
+                <h2>Upload Dokumen (maks 2MB per file)</h2>
+                <div class="form-group">
+                    <label>Foto KTP</label>
+                    <div class="file-upload" id="ktpUpload">
+                        <p>📁 Klik atau tap untuk upload foto KTP</p>
+                        <input type="file" id="ktpFile" accept="image/jpeg,image/png" capture="environment" required>
+                        <img id="ktpPreview" class="file-preview" alt="Preview KTP">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Foto SIM</label>
+                    <div class="file-upload" id="simUpload">
+                        <p>📁 Upload foto SIM</p>
+                        <input type="file" id="simFile" accept="image/jpeg,image/png" capture="environment" required>
+                        <img id="simPreview" class="file-preview" alt="Preview SIM">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Foto STNK</label>
+                    <div class="file-upload" id="stnkUpload">
+                        <p>📁 Upload foto STNK</p>
+                        <input type="file" id="stnkFile" accept="image/jpeg,image/png" capture="environment" required>
+                        <img id="stnkPreview" class="file-preview" alt="Preview STNK">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Foto SKCK</label>
+                    <div class="file-upload" id="skckUpload">
+                        <p>📁 Upload foto SKCK</p>
+                        <input type="file" id="skckFile" accept="image/jpeg,image/png" capture="environment" required>
+                        <img id="skckPreview" class="file-preview" alt="Preview SKCK">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Pas Foto (3x4/4x6)</label>
+                    <div class="file-upload" id="photoUpload">
+                        <p>📁 Upload pas foto terbaru</p>
+                        <input type="file" id="photoFile" accept="image/jpeg,image/png" capture="environment" required>
+                        <img id="photoPreview" class="file-preview" alt="Preview Pas Foto">
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <input type="checkbox" id="agreeTerms" required>
+                    <label for="agreeTerms" style="display: inline;">Saya menyatakan bahwa semua data yang saya berikan adalah benar dan sah, serta bersedia mengikuti kebijakan JeGo.</label>
+                </div>
+                
+                <button type="submit" class="btn" id="submitBtn">Daftar Sekarang</button>
+                <button type="button" id="backToInfo" class="btn btn-outline" style="margin-left: 10px;">Kembali</button>
+            </form>
+            
+            <div class="progress-container" id="progressContainer">
+                <h3>Mengirim data...</h3>
+                <div class="progress-bar"><div class="progress" id="progressBar"></div></div>
+                <p id="progressText">Menyiapkan berkas...</p>
+            </div>
+            
+            <div class="success-message" id="successMessage">
+                <h3>✅ Pendaftaran Berhasil!</h3>
+                <p>Akun driver telah dibuat. Data Anda akan diverifikasi oleh admin. Anda akan menerima notifikasi setelah status berubah menjadi aktif.</p>
+                <button class="btn" id="goHomeBtn">Kembali ke Beranda</button>
+            </div>
+            
+            <div class="error-message" id="errorMessage">
+                <h3>❌ Terjadi Kesalahan</h3>
+                <p id="errorText">Gagal mengirim data. Silakan coba lagi atau hubungi dukungan.</p>
+                <button class="btn btn-outline" id="retryBtn">Coba Lagi</button>
+            </div>
+        </div>
+    </div>
+    
+    <footer>
+        <div class="container">
+            <p>&copy; 2026 JeGo - Jasa Ekspedisi Gorontalo. Aplikasi Lokal Buatan Anak Gorontalo.</p>
+        </div>
+    </footer>
 
-    // DOM shortcuts
-    const step1 = document.getElementById('step1'), step2 = document.getElementById('step2'), step3 = document.getElementById('step3');
-    const line1 = document.getElementById('line1'), line2 = document.getElementById('line2');
-    const step1Content = document.getElementById('step1-content'), step2Content = document.getElementById('step2-content'), step3Content = document.getElementById('step3-content');
-    const modalOverlay = document.getElementById('modalOverlay'), modalMessage = document.getElementById('modalMessage'), modalTitle = document.getElementById('modalTitle');
-    const modalConfirmBtn = document.getElementById('modalConfirmBtn'), modalCloseBtn = document.getElementById('modalCloseBtn');
-    const loadingModal = document.getElementById('loadingModal'), loadingText = document.getElementById('loadingText');
-    const verifiedPhoneInput = document.getElementById('verifiedPhone');
-    const resendOtpLink = document.getElementById('resendOtpLink'), countdownText = document.getElementById('countdownText'), countdownElement = document.getElementById('countdown');
-    const uploadedCountElement = document.getElementById('uploadedCount'), totalFilesElement = document.getElementById('totalFiles'), uploadStatusText = document.getElementById('uploadStatusText');
-
-    // Helper UI
-    function showModal(title, msg, onOk) {
-      modalTitle.innerText = title;
-      modalMessage.innerText = msg;
-      modalOverlay.classList.add('active');
-      const handler = () => { modalOverlay.classList.remove('active'); if(onOk) onOk(); };
-      modalConfirmBtn.onclick = handler;
-      modalCloseBtn.onclick = handler;
-    }
-    function showLoading(msg) { loadingText.innerText = msg; loadingModal.classList.add('active'); }
-    function hideLoading() { loadingModal.classList.remove('active'); }
-    function showError(msg) { showModal('Error', msg); }
-    function showSuccess(msg) { showModal('Sukses', msg); }
-
-    // Format nomor
-    function formatPhoneNumber(phone) { let c = phone.replace(/\D/g,''); if(c.startsWith('0')) c='+62'+c.slice(1); else if(c.startsWith('62')) c='+'+c; else if(!c.startsWith('+')) c='+62'+c; return c; }
-    function validatePhoneFormat(phone) { return /^\+62[0-9]{9,12}$/.test(phone); }
-
-    // PERBAIKAN: Cek nomor hanya melalui phone_check (tidak perlu akses drivers atau users)
-    async function checkPhoneExists(phone) {
-      try {
-        const phoneKey = phone.replace(/\+/g, '_');
-        const snapshot = await database.ref(`phone_check/${phoneKey}`).once('value');
-        return snapshot.exists();
-      } catch(e) {
-        console.error(e);
-        showError('Gagal memeriksa nomor. Periksa koneksi.');
-        return true; // amankan, hentikan proses
-      }
-    }
-
-    // OTP functions (sama seperti sebelumnya)
-    async function canSendOTP(phone) {
-      const ref = database.ref('otp_verification/' + phone.replace(/\+/g,'_'));
-      const snap = await ref.child('requests').once('value');
-      const req = snap.val() || [];
-      const recent = req.filter(ts => ts > Date.now() - 10*60*1000);
-      return recent.length < 3;
-    }
-    async function saveOTP(phone, code) {
-      const path = 'otp_verification/' + phone.replace(/\+/g,'_');
-      const ref = database.ref(path);
-      const now = Date.now();
-      const snap = await ref.child('requests').once('value');
-      let requests = snap.val() || [];
-      requests = requests.filter(ts => ts > now - 10*60*1000);
-      requests.push(now);
-      await ref.set({ code, created_at: now, expires_at: now + 5*60*1000, requests });
-    }
-    async function sendOTPviaGateway(phone, code) {
-      const message = `Kode OTP JeGo Driver: ${code}`;
-      const no = phone.replace('+','');
-      const url = `${SMS_GATEWAY_CONFIG.baseUrl}?user=${SMS_GATEWAY_CONFIG.user}&pass=${SMS_GATEWAY_CONFIG.pass}&no=${no}&msg=${encodeURIComponent(message)}&max=1`;
-      try { await fetch(url, { mode: 'no-cors' }); return true; } catch(e) { return false; }
-    }
-    async function sendOTP(phone) {
-      if (!await canSendOTP(phone)) { showError('Terlalu banyak permintaan OTP.'); return false; }
-      const code = Math.floor(100000+Math.random()*900000).toString();
-      await saveOTP(phone, code);
-      const ok = await sendOTPviaGateway(phone, code);
-      if (!ok) { await database.ref('otp_verification/'+phone.replace(/\+/g,'_')).remove(); showError('Gagal kirim OTP.'); return false; }
-      showSuccess('OTP terkirim!');
-      return true;
-    }
-    async function verifyOTP(phone, code) {
-      const path = 'otp_verification/' + phone.replace(/\+/g,'_');
-      const snap = await database.ref(path).once('value');
-      const data = snap.val();
-      if (!data) { showError('OTP tidak ditemukan.'); return false; }
-      if (Date.now() > data.expires_at) { showError('OTP kadaluarsa.'); await database.ref(path).remove(); return false; }
-      if (data.code !== code) { showError('OTP salah.'); return false; }
-      await database.ref(path).remove();
-      return true;
-    }
-
-    // Ambil API Key ImgBB
-    async function getImgbbApiKey() {
-      if (imgbbApiKey) return imgbbApiKey;
-      try {
-        const snap = await database.ref('data-jego/imgBBapiKey').once('value');
-        const key = snap.val();
-        if (key && typeof key === 'string') { imgbbApiKey = key; return key; }
-        else throw new Error('ApiKey tidak ditemukan');
-      } catch(e) { console.error(e); showError('Gagal memuat konfigurasi upload.'); return null; }
-    }
-
-    // Upload file ke ImgBB
-    async function uploadToImgBB(file, progressBarElem, percentElem) {
-      const apiKey = await getImgbbApiKey();
-      if (!apiKey) throw new Error('ApiKey tidak tersedia');
-      const formData = new FormData();
-      formData.append('key', apiKey);
-      formData.append('image', file);
-      if (progressBarElem) progressBarElem.style.width = '40%';
-      if (percentElem) percentElem.innerText = '40%';
-      const response = await fetch('https://api.imgbb.com/1/upload', { method: 'POST', body: formData, mode: 'cors' });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const result = await response.json();
-      if (result.success) {
-        if (progressBarElem) progressBarElem.style.width = '100%';
-        if (percentElem) percentElem.innerText = '100%';
-        uploadedFilesCount++;
-        updateUploadCount();
-        return result.data.url;
-      } else {
-        throw new Error(result.error?.message || 'Upload gagal');
-      }
-    }
-
-    function updateUploadCount() {
-      uploadedCountElement.innerText = uploadedFilesCount;
-      uploadStatusText.innerText = uploadedFilesCount===totalFilesRequired ? '✅ Semua file siap' : `Mengupload ${uploadedFilesCount}/${totalFilesRequired} file...`;
-    }
-
-    // Setup file upload visual (simple)
-    function setupUpload(containerId, inputId, previewId, progressId, progressBarId, percentageId, infoId) {
-      const container = document.getElementById(containerId), input = document.getElementById(inputId), preview = document.getElementById(previewId);
-      const progress = document.getElementById(progressId), progressBar = document.getElementById(progressBarId), percentage = document.getElementById(percentageId), info = document.getElementById(infoId);
-      container.addEventListener('click', () => input.click());
-      input.addEventListener('change', (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-        if (file.size > 2*1024*1024) { showError('Ukuran file maksimal 2MB'); input.value=''; return; }
-        if (!file.type.startsWith('image/')) { showError('File harus gambar'); input.value=''; return; }
-        info.innerText = `${file.name} (${(file.size/1024/1024).toFixed(2)} MB)`;
-        const reader = new FileReader();
-        reader.onload = ev => { preview.innerHTML = `<img src="${ev.target.result}" alt="Preview">`; preview.style.display = 'block'; };
-        reader.readAsDataURL(file);
-        progress.style.display = 'block';
-        progressBar.style.width = '0%';
-        percentage.innerText = '0%';
-        input._file = file;
-      });
-      return { input, progress, progressBar, percentage };
-    }
-
-    // Navigasi step
-    function goToStep(step) {
-      step1Content.classList.remove('active'); step2Content.classList.remove('active'); step3Content.classList.remove('active');
-      step1.classList.remove('active','completed'); step2.classList.remove('active','completed'); step3.classList.remove('active','completed');
-      line1.classList.remove('active'); line2.classList.remove('active');
-      if(step===1) { step1Content.classList.add('active'); step1.classList.add('active'); }
-      else if(step===2) { step2Content.classList.add('active'); step1.classList.add('completed'); step2.classList.add('active'); line1.classList.add('active'); }
-      else if(step===3) { step3Content.classList.add('active'); step1.classList.add('completed'); step2.classList.add('completed'); step3.classList.add('active'); line1.classList.add('active'); line2.classList.add('active'); }
-    }
-
-    function setupOTPInputs() {
-      const inputs = document.querySelectorAll('.otp-input');
-      inputs.forEach((inp, idx) => {
-        inp.addEventListener('input', (e) => { if(/^\d$/.test(e.target.value)) { if(idx < inputs.length-1) inputs[idx+1].focus(); } else e.target.value=''; });
-        inp.addEventListener('keydown', (e) => { if(e.key==='Backspace' && !e.target.value && idx>0) inputs[idx-1].focus(); });
-      });
-    }
-
-    function startResendCountdown(sec) {
-      resendOtpLink.classList.add('disabled');
-      countdownText.style.display = 'inline';
-      otpCountdown = sec;
-      countdownElement.innerText = otpCountdown;
-      if(otpTimer) clearInterval(otpTimer);
-      otpTimer = setInterval(() => {
-        if(--otpCountdown <= 0) { clearInterval(otpTimer); resendOtpLink.classList.remove('disabled'); countdownText.style.display='none'; }
-        else countdownElement.innerText = otpCountdown;
-      }, 1000);
-    }
-
-    // Event listeners
-    document.getElementById('sendOtpBtn').addEventListener('click', async () => {
-      const fullName = document.getElementById('fullName').value.trim();
-      const email = document.getElementById('email').value.trim();
-      const password = document.getElementById('password').value;
-      let phoneRaw = document.getElementById('phoneNumber').value.trim();
-      const address = document.getElementById('address').value.trim();
-      if(!fullName || !email || !password || !phoneRaw || !address) { showError('Harap isi semua field.'); return; }
-      if(password.length < 6) { showError('Password minimal 6 karakter.'); return; }
-      const phone = formatPhoneNumber(phoneRaw);
-      if(!validatePhoneFormat(phone)) { showError('Format nomor tidak valid.'); return; }
-      showLoading('Memeriksa nomor...');
-      const exists = await checkPhoneExists(phone);
-      hideLoading();
-      if(exists) { showError('Nomor sudah terdaftar sebagai driver atau user.'); return; }
-      driverData = { fullName, email, password, phone, address };
-      currentPhone = phone;
-      const sent = await sendOTP(phone);
-      if(sent) {
-        verifiedPhoneInput.value = phone;
-        goToStep(2);
-        setupOTPInputs();
-        startResendCountdown(60);
-        document.getElementById('otp1').focus();
-      }
-    });
-
-    document.getElementById('verifyOtpBtn').addEventListener('click', async () => {
-      let otp = '';
-      for(let i=1;i<=6;i++) otp += document.getElementById(`otp${i}`).value;
-      if(otp.length !== 6) { showError('Masukkan 6 digit OTP'); return; }
-      if(!driverData.phone) { showError('Data hilang, ulangi dari awal.'); return; }
-      const isValid = await verifyOTP(driverData.phone, otp);
-      if(!isValid) return;
-      showLoading('Membuat akun driver...');
-      try {
-        const userCred = await auth.createUserWithEmailAndPassword(driverData.email, driverData.password);
-        const user = userCred.user;
-        currentUser = user;
-        hideLoading();
-        showSuccess('Verifikasi berhasil! Silakan lengkapi data kendaraan.');
-        goToStep(3);
-        resetUploadCounters();
-      } catch(err) {
-        hideLoading();
-        console.error(err);
-        let msg = err.message;
-        if(err.code === 'auth/email-already-in-use') msg = 'Email sudah digunakan.';
-        else if(err.code === 'auth/weak-password') msg = 'Password terlalu lemah.';
-        showError(msg);
-      }
-    });
-
-    resendOtpLink.addEventListener('click', async () => {
-      if(resendOtpLink.classList.contains('disabled')) return;
-      if(driverData.phone) await sendOTP(driverData.phone);
-    });
-
-    document.getElementById('backToStep1Btn').addEventListener('click', () => goToStep(1));
-
-    document.querySelectorAll('.vehicle-option').forEach(opt => {
-      opt.addEventListener('click', function() {
-        document.querySelectorAll('.vehicle-option').forEach(o=>o.classList.remove('selected'));
-        this.classList.add('selected');
-        document.getElementById('vehicleType').value = this.dataset.type;
-      });
-    });
-
-    const profileUp = setupUpload('profileUploadContainer','profileFile','profilePreview','profileProgress','profileProgressBar','profilePercentage','profileInfo');
-    const ktpUp = setupUpload('ktpUploadContainer','ktpFile','ktpPreview','ktpProgress','ktpProgressBar','ktpPercentage','ktpInfo');
-    const simUp = setupUpload('simUploadContainer','simFile','simPreview','simProgress','simProgressBar','simPercentage','simInfo');
-    const stnkUp = setupUpload('stnkUploadContainer','stnkFile','stnkPreview','stnkProgress','stnkProgressBar','stnkPercentage','stnkInfo');
-    const frontUp = setupUpload('vehicleFrontUploadContainer','vehicleFrontFile','vehicleFrontPreview','vehicleFrontProgress','vehicleFrontProgressBar','vehicleFrontPercentage','vehicleFrontInfo');
-    const backUp = setupUpload('vehicleBackUploadContainer','vehicleBackFile','vehicleBackPreview','vehicleBackProgress','vehicleBackProgressBar','vehicleBackPercentage','vehicleBackInfo');
-
-    function resetUploadCounters() {
-      uploadedFilesCount = 0;
-      updateUploadCount();
-      totalFilesElement.innerText = totalFilesRequired;
-    }
-
-    document.getElementById('driverFormStep3').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      if(!currentUser) { showError('Anda belum login. Ulangi proses registrasi.'); return; }
-      const vehicleType = document.getElementById('vehicleType').value;
-      const vehicleBrand = document.getElementById('vehicleBrand').value.trim();
-      const plateNumber = document.getElementById('plateNumber').value.trim();
-      const idCardNumber = document.getElementById('idCardNumber').value.trim();
-      const agree = document.getElementById('agreeTerms').checked;
-      if(!vehicleType || !vehicleBrand || !plateNumber || !idCardNumber) { showError('Lengkapi data kendaraan.'); return; }
-      if(!agree) { showError('Setujui syarat dan ketentuan.'); return; }
-      const files = [profileUp.input.files[0], ktpUp.input.files[0], simUp.input.files[0], stnkUp.input.files[0], frontUp.input.files[0], backUp.input.files[0]];
-      if(files.some(f=>!f)) { showError('Upload semua dokumen.'); return; }
-      const submitBtn = document.getElementById('submitBtn');
-      submitBtn.disabled = true; submitBtn.innerText = 'Mengupload...';
-      showLoading('Mengupload dokumen, mohon tunggu...');
-      try {
-        const uploads = [
-          uploadToImgBB(files[0], profileUp.progressBar, profileUp.percentage),
-          uploadToImgBB(files[1], ktpUp.progressBar, ktpUp.percentage),
-          uploadToImgBB(files[2], simUp.progressBar, simUp.percentage),
-          uploadToImgBB(files[3], stnkUp.progressBar, stnkUp.percentage),
-          uploadToImgBB(files[4], frontUp.progressBar, frontUp.percentage),
-          uploadToImgBB(files[5], backUp.progressBar, backUp.percentage)
-        ];
-        const [profileUrl, ktpUrl, simUrl, stnkUrl, frontUrl, backUrl] = await Promise.all(uploads);
-        const driverId = currentUser.uid;
-        const now = new Date().toISOString();
-        const driverProfile = {
-          uid: driverId,
-          name: driverData.fullName,
-          phone: driverData.phone,
-          email: driverData.email,
-          address: driverData.address,
-          role: 'driver',
-          status: 'pending',
-          active: false,
-          vehicleType, vehicleBrand, plateNumber, idCardNumber,
-          fotoProfilURL: profileUrl,
-          fotoKTP: ktpUrl,
-          fotoSIM: simUrl,
-          fotoSTNK: stnkUrl,
-          fotoKendaraanDepan: frontUrl,
-          fotoKendaraanBelakang: backUrl,
-          rating: 5,
-          perjalanan: 0,
-          totalOrders: 0,
-          completedOrders: 0,
-          totalEarnings: 0,
-          createdAt: now,
-          updatedAt: now
+    <script>
+        // ========== KONFIGURASI FIREBASE (proyek jego-35a2b) ==========
+        const firebaseConfig = {
+            apiKey: "AIzaSyCD0pgeZio-LdKqYDtWxcdXcZwyL4ngYQI",
+            authDomain: "jego-35a2b.firebaseapp.com",
+            databaseURL: "https://jego-35a2b-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "jego-35a2b",
+            storageBucket: "jego-35a2b.firebasestorage.app",
+            messagingSenderId: "600037007040",
+            appId: "1:600037007040:web:ac3243ad9b472647ffd725"
         };
-        await database.ref(`drivers/${driverId}`).set(driverProfile);
-        hideLoading();
-        document.getElementById('driverFormStep3').style.display = 'none';
-        document.getElementById('successSection').style.display = 'block';
-        localStorage.setItem('jego_logged_in_driver', JSON.stringify({ uid: driverId, name: driverData.fullName, status: 'pending' }));
-        showSuccess('Pendaftaran driver berhasil! Data akan diverifikasi admin.');
-      } catch(err) {
-        hideLoading();
-        console.error(err);
-        showError('Gagal mendaftar: ' + err.message);
-        submitBtn.disabled = false; submitBtn.innerText = 'Daftar sebagai Driver';
-      }
-    });
-
-    document.getElementById('whatsappBtn').addEventListener('click', () => window.open('https://wa.me/6283142889149?text=Halo%20Admin,%20saya%20telah%20mendaftar%20driver%20JeGo.%20Mohon%20verifikasi.', '_blank'));
-    modalOverlay.addEventListener('click', (e) => { if(e.target===modalOverlay) modalOverlay.classList.remove('active'); });
-    auth.signOut().catch(e=>console.log);
-  </script>
+        
+        console.log("🔥 Inisialisasi Firebase...");
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const database = firebase.database();
+        console.log("✅ Firebase berhasil diinisialisasi (Auth + DB)");
+        
+        // DOM Elements
+        const infoSection = document.getElementById('infoSection');
+        const formSection = document.getElementById('formSection');
+        const startBtn = document.getElementById('startRegistration');
+        const backBtn = document.getElementById('backToInfo');
+        const driverForm = document.getElementById('driverForm');
+        const submitBtn = document.getElementById('submitBtn');
+        const progressContainer = document.getElementById('progressContainer');
+        const progressBar = document.getElementById('progressBar');
+        const progressText = document.getElementById('progressText');
+        const successMsg = document.getElementById('successMessage');
+        const errorMsg = document.getElementById('errorMessage');
+        const errorText = document.getElementById('errorText');
+        
+        let imgbbApiKey = null;
+        
+        // ========== 1. Ambil API Key ImgBB dari database ==========
+        async function fetchImgbbApiKey() {
+            try {
+                console.log("🔑 Mengambil API Key ImgBB dari database...");
+                const snapshot = await database.ref('public_config/imgBBapiKey').once('value');
+                const key = snapshot.val();
+                if (key && typeof key === 'string') {
+                    imgbbApiKey = key;
+                    console.log("✅ API Key ImgBB berhasil diambil");
+                    return true;
+                } else {
+                    throw new Error("API Key tidak valid atau kosong");
+                }
+            } catch (error) {
+                console.error("❌ Gagal mengambil API Key ImgBB:", error);
+                errorText.innerText = "Gagal mengambil konfigurasi server. Silakan coba lagi nanti.";
+                errorMsg.style.display = 'block';
+                return false;
+            }
+        }
+        
+        // ========== 2. Format nomor telepon ==========
+        function formatPhoneNumber(phone) {
+            let cleaned = phone.replace(/\D/g, '');
+            if (cleaned.startsWith('0')) {
+                cleaned = '+62' + cleaned.substring(1);
+            } else if (cleaned.startsWith('62')) {
+                cleaned = '+' + cleaned;
+            } else if (!cleaned.startsWith('+')) {
+                cleaned = '+62' + cleaned;
+            }
+            return cleaned;
+        }
+        
+        // ========== 3. Cek nomor sudah terdaftar di phone_check_drivers ==========
+        async function checkPhoneExistsInDrivers(phone) {
+            try {
+                const phoneKey = phone.replace(/\+/g, '_');
+                const snapshot = await database.ref(`phone_check_drivers/${phoneKey}`).once('value');
+                return snapshot.exists();
+            } catch (err) {
+                console.error("Gagal cek phone_check_drivers:", err);
+                return false;
+            }
+        }
+        
+        // ========== 4. Upload file ke ImgBB ==========
+        async function uploadToImgBB(file, fieldName) {
+            if (!file) return null;
+            if (!imgbbApiKey) throw new Error("API Key ImgBB belum tersedia");
+            
+            console.log(`📤 Upload ${fieldName} ke ImgBB: ${file.name}, size: ${(file.size/1024).toFixed(2)} KB`);
+            const formData = new FormData();
+            formData.append('image', file);
+            formData.append('key', imgbbApiKey);
+            formData.append('name', `${fieldName}_${Date.now()}`);
+            
+            const response = await fetch('https://api.imgbb.com/1/upload', {
+                method: 'POST',
+                body: formData
+            });
+            if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            const result = await response.json();
+            if (!result.success) throw new Error(result.error?.message || 'Upload gagal');
+            console.log(`✅ Upload ${fieldName} selesai`);
+            return result.data.url;
+        }
+        
+        // ========== 5. Proses pendaftaran utama ==========
+        async function registerDriver(driverData, files) {
+            // 5a. Format nomor & cek duplikat
+            const formattedPhone = formatPhoneNumber(driverData.phone);
+            console.log(`📞 Nomor diformat: ${driverData.phone} -> ${formattedPhone}`);
+            
+            const phoneExists = await checkPhoneExistsInDrivers(formattedPhone);
+            if (phoneExists) {
+                throw new Error("Nomor telepon sudah terdaftar sebagai driver. Gunakan nomor lain.");
+            }
+            
+            // 5b. Upload semua file ke ImgBB
+            const fileFields = ['ktp', 'sim', 'stnk', 'skck', 'photo'];
+            const uploadedUrls = {};
+            let completed = 0;
+            const total = fileFields.length;
+            for (const field of fileFields) {
+                const file = files[field];
+                if (!file) throw new Error(`File ${field} tidak ditemukan`);
+                const url = await uploadToImgBB(file, field);
+                uploadedUrls[`${field}_url`] = url;
+                completed++;
+                const percent = Math.round((completed / total) * 100);
+                progressBar.style.width = percent + '%';
+                progressText.innerText = `Mengunggah dokumen... ${percent}% (${completed}/${total})`;
+            }
+            
+            // 5c. Buat akun Firebase Auth (Email/Password)
+            progressText.innerText = 'Membuat akun driver...';
+            progressBar.style.width = '80%';
+            const userCredential = await auth.createUserWithEmailAndPassword(driverData.email, driverData.password);
+            const uid = userCredential.user.uid;
+            console.log(`🆔 Akun Auth berhasil dibuat, UID: ${uid}`);
+            
+            // 5d. Simpan data driver ke drivers/{uid}
+            const driverRecord = {
+                uid: uid,
+                name: driverData.fullName,
+                email: driverData.email,
+                phone: formattedPhone,
+                date_of_birth: driverData.dob,
+                address: driverData.address,
+                vehicle_type: driverData.vehicleType,
+                vehicle_brand: driverData.vehicleBrand,
+                vehicle_year: parseInt(driverData.vehicleYear),
+                plate_number: driverData.plateNumber,
+                ktp_url: uploadedUrls.ktp_url,
+                sim_url: uploadedUrls.sim_url,
+                stnk_url: uploadedUrls.stnk_url,
+                skck_url: uploadedUrls.skck_url,
+                photoURL: uploadedUrls.photo_url,
+                status: 'pending',
+                role: 'driver',
+                balance: 0,
+                rating: 5,
+                perjalanan: 0,
+                registered_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+            };
+            await database.ref(`drivers/${uid}`).set(driverRecord);
+            console.log("✅ Data driver disimpan di drivers/");
+            
+            // 5e. Simpan nomor ke phone_check_drivers (untuk cek duplikat nanti)
+            const phoneKey = formattedPhone.replace(/\+/g, '_');
+            await database.ref(`phone_check_drivers/${phoneKey}`).set({
+                phone: formattedPhone,
+                uid: uid,
+                registered_at: new Date().toISOString(),
+                status: 'pending'
+            });
+            console.log("✅ Nomor telepon disimpan di phone_check_drivers");
+            
+            progressBar.style.width = '100%';
+            progressText.innerText = 'Selesai!';
+            return true;
+        }
+        
+        // ========== 6. Event handler submit form ==========
+        driverForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            if (submitBtn.disabled) return;
+            
+            // Ambil data dari form
+            const driverData = {
+                fullName: document.getElementById('fullName').value.trim(),
+                email: document.getElementById('email').value.trim(),
+                password: document.getElementById('password').value,
+                phone: document.getElementById('phone').value.trim(),
+                dob: document.getElementById('dob').value,
+                address: document.getElementById('address').value.trim(),
+                vehicleType: document.getElementById('vehicleType').value,
+                vehicleBrand: document.getElementById('vehicleBrand').value.trim(),
+                vehicleYear: document.getElementById('vehicleYear').value,
+                plateNumber: document.getElementById('plateNumber').value.trim().toUpperCase()
+            };
+            
+            // Validasi field wajib
+            if (!driverData.fullName || !driverData.email || !driverData.password || !driverData.phone || !driverData.address || !driverData.vehicleType) {
+                alert('Harap isi semua field data pribadi dan kendaraan.');
+                return;
+            }
+            if (driverData.password.length < 6) {
+                alert('Password minimal 6 karakter.');
+                return;
+            }
+            if (!driverData.email.includes('@')) {
+                alert('Email tidak valid.');
+                return;
+            }
+            const phoneDigits = driverData.phone.replace(/\D/g, '');
+            if (phoneDigits.length < 9 || phoneDigits.length > 15) {
+                alert('Nomor HP tidak valid (minimal 9 digit, maksimal 15 digit).');
+                return;
+            }
+            const vehicleYear = parseInt(driverData.vehicleYear);
+            const currentYear = new Date().getFullYear();
+            if (isNaN(vehicleYear) || vehicleYear < 1990 || vehicleYear > currentYear + 1) {
+                alert('Tahun kendaraan tidak valid.');
+                return;
+            }
+            
+            // Ambil file
+            const files = {
+                ktp: document.getElementById('ktpFile').files[0],
+                sim: document.getElementById('simFile').files[0],
+                stnk: document.getElementById('stnkFile').files[0],
+                skck: document.getElementById('skckFile').files[0],
+                photo: document.getElementById('photoFile').files[0]
+            };
+            for (const [key, file] of Object.entries(files)) {
+                if (!file) {
+                    alert(`Silakan upload ${key.toUpperCase()}`);
+                    return;
+                }
+                if (file.size > 2 * 1024 * 1024) {
+                    alert(`File ${key.toUpperCase()} terlalu besar (maks 2MB)`);
+                    return;
+                }
+                if (!file.type.startsWith('image/')) {
+                    alert(`File ${key.toUpperCase()} harus berupa gambar (JPG/PNG)`);
+                    return;
+                }
+            }
+            if (!document.getElementById('agreeTerms').checked) {
+                alert('Anda harus menyetujui syarat dan ketentuan.');
+                return;
+            }
+            
+            // Pastikan API Key sudah siap
+            if (!imgbbApiKey) {
+                const keyReady = await fetchImgbbApiKey();
+                if (!keyReady) return;
+            }
+            
+            // Tampilkan progress
+            progressContainer.style.display = 'block';
+            progressBar.style.width = '0%';
+            progressText.innerText = 'Memulai pendaftaran...';
+            submitBtn.disabled = true;
+            errorMsg.style.display = 'none';
+            successMsg.style.display = 'none';
+            
+            try {
+                await registerDriver(driverData, files);
+                // Reset form & preview
+                driverForm.reset();
+                document.querySelectorAll('.file-preview').forEach(img => {
+                    img.style.display = 'none';
+                    img.src = '';
+                });
+                document.querySelectorAll('.file-upload p').forEach(p => {
+                    const text = p.textContent;
+                    if (text.includes('KTP')) p.innerHTML = '📁 Klik atau tap untuk upload foto KTP';
+                    else if (text.includes('SIM')) p.innerHTML = '📁 Upload foto SIM';
+                    else if (text.includes('STNK')) p.innerHTML = '📁 Upload foto STNK';
+                    else if (text.includes('SKCK')) p.innerHTML = '📁 Upload foto SKCK';
+                    else if (text.includes('pas foto')) p.innerHTML = '📁 Upload pas foto terbaru';
+                });
+                progressContainer.style.display = 'none';
+                successMsg.style.display = 'block';
+                window.scrollTo({ top: successMsg.offsetTop - 20, behavior: 'smooth' });
+                console.log("✨ Pendaftaran sukses!");
+            } catch (err) {
+                console.error("💥 ERROR:", err);
+                let pesanError = err.message || 'Gagal mengirim data. Periksa koneksi internet.';
+                if (err.message?.includes('email-already-in-use')) pesanError = 'Email sudah terdaftar. Gunakan email lain.';
+                if (err.message?.includes('phone sudah terdaftar')) pesanError = err.message;
+                errorText.innerText = pesanError;
+                errorMsg.style.display = 'block';
+                progressContainer.style.display = 'none';
+                submitBtn.disabled = false;
+                window.scrollTo({ top: errorMsg.offsetTop - 20, behavior: 'smooth' });
+            }
+        });
+        
+        // ========== 7. Navigasi ==========
+        startBtn.addEventListener('click', async () => {
+            console.log("🔄 Pindah ke halaman form pendaftaran");
+            if (!imgbbApiKey) await fetchImgbbApiKey();
+            infoSection.classList.add('hidden');
+            formSection.classList.remove('hidden');
+        });
+        backBtn.addEventListener('click', () => {
+            formSection.classList.add('hidden');
+            infoSection.classList.remove('hidden');
+            driverForm.reset();
+            errorMsg.style.display = 'none';
+            successMsg.style.display = 'none';
+            document.querySelectorAll('.file-preview').forEach(img => {
+                img.style.display = 'none';
+                img.src = '';
+            });
+            submitBtn.disabled = false;
+        });
+        document.getElementById('goHomeBtn')?.addEventListener('click', () => {
+            window.location.href = 'index.html';
+        });
+        document.getElementById('retryBtn')?.addEventListener('click', () => {
+            errorMsg.style.display = 'none';
+            submitBtn.disabled = false;
+        });
+        
+        // Preview gambar
+        function setupPreview(inputId, previewId, uploadDivId) {
+            const input = document.getElementById(inputId);
+            const preview = document.getElementById(previewId);
+            const uploadDiv = document.getElementById(uploadDivId);
+            input.addEventListener('change', function() {
+                if (this.files && this.files[0]) {
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        preview.src = e.target.result;
+                        preview.style.display = 'block';
+                        if (uploadDiv) {
+                            const p = uploadDiv.querySelector('p');
+                            if (p) p.textContent = '✓ File siap: ' + this.files[0].name;
+                        }
+                    }.bind(this);
+                    reader.readAsDataURL(this.files[0]);
+                } else {
+                    preview.style.display = 'none';
+                    if (uploadDiv) {
+                        const p = uploadDiv.querySelector('p');
+                        if (p) p.innerHTML = p.innerHTML.includes('KTP') ? '📁 Klik atau tap untuk upload foto KTP' : 
+                                            (p.innerHTML.includes('SIM') ? '📁 Upload foto SIM' :
+                                            (p.innerHTML.includes('STNK') ? '📁 Upload foto STNK' :
+                                            (p.innerHTML.includes('SKCK') ? '📁 Upload foto SKCK' : '📁 Upload pas foto terbaru')));
+                    }
+                }
+            });
+        }
+        setupPreview('ktpFile', 'ktpPreview', 'ktpUpload');
+        setupPreview('simFile', 'simPreview', 'simUpload');
+        setupPreview('stnkFile', 'stnkPreview', 'stnkUpload');
+        setupPreview('skckFile', 'skckPreview', 'skckUpload');
+        setupPreview('photoFile', 'photoPreview', 'photoUpload');
+        
+    </script>
 </body>
 </html>
