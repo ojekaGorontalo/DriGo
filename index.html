@@ -12,6 +12,15 @@
   <script src='https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js'></script>
   <link href='https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css' rel='stylesheet' />
   <style>
+  .delivery-desc-card {
+  background: #fff3e0;
+  border-left: 3px solid var(--primary);
+  padding: 6px 8px;
+  border-radius: 6px;
+  font-size: 0.7rem;
+  margin-top: 6px;
+  word-break: break-word;
+}
     /* CSS sama persis dengan sebelumnya (tidak diubah) */
     :root { --primary: #FF9800; --secondary: #FFB74D; --accent: #FF5722; --light: #f8f9fa; --dark: #343a40; --success: #4CAF50; --danger: #F44336; --promo: #FF9800; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -504,51 +513,64 @@
     }
 
     function renderOrdersList(orders, ordersList) {
-      orders.forEach(order => {
-        const customerName = order.customer_name || 'Tidak diketahui';
-        const customerPhoto = order.photoURL || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png';
-        const alamatA = order.pickup_address || '-';
-        const alamatB = order.destination_address || '-';
-        const durasi = order.duration_seconds ? Math.round(order.duration_seconds / 60) + ' menit' : '-';
-        const jarak = order.distance_meters ? (order.distance_meters / 1000).toFixed(1) + ' km' : '-';
-        const harga = order.price || 0;
-        const isKurir = order.transport_type && order.transport_type.includes('kurir');
-        let jarakDriver = '-';
-        if (driverLocation.latitude && driverLocation.longitude && order.pickup_lat && order.pickup_lng) {
-          const dist = calculateDistance(driverLocation.latitude, driverLocation.longitude, order.pickup_lat, order.pickup_lng);
-          if (dist !== null) jarakDriver = dist.toFixed(1) + ' km';
-        }
-
-        const orderItem = document.createElement('div');
-        orderItem.className = 'order-item';
-        orderItem.dataset.orderId = order.id;
-        orderItem.innerHTML = `
-          <div class="order-header"><div class="order-badges">${isKurir ? '<span class="kurir-badge">📦 KURIR</span>' : ''}</div></div>
-          <div class="route-info-with-photo">
-            <div class="customer-info-left">
-              <img src="${customerPhoto}" class="customer-photo-left" onclick="showPhotoModal('${customerPhoto}', '${escapeHtml(customerName)}')">
-              <div class="customer-name-left">${escapeHtml(customerName)}</div>
-              <div class="customer-rating"><span>★</span><span class="rating-value">${(order.passenger_rating || 0).toFixed(1)}</span></div>
-              <div class="order-time">${new Date(order.created_at).toLocaleTimeString('id-ID', {hour:'2-digit',minute:'2-digit'})}</div>
-            </div>
-            <div class="route-addresses-right">
-              <div class="route-point"><div class="point-marker point-marker-a">A</div><div class="point-address point-address-a">${escapeHtml(alamatA)}</div></div>
-              <div class="route-point"><div class="point-marker point-marker-b">B</div><div class="point-address">${escapeHtml(alamatB)}</div></div>
-            </div>
-          </div>
-          <div class="order-details">
-            <div class="detail-item"><span class="detail-value">${durasi}</span><span class="detail-label">Durasi</span></div>
-            <div class="detail-item"><span class="detail-value">${jarak}</span><span class="detail-label">Jarak</span></div>
-            <div class="detail-item"><span class="detail-value price-highlight">Rp ${harga.toLocaleString('id-ID')}</span><span class="detail-label">Harga</span></div>
-            <div class="detail-item"><span class="detail-value">${jarakDriver}</span><span class="detail-label">Jarak Driver</span></div>
-          </div>
-        `;
-        orderItem.addEventListener('click', () => {
-          showOrderDetail({ orderId: order.id, orderData: order }, false);
-        });
-        ordersList.appendChild(orderItem);
-      });
+  orders.forEach(order => {
+    const customerName = order.customer_name || 'Tidak diketahui';
+    const customerPhoto = order.photoURL || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png';
+    const alamatA = order.pickup_address || '-';
+    const alamatB = order.destination_address || '-';
+    const durasi = order.duration_seconds ? Math.round(order.duration_seconds / 60) + ' menit' : '-';
+    const jarak = order.distance_meters ? (order.distance_meters / 1000).toFixed(1) + ' km' : '-';
+    const harga = order.price || 0;
+    const isKurir = order.transport_type && order.transport_type.includes('kurir');
+    
+    // === TAMBAHAN: deskripsi barang untuk kurir ===
+    let deskripsiBarang = '';
+    if (isKurir && order.item_description) {
+      deskripsiBarang = `
+        <div class="delivery-desc-card" style="background:#fff3e0; border-left:3px solid var(--primary); padding:6px 8px; border-radius:6px; margin-top:6px; font-size:0.7rem;">
+          📦 <strong>Deskripsi:</strong> ${escapeHtml(order.item_description)}
+        </div>
+      `;
     }
+    // ===========================================
+    
+    let jarakDriver = '-';
+    if (driverLocation.latitude && driverLocation.longitude && order.pickup_lat && order.pickup_lng) {
+      const dist = calculateDistance(driverLocation.latitude, driverLocation.longitude, order.pickup_lat, order.pickup_lng);
+      if (dist !== null) jarakDriver = dist.toFixed(1) + ' km';
+    }
+
+    const orderItem = document.createElement('div');
+    orderItem.className = 'order-item';
+    orderItem.dataset.orderId = order.id;
+    orderItem.innerHTML = `
+      <div class="order-header"><div class="order-badges">${isKurir ? '<span class="kurir-badge">📦 KURIR</span>' : ''}</div></div>
+      <div class="route-info-with-photo">
+        <div class="customer-info-left">
+          <img src="${customerPhoto}" class="customer-photo-left" onclick="showPhotoModal('${customerPhoto}', '${escapeHtml(customerName)}')">
+          <div class="customer-name-left">${escapeHtml(customerName)}</div>
+          <div class="customer-rating"><span>★</span><span class="rating-value">${(order.passenger_rating || 0).toFixed(1)}</span></div>
+          <div class="order-time">${new Date(order.created_at).toLocaleTimeString('id-ID', {hour:'2-digit',minute:'2-digit'})}</div>
+        </div>
+        <div class="route-addresses-right">
+          <div class="route-point"><div class="point-marker point-marker-a">A</div><div class="point-address point-address-a">${escapeHtml(alamatA)}</div></div>
+          <div class="route-point"><div class="point-marker point-marker-b">B</div><div class="point-address">${escapeHtml(alamatB)}</div></div>
+        </div>
+      </div>
+      ${deskripsiBarang}
+      <div class="order-details">
+        <div class="detail-item"><span class="detail-value">${durasi}</span><span class="detail-label">Durasi</span></div>
+        <div class="detail-item"><span class="detail-value">${jarak}</span><span class="detail-label">Jarak</span></div>
+        <div class="detail-item"><span class="detail-value price-highlight">Rp ${harga.toLocaleString('id-ID')}</span><span class="detail-label">Harga</span></div>
+        <div class="detail-item"><span class="detail-value">${jarakDriver}</span><span class="detail-label">Jarak Driver</span></div>
+      </div>
+    `;
+    orderItem.addEventListener('click', () => {
+      showOrderDetail({ orderId: order.id, orderData: order }, false);
+    });
+    ordersList.appendChild(orderItem);
+  });
+}
 
     function escapeHtml(str) {
       if (!str) return '';
