@@ -12,7 +12,7 @@
   <script src='https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js'></script>
   <link href='https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css' rel='stylesheet' />
   <style>
-    /* ========== CSS (sama seperti sebelumnya, tidak diubah) ========== */
+    /* CSS sama persis dengan sebelumnya (tidak diubah) */
     :root { --primary: #FF9800; --secondary: #FFB74D; --accent: #FF5722; --light: #f8f9fa; --dark: #343a40; --success: #4CAF50; --danger: #F44336; --promo: #FF9800; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f5f5f5; color: #333; line-height: 1.4; font-size: 0.85rem; padding-bottom: 70px; overflow-x: hidden; }
@@ -325,18 +325,17 @@
     // Variabel global
     let ordersRef = null, ordersListener = null;
     let modalMap = null;
-    let currentSelectedOrder = null;          // { customerId, orderId, orderData }
+    let currentSelectedOrder = null;          // { orderId, orderData }
     let currentDriverData = null;
     let autobidEnabled = false, driverLocation = { latitude: null, longitude: null };
     let locationWatchId = null, locationTrackingEnabled = false;
     let mapboxAccessToken = null;
     let countdownInterval = null, countdownOrderId = null, countdownDriverId = null, orderStatusListener = null;
     let acceptKurirEnabled = false;
-    let previousOrderIds = new Set();  // untuk deteksi order baru (simpan string "customerId|orderId")
+    let previousOrderIds = new Set();  // untuk deteksi order baru (simpan string orderId)
     let mapMarkers = [];
     let globalCurrentUid = null;       // UID dari Firebase Auth (driver)
 
-    // ==================== FUNGSI PENDUKUNG ====================
     function calculateDistance(lat1, lon1, lat2, lon2) {
       if (!lat1 || !lon1 || !lat2 || !lon2) return null;
       const R = 6371;
@@ -377,7 +376,7 @@
       loadOrders();
     }
 
-    // ==================== LOAD ORDERS DARI PATH orders/{uid} (sesuai Firebase Auth) ====================
+    // ==================== LOAD ORDERS DARI ROOT orders (FLAT) ====================
     function loadOrders() {
       const ordersList = document.getElementById('ordersList');
       if (!ordersList) return;
@@ -387,44 +386,38 @@
       }
       if (!checkDriverData()) return;
 
+      // Pastikan vehicleType tersedia
+      if (!currentDriverData?.vehicleType) {
+        ordersList.innerHTML = '<div class="empty-state"><div>⚠️</div><p>Data kendaraan driver tidak lengkap. Silakan perbarui profil kendaraan Anda.</p><p><a href="akun.html" style="color:var(--primary);">Kelola Kendaraan</a></p></div>';
+        return;
+      }
+
       ordersList.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
       if (ordersListener && ordersRef) ordersRef.off('value', ordersListener);
       
-      // Gunakan path orders/{uid} (uid driver) sesuai instruksi
-      const ordersPath = `orders/${globalCurrentUid}`;
-      console.log('📡 Mendengarkan orders di path:', ordersPath);
-      ordersRef = database.ref(ordersPath);
+      // Gunakan root orders (flat)
+      ordersRef = database.ref('orders');
+      console.log('📡 Mendengarkan orders di root (flat)');
       
       ordersListener = ordersRef.on('value', (snapshot) => {
-        const driverOrders = snapshot.val(); // { customerId: { orderId: {...} } } atau struktur sesuaikan
+        const allOrdersObj = snapshot.val(); // { orderId1: {...}, orderId2: {...} }
         ordersList.innerHTML = '';
         
-        if (!driverOrders || Object.keys(driverOrders).length === 0) {
+        if (!allOrdersObj) {
           ordersList.innerHTML = '<div class="empty-state"><div>📭</div><p>Tidak ada permintaan order saat ini</p></div>';
           return;
         }
 
-        const driverVehicleType = currentDriverData?.vehicleType;
-        if (!driverVehicleType) {
-          ordersList.innerHTML = '<div class="empty-state"><div>⚠️</div><p>Data kendaraan driver tidak ditemukan.</p></div>';
-          return;
-        }
-
-        // Kumpulkan semua order dari semua customer yang ada di node driver
+        const driverVehicleType = currentDriverData.vehicleType;
         let allOrders = [];
-        for (const customerId in driverOrders) {
-          const userOrders = driverOrders[customerId];
-          if (userOrders && typeof userOrders === 'object') {
-            for (const orderId in userOrders) {
-              const order = userOrders[orderId];
-              if (order && order.status === 'waiting') {
-                allOrders.push({
-                  id: orderId,
-                  customerId: customerId,
-                  ...order
-                });
-              }
-            }
+        for (const orderId in allOrdersObj) {
+          const order = allOrdersObj[orderId];
+          if (order && order.status === 'waiting') {
+            allOrders.push({
+              id: orderId,
+              customerId: order.user_id || order.customerId, // dari rute.html menggunakan user_id
+              ...order
+            });
           }
         }
 
@@ -441,17 +434,24 @@
         });
 
         // Deteksi order baru
-        const newOrderKeys = new Set(filteredOrders.map(o => `${o.customerId}|${o.id}`));
-        const addedOrders = filteredOrders.filter(o => !previousOrderIds.has(`${o.customerId}|${o.id}`));
+        const newOrderKeys = new Set(filteredOrders.map(o => o.id));
+        const addedOrders = filteredOrders.filter(o => !previousOrderIds.has(o.id));
         previousOrderIds = newOrderKeys;
 
-        // Tampilkan popup order baru jika tracking aktif dan jarak < 3 km
+        // Tampilkan notifikasi & popup otomatis jika tracking aktif dan jarak < 3 km
         addedOrders.forEach(order => {
           if (locationTrackingEnabled && driverLocation.latitude && driverLocation.longitude && order.pickup_lat && order.pickup_lng) {
             const dist = calculateDistance(driverLocation.latitude, driverLocation.longitude, order.pickup_lat, order.pickup_lng);
             if (dist !== null && dist < 3) {
-              showOrderDetail({ customerId: order.customerId, orderId: order.id, orderData: order }, true);
+              // Suara notifikasi
+              const sound = document.getElementById('newOrderSound');
+              if (sound) sound.play().catch(e=>console.log('Audio play error', e));
+              showOrderDetail({ orderId: order.id, orderData: order }, true);
             }
+          } else if (locationTrackingEnabled) {
+            // tetap bunyi notifikasi tanpa jarak
+            const sound = document.getElementById('newOrderSound');
+            if (sound) sound.play().catch(e=>console.log('Audio play error', e));
           }
         });
 
@@ -488,20 +488,19 @@
 
         const orderItem = document.createElement('div');
         orderItem.className = 'order-item';
-        orderItem.dataset.customerId = order.customerId;
         orderItem.dataset.orderId = order.id;
         orderItem.innerHTML = `
           <div class="order-header"><div class="order-badges">${isKurir ? '<span class="kurir-badge">📦 KURIR</span>' : ''}</div></div>
           <div class="route-info-with-photo">
             <div class="customer-info-left">
-              <img src="${customerPhoto}" class="customer-photo-left" onclick="showPhotoModal('${customerPhoto}', '${customerName}')">
+              <img src="${customerPhoto}" class="customer-photo-left" onclick="showPhotoModal('${customerPhoto}', '${escapeHtml(customerName)}')">
               <div class="customer-name-left">${escapeHtml(customerName)}</div>
-              <div class="customer-rating"><span>★</span><span class="rating-value" data-customer-id="${order.customerId}" data-order-id="${order.id}">${(order.passenger_rating || 0).toFixed(1)}</span></div>
+              <div class="customer-rating"><span>★</span><span class="rating-value">${(order.passenger_rating || 0).toFixed(1)}</span></div>
               <div class="order-time">${new Date(order.created_at).toLocaleTimeString('id-ID', {hour:'2-digit',minute:'2-digit'})}</div>
             </div>
             <div class="route-addresses-right">
-              <div class="route-point"><div class="point-marker point-marker-a">A</div><div class="point-address point-address-a">${alamatA}</div></div>
-              <div class="route-point"><div class="point-marker point-marker-b">B</div><div class="point-address">${alamatB}</div></div>
+              <div class="route-point"><div class="point-marker point-marker-a">A</div><div class="point-address point-address-a">${escapeHtml(alamatA)}</div></div>
+              <div class="route-point"><div class="point-marker point-marker-b">B</div><div class="point-address">${escapeHtml(alamatB)}</div></div>
             </div>
           </div>
           <div class="order-details">
@@ -512,7 +511,7 @@
           </div>
         `;
         orderItem.addEventListener('click', () => {
-          showOrderDetail({ customerId: order.customerId, orderId: order.id, orderData: order }, false);
+          showOrderDetail({ orderId: order.id, orderData: order }, false);
         });
         ordersList.appendChild(orderItem);
       });
@@ -526,9 +525,9 @@
     // ==================== MENAMPILKAN DETAIL ORDER ====================
     async function showOrderDetail(orderObj, fromAuto = false) {
       if (!checkDriverData() || !globalCurrentUid) return;
-      const { customerId, orderId, orderData } = orderObj;
-      // Ambil ulang data terbaru dari orders/${globalCurrentUid}/${customerId}/${orderId}
-      const snapshot = await database.ref(`orders/${globalCurrentUid}/${customerId}/${orderId}`).once('value');
+      const { orderId, orderData } = orderObj;
+      // Ambil ulang data terbaru dari root orders
+      const snapshot = await database.ref(`orders/${orderId}`).once('value');
       const currentOrder = snapshot.val();
       if (!currentOrder || currentOrder.status !== 'waiting') {
         showPopup('Info', 'Order ini sudah tidak tersedia.', 'warning');
@@ -536,11 +535,9 @@
         return;
       }
       currentSelectedOrder = {
-        customerId: customerId,
         orderId: orderId,
         orderData: currentOrder
       };
-      const driverIdForOffer = globalCurrentUid;
 
       // Update modal
       document.getElementById('modalAddressA').textContent = currentOrder.pickup_address || '-';
@@ -622,10 +619,10 @@
       }
     }
 
-    // ==================== KIRIM PENAWARAN (tetap tulis ke orders/customerId/orderId) ====================
+    // ==================== KIRIM PENAWARAN ====================
     async function sendDriverOffer() {
       if (!currentSelectedOrder || !globalCurrentUid || !checkDriverData()) return;
-      const { customerId, orderId, orderData } = currentSelectedOrder;
+      const { orderId, orderData } = currentSelectedOrder;
       const hargaTotal = orderData.price || 0;
       const requiredBalance = hargaTotal * 0.1;
       const driverBalance = currentDriverData.balance || 0;
@@ -635,8 +632,8 @@
       }
       const ambilBtn = document.getElementById('ambilBtn');
       ambilBtn.disabled = true; ambilBtn.textContent = 'Mengirim...';
-      // Cek ulang status order di node customer asli (tetap di orders/customerId/orderId)
-      const snapshot = await database.ref(`orders/${customerId}/${orderId}`).once('value');
+      // Cek ulang status order di root
+      const snapshot = await database.ref(`orders/${orderId}`).once('value');
       const currentOrder = snapshot.val();
       if (!currentOrder || currentOrder.status !== 'waiting') {
         showPopup('Info', 'Order ini sudah diambil oleh driver lain.', 'warning');
@@ -655,9 +652,9 @@
         status: 'offered'
       };
       try {
-        await database.ref(`orders/${customerId}/${orderId}/driver_offers/${globalCurrentUid}`).set(driverDataForOffer);
+        await database.ref(`orders/${orderId}/driver_offers/${globalCurrentUid}`).set(driverDataForOffer);
         ambilBtn.textContent = 'Menunggu Konfirmasi';
-        startCountdown(customerId, orderId, globalCurrentUid);
+        startCountdown(orderId, globalCurrentUid);
       } catch (err) {
         showPopup('Error', 'Gagal mengirim penawaran.', 'error');
         ambilBtn.disabled = false;
@@ -668,9 +665,8 @@
     // ==================== COUNTDOWN & LISTENER ====================
     function stopCountdown() {
       if (countdownInterval) clearInterval(countdownInterval);
-      if (orderStatusListener && countdownOrderId && countdownDriverId && countdownOrderId.customerId) {
-        const { customerId, orderId } = countdownOrderId;
-        database.ref(`orders/${customerId}/${orderId}`).off('value', orderStatusListener);
+      if (orderStatusListener && countdownOrderId) {
+        database.ref(`orders/${countdownOrderId}`).off('value', orderStatusListener);
       }
       const container = document.getElementById('countdownContainer');
       if (container) container.style.display = 'none';
@@ -681,9 +677,9 @@
       countdownOrderId = null; countdownDriverId = null; orderStatusListener = null; countdownInterval = null;
     }
 
-    function startCountdown(customerId, orderId, driverId) {
+    function startCountdown(orderId, driverId) {
       stopCountdown();
-      countdownOrderId = { customerId, orderId };
+      countdownOrderId = orderId;
       countdownDriverId = driverId;
       const container = document.getElementById('countdownContainer');
       const progress = document.getElementById('countdownProgress');
@@ -701,12 +697,12 @@
         if (timeLeft <= 0) {
           clearInterval(countdownInterval);
           countdownInterval = null;
-          database.ref(`orders/${customerId}/${orderId}/driver_offers/${driverId}`).remove()
+          database.ref(`orders/${orderId}/driver_offers/${driverId}`).remove()
             .then(() => { showPopup('Info', 'Waktu penawaran habis. Silakan coba lagi.', 'info'); closeModal(); })
             .catch(() => closeModal());
         }
       }, 1000);
-      orderStatusListener = database.ref(`orders/${customerId}/${orderId}`).on('value', (snapshot) => {
+      orderStatusListener = database.ref(`orders/${orderId}`).on('value', (snapshot) => {
         const order = snapshot.val();
         if (!order) { stopCountdown(); closeModal(); return; }
         if (order.status === 'accepted') {
@@ -818,9 +814,9 @@
       document.getElementById('popupTitle').textContent = title;
       document.getElementById('popupMessage').textContent = message;
       document.getElementById('popupIcon').innerHTML = { success: '✅', error: '❌', warning: '⚠️', info: 'ℹ️' }[type] || 'ℹ️';
-      document.getElementById('popupOverlay').classList.add('active');
+      document.getElementById('popupOverlay').style.display = 'flex';
     }
-    function hidePopup() { document.getElementById('popupOverlay').classList.remove('active'); }
+    function hidePopup() { document.getElementById('popupOverlay').style.display = 'none'; }
 
     window.showPhotoModal = function(photoUrl, name) {
       const modal = document.createElement('div');
@@ -836,45 +832,30 @@
     async function checkDriverActiveOrder() {
       const activeOrderId = localStorage.getItem('jego_driver_active_order');
       if (!activeOrderId) return false;
-      const snap = await database.ref('orders').once('value');
-      const allCustomers = snap.val();
-      if (allCustomers) {
-        for (const custId in allCustomers) {
-          if (allCustomers[custId][activeOrderId]) {
-            const order = allCustomers[custId][activeOrderId];
-            if (['accepted', 'on_the_way', 'arrived', 'on_trip'].includes(order.status)) {
-              window.location.href = 'orderAccepted.html?id=' + activeOrderId;
-              return true;
-            } else {
-              localStorage.removeItem('jego_driver_active_order');
-            }
-            break;
-          }
-        }
+      const snap = await database.ref(`orders/${activeOrderId}`).once('value');
+      const order = snap.val();
+      if (order && ['accepted', 'on_the_way', 'arrived', 'on_trip'].includes(order.status)) {
+        window.location.href = 'orderAccepted.html?id=' + activeOrderId;
+        return true;
+      } else {
+        localStorage.removeItem('jego_driver_active_order');
       }
       return false;
     }
 
     // ==================== INISIALISASI dengan onAuthStateChanged ====================
     document.addEventListener('DOMContentLoaded', async () => {
-      // Pastikan Firebase Auth siap
       auth.onAuthStateChanged(async (user) => {
         if (user) {
           console.log('🔐 Driver terautentikasi dengan UID:', user.uid);
           globalCurrentUid = user.uid;
-          
-          // Cek order aktif
           if (await checkDriverActiveOrder()) return;
-          
-          // Load driver data dari localStorage (harus sesuai UID)
           if (!checkDriverData()) {
-            // Jika data driver tidak valid, logout dan redirect
             await auth.signOut();
             localStorage.removeItem('jego_logged_in_driver');
             window.location.href = 'loginDriver.html';
             return;
           }
-          
           await fetchMapboxToken().catch(()=>console.warn('Mapbox token tidak tersedia'));
           loadStoredSettings();
           setTimeout(startGPSMonitoring, 1000);
@@ -885,7 +866,6 @@
         }
       });
 
-      // Event listeners (tetap sama)
       document.getElementById('menuBtn').addEventListener('click', () => document.getElementById('sidebar').style.display = 'flex');
       document.getElementById('closeSidebar').addEventListener('click', () => document.getElementById('sidebar').style.display = 'none');
       document.getElementById('sidebarOverlay').addEventListener('click', () => document.getElementById('sidebar').style.display = 'none');
