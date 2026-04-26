@@ -511,51 +511,60 @@
         }
 
         // Filter berdasarkan tipe kendaraan driver dan preferensi kurir
-        const filteredOrders = allOrders.filter(order => {
-          const orderType = order.transport_type || order.vehicle || 'motor';
-          if (acceptKurirEnabled) {
-            if (driverVehicleType === 'motor') return orderType === 'motor' || orderType === 'kurir_motor';
-            if (driverVehicleType === 'bentor') return orderType === 'bentor' || orderType === 'kurir_bentor';
-            return orderType === driverVehicleType;
-          } else {
-            return orderType === driverVehicleType;
-          }
-        });
+        // Filter berdasarkan tipe kendaraan driver dan preferensi kurir
+const filteredOrders = allOrders.filter(order => {
+  const orderType = order.transport_type || order.vehicle || 'motor';
+  if (acceptKurirEnabled) {
+    if (driverVehicleType === 'motor') return orderType === 'motor' || orderType === 'kurir_motor';
+    if (driverVehicleType === 'bentor') return orderType === 'bentor' || orderType === 'kurir_bentor';
+    return orderType === driverVehicleType;
+  } else {
+    return orderType === driverVehicleType;
+  }
+});
 
-        // Deteksi order baru
-        const newOrderKeys = new Set(filteredOrders.map(o => o.id));
-        const addedOrders = filteredOrders.filter(o => !previousOrderIds.has(o.id));
-        previousOrderIds = newOrderKeys;
+// ===== TAMBAHAN: Filter berdasarkan jarak maksimal 7 km =====
+const MAX_DISTANCE_KM = 7;
+const ordersInRange = filteredOrders.filter(order => {
+  if (!driverLocation.latitude || !driverLocation.longitude) return false;
+  if (!order.pickup_lat || !order.pickup_lng) return false;
+  const dist = calculateDistance(driverLocation.latitude, driverLocation.longitude, order.pickup_lat, order.pickup_lng);
+  return dist !== null && dist <= MAX_DISTANCE_KM;
+});
+// ========================================================
 
-        // ===== SUARA 1: beek.mp3 untuk setiap order baru (berapa pun jaraknya) =====
-        if (addedOrders.length > 0) {
-          const beepSound = document.getElementById('beekSound');
-          if (beepSound) {
-            beepSound.play().catch(e => console.log('Audio play error (beek):', e));
-          }
-        }
+// Deteksi order baru (menggunakan ordersInRange)
+const newOrderKeys = new Set(ordersInRange.map(o => o.id));
+const addedOrders = ordersInRange.filter(o => !previousOrderIds.has(o.id));
+previousOrderIds = newOrderKeys;
 
-        // Tampilkan notifikasi & popup otomatis jika tracking aktif dan jarak < 3 km
-        addedOrders.forEach(order => {
-          if (locationTrackingEnabled && driverLocation.latitude && driverLocation.longitude && order.pickup_lat && order.pickup_lng) {
-            const dist = calculateDistance(driverLocation.latitude, driverLocation.longitude, order.pickup_lat, order.pickup_lng);
-            if (dist !== null && dist < 3) {
-              // Panggil showOrderDetail dengan fromAuto = true (berasal dari deteksi jarak dekat)
-              showOrderDetail({ orderId: order.id, orderData: order }, true);
-            }
-          }
-          // Catatan: Jika tracking aktif namun koordinat tidak lengkap, tidak muncul modal otomatis (sesuai deskripsi)
-        });
+// ===== SUARA 1: beek.mp3 untuk setiap order baru (berapa pun jaraknya) =====
+if (addedOrders.length > 0) {
+  const beepSound = document.getElementById('beekSound');
+  if (beepSound) {
+    beepSound.play().catch(e => console.log('Audio play error (beek):', e));
+  }
+}
 
-        if (filteredOrders.length === 0) {
-          let msg = `Tidak ada permintaan order untuk kendaraan ${driverVehicleType}`;
-          if (acceptKurirEnabled) msg += ' (termasuk kurir)';
-          ordersList.innerHTML = `<div class="empty-state"><div>🛵</div><p>${msg}</p></div>`;
-          return;
-        }
+// Tampilkan notifikasi & popup otomatis jika tracking aktif dan jarak < 3 km
+addedOrders.forEach(order => {
+  if (locationTrackingEnabled && driverLocation.latitude && driverLocation.longitude && order.pickup_lat && order.pickup_lng) {
+    const dist = calculateDistance(driverLocation.latitude, driverLocation.longitude, order.pickup_lat, order.pickup_lng);
+    if (dist !== null && dist < 3) {
+      showOrderDetail({ orderId: order.id, orderData: order }, true);
+    }
+  }
+});
 
-        const sortedOrders = filteredOrders.sort((a,b) => new Date(b.created_at||0) - new Date(a.created_at||0));
-        renderOrdersList(sortedOrders, ordersList);
+if (ordersInRange.length === 0) {
+  let msg = `Tidak ada permintaan order untuk kendaraan ${driverVehicleType} dalam radius ${MAX_DISTANCE_KM} km`;
+  if (acceptKurirEnabled) msg += ' (termasuk kurir)';
+  ordersList.innerHTML = `<div class="empty-state"><div>🛵</div><p>${msg}</p></div>`;
+  return;
+}
+
+const sortedOrders = ordersInRange.sort((a,b) => new Date(b.created_at||0) - new Date(a.created_at||0));
+renderOrdersList(sortedOrders, ordersList);
       }, (error) => {
         console.error('Error loading orders:', error);
         ordersList.innerHTML = '<div class="empty-state"><div>⚠️</div><p>Gagal terhubung ke server</p></div>';
