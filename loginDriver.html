@@ -393,7 +393,7 @@
   </div>
 
   <script>
-    // ================= KONFIGURASI FIREBASE PROYEK BARU =================
+    // ================= KONFIGURASI FIREBASE =================
     const FIREBASE_CONFIG = {
       apiKey: "AIzaSyCD0pgeZio-LdKqYDtWxcdXcZwyL4ngYQI",
       authDomain: "jego-35a2b.firebaseapp.com",
@@ -457,7 +457,7 @@
     function showError(msg) { showPopup('Error', msg, 'error'); }
     function showSuccess(msg, autoHide = true) { showPopup('Sukses', msg, 'success', { autoHide, autoHideDelay: 2000 }); }
 
-    // ================= HANDLE STATUS DRIVER =================
+    // ================= HANDLE STATUS DRIVER (PERBAIKAN MAPPING) =================
     function handleDriverStatus(driverData, driverId) {
       const status = driverData.status || 'pending';
       const ketGagal = driverData.ketGagal || driverData.rejectionReason || driverData.blockReason || 'Tidak ada keterangan.';
@@ -466,8 +466,8 @@
         case 'accepted':
         case 'approved':
         case 'active':
+          // ✅ PERBAIKAN: Mapping field dari database ke localStorage (sesuai dengan yang diharapkan index.html)
           const sessionDriver = {
-            userId: driverId,
             uid: driverId,
             name: driverData.name || driverData.fullName || '',
             phone: driverData.phone || '',
@@ -475,20 +475,24 @@
             address: driverData.address || '',
             status: 'active',
             role: 'driver',
-            fotoProfilURL: driverData.fotoProfilURL || driverData.profilePhotoUrl || '',
-            vehicleType: driverData.vehicleType || '',
-            plateNumber: driverData.plateNumber || '',
-            vehicleBrand: driverData.vehicleBrand || '',
-            idCardNumber: driverData.idCardNumber || '',
+            profilePhotoUrl: driverData.photoURL || driverData.fotoProfilURL || '',
+            vehicleType: driverData.vehicle_type || '',
+            plateNumber: driverData.plate_number || '',
+            vehicleBrand: driverData.vehicle_brand || '',
+            idCardNumber: driverData.ktp_url || '',
             rating: driverData.rating || 5,
             perjalanan: driverData.perjalanan || 0,
-            Balance: driverData.Balance || 0,
-            Potongan: driverData.Potongan || 0,
-            createdAt: driverData.createdAt || new Date().toISOString()
+            Balance: driverData.balance || 0,        // huruf B besar seperti di index.html
+            Potongan: driverData.potongan || 0,
+            createdAt: driverData.registered_at || new Date().toISOString()
           };
           localStorage.setItem('jego_logged_in_driver', JSON.stringify(sessionDriver));
           sendToKodular('login_success', { driver: sessionDriver });
-          showSuccess('Login berhasil!', true);
+          showSuccess('Login berhasil! Mengalihkan...', true);
+          // ✅ Redirect ke halaman utama driver
+          setTimeout(() => {
+            window.location.href = 'index.html';
+          }, 1500);
           break;
 
         case 'rejected':
@@ -608,7 +612,8 @@
           const driver = JSON.parse(loggedInDriver);
           if (driver.status === 'active') {
             sendToKodular('already_logged_in', { driver: driver });
-            showSuccess('Anda sudah login.', true);
+            // Jika sudah login dan di halaman login, redirect ke index.html
+            window.location.href = 'index.html';
           } else {
             localStorage.removeItem('jego_logged_in_driver');
           }
