@@ -2,14 +2,16 @@
 <html lang="id">
 <head>
   <meta charset="utf-8" />
-  <title>Login Driver - JeGo (Firebase)</title>
+  <title>Login Driver - JeGo</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  
-  <!-- Firebase SDKs -->
-  <script src="https://www.gstatic.com/firebasejs/11.0.2/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/11.0.2/firebase-database-compat.js"></script>
-  
+
+  <!-- Firebase SDKs: Auth + Database -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+
   <style>
+    /* ==================== GAYA (SAMA SEPERTI SEBELUMNYA) ==================== */
     :root {
       --primary: #FF9800;
       --secondary: #FF5722;
@@ -123,56 +125,6 @@
       box-shadow: 0 0 0 3px rgba(255,152,0,0.1);
     }
 
-    .phone-format {
-      font-size: 0.85rem;
-      color: #666;
-      margin-top: 5px;
-    }
-
-    .phone-format .example {
-      font-weight: bold;
-      color: var(--primary);
-    }
-
-    .phone-status {
-      padding: 10px;
-      border-radius: 8px;
-      margin-top: 8px;
-      font-size: 0.9rem;
-      display: none;
-    }
-
-    .phone-status.available {
-      background-color: rgba(76,175,80,0.1);
-      color: var(--success);
-      border-left: 3px solid var(--success);
-      display: block;
-    }
-
-    .phone-status.registered {
-      background-color: rgba(255,193,7,0.1);
-      color: var(--warning);
-      border-left: 3px solid var(--warning);
-      display: block;
-    }
-
-    .phone-status.error {
-      background-color: rgba(244,67,54,0.1);
-      color: var(--danger);
-      border-left: 3px solid var(--danger);
-      display: block;
-    }
-
-    .phone-status-message {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .phone-status-icon {
-      font-size: 1.1rem;
-    }
-
     .submit-btn {
       background: linear-gradient(to right, var(--primary), var(--secondary));
       color: white;
@@ -217,67 +169,7 @@
       background: rgba(255,152,0,0.05);
     }
 
-    .otp-section {
-      display: none;
-      margin-top: 20px;
-      padding-top: 20px;
-      border-top: 1px solid #eee;
-    }
-
-    .otp-title {
-      font-size: 1.2rem;
-      font-weight: 600;
-      color: var(--primary);
-      margin-bottom: 15px;
-      text-align: center;
-    }
-
-    .otp-info {
-      margin-bottom: 20px;
-      font-size: 0.9rem;
-      text-align: center;
-      color: #666;
-    }
-
-    .otp-input {
-      width: 100%;
-      padding: 12px;
-      font-size: 1.2rem;
-      text-align: center;
-      letter-spacing: 4px;
-      border: 2px solid #ddd;
-      border-radius: 8px;
-      transition: all 0.3s;
-    }
-
-    .otp-input:focus {
-      border-color: var(--primary);
-      box-shadow: 0 0 0 3px rgba(255,152,0,0.1);
-      outline: none;
-    }
-
-    .resend-otp {
-      text-align: center;
-      margin-top: 15px;
-      font-size: 0.85rem;
-    }
-
-    .resend-link {
-      color: var(--primary);
-      cursor: pointer;
-      text-decoration: underline;
-    }
-
-    .resend-link:hover {
-      color: var(--secondary);
-    }
-
-    .resend-link.disabled {
-      color: #999;
-      cursor: not-allowed;
-      text-decoration: none;
-    }
-
+    /* Modal */
     .modal-overlay {
       position: fixed;
       top: 0;
@@ -408,10 +300,6 @@
       color: white;
     }
 
-    .modal-btn.cancel:hover {
-      background-color: #5a6268;
-    }
-
     .loading-modal .modal-body {
       display: flex;
       flex-direction: column;
@@ -428,12 +316,6 @@
       border-radius: 50%;
       animation: spin 1s linear infinite;
       margin-bottom: 20px;
-    }
-
-    .loading-text {
-      font-size: 16px;
-      color: var(--dark);
-      text-align: center;
     }
 
     @keyframes spin {
@@ -465,53 +347,24 @@
     <div class="form-container">
       <h1 class="form-title">Masuk sebagai Driver</h1>
 
-      <!-- Form Nomor Telepon -->
-      <div id="phoneForm">
+      <form id="loginForm">
         <div class="form-group">
-          <label class="form-label" for="phoneNumber">Nomor Telepon</label>
-          <input type="tel" class="form-input" id="phoneNumber" placeholder="Contoh: 08123456789" required>
-          <div class="phone-format">
-            Format: <span class="example">+628123456789</span> (bisa menggunakan kode negara +62)
-          </div>
-          <div id="phoneStatus" class="phone-status">
-            <div class="phone-status-message">
-              <span id="phoneStatusIcon" class="phone-status-icon">ℹ️</span>
-              <span id="phoneStatusText"></span>
-            </div>
-          </div>
+          <label class="form-label" for="email">Email</label>
+          <input type="email" class="form-input" id="email" placeholder="contoh@email.com" required>
         </div>
-        <button type="button" class="submit-btn" id="sendOtpBtn">Kirim Kode OTP</button>
+        <div class="form-group">
+          <label class="form-label" for="password">Password</label>
+          <input type="password" class="form-input" id="password" placeholder="********" required>
+        </div>
+        <button type="submit" class="submit-btn" id="loginBtn">Login</button>
         <button type="button" class="secondary-btn" id="registerBtn">Belum punya akun driver? Daftar</button>
-      </div>
-
-      <!-- OTP Verification -->
-      <div class="otp-section" id="otpSection">
-        <h2 class="otp-title">Verifikasi OTP</h2>
-        <div class="otp-info">
-          <p>Kode OTP telah dikirim via SMS ke nomor Anda.</p>
-          <p>Masukkan kode 6 digit.</p>
-        </div>
-        <div class="form-group">
-          <label>Nomor Telepon</label>
-          <input type="text" id="verifiedPhone" class="form-input" readonly style="background-color: #f8f9fa;">
-        </div>
-        <div class="form-group">
-          <label>Kode OTP</label>
-          <input type="number" class="otp-input" id="otpInput" maxlength="6" placeholder="6 digit angka" inputmode="numeric">
-        </div>
-        <button type="button" class="submit-btn" id="verifyOtpBtn">Verifikasi OTP</button>
-        <div class="resend-otp">
-          <span class="resend-link" id="resendOtpLink">Kirim ulang OTP</span>
-          <span id="countdownText" style="display: none;"> (Tunggu <span id="countdown">60</span> detik)</span>
-        </div>
-        <button type="button" class="secondary-btn" id="backToPhoneBtn">Kembali</button>
-      </div>
+      </form>
     </div>
   </div>
 
   <!-- Modal Popup -->
   <div id="modalOverlay" class="modal-overlay">
-    <div id="modal" class="modal">
+    <div class="modal">
       <div class="modal-header">
         <h3 class="modal-title">
           <span id="modalIcon" class="modal-icon">!</span>
@@ -540,8 +393,8 @@
   </div>
 
   <script>
-    // ========== KONFIGURASI FIREBASE ==========
-    const firebaseConfig = {
+    // ================= KONFIGURASI FIREBASE PROYEK BARU =================
+    const FIREBASE_CONFIG = {
       apiKey: "AIzaSyCD0pgeZio-LdKqYDtWxcdXcZwyL4ngYQI",
       authDomain: "jego-35a2b.firebaseapp.com",
       databaseURL: "https://jego-35a2b-default-rtdb.asia-southeast1.firebasedatabase.app",
@@ -550,36 +403,27 @@
       messagingSenderId: "600037007040",
       appId: "1:600037007040:web:ac3243ad9b472647ffd725"
     };
-    firebase.initializeApp(firebaseConfig);
+
+    if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
+    const auth = firebase.auth();
     const database = firebase.database();
 
-    // ========== KONFIGURASI SMS GATEWAY ==========
-    const SMS_GATEWAY_CONFIG = {
-      user: 'gsmreload',
-      pass: 'Jd59dm$jr*dj^hy',
-      baseUrl: 'https://srv2.soufasms.com/sms_gateway/'
-    };
+    // ================= FUNGSI KOMUNIKASI DENGAN KODULAR =================
+    function sendToKodular(action, data = {}) {
+      const payload = JSON.stringify({ action: action, ...data, timestamp: new Date().toISOString() });
+      console.log('📤 Mengirim ke Kodular:', payload);
+      if (window.AppInventor && typeof window.AppInventor.setWebViewString === 'function') {
+        window.AppInventor.setWebViewString(payload);
+      } else if (window.android && typeof window.android.receiveData === 'function') {
+        window.android.receiveData(payload);
+      } else if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.observe) {
+        window.webkit.messageHandlers.observe.postMessage(payload);
+      } else {
+        console.warn('❌ Tidak ada metode komunikasi dengan Kodular');
+      }
+    }
 
-    // ========== VARIABEL GLOBAL ==========
-    let currentPhone = '';          // Nomor yang sedang login (format +62...)
-    let currentDriverId = null;     // UID driver dari database
-    let otpTimer = null;
-    let otpCountdown = 60;
-
-    // ========== ELEMEN DOM ==========
-    const phoneForm = document.getElementById('phoneForm');
-    const otpSection = document.getElementById('otpSection');
-    const phoneStatus = document.getElementById('phoneStatus');
-    const phoneStatusIcon = document.getElementById('phoneStatusIcon');
-    const phoneStatusText = document.getElementById('phoneStatusText');
-    const verifiedPhoneInput = document.getElementById('verifiedPhone');
-    const resendOtpLink = document.getElementById('resendOtpLink');
-    const countdownText = document.getElementById('countdownText');
-    const countdownElement = document.getElementById('countdown');
-    const sendOtpBtn = document.getElementById('sendOtpBtn');
-    const verifyOtpBtn = document.getElementById('verifyOtpBtn');
-    const backToPhoneBtn = document.getElementById('backToPhoneBtn');
-    const registerBtn = document.getElementById('registerBtn');
+    // ================= FUNGSI MODAL =================
     const modalOverlay = document.getElementById('modalOverlay');
     const modalIcon = document.getElementById('modalIcon');
     const modalTitleText = document.getElementById('modalTitleText');
@@ -590,7 +434,6 @@
     const loadingModal = document.getElementById('loadingModal');
     const loadingText = document.getElementById('loadingText');
 
-    // ================= FUNGSI UTILITAS =================
     function showPopup(title, message, type = 'info', options = {}) {
       modalTitleText.textContent = title;
       modalMessage.innerHTML = message;
@@ -600,181 +443,52 @@
       modalCancelBtn.style.display = options.showCancel ? 'inline-block' : 'none';
       if (options.showCancel) modalCancelBtn.textContent = options.cancelText || 'Batal';
 
-      modalConfirmBtn.onclick = null;
-      modalCancelBtn.onclick = null;
-      modalCloseBtn.onclick = null;
-      
-      modalConfirmBtn.onclick = function() { hidePopup(); if (options.onConfirm) options.onConfirm(); };
-      modalCancelBtn.onclick = function() { hidePopup(); if (options.onCancel) options.onCancel(); };
-      modalCloseBtn.onclick = function() { hidePopup(); if (options.onCancel) options.onCancel(); };
+      modalConfirmBtn.onclick = () => { hidePopup(); if (options.onConfirm) options.onConfirm(); };
+      modalCancelBtn.onclick = () => { hidePopup(); if (options.onCancel) options.onCancel(); };
+      modalCloseBtn.onclick = () => { hidePopup(); if (options.onCancel) options.onCancel(); };
 
       modalOverlay.classList.add('active');
       if (options.autoHide) setTimeout(() => { hidePopup(); if (options.onAutoHide) options.onAutoHide(); }, options.autoHideDelay || 3000);
     }
 
     function hidePopup() { modalOverlay.classList.remove('active'); }
-
-    function showLoading(message = 'Sedang memproses...') { loadingText.textContent = message; loadingModal.classList.add('active'); }
+    function showLoading(msg) { loadingText.textContent = msg; loadingModal.classList.add('active'); }
     function hideLoading() { loadingModal.classList.remove('active'); }
+    function showError(msg) { showPopup('Error', msg, 'error'); }
+    function showSuccess(msg, autoHide = true) { showPopup('Sukses', msg, 'success', { autoHide, autoHideDelay: 2000 }); }
 
-    function showErrorMessage(msg, options = {}) { showPopup('Error', msg, 'error', options); }
-    function showSuccessMessage(msg, autoHide) { showPopup('Sukses', msg, 'success', { autoHide, autoHideDelay: 2000 }); }
-    function showInfoMessage(msg, autoHide) { showPopup('Informasi', msg, 'info', { autoHide, autoHideDelay: 3000 }); }
-
-    function formatPhoneNumber(phone) {
-      let cleaned = phone.replace(/\D/g, '');
-      if (cleaned.startsWith('0')) cleaned = '+62' + cleaned.substring(1);
-      else if (cleaned.startsWith('62')) cleaned = '+' + cleaned;
-      else if (!cleaned.startsWith('+')) cleaned = '+62' + cleaned;
-      return cleaned;
-    }
-
-    function validatePhoneFormat(phone) { return /^\+62[0-9]{9,12}$/.test(phone); }
-
-    function showPhoneStatus(type, message) {
-      phoneStatus.className = 'phone-status';
-      if (type === 'available') {
-        phoneStatus.classList.add('available');
-        phoneStatusIcon.textContent = '✅';
-        phoneStatusText.textContent = message;
-      } else if (type === 'registered') {
-        phoneStatus.classList.add('registered');
-        phoneStatusIcon.textContent = 'ℹ️';
-        phoneStatusText.textContent = message;
-      } else if (type === 'error') {
-        phoneStatus.classList.add('error');
-        phoneStatusIcon.textContent = '❌';
-        phoneStatusText.textContent = message;
-      }
-      phoneStatus.style.display = 'block';
-    }
-    function hidePhoneStatus() { phoneStatus.style.display = 'none'; }
-
-    // ========== FUNGSI OTP (FIREBASE) ==========
-    async function canSendOTP(phone) {
-      const tenMinutesAgo = Date.now() - 10 * 60 * 1000;
-      const snapshot = await database.ref(`otp_codes/${phone.replace(/\+/g, '')}`).once('value');
-      const records = snapshot.val();
-      if (!records) return true;
-      // Hitung jumlah request dalam 10 menit terakhir
-      let count = 0;
-      for (let key in records) {
-        if (records[key].requested_at > tenMinutesAgo) count++;
-      }
-      return count < 3;
-    }
-
-    async function saveOTP(phone, code) {
-      const now = Date.now();
-      const expiresAt = now + 5 * 60 * 1000;
-      const newRef = database.ref(`otp_codes/${phone.replace(/\+/g, '')}`).push();
-      await newRef.set({
-        code: code,
-        requested_at: now,
-        expires_at: expiresAt,
-        verified: false
-      });
-    }
-
-    async function sendOTPviaDirectGateway(phone, code) {
-      const message = `Kode OTP Anda adalah ${code}`;
-      const no = phone.replace('+', '');
-      const params = new URLSearchParams({ user: SMS_GATEWAY_CONFIG.user, pass: SMS_GATEWAY_CONFIG.pass, no, msg: message, max: '1' });
-      const url = `${SMS_GATEWAY_CONFIG.baseUrl}?${params.toString()}`;
-      try {
-        await fetch(url, { mode: 'no-cors' });
-        return true;
-      } catch (e) {
-        console.error('SMS gateway error:', e);
-        return false;
-      }
-    }
-
-    async function sendOTP(phone) {
-      try {
-        if (!await canSendOTP(phone)) {
-          showErrorMessage('Terlalu banyak permintaan OTP. Coba lagi nanti.');
-          return false;
-        }
-        const code = Math.floor(100000 + Math.random() * 900000).toString();
-        await saveOTP(phone, code);
-        const sent = await sendOTPviaDirectGateway(phone, code);
-        if (!sent) {
-          // Hapus OTP yang baru disimpan jika gagal kirim
-          await database.ref(`otp_codes/${phone.replace(/\+/g, '')}`).orderByChild('requested_at').limitToLast(1).once('value', snap => snap.ref.remove());
-          showErrorMessage('Gagal mengirim OTP. Periksa koneksi internet atau hubungi admin.');
-          return false;
-        }
-        showInfoMessage('OTP terkirim!', true);
-        return true;
-      } catch (e) {
-        console.error('sendOTP error:', e);
-        showErrorMessage('Gagal kirim OTP: ' + e.message);
-        return false;
-      }
-    }
-
-    async function verifyOTP(phone, code) {
-      const snapshot = await database.ref(`otp_codes/${phone.replace(/\+/g, '')}`).orderByChild('requested_at').once('value');
-      const records = snapshot.val();
-      if (!records) return false;
-      // Cari OTP yang belum verified dan belum expired
-      for (let key in records) {
-        const otp = records[key];
-        if (!otp.verified && otp.code === code && otp.expires_at > Date.now()) {
-          await database.ref(`otp_codes/${phone.replace(/\+/g, '')}/${key}`).update({ verified: true });
-          return true;
-        }
-      }
-      return false;
-    }
-
-    // ========== FUNGSI CEK NOMOR DI TABEL DRIVERS ==========
-    async function checkDriverByPhone(phone) {
-      // Normalisasi phone: simpan di database tanpa '+'
-      const phoneKey = phone.replace(/\+/g, '');
-      const snapshot = await database.ref(`drivers`).orderByChild('phone').equalTo(phone).once('value');
-      let driver = null;
-      snapshot.forEach(child => { driver = child.val(); driver.id = child.key; });
-      if (driver) return { exists: true, data: driver };
-      // Coba cari dengan format lokal (0xxxx)
-      const localPhone = phone.replace(/^\+62/, '0');
-      const snapshotLocal = await database.ref(`drivers`).orderByChild('phone').equalTo(localPhone).once('value');
-      snapshotLocal.forEach(child => { driver = child.val(); driver.id = child.key; });
-      if (driver) return { exists: true, data: driver };
-      return { exists: false };
-    }
-
-    // ========== FUNGSI HANDLE STATUS DRIVER ==========
-    function handleDriverStatus(driver) {
-      const status = driver.status || 'pending';
-      const ketGagal = driver.rejection_reason || driver.block_reason || 'Tidak ada keterangan.';
+    // ================= HANDLE STATUS DRIVER =================
+    function handleDriverStatus(driverData, driverId) {
+      const status = driverData.status || 'pending';
+      const ketGagal = driverData.ketGagal || driverData.rejectionReason || driverData.blockReason || 'Tidak ada keterangan.';
 
       switch(status) {
         case 'accepted':
         case 'approved':
         case 'active':
           const sessionDriver = {
-            uid: driver.id,
-            name: driver.name,
-            phone: driver.phone,
-            email: driver.email || '',
-            address: driver.address || '',
+            userId: driverId,
+            uid: driverId,
+            name: driverData.name || driverData.fullName || '',
+            phone: driverData.phone || '',
+            email: driverData.email || '',
+            address: driverData.address || '',
             status: 'active',
             role: 'driver',
-            photoURL: driver.photoURL || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png',
-            vehicleType: driver.vehicle_type || '',
-            plateNumber: driver.plate_number || '',
-            vehicleBrand: driver.vehicle_brand || '',
-            rating: driver.rating || 5,
-            perjalanan: driver.perjalanan || 0,
-            balance: driver.balance || 0
+            fotoProfilURL: driverData.fotoProfilURL || driverData.profilePhotoUrl || '',
+            vehicleType: driverData.vehicleType || '',
+            plateNumber: driverData.plateNumber || '',
+            vehicleBrand: driverData.vehicleBrand || '',
+            idCardNumber: driverData.idCardNumber || '',
+            rating: driverData.rating || 5,
+            perjalanan: driverData.perjalanan || 0,
+            Balance: driverData.Balance || 0,
+            Potongan: driverData.Potongan || 0,
+            createdAt: driverData.createdAt || new Date().toISOString()
           };
           localStorage.setItem('jego_logged_in_driver', JSON.stringify(sessionDriver));
-          showSuccessMessage('Login berhasil! Mengalihkan...', true);
-          setTimeout(() => {
-            window.location.href = 'index.html'; // dashboard driver
-          }, 1500);
+          sendToKodular('login_success', { driver: sessionDriver });
+          showSuccess('Login berhasil!', true);
           break;
 
         case 'rejected':
@@ -787,7 +501,7 @@
               confirmText: 'Hubungi Admin',
               cancelText: 'Tutup',
               onConfirm: () => {
-                const msg = `Halo Admin JeGo, saya ${driver.name || ''} ingin menanyakan alasan penolakan akun driver saya. Status: Ditolak. Alasan: ${ketGagal}`;
+                const msg = `Halo Admin JeGo, saya ${driverData.name || ''} ingin menanyakan alasan penolakan akun driver saya. Status: Ditolak. Alasan: ${ketGagal}`;
                 window.open(`https://wa.me/6283142889149?text=${encodeURIComponent(msg)}`, '_blank');
               }
             });
@@ -803,7 +517,7 @@
               confirmText: 'Hubungi Admin',
               cancelText: 'Tutup',
               onConfirm: () => {
-                const msg = `Halo Admin JeGo, saya ${driver.name || ''} ingin menanyakan alasan pemblokiran akun driver saya. Status: Diblokir. Alasan: ${ketGagal}`;
+                const msg = `Halo Admin JeGo, saya ${driverData.name || ''} ingin menanyakan alasan pemblokiran akun driver saya. Status: Diblokir. Alasan: ${ketGagal}`;
                 window.open(`https://wa.me/6283142889149?text=${encodeURIComponent(msg)}`, '_blank');
               }
             });
@@ -814,142 +528,91 @@
             `<p>Akun driver Anda masih dalam proses verifikasi oleh admin.</p>
              <p>Proses ini biasanya membutuhkan waktu 1-2 hari kerja.</p>
              <p>Anda akan menerima notifikasi via WhatsApp setelah diverifikasi.</p>`,
-            'warning', { confirmText: 'OK' });
+            'warning');
           break;
 
         default:
-          showErrorMessage('Status akun tidak dikenal. Hubungi admin.');
+          showError('Status akun tidak dikenal. Hubungi admin.');
       }
     }
 
-    // ========== EVENT LISTENERS ==========
-    document.getElementById('phoneNumber').addEventListener('input', function() {
-      hidePhoneStatus();
-    });
+    // ================= LOGIN =================
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value;
 
-    sendOtpBtn.addEventListener('click', async function() {
-      let phone = document.getElementById('phoneNumber').value.trim();
-      if (!phone) { showErrorMessage('Masukkan nomor telepon.'); return; }
-      phone = formatPhoneNumber(phone);
-      if (!validatePhoneFormat(phone)) { showErrorMessage('Format nomor tidak valid. Gunakan +62...'); return; }
-
-      showLoading('Memeriksa nomor...');
-      const driverInfo = await checkDriverByPhone(phone);
-      hideLoading();
-
-      if (!driverInfo.exists) {
-        showErrorMessage('Nomor tidak terdaftar sebagai driver. Silakan daftar terlebih dahulu.', {
-          onConfirm: () => {
-            window.location.href = 'pendaftaranDriver.html';
-          }
-        });
+      if (!email || !password) {
+        showError('Email dan password harus diisi.');
         return;
       }
 
-      showLoading('Mengirim OTP...');
-      const otpSent = await sendOTP(phone);
-      hideLoading();
+      const loginBtn = document.getElementById('loginBtn');
+      loginBtn.disabled = true;
+      loginBtn.textContent = 'Login...';
+      showLoading('Memverifikasi kredensial...');
 
-      if (otpSent) {
-        currentPhone = phone;
-        currentDriverId = driverInfo.data.id;
-        verifiedPhoneInput.value = phone;
-        phoneForm.style.display = 'none';
-        otpSection.style.display = 'block';
-        document.getElementById('otpInput').focus();
-        startResendCountdown(60);
-      }
-    });
+      try {
+        // 1. Login ke Firebase Auth
+        const userCredential = await auth.signInWithEmailAndPassword(email, password);
+        const user = userCredential.user;
+        const uid = user.uid;
 
-    verifyOtpBtn.addEventListener('click', async function() {
-      const otp = document.getElementById('otpInput').value.trim();
-      if (!otp || otp.length !== 6 || !/^\d+$/.test(otp)) { showErrorMessage('Masukkan 6 digit OTP.'); return; }
-
-      verifyOtpBtn.disabled = true;
-      verifyOtpBtn.textContent = 'Memverifikasi...';
-
-      const valid = await verifyOTP(currentPhone, otp);
-      if (!valid) {
-        verifyOtpBtn.disabled = false;
-        verifyOtpBtn.textContent = 'Verifikasi OTP';
-        showErrorMessage('Kode OTP tidak valid atau sudah kadaluarsa.');
-        return;
-      }
-
-      showLoading('Memuat data driver...');
-      const driverInfo = await checkDriverByPhone(currentPhone);
-      hideLoading();
-
-      if (!driverInfo.exists) {
-        showErrorMessage('Data driver tidak ditemukan.');
-        verifyOtpBtn.disabled = false;
-        verifyOtpBtn.textContent = 'Verifikasi OTP';
-        return;
-      }
-
-      handleDriverStatus(driverInfo.data);
-    });
-
-    function startResendCountdown(seconds) {
-      resendOtpLink.classList.add('disabled');
-      countdownText.style.display = 'inline';
-      otpCountdown = seconds;
-      countdownElement.textContent = otpCountdown;
-      if (otpTimer) clearInterval(otpTimer);
-      otpTimer = setInterval(() => {
-        otpCountdown--;
-        countdownElement.textContent = otpCountdown;
-        if (otpCountdown <= 0) {
-          clearInterval(otpTimer);
-          resendOtpLink.classList.remove('disabled');
-          countdownText.style.display = 'none';
+        // 2. Ambil data driver dari database
+        const driverSnap = await database.ref(`drivers/${uid}`).once('value');
+        if (!driverSnap.exists()) {
+          throw new Error('Data driver tidak ditemukan. Pastikan Anda terdaftar sebagai driver.');
         }
-      }, 1000);
-    }
+        const driverData = driverSnap.val();
 
-    resendOtpLink.addEventListener('click', async function() {
-      if (resendOtpLink.classList.contains('disabled')) return;
-      showLoading('Mengirim ulang OTP...');
-      const otpSent = await sendOTP(currentPhone);
-      hideLoading();
-      if (otpSent) {
-        document.getElementById('otpInput').value = '';
-        document.getElementById('otpInput').focus();
-        startResendCountdown(60);
+        // 3. Handle status driver
+        handleDriverStatus(driverData, uid);
+      } catch (error) {
+        console.error(error);
+        let msg = 'Login gagal. ';
+        switch (error.code) {
+          case 'auth/user-not-found':
+            msg += 'Email tidak terdaftar. Silakan daftar sebagai driver.';
+            break;
+          case 'auth/wrong-password':
+            msg += 'Password salah.';
+            break;
+          case 'auth/invalid-email':
+            msg += 'Format email tidak valid.';
+            break;
+          default:
+            msg += error.message;
+        }
+        showError(msg);
+      } finally {
+        hideLoading();
+        loginBtn.disabled = false;
+        loginBtn.textContent = 'Login';
       }
     });
 
-    backToPhoneBtn.addEventListener('click', function() {
-      phoneForm.style.display = 'block';
-      otpSection.style.display = 'none';
-      currentPhone = '';
-      currentDriverId = null;
-      verifyOtpBtn.disabled = false;
-      verifyOtpBtn.textContent = 'Verifikasi OTP';
-      document.getElementById('otpInput').value = '';
+    document.getElementById('registerBtn').addEventListener('click', () => {
+      window.location.href = 'daftarDriver.html';
     });
 
-    registerBtn.addEventListener('click', function() {
-      window.location.href = 'pendaftaranDriver.html';
+    // Tutup modal jika klik overlay
+    modalOverlay.addEventListener('click', (e) => {
+      if (e.target === modalOverlay) hidePopup();
     });
 
-    // ========== INISIALISASI & CEK SESSION ==========
-    document.addEventListener('DOMContentLoaded', function() {
-      modalOverlay.addEventListener('click', function(e) { if (e.target === modalOverlay) hidePopup(); });
-      document.addEventListener('keydown', function(e) { if (e.key === 'Escape' && modalOverlay.classList.contains('active')) hidePopup(); });
-
+    // Cek session driver yang sudah login (untuk Kodular)
+    document.addEventListener('DOMContentLoaded', () => {
       const loggedInDriver = localStorage.getItem('jego_logged_in_driver');
       if (loggedInDriver) {
         try {
           const driver = JSON.parse(loggedInDriver);
           if (driver.status === 'active') {
-            window.location.href = 'index.html';
+            sendToKodular('already_logged_in', { driver: driver });
+            showSuccess('Anda sudah login.', true);
           } else {
             localStorage.removeItem('jego_logged_in_driver');
           }
-        } catch (e) {
-          localStorage.removeItem('jego_logged_in_driver');
-        }
+        } catch (e) { localStorage.removeItem('jego_logged_in_driver'); }
       }
     });
   </script>
