@@ -395,6 +395,7 @@
     let ordersRef = null, ordersListener = null;
     let modalMap = null;
     let currentSelectedOrder = null;          // { orderId, orderData }
+    let radarTextInterval = null;
     let gpsLoadingInterval = null;
     let currentDriverData = null;
     let autobidEnabled = false, driverLocation = { latitude: null, longitude: null };
@@ -407,7 +408,36 @@
     let globalCurrentUid = null;       // UID dari Firebase Auth (driver)
     let gpsReady = false;
 
-    function calculateDistance(lat1, lon1, lat2, lon2) {
+// ========== FUNGSI RADAR ==========
+function startRadarMessages() {
+  if (radarTextInterval) clearInterval(radarTextInterval);
+  const messages = ["Mencari di area yang lebih luas...", "Memindai driver terdekat...", "Menunggu order baru..."];
+  let idx = 0;
+  const titleEl = document.querySelector('#radarContainer .radar-title');
+  const subtitleEl = document.querySelector('#radarContainer .radar-subtitle');
+  if (titleEl && subtitleEl) {
+    titleEl.textContent = "Offline";
+    subtitleEl.textContent = messages[0];
+    radarTextInterval = setInterval(() => {
+      idx = (idx + 1) % messages.length;
+      subtitleEl.textContent = messages[idx];
+    }, 3000);
+  }
+}
+
+function stopRadarMessages() {
+  if (radarTextInterval) {
+    clearInterval(radarTextInterval);
+    radarTextInterval = null;
+  }
+  const titleEl = document.querySelector('#radarContainer .radar-title');
+  const subtitleEl = document.querySelector('#radarContainer .radar-subtitle');
+  if (titleEl) titleEl.textContent = "Mencari Driver Terdekat";
+  if (subtitleEl) subtitleEl.textContent = "Memindai area sekitar...";
+}
+// ==================================
+
+function calculateDistance(lat1, lon1, lat2, lon2) {
       if (!lat1 || !lon1 || !lat2 || !lon2) return null;
       const R = 6371;
       const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -557,10 +587,17 @@ addedOrders.forEach(order => {
 });
 
 if (ordersInRange.length === 0) {
-  let msg = `Tidak ada permintaan order untuk kendaraan ${driverVehicleType}`;
-  if (acceptKurirEnabled) msg += ' (termasuk kurir)';
-  ordersList.innerHTML = `<div class="empty-state"><div>🛵</div><p>${msg}</p></div>`;
+  // Tampilkan radar, sembunyikan container order
+  document.getElementById('radarContainer').style.display = 'flex';
+  document.querySelector('.container').style.display = 'none';
+  startRadarMessages();
+  ordersList.innerHTML = '';
   return;
+} else {
+  // Sembunyikan radar, tampilkan container order
+  document.getElementById('radarContainer').style.display = 'none';
+  document.querySelector('.container').style.display = 'block';
+  stopRadarMessages();
 }
 
 const sortedOrders = ordersInRange.sort((a,b) => new Date(b.created_at||0) - new Date(a.created_at||0));
@@ -801,6 +838,7 @@ renderOrdersList(sortedOrders, ordersList);
       if (orderStatusListener && countdownOrderId) {
         database.ref(`orders/${countdownOrderId}`).off('value', orderStatusListener);
       }
+      
       const container = document.getElementById('countdownContainer');
       if (container) container.style.display = 'none';
       const ambilBtn = document.getElementById('ambilBtn');
