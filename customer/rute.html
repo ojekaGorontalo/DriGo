@@ -18,7 +18,7 @@
   <script id="search-js" defer src="https://api.mapbox.com/search-js/v1.5.0/web.js"></script>
 
   <style>
-    /* ===== STYLE SAMA PERSIS SEPERTI SEBELUMNYA (DIKECUALI PENYESUAIAN Z-INDEX TIDAK MENGUBAH FUNGSI) ===== */
+    /* ===== STYLE SAMA ===== */
     :root { --primary: #FF9800; --secondary: #FF5722; --accent: #FFC107; --light: #f8f9fa; --dark: #343a40; --success: #4CAF50; --danger: #f44336; --warning: #FFC107; --info: #2196F3; --gray: #9E9E9E; --confirm-bottom: 80px; --confirm-height: 54px; --confirm-gap: 10px; }
     html, body, #map { height: 100%; margin: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
     .panel { position: absolute; top: 10px; left: 10px; right: 10px; background: rgba(255,255,255,0.98); padding: 15px; z-index: 5; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.15); box-sizing: border-box; }
@@ -110,7 +110,6 @@
   </style>
 </head>
 <body>
-  <!-- Panel dan elemen lainnya SAMA dengan kode sebelumnya (tidak diubah strukturnya) -->
   <div class="panel">
     <div id="from-container" class="input-container"></div>
     <div id="to-container" class="input-container"></div>
@@ -137,9 +136,7 @@
   <div class="popup-overlay" id="priceOfferPopup"><div class="popup"><div class="popup-header"><h3 class="popup-title">💡 Naikkan Tarif</h3><button class="popup-close" id="closePriceOfferBtn">×</button></div><div class="popup-content"><div class="popup-icon">💰</div><div class="popup-message"><p>Belum ada driver yang menerima dalam 30 detik. Coba naikkan tarif untuk menarik perhatian driver.</p><div style="margin: 15px 0; padding: 12px; background: #f8f9fa; border-radius: 8px;"><div style="font-size: 0.9rem; color: #666;">Tarif Saat Ini:</div><div style="font-size: 1.4rem; font-weight: 700; color: var(--success);" id="currentPriceDisplay">Rp 0</div></div></div><div class="popup-buttons" style="flex-direction: column; gap: 8px;"><button class="popup-button popup-button-primary" id="price10Btn">+ 10% (Rp <span id="price10">0</span>)</button><button class="popup-button popup-button-primary" id="price20Btn">+ 20% (Rp <span id="price20">0</span>)</button><button class="popup-button popup-button-warning" id="price30Btn">+ 30% (Rp <span id="price30">0</span>)</button><button class="popup-button popup-button-secondary" id="continueWaitingBtn">Tidak, Terus Tunggu</button></div></div></div></div>
 
   <script>
-    // --------------------------------------------------------------
-    // KONFIGURASI FIREBASE PROYEK BARU (jego-35a2b)
-    // --------------------------------------------------------------
+    // ==================== KONFIGURASI FIREBASE ====================
     const FIREBASE_CONFIG = {
       apiKey: "AIzaSyCD0pgeZio-LdKqYDtWxcdXcZwyL4ngYQI",
       authDomain: "jego-35a2b.firebaseapp.com",
@@ -147,20 +144,16 @@
       projectId: "jego-35a2b",
       storageBucket: "jego-35a2b.firebasestorage.app",
       messagingSenderId: "600037007040",
-      appId: "1:600037007040:web:ac3243ad9b472647ffd725",
-      measurementId: "G-H5F9TSK50K"
+      appId: "1:600037007040:web:ac3243ad9b472647ffd725"
     };
 
-    // Inisialisasi Firebase
     if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
     const auth = firebase.auth();
     const database = firebase.database();
 
-    // --------------------------------------------------------------
-    // VARIABEL GLOBAL
-    // --------------------------------------------------------------
+    // ==================== VARIABEL GLOBAL ====================
     let map;
-    let currentUser = null;           // objek user dari Firebase Auth + data DB
+    let currentUser = null;
     let currentRoute = null;
     let pickupCoord = null, destCoord = null;
     let pickupAddress = '', destAddress = '';
@@ -184,9 +177,7 @@
     let priceOfferShown = false;
     let currentZoomAnimation = null;
 
-    // --------------------------------------------------------------
-    // UTILITY
-    // --------------------------------------------------------------
+    // ==================== UTILITY ====================
     function showPopup(title, message, icon = '⚠️', onClose = null) {
       document.getElementById('popupTitle').innerText = title;
       document.getElementById('popupMessage').innerHTML = message;
@@ -223,9 +214,7 @@
 
     function escapeHtml(str) { if (!str) return ''; return str.replace(/[&<>]/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[m])); }
 
-    // --------------------------------------------------------------
-    // AMBIL DATA DARI DATABASE (HARUS LOGIN)
-    // --------------------------------------------------------------
+    // ==================== AMBIL DATA DARI DATABASE ====================
     async function fetchMapboxToken() {
       try {
         const snapshot = await database.ref('data-jego/mapbox_acces_token').once('value');
@@ -276,9 +265,7 @@
       else { transportRate = { minimal_distance: 4, minimal_price: 10000, price_per_km: 2200 }; transportIconUrl = 'https://cdn-icons-png.flaticon.com/128/5811/5811823.png'; }
     }
 
-    // --------------------------------------------------------------
-    // CEK SESSION & LOAD USER DARI FIREBASE AUTH + DB
-    // --------------------------------------------------------------
+    // ==================== CEK SESSION & LOAD USER ====================
     async function checkUserSession() {
       return new Promise((resolve, reject) => {
         const unsubscribe = auth.onAuthStateChanged(async (user) => {
@@ -350,9 +337,7 @@
       }
     }
 
-    // --------------------------------------------------------------
-    // FUNGSI PETA & RUTE (TIDAK BERUBAH)
-    // --------------------------------------------------------------
+    // ==================== FUNGSI PETA & RUTE ====================
     function getFullAddress(feature) {
       const name = feature.properties?.name;
       const fullAddress = feature.properties?.full_address || feature.properties?.address || '';
@@ -497,9 +482,7 @@
       } catch (err) { showPopup('Error', 'Gagal menghitung rute.', '⚠️'); }
     }
 
-    // --------------------------------------------------------------
-    // EFEK RADAR & ZOOM OUT (TIDAK BERUBAH)
-    // --------------------------------------------------------------
+    // ==================== EFEK RADAR ====================
     function startSlowZoomOut() {
       if (!map || !pickupCoord) return;
       if (currentZoomAnimation) { map.stop(); currentZoomAnimation = null; }
@@ -515,9 +498,7 @@
       if (pickupMarker && pickupMarker.getElement()) pickupMarker.getElement().classList.remove('radar-marker-effect');
     }
 
-    // --------------------------------------------------------------
-    // ORDER & DRIVER OFFERS (MENGGUNAKAN orders/{uid})
-    // --------------------------------------------------------------
+    // ==================== ORDER & DRIVER OFFERS (FLAT STRUCTURE) ====================
     function renderOffers(offers) {
       const container = document.getElementById('driverOfferList');
       if (!container) return;
@@ -551,18 +532,17 @@
 
     async function acceptOffer(driverId) {
       if (!currentOrderId) return;
-      await database.ref(`orders/${currentUser.id}/${currentOrderId}/driver_offers/${driverId}/status`).set('accepted');
-      await database.ref(`orders/${currentUser.id}/${currentOrderId}`).update({ status: 'accepted', driver_id: driverId, accepted_at: new Date().toISOString() });
+      await database.ref(`orders/${currentOrderId}/driver_offers/${driverId}/status`).set('accepted');
+      await database.ref(`orders/${currentOrderId}`).update({ status: 'accepted', driver_id: driverId, accepted_at: new Date().toISOString() });
       showPopup('Berhasil', 'Driver telah dipilih. Menunggu driver menuju lokasi.', '✅', () => window.location.href = 'orderAccepted.html');
       cleanupSearch();
     }
 
     async function rejectOffer(driverId) {
       if (!currentOrderId) return;
-      await database.ref(`orders/${currentUser.id}/${currentOrderId}/driver_offers/${driverId}/status`).set('rejected');
+      await database.ref(`orders/${currentOrderId}/driver_offers/${driverId}/status`).set('rejected');
     }
 
-    // Fungsi utama ketika tombol CARI DRIVER diklik
     async function confirmRoute() {
       if (!currentRoute || !currentUser) {
         showPopup('Perhatian', 'Lengkapi asal dan tujuan.', '⚠️');
@@ -582,9 +562,8 @@
       activateRadarOnPickup();
       startSlowZoomOut();
 
-      // Simpan order di orders/{userId} menggunakan push()
-      const userOrdersRef = database.ref(`orders/${currentUser.id}`);
-      const newOrderRef = userOrdersRef.push();
+      // Simpan order di root orders (flat) menggunakan push()
+      const newOrderRef = database.ref('orders').push();
       currentOrderId = newOrderRef.key;
       const orderData = {
         user_id: currentUser.id,
@@ -612,12 +591,16 @@
         orderData.item_description = deliveryData.description;
       }
       await newOrderRef.set(orderData);
+
+      // Simpan juga ke userOrders untuk riwayat customer (opsional)
+      await database.ref(`userOrders/${currentUser.id}/${currentOrderId}`).set(true);
+
       localStorage.setItem('current_order_id', currentOrderId);
       isSearching = true;
       document.getElementById('driverOffers').style.display = 'block';
 
-      // Listener status order (dalam path users/uid/orderId)
-      orderRef = database.ref(`orders/${currentUser.id}/${currentOrderId}/status`);
+      // Listener status order di root orders
+      orderRef = database.ref(`orders/${currentOrderId}/status`);
       orderStatusCallback = (snapshot) => {
         const status = snapshot.val();
         if (status === 'cancelled' || status === 'cancelled_by_user') {
@@ -629,7 +612,8 @@
       };
       orderRef.on('value', orderStatusCallback);
 
-      offersRef = database.ref(`orders/${currentUser.id}/${currentOrderId}/driver_offers`);
+      // Listener penawaran driver
+      offersRef = database.ref(`orders/${currentOrderId}/driver_offers`);
       offersCallback = (snapshot) => renderOffers(snapshot.val());
       offersRef.on('value', offersCallback);
 
@@ -666,7 +650,7 @@
     async function updateOrderPrice(newPrice) {
       if (!currentOrderId) return;
       currentPrice = newPrice;
-      await database.ref(`orders/${currentUser.id}/${currentOrderId}`).update({ price: newPrice, price_updated_at: new Date().toISOString() });
+      await database.ref(`orders/${currentOrderId}`).update({ price: newPrice, price_updated_at: new Date().toISOString() });
       showPopup('Tarif Dinaikkan', `Tarif baru: ${formatRupiah(newPrice)}. Menunggu driver...`, '💰');
     }
 
@@ -677,7 +661,7 @@
         return;
       }
       try {
-        await database.ref(`orders/${currentUser.id}/${currentOrderId}`).update({ status: 'cancelled_by_user', cancelled_at: new Date().toISOString() });
+        await database.ref(`orders/${currentOrderId}`).update({ status: 'cancelled_by_user', cancelled_at: new Date().toISOString() });
         cleanupSearch();
         localStorage.removeItem('current_order_id');
         showPopup('Pencarian Dibatalkan', 'Order berhasil dibatalkan.', 'ℹ️');
@@ -707,9 +691,7 @@
       stopSlowZoomOut();
     }
 
-    // --------------------------------------------------------------
-    // INISIALISASI
-    // --------------------------------------------------------------
+    // ==================== INISIALISASI ====================
     window.onload = async () => {
       const tokenOk = await fetchMapboxToken();
       if (!tokenOk) return;
