@@ -4,10 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
     <title>Dukungan - JeGo</title>
-    <!-- Firebase SDK -->
+    <!-- Firebase SDKs: Auth + Database (compat) -->
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
     <style>
+        /* ===== STYLE SAMA PERSIS DENGAN VERSI SEBELUMNYA (TIDAK DIUBAH) ===== */
         :root {
             --primary: #FF9800;
             --secondary: #FF5722;
@@ -338,92 +340,49 @@
     </div>
 
     <script>
-        // ==================== KONFIGURASI FIREBASE (SINKRON DENGAN FILE LAIN) ====================
+        // ========== KONFIGURASI FIREBASE PROYEK BARU (jego-35a2b) ==========
         const FIREBASE_CONFIG = {
-            apiKey: "AIzaSyDpGc_CsbNi1igA29n6qDhcX0oDkHNVscc",
-            authDomain: "game-balap-simpel.firebaseapp.com",
-            databaseURL: "https://game-balap-simpel-default-rtdb.firebaseio.com",
-            projectId: "game-balap-simpel",
-            storageBucket: "game-balap-simpel.firebasestorage.app",
-            messagingSenderId: "864576853495",
-            appId: "1:864576853495:web:6f16eb757fd3d8affb0af2"
+            apiKey: "AIzaSyCD0pgeZio-LdKqYDtWxcdXcZwyL4ngYQI",
+            authDomain: "jego-35a2b.firebaseapp.com",
+            databaseURL: "https://jego-35a2b-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "jego-35a2b",
+            storageBucket: "jego-35a2b.firebasestorage.app",
+            messagingSenderId: "600037007040",
+            appId: "1:600037007040:web:ac3243ad9b472647ffd725",
+            measurementId: "G-H5F9TSK50K"
         };
 
-        let database;
-        try {
-            if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
-            database = firebase.database();
-            console.log('✅ Firebase OK');
-        } catch(e) { console.error(e); }
+        // Inisialisasi
+        if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
+        const auth = firebase.auth();
+        const database = firebase.database();
 
         let ordersRef = null;
         let ordersListener = null;
-        let currentUser = null;
+        let currentUserData = null; // akan diisi dari Firebase Auth
         let currentFilter = 'all';
         let currentOrderId = null;
 
-        // ==================== FUNGSI UTAMA ====================
-        function getUserData() {
-            const session = localStorage.getItem('jego_logged_in_user');
-            if (!session) return null;
-            try { return JSON.parse(session); } catch { return null; }
+        // Helper functions
+        function escapeHtml(str) { if (!str) return ''; return str.replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[m])); }
+        function getStatusText(status) {
+            const map = { 'completed':'Selesai', 'cancelled':'Dibatalkan', 'accepted':'Diterima', 'on_the_way':'Dalam Perjalanan', 'waiting':'Menunggu Driver' };
+            return map[status] || status;
         }
-
-        function checkUserData() {
-            currentUser = getUserData();
-            if (!currentUser) return false;
-            // Pastikan ada uid atau phone yang bisa dipakai untuk filter order
-            return !!(currentUser.uid || currentUser.phone);
+        function getStatusClass(status) {
+            const map = { 'completed':'status-completed', 'cancelled':'status-cancelled', 'accepted':'status-accepted', 'on_the_way':'status-on_the_way' };
+            return map[status] || 'status-completed';
         }
-
-        function loadHistoryData() {
-            const ordersList = document.getElementById('ordersList');
-            if (!checkUserData()) {
-                ordersList.innerHTML = `<div class="empty-state"><div>🚫</div><p>Anda belum login. Silakan login terlebih dahulu.</p><a href="loginUser.html" style="color:var(--primary);">Login</a></div>`;
-                return;
-            }
-            ordersList.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
-            const loadingTimeout = setTimeout(() => {
-                if (ordersList.querySelector('.loading')) ordersList.innerHTML = '<div class="empty-state"><div>⚠️</div><p>Gagal memuat data. Periksa koneksi internet.</p></div>';
-            }, 10000);
-
-            if (ordersListener && ordersRef) ordersRef.off('value', ordersListener);
-            ordersRef = database.ref('orders');
-            ordersListener = ordersRef.on('value', (snapshot) => {
-                clearTimeout(loadingTimeout);
-                const orders = snapshot.val();
-                if (!orders) { ordersList.innerHTML = '<div class="empty-state"><div>📭</div><p>Tidak ada riwayat perjalanan</p></div>'; return; }
-
-                // Filter order milik user yang login: berdasarkan user_id atau customer_name atau phone
-                const userId = currentUser.uid;
-                const userPhone = currentUser.phone;
-                const userName = currentUser.name;
-
-                const userOrders = Object.entries(orders)
-                    .map(([id, order]) => ({ id, ...order }))
-                    .filter(order => {
-                        // Cek apakah order milik user ini
-                        if (userId && order.user_id === userId) return true;
-                        if (userPhone && order.user_phone === userPhone) return true;
-                        if (userPhone && order.sender_phone === userPhone) return true; // untuk kurir
-                        if (userName && order.customer_name === userName) return true; // fallback
-                        return false;
-                    })
-                    .filter(order => ['completed', 'cancelled', 'accepted', 'on_the_way'].includes(order.status))
-                    .sort((a,b) => new Date(b.created_at||0) - new Date(a.created_at||0));
-
-                if (userOrders.length === 0) {
-                    ordersList.innerHTML = '<div class="empty-state"><div>📭</div><p>Tidak ada riwayat perjalanan untuk akun ini</p></div>';
-                    return;
-                }
-                const ordersByDate = groupOrdersByDate(userOrders);
-                displayFilteredOrders(ordersByDate);
-            }, (error) => {
-                clearTimeout(loadingTimeout);
-                console.error(error);
-                ordersList.innerHTML = '<div class="empty-state"><div>❌</div><p>Terjadi kesalahan saat memuat data.</p></div>';
-            });
+        function formatDisplayDate(dateStr) {
+            const date = new Date(dateStr); const today = new Date(); const yesterday = new Date(today); yesterday.setDate(yesterday.getDate()-1);
+            if (date.toDateString() === today.toDateString()) return 'Hari Ini';
+            if (date.toDateString() === yesterday.toDateString()) return 'Kemarin';
+            return date.toLocaleDateString('id-ID', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
         }
+        function formatOrderTime(dateStr) { return new Date(dateStr).toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit' }); }
+        function formatFullTime(dateStr) { return dateStr ? new Date(dateStr).toLocaleString('id-ID', { day:'numeric', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' }) : '-'; }
+        function isThisWeek(date) { const today = new Date(); const start = new Date(today); start.setDate(today.getDate()-today.getDay()); start.setHours(0,0,0,0); const end = new Date(today); end.setDate(today.getDate()+(6-today.getDay())); end.setHours(23,59,59,999); return date>=start && date<=end; }
+        function isThisMonth(date) { const today = new Date(); return date.getMonth()===today.getMonth() && date.getFullYear()===today.getFullYear(); }
 
         function groupOrdersByDate(orders) {
             const groups = {};
@@ -441,7 +400,6 @@
             ordersList.innerHTML = '';
             const sortedDates = Object.keys(ordersByDate).sort((a,b) => new Date(b) - new Date(a));
             let hasOrders = false;
-
             for (const date of sortedDates) {
                 const orders = ordersByDate[date];
                 let filtered = orders;
@@ -476,7 +434,6 @@
             const statusText = getStatusText(order.status);
             const statusClass = getStatusClass(order.status);
             const orderTime = formatOrderTime(order.completed_at || order.created_at);
-
             item.innerHTML = `
                 <div class="order-header">
                     <div class="customer-name">${escapeHtml(driverName)} ${isKurir ? '<span class="kurir-badge">📦 KURIR</span>' : ''}${hasPromo ? '<span class="promo-badge">🎁 PROMO</span>' : ''}</div>
@@ -496,27 +453,6 @@
             item.addEventListener('click', () => showOrderDetail(order));
             return item;
         }
-
-        function escapeHtml(str) { if (!str) return ''; return str.replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[m])); }
-
-        function getStatusText(status) {
-            const map = { 'completed':'Selesai', 'cancelled':'Dibatalkan', 'accepted':'Diterima', 'on_the_way':'Dalam Perjalanan', 'waiting':'Menunggu Driver' };
-            return map[status] || status;
-        }
-        function getStatusClass(status) {
-            const map = { 'completed':'status-completed', 'cancelled':'status-cancelled', 'accepted':'status-accepted', 'on_the_way':'status-on_the_way' };
-            return map[status] || 'status-completed';
-        }
-        function formatDisplayDate(dateStr) {
-            const date = new Date(dateStr); const today = new Date(); const yesterday = new Date(today); yesterday.setDate(yesterday.getDate()-1);
-            if (date.toDateString() === today.toDateString()) return 'Hari Ini';
-            if (date.toDateString() === yesterday.toDateString()) return 'Kemarin';
-            return date.toLocaleDateString('id-ID', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
-        }
-        function formatOrderTime(dateStr) { return new Date(dateStr).toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit' }); }
-        function formatFullTime(dateStr) { return dateStr ? new Date(dateStr).toLocaleString('id-ID', { day:'numeric', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' }) : '-'; }
-        function isThisWeek(date) { const today = new Date(); const start = new Date(today); start.setDate(today.getDate()-today.getDay()); start.setHours(0,0,0,0); const end = new Date(today); end.setDate(today.getDate()+(6-today.getDay())); end.setHours(23,59,59,999); return date>=start && date<=end; }
-        function isThisMonth(date) { const today = new Date(); return date.getMonth()===today.getMonth() && date.getFullYear()===today.getFullYear(); }
 
         function showOrderDetail(order) {
             currentOrderId = order.id;
@@ -555,17 +491,88 @@
         }
         function closeCsModal() { document.getElementById('csModal').style.display = 'none'; }
         function copyToClipboard(text) { navigator.clipboard.writeText(text).then(() => alert('Teks berhasil disalin: '+text)); }
-
         function changeFilter(filter) {
             currentFilter = filter;
             document.querySelectorAll('.filter-option').forEach(opt => opt.classList.toggle('active', opt.dataset.filter === filter));
             loadHistoryData();
         }
-
         function goBack() { window.history.back(); }
 
+        // Fungsi utama memuat data order dari path /orders/{uid}
+        function loadHistoryData() {
+            const ordersList = document.getElementById('ordersList');
+            if (!currentUserData || !currentUserData.uid) {
+                ordersList.innerHTML = `<div class="empty-state"><div>🚫</div><p>Anda belum login. Silakan login terlebih dahulu.</p><a href="loginUser.html" style="color:var(--primary);">Login</a></div>`;
+                return;
+            }
+            ordersList.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+            const loadingTimeout = setTimeout(() => {
+                if (ordersList.querySelector('.loading')) ordersList.innerHTML = '<div class="empty-state"><div>⚠️</div><p>Gagal memuat data. Periksa koneksi internet.</p></div>';
+            }, 10000);
+
+            if (ordersListener && ordersRef) ordersRef.off('value', ordersListener);
+            // Path baru: orders/{uid}
+            ordersRef = database.ref(`orders/${currentUserData.uid}`);
+            ordersListener = ordersRef.on('value', (snapshot) => {
+                clearTimeout(loadingTimeout);
+                const orders = snapshot.val();
+                if (!orders) {
+                    ordersList.innerHTML = '<div class="empty-state"><div>📭</div><p>Tidak ada riwayat perjalanan</p></div>';
+                    return;
+                }
+                const userOrders = Object.entries(orders)
+                    .map(([id, order]) => ({ id, ...order }))
+                    .filter(order => ['completed', 'cancelled', 'accepted', 'on_the_way'].includes(order.status))
+                    .sort((a,b) => new Date(b.created_at||0) - new Date(a.created_at||0));
+                if (userOrders.length === 0) {
+                    ordersList.innerHTML = '<div class="empty-state"><div>📭</div><p>Tidak ada riwayat perjalanan untuk akun ini</p></div>';
+                    return;
+                }
+                const ordersByDate = groupOrdersByDate(userOrders);
+                displayFilteredOrders(ordersByDate);
+            }, (error) => {
+                clearTimeout(loadingTimeout);
+                console.error(error);
+                ordersList.innerHTML = '<div class="empty-state"><div>❌</div><p>Terjadi kesalahan saat memuat data.</p></div>';
+            });
+        }
+
+        // Inisialisasi: cek user via Firebase Auth
         document.addEventListener('DOMContentLoaded', () => {
-            loadHistoryData();
+            auth.onAuthStateChanged(async (user) => {
+                if (!user) {
+                    // Tidak login, redirect ke login
+                    window.location.href = 'loginUser.html';
+                    return;
+                }
+                try {
+                    const uid = user.uid;
+                    const snapshot = await database.ref(`users/${uid}`).once('value');
+                    const userProfile = snapshot.val();
+                    if (!userProfile || userProfile.status === 'delete_account') {
+                        await auth.signOut();
+                        localStorage.removeItem('jego_logged_in_user');
+                        window.location.href = 'loginUser.html';
+                        return;
+                    }
+                    currentUserData = {
+                        uid: uid,
+                        name: userProfile.name,
+                        phone: userProfile.phone,
+                        email: userProfile.email,
+                        rating: userProfile.rating,
+                        perjalanan: userProfile.perjalanan
+                    };
+                    // Simpan ke localStorage untuk kompatibilitas (opsional)
+                    localStorage.setItem('jego_logged_in_user', JSON.stringify(currentUserData));
+                    loadHistoryData();
+                } catch (err) {
+                    console.error('Gagal memuat data user:', err);
+                    document.getElementById('ordersList').innerHTML = '<div class="empty-state"><div>❌</div><p>Gagal memuat profil user.</p></div>';
+                }
+            });
+
+            // Event listeners UI
             document.getElementById('backBtn').addEventListener('click', goBack);
             document.getElementById('closeModal').addEventListener('click', closeModal);
             document.getElementById('hubungiDukunganBtn').addEventListener('click', showCsModal);
@@ -576,7 +583,7 @@
             document.querySelectorAll('.copy-btn').forEach(btn => btn.addEventListener('click', () => copyToClipboard(btn.dataset.text)));
             document.querySelectorAll('.filter-option').forEach(opt => opt.addEventListener('click', () => changeFilter(opt.dataset.filter)));
         });
-        document.addEventListener('visibilitychange', () => { if(!document.hidden) loadHistoryData(); });
+        document.addEventListener('visibilitychange', () => { if(!document.hidden && currentUserData) loadHistoryData(); });
     </script>
 </body>
 </html>
