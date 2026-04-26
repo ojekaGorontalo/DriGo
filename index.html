@@ -336,6 +336,7 @@
     let ordersRef = null, ordersListener = null;
     let modalMap = null;
     let currentSelectedOrder = null;          // { orderId, orderData }
+    let gpsLoadingInterval = null;
     let currentDriverData = null;
     let autobidEnabled = false, driverLocation = { latitude: null, longitude: null };
     let locationWatchId = null, locationTrackingEnabled = false;
@@ -399,9 +400,21 @@
       
        // TAMBAHKAN BLOK INI - CEK GPS READY
   if (!gpsReady || !driverLocation.latitude || !driverLocation.longitude) {
-    ordersList.innerHTML = '<div class="loading"><div class="spinner"></div><p>Mendapatkan sinyal GPS...</p></div>';
+    const messages = ["Mendeteksi lokasi...", "Menunggu GPS menyala...", "Sedang mencari lokasi yang tepat..."];
+    let msgIndex = 0;
+    // Hentikan interval sebelumnya jika ada
+    if (gpsLoadingInterval) clearInterval(gpsLoadingInterval);
+    
+    ordersList.innerHTML = `<div class="loading"><div class="spinner"></div><p id="gpsLoadingMessage">${messages[0]}</p></div>`;
+    
+    // Mulai rotasi pesan setiap 3 detik
+    gpsLoadingInterval = setInterval(() => {
+        msgIndex = (msgIndex + 1) % messages.length;
+        const msgElement = document.getElementById('gpsLoadingMessage');
+        if (msgElement) msgElement.textContent = messages[msgIndex];
+    }, 3000);
     return;
-  }
+}
 
       // Pastikan vehicleType tersedia
       if (!currentDriverData?.vehicleType) {
@@ -788,8 +801,13 @@
       
       if (!gpsReady) {
     gpsReady = true;
+    // Hentikan rotasi pesan loading GPS
+    if (gpsLoadingInterval) {
+        clearInterval(gpsLoadingInterval);
+        gpsLoadingInterval = null;
+    }
     loadOrders();   // setelah GPS siap, muat order
-  }
+}
   
       if (locationTrackingEnabled && currentDriverData && globalCurrentUid) {
         database.ref('drivers/' + globalCurrentUid).update({
@@ -933,6 +951,7 @@
     });
 
     window.addEventListener('beforeunload', () => { if (locationWatchId) navigator.geolocation.clearWatch(locationWatchId); });
+    if (gpsLoadingInterval) clearInterval(gpsLoadingInterval);
   </script>
 </body>
 </html>
