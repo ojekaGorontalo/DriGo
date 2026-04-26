@@ -4,11 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Akun Saya - JeGo</title>
-    <!-- Firebase SDK -->
-    <script src="https://www.gstatic.com/firebasejs/11.0.2/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/11.0.2/firebase-database-compat.js"></script>
+    <!-- Firebase SDKs: Auth + Database -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
     <style>
-        /* ... (styles tetap sama) ... */
         :root {
             --primary: #FF9800;
             --secondary: #FF5722;
@@ -589,7 +589,6 @@
                 <ul style="margin:10px 0 10px 20px;">
                     <li>Status akun akan diubah menjadi <strong>delete_account</strong></li>
                     <li>Anda tidak dapat login kembali dengan akun ini</li>
-                    <li>Anda tidak dapat mendaftar ulang dengan nomor telepon yang sama</li>
                     <li>Semua data akan dihapus permanen</li>
                 </ul>
                 <p>Apakah Anda yakin ingin melanjutkan?</p>
@@ -619,7 +618,7 @@
         </div>
     </div>
     
-    <!-- Modal Edit Profil (Nama & Foto) - Tanpa input URL -->
+    <!-- Modal Edit Profil (Nama & Foto) - Menggunakan upload langsung -->
     <div id="editProfileModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
@@ -657,21 +656,21 @@
     </footer>
 
     <script>
-        // ======================= KONFIGURASI FIREBASE =======================
-        const firebaseConfig = {
-            apiKey: "AIzaSyDpGc_CsbNi1igA29n6qDhcX0oDkHNVscc",
-            authDomain: "game-balap-simpel.firebaseapp.com",
-            databaseURL: "https://game-balap-simpel-default-rtdb.firebaseio.com",
-            projectId: "game-balap-simpel",
-            storageBucket: "game-balap-simpel.firebasestorage.app",
-            messagingSenderId: "864576853495",
-            appId: "1:864576853495:web:6f16eb757fd3d8affb0af2"
+        // ========== KONFIGURASI FIREBASE PROYEK BARU (jego-35a2b) ==========
+        const FIREBASE_CONFIG = {
+            apiKey: "AIzaSyCD0pgeZio-LdKqYDtWxcdXcZwyL4ngYQI",
+            authDomain: "jego-35a2b.firebaseapp.com",
+            databaseURL: "https://jego-35a2b-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "jego-35a2b",
+            storageBucket: "jego-35a2b.firebasestorage.app",
+            messagingSenderId: "600037007040",
+            appId: "1:600037007040:web:ac3243ad9b472647ffd725",
+            measurementId: "G-H5F9TSK50K"
         };
 
-        // Inisialisasi Firebase hanya jika belum ada
-        if (!firebase.apps.length) {
-            firebase.initializeApp(firebaseConfig);
-        }
+        // Inisialisasi
+        if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
+        const auth = firebase.auth();
         const database = firebase.database();
 
         // Elemen DOM
@@ -699,8 +698,6 @@
         const closeLogoutModal = document.getElementById('closeLogoutModal');
         const cancelLogout = document.getElementById('cancelLogout');
         const confirmLogout = document.getElementById('confirmLogout');
-        
-        // Elemen Modal Edit Profil
         const editProfileModal = document.getElementById('editProfileModal');
         const closeEditModal = document.getElementById('closeEditModal');
         const cancelEdit = document.getElementById('cancelEdit');
@@ -710,15 +707,21 @@
         const uploadPhotoBtn = document.getElementById('uploadPhotoBtn');
         const photoPreview = document.getElementById('photoPreview');
         const uploadStatus = document.getElementById('uploadStatus');
-        
-        // Variabel global
+
+        // Variabel
         let currentUserData = null;
         let currentUid = null;
         let newPhotoURL = null;
         let isUploading = false;
         let imgbbApiKey = null;
 
-        // Helper functions
+        // Helper
+        function showAlert(el, msg, isSuccess = true) {
+            if (msg) el.textContent = msg;
+            el.style.display = 'block';
+            setTimeout(() => el.style.display = 'none', 4000);
+        }
+
         function getInitials(name) {
             if (!name || name === '-') return 'U';
             return name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
@@ -731,42 +734,14 @@
             } catch { return '-'; }
         }
 
-        function showAlert(el, msg, isSuccess = true) {
-            if (msg) el.textContent = msg;
-            el.style.display = 'block';
-            setTimeout(() => el.style.display = 'none', 4000);
-        }
-
-        // Fungsi untuk mengambil API Key ImgBB dari Firebase
-        // Fungsi untuk mengambil API Key ImgBB dari Firebase
-async function fetchImgbbApiKey() {
-    try {
-        // 🔧 PERBAIKAN: Path disesuaikan dengan struktur Firebase
-        const snapshot = await database.ref('data-jego/ApiKey_imgbb').once('value');
-        const key = snapshot.val();
-        console.log('Raw data dari Firebase:', key); // Debugging: lihat apa yang diterima
-        
-        if (key && typeof key === 'string' && key.length > 0) {
-            imgbbApiKey = key;
-            console.log('✅ ImgBB API Key berhasil dimuat');
-        } else {
-            throw new Error('API Key tidak valid atau kosong di database');
-        }
-    } catch (error) {
-        console.error('❌ Gagal mengambil ImgBB API Key:', error);
-        showAlert(errorAlert, 'Gagal mengambil konfigurasi upload foto. Silakan muat ulang halaman.', false);
-        throw error;
-    }
-}
-
         function displayUserData(data) {
+            if (!data) return;
             currentUserData = data;
             userName.textContent = data.name || '-';
             userEmail.textContent = data.email || '-';
             userEmailDetail.textContent = data.email || '-';
             userPhone.textContent = data.phone || '-';
             userAddress.textContent = data.address || '-';
-            
             const rating = data.rating !== undefined ? parseFloat(data.rating).toFixed(1) : '0.0';
             userRating.textContent = `${rating} ⭐`;
             userPerjalanan.textContent = (data.perjalanan || 0) + ' kali';
@@ -788,69 +763,72 @@ async function fetchImgbbApiKey() {
                 avatarInitials.style.display = 'flex';
                 avatarInitials.textContent = getInitials(data.name);
             }
-
             deleteAccountBtn.style.display = (status === 'delete_account') ? 'none' : 'block';
         }
 
-        function logout() {
-            localStorage.removeItem('jego_logged_in_user');
-            window.location.href = 'loginUser.html';
-        }
-
-        async function updateAccountStatus(uid) {
-            const userRef = database.ref(`users/${uid}`);
+        // Ambil API key ImgBB dari database (node data-jego)
+        async function fetchImgbbApiKey() {
             try {
-                await userRef.update({ 
-                    status: 'delete_account',
-                    deleted_at: new Date().toISOString()
-                });
-                return true;
+                const snapshot = await database.ref('data-jego/imgBBapiKey').once('value');
+                const key = snapshot.val();
+                if (key && typeof key === 'string' && key.length > 0) {
+                    imgbbApiKey = key;
+                    console.log("✅ ImgBB API key dimuat");
+                    return true;
+                } else {
+                    throw new Error('API Key tidak ditemukan');
+                }
             } catch (err) {
-                console.error(err);
+                console.error('❌ Gagal ambil ApiKey_imgbb:', err);
+                showAlert(errorAlert, 'Gagal memuat konfigurasi upload foto. Fitur edit foto tidak tersedia.', false);
                 return false;
             }
         }
 
-        // Fungsi upload ke ImgBB
+        // Upload ke ImgBB
         async function uploadToImgbb(file) {
-            if (!imgbbApiKey) {
-                throw new Error('API Key tidak tersedia. Silakan muat ulang halaman.');
-            }
-
-            if (file.size > 5 * 1024 * 1024) {
-                throw new Error('Ukuran file terlalu besar. Maksimal 5MB.');
-            }
-
+            if (!imgbbApiKey) throw new Error('API Key tidak tersedia');
+            if (file.size > 5 * 1024 * 1024) throw new Error('Ukuran file maksimal 5MB');
             const formData = new FormData();
             formData.append('image', file);
             const url = `https://api.imgbb.com/1/upload?key=${imgbbApiKey}`;
-            
+            const response = await fetch(url, { method: 'POST', body: formData, mode: 'cors' });
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const result = await response.json();
+            if (result.success) return result.data.url;
+            else throw new Error(result.error?.message || 'Upload gagal');
+        }
+
+        // Fungsi untuk logout (signOut dari Firebase Auth + hapus localStorage)
+        async function logoutUser() {
             try {
-                const response = await fetch(url, {
-                    method: 'POST',
-                    body: formData,
-                    mode: 'cors'
-                });
-                
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                }
-                
-                const result = await response.json();
-                console.log('ImgBB response:', result);
-                
-                if (result.success) {
-                    return result.data.url;
-                } else {
-                    throw new Error(result.error?.message || 'Upload gagal');
-                }
-            } catch (error) {
-                console.error('Upload error detail:', error);
-                throw new Error('Gagal upload gambar: ' + error.message);
+                await auth.signOut();
+                localStorage.removeItem('jego_logged_in_user');
+                window.location.href = 'loginUser.html';
+            } catch (err) {
+                console.error('Logout error:', err);
+                showAlert(errorAlert, 'Gagal logout, coba lagi.', false);
             }
         }
 
-        // Buka modal edit profil
+        // Hapus akun (ubah status menjadi delete_account)
+        async function deleteAccount(uid) {
+            try {
+                await database.ref(`users/${uid}`).update({
+                    status: 'delete_account',
+                    deleted_at: new Date().toISOString()
+                });
+                await auth.signOut();
+                localStorage.removeItem('jego_logged_in_user');
+                showAlert(successAlert, 'Akun berhasil dihapus. Redirecting...', true);
+                setTimeout(() => window.location.href = 'loginUser.html', 2000);
+            } catch (err) {
+                console.error(err);
+                showAlert(errorAlert, 'Gagal menghapus akun: ' + err.message, false);
+            }
+        }
+
+        // Modal edit profil
         function openEditProfile() {
             if (!currentUserData) return;
             editName.value = currentUserData.name || '';
@@ -860,7 +838,6 @@ async function fetchImgbbApiKey() {
             photoPreview.src = currentPhoto;
             editProfileModal.style.display = 'flex';
         }
-
         function closeEditProfileModal() {
             editProfileModal.style.display = 'none';
             photoFile.value = '';
@@ -869,12 +846,11 @@ async function fetchImgbbApiKey() {
             isUploading = false;
         }
 
-        // Event upload foto
+        // Event listener upload foto
         uploadPhotoBtn.addEventListener('click', () => {
             if (isUploading) return;
             photoFile.click();
         });
-        
         photoFile.addEventListener('change', async (e) => {
             const file = e.target.files[0];
             if (!file) return;
@@ -882,18 +858,13 @@ async function fetchImgbbApiKey() {
                 showAlert(errorAlert, 'Hanya file gambar yang diperbolehkan!', false);
                 return;
             }
-            
             const reader = new FileReader();
-            reader.onload = (ev) => {
-                photoPreview.src = ev.target.result;
-            };
+            reader.onload = (ev) => { photoPreview.src = ev.target.result; };
             reader.readAsDataURL(file);
-            
             isUploading = true;
             uploadPhotoBtn.disabled = true;
             uploadPhotoBtn.innerHTML = 'Mengupload... <span class="loading-small"></span>';
             uploadStatus.innerHTML = 'Sedang mengupload foto...';
-            
             try {
                 const imageUrl = await uploadToImgbb(file);
                 newPhotoURL = imageUrl;
@@ -904,167 +875,124 @@ async function fetchImgbbApiKey() {
                 console.error(err);
                 uploadStatus.innerHTML = '❌ Gagal upload foto. Silakan coba lagi.';
                 showAlert(errorAlert, err.message, false);
-                photoPreview.src = currentUserData.photoURL || '';
+                photoPreview.src = currentUserData?.photoURL || '';
                 newPhotoURL = null;
             } finally {
                 isUploading = false;
                 uploadPhotoBtn.disabled = false;
                 uploadPhotoBtn.innerHTML = '📷 Upload Foto Baru';
-                setTimeout(() => {
-                    if (uploadStatus.innerHTML !== '❌ Gagal upload foto. Silakan coba lagi.') {
-                        uploadStatus.innerHTML = '';
-                    }
-                }, 3000);
+                setTimeout(() => { if (uploadStatus.innerHTML !== '❌ Gagal upload foto. Silakan coba lagi.') uploadStatus.innerHTML = ''; }, 3000);
             }
         });
-        
-        // Simpan perubahan
+
+        // Simpan perubahan nama/foto
         saveEdit.addEventListener('click', async () => {
             const newName = editName.value.trim();
             if (!newName) {
                 showAlert(errorAlert, 'Nama tidak boleh kosong!', false);
                 return;
             }
-            
             const nameChanged = (newName !== currentUserData.name);
             const photoChanged = (newPhotoURL !== null && newPhotoURL !== currentUserData.photoURL);
-            
             if (!nameChanged && !photoChanged) {
                 closeEditProfileModal();
                 return;
             }
-            
             saveEdit.disabled = true;
             saveEdit.innerHTML = 'Menyimpan...';
-            
             try {
                 const updates = {};
                 if (nameChanged) updates.name = newName;
                 if (photoChanged) updates.photoURL = newPhotoURL;
-                
                 await database.ref(`users/${currentUid}`).update(updates);
-                
+                // Update local data dan session
+                const updatedData = { ...currentUserData, ...updates };
+                displayUserData(updatedData);
                 const session = localStorage.getItem('jego_logged_in_user');
                 if (session) {
                     const user = JSON.parse(session);
-                    const updatedUser = { ...user, ...updates };
-                    localStorage.setItem('jego_logged_in_user', JSON.stringify(updatedUser));
-                    displayUserData(updatedUser);
-                } else {
-                    const snapshot = await database.ref(`users/${currentUid}`).once('value');
-                    displayUserData(snapshot.val());
+                    const newSession = { ...user, ...updates };
+                    localStorage.setItem('jego_logged_in_user', JSON.stringify(newSession));
                 }
                 showAlert(successAlert, 'Profil berhasil diperbarui!', true);
                 closeEditProfileModal();
             } catch (err) {
                 console.error(err);
-                showAlert(errorAlert, 'Gagal menyimpan perubahan: ' + err.message, false);
+                showAlert(errorAlert, 'Gagal menyimpan: ' + err.message, false);
             } finally {
                 saveEdit.disabled = false;
                 saveEdit.innerHTML = 'Simpan Perubahan';
             }
         });
-        
-        // Event listeners untuk modal edit
+
+        // Event listeners modals
         userAvatar.addEventListener('click', openEditProfile);
         userName.addEventListener('click', openEditProfile);
         closeEditModal.addEventListener('click', closeEditProfileModal);
         cancelEdit.addEventListener('click', closeEditProfileModal);
-        
-        // Tutup modal jika klik di luar
         window.addEventListener('click', (e) => {
             if (e.target === editProfileModal) closeEditProfileModal();
             if (e.target === deleteAccountModal) deleteAccountModal.style.display = 'none';
             if (e.target === logoutModal) logoutModal.style.display = 'none';
         });
-        
-        // Logout & hapus akun
-        logoutBtn.addEventListener('click', (e) => { e.preventDefault(); logoutModal.style.display = 'flex'; });
+        logoutBtn.addEventListener('click', () => logoutModal.style.display = 'flex');
         deleteAccountBtn.addEventListener('click', () => deleteAccountModal.style.display = 'flex');
         closeModal.addEventListener('click', () => deleteAccountModal.style.display = 'none');
         cancelDelete.addEventListener('click', () => deleteAccountModal.style.display = 'none');
         closeLogoutModal.addEventListener('click', () => logoutModal.style.display = 'none');
         cancelLogout.addEventListener('click', () => logoutModal.style.display = 'none');
-        confirmLogout.addEventListener('click', () => { logoutModal.style.display = 'none'; logout(); });
-
+        confirmLogout.addEventListener('click', () => { logoutModal.style.display = 'none'; logoutUser(); });
         confirmDelete.addEventListener('click', async () => {
-            const session = localStorage.getItem('jego_logged_in_user');
-            if (!session) {
-                showAlert(errorAlert, 'Tidak ada sesi aktif');
-                deleteAccountModal.style.display = 'none';
-                return;
-            }
-            try {
-                const user = JSON.parse(session);
-                const uid = user.uid;
-                if (!uid) throw new Error('UID tidak ditemukan');
-                const success = await updateAccountStatus(uid);
-                if (success) {
-                    localStorage.removeItem('jego_logged_in_user');
-                    showAlert(successAlert, 'Akun berhasil dihapus. Mengalihkan...', true);
-                    setTimeout(() => window.location.href = 'loginUser.html', 3000);
-                } else {
-                    showAlert(errorAlert, 'Gagal menghapus akun. Coba lagi.', false);
-                }
-            } catch (e) {
-                console.error(e);
-                showAlert(errorAlert, 'Kesalahan data', false);
-            } finally {
-                deleteAccountModal.style.display = 'none';
-            }
+            if (!currentUid) return;
+            deleteAccountModal.style.display = 'none';
+            await deleteAccount(currentUid);
         });
 
-        // Inisialisasi halaman: ambil API Key terlebih dahulu
+        // INISIALISASI: pastikan user login via Firebase Auth
         document.addEventListener('DOMContentLoaded', async () => {
-            try {
-                await fetchImgbbApiKey();
-            } catch (error) {
-                console.error('Gagal memuat konfigurasi awal:', error);
-                showAlert(errorAlert, 'Gagal memuat konfigurasi aplikasi. Fitur upload foto mungkin tidak berfungsi.', false);
-            }
+            // Ambil API key untuk upload foto (opsional)
+            await fetchImgbbApiKey();
 
-            const session = localStorage.getItem('jego_logged_in_user');
-            if (!session) {
-                window.location.href = 'loginUser.html';
-                return;
-            }
-
-            let user;
-            try {
-                user = JSON.parse(session);
-                if (user.status === 'delete_account') {
-                    alert('Akun telah dihapus');
-                    logout();
+            // Cek status auth
+            auth.onAuthStateChanged(async (user) => {
+                if (!user) {
+                    // Jika tidak ada user, redirect ke login
+                    window.location.href = 'loginUser.html';
                     return;
                 }
                 currentUid = user.uid;
-                displayUserData(user);
-            } catch (e) {
-                console.error(e);
-                window.location.href = 'loginUser.html';
-                return;
-            }
-
-            const uid = user.uid;
-            if (uid) {
                 try {
-                    const snapshot = await database.ref(`users/${uid}`).once('value');
-                    const firebaseData = snapshot.val();
-                    if (firebaseData) {
-                        const merged = { ...user, ...firebaseData };
-                        if (!merged.photoURL && user.photoURL) merged.photoURL = user.photoURL;
-                        displayUserData(merged);
-                        localStorage.setItem('jego_logged_in_user', JSON.stringify(merged));
-                        if (firebaseData.status === 'delete_account') {
-                            alert('Akun telah dihapus');
-                            logout();
-                        }
+                    const snapshot = await database.ref(`users/${currentUid}`).once('value');
+                    const data = snapshot.val();
+                    if (!data) throw new Error('Data user tidak ditemukan');
+                    if (data.status === 'delete_account') {
+                        await auth.signOut();
+                        localStorage.removeItem('jego_logged_in_user');
+                        alert('Akun telah dihapus. Silakan daftar ulang.');
+                        window.location.href = 'registrasi_jego.html';
+                        return;
                     }
+                    displayUserData(data);
+                    // Simpan ke localStorage untuk kompatibilitas dengan halaman lain
+                    const session = {
+                        userId: currentUid,
+                        uid: currentUid,
+                        name: data.name,
+                        phone: data.phone,
+                        email: data.email,
+                        address: data.address,
+                        gender: data.gender,
+                        status: data.status,
+                        photoURL: data.photoURL,
+                        rating: data.rating,
+                        perjalanan: data.perjalanan
+                    };
+                    localStorage.setItem('jego_logged_in_user', JSON.stringify(session));
                 } catch (err) {
-                    console.error('Gagal membaca data dari Firebase:', err);
-                    showAlert(errorAlert, 'Gagal menyinkronkan data. Menampilkan data lokal.', false);
+                    console.error(err);
+                    showAlert(errorAlert, 'Gagal memuat data user. Silakan logout dan login ulang.', false);
                 }
-            }
+            });
         });
     </script>
 </body>
