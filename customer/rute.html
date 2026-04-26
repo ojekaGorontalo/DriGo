@@ -4,20 +4,21 @@
   <meta charset="utf-8" />
   <title>Rute - JeGo (Mapbox)</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-  
-  <!-- Firebase SDK (sama dengan jenis_kenderaan.html) -->
+
+  <!-- Firebase SDKs: Auth + Database (compat) -->
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
 
   <!-- Mapbox CSS & JS -->
   <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet" />
   <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
-  
+
   <!-- Mapbox Search JS -->
   <script id="search-js" defer src="https://api.mapbox.com/search-js/v1.5.0/web.js"></script>
 
   <style>
-    /* ===== STYLE ===== */
+    /* ===== STYLE SAMA PERSIS SEPERTI SEBELUMNYA (DIKECUALI PENYESUAIAN Z-INDEX TIDAK MENGUBAH FUNGSI) ===== */
     :root { --primary: #FF9800; --secondary: #FF5722; --accent: #FFC107; --light: #f8f9fa; --dark: #343a40; --success: #4CAF50; --danger: #f44336; --warning: #FFC107; --info: #2196F3; --gray: #9E9E9E; --confirm-bottom: 80px; --confirm-height: 54px; --confirm-gap: 10px; }
     html, body, #map { height: 100%; margin: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
     .panel { position: absolute; top: 10px; left: 10px; right: 10px; background: rgba(255,255,255,0.98); padding: 15px; z-index: 5; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.15); box-sizing: border-box; }
@@ -39,23 +40,10 @@
     .stat-value { font-weight: 600; color: var(--primary); font-size: 1rem; }
     .stat-label { font-size: 0.75rem; color: #666; }
     .price-highlight { font-weight: 700; color: var(--success); font-size: 1.1rem; }
-    /* PERBAIKAN: z-index lebih tinggi dan stabil */
     .confirm-btn, .cancel-btn {
-      position: fixed;
-      bottom: 20px;
-      left: 20px;
-      right: 20px;
-      color: white;
-      border: none;
-      border-radius: 10px;
-      padding: 16px;
-      font-size: 16px;
-      font-weight: 600;
-      cursor: pointer;
-      box-shadow: 0 4px 10px rgba(0,0,0,0.2);
-      z-index: 10000;
-      transition: all 0.3s;
-      transform: translateZ(0);
+      position: fixed; bottom: 20px; left: 20px; right: 20px; color: white; border: none; border-radius: 10px; padding: 16px;
+      font-size: 16px; font-weight: 600; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.2); z-index: 10000;
+      transition: all 0.3s; transform: translateZ(0);
     }
     .confirm-btn { background: linear-gradient(to right, var(--primary), var(--secondary)); }
     .cancel-btn { background: linear-gradient(to right, var(--danger), #e74c3c); display: none; }
@@ -89,11 +77,12 @@
     .delivery-item { display: flex; margin-bottom: 6px; font-size: 0.9rem; }
     .delivery-label { font-weight: 600; color: var(--primary); min-width: 100px; margin-right: 10px; }
     .delivery-value { flex: 1; color: var(--dark); }
-    .star-rating { display: inline-flex; align-items: center; gap: 1px; flex-wrap: nowrap; }
-    .star { color: #ddd; font-size: 12px; }
-    .star.filled { color: #ffc107; }
-    .star.half { position: relative; color: #ddd; }
-    .star.half::before { content: '★'; position: absolute; left: 0; width: 50%; overflow: hidden; color: #ffc107; }
+    #driverOffers { position: fixed; top: 10px; left: 50%; transform: translateX(-50%); width: 92%; max-width: 420px; z-index: 99999; display: none; }
+    #driverOffers > div { background: rgba(255,255,255,0.98); border-radius: 12px; box-shadow: 0 6px 24px rgba(0,0,0,0.12); overflow: hidden; }
+    #driverOffers > div > div:first-child { padding: 12px 16px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; background: linear-gradient(135deg, var(--primary), var(--secondary)); color: white; }
+    #driverOffers > div > div:first-child strong { color: white; }
+    #closeDriverOffers { background: none; border: none; font-weight: 600; cursor: pointer; color: white; font-size: 18px; }
+    #driverOfferList { max-height: 60vh; overflow: auto; padding: 12px; }
     .driver-offer-card { display: flex; flex-direction: column; align-items: stretch; background: #fff; padding: 10px; border-radius: 10px; margin-bottom: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); border-left: 4px solid #e9ecef; transition: all 0.3s ease; }
     .driver-offer-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
     .driver-info { display: flex; gap: 10px; align-items: center; }
@@ -110,29 +99,18 @@
     .reject-btn { background: linear-gradient(135deg, #dc3545, #c82333); color: white; }
     .reject-btn:hover { background: linear-gradient(135deg, #c82333, #bd2130); transform: translateY(-2px); box-shadow: 0 4px 8px rgba(220,53,69,0.3); }
     .accept-btn:disabled, .reject-btn:disabled { background: #6c757d; cursor: not-allowed; transform: none; box-shadow: none; opacity: 0.7; }
-    .priority-badge, .top-driver-badge, .position-badge { display: inline-block; padding: 3px 6px; border-radius: 10px; font-size: 9px; font-weight: 700; text-transform: uppercase; margin-left: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); white-space: nowrap; }
-    .priority-basic { background: #6c757d; color: white; }
-    .priority-standard { background: #17a2b8; color: white; }
-    .priority-regular { background: #28a745; color: white; }
-    .priority-essential { background: linear-gradient(135deg, #ffc107, #e0a800); color: #333; }
-    .top-driver-badge { background: linear-gradient(135deg, #FFD700, #FFA500); color: #000; }
-    .position-badge { background: #6c757d; color: white; border-radius: 50%; padding: 2px 5px; }
-    .driver-offer-card.highlighted { border: 2px solid #FFD700; box-shadow: 0 0 15px rgba(255,215,0,0.5); transform: scale(1.02); transition: all 0.3s ease; }
-    .driver-dot { position: absolute; width: 12px; height: 12px; border-radius: 50%; background-color: #4285F4; box-shadow: 0 0 0 0 rgba(66,133,244,0.7); animation: driverPulse 2s infinite; z-index: 10; }
-    @keyframes driverPulse { 0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(66,133,244,0.7); } 70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(66,133,244,0); } 100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(66,133,244,0); } }
-    #driverOffers { position: fixed; top: 10px; left: 50%; transform: translateX(-50%); width: 92%; max-width: 420px; z-index: 99999; display: none; }
-    #driverOffers > div { background: rgba(255,255,255,0.98); border-radius: 12px; box-shadow: 0 6px 24px rgba(0,0,0,0.12); overflow: hidden; }
-    #driverOffers > div > div:first-child { padding: 12px 16px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; background: linear-gradient(135deg, var(--primary), var(--secondary)); color: white; }
-    #driverOffers > div > div:first-child strong { color: white; }
-    #closeDriverOffers { background: none; border: none; font-weight: 600; cursor: pointer; color: white; font-size: 18px; }
-    #driverOfferList { max-height: 60vh; overflow: auto; padding: 12px; }
+    .mapboxgl-ctrl-attrib, .mapboxgl-ctrl-logo { display: none; }
     @media (max-width: 768px) { .route-details { max-height: 28vh; padding: 6px 10px; } .driver-photo { width: 45px; height: 45px; } .accept-btn, .reject-btn { padding: 10px 16px; font-size: 13px; min-width: 90px; } .popup-buttons { flex-direction: column; } }
     @media (max-width: 480px) { .driver-photo { width: 40px; height: 40px; } .driver-name-text { max-width: 90px; } .accept-btn, .reject-btn { padding: 8px 12px; font-size: 12px; min-width: 70px; } }
-    .mapboxgl-ctrl-attrib { display: none; }
-    .mapboxgl-ctrl-logo { display: none; }
+    .radar-marker-effect { position: relative; }
+    .radar-marker-effect::after { content: ''; position: absolute; top: 50%; left: 50%; width: 60px; height: 60px; margin-left: -30px; margin-top: -30px; border-radius: 50%; background: radial-gradient(circle, rgba(255,152,0,0.4) 0%, rgba(255,152,0,0) 70%); animation: radarPulse 1.5s infinite ease-out; pointer-events: none; z-index: -1; }
+    .radar-marker-effect::before { content: ''; position: absolute; top: 50%; left: 50%; width: 80px; height: 80px; margin-left: -40px; margin-top: -40px; border-radius: 50%; border: 2px solid rgba(255,152,0,0.8); border-top-color: transparent; animation: radarSpin 2s infinite linear; pointer-events: none; z-index: -1; }
+    @keyframes radarPulse { 0% { transform: scale(0.5); opacity: 0.7; } 100% { transform: scale(2); opacity: 0; } }
+    @keyframes radarSpin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
   </style>
 </head>
 <body>
+  <!-- Panel dan elemen lainnya SAMA dengan kode sebelumnya (tidak diubah strukturnya) -->
   <div class="panel">
     <div id="from-container" class="input-container"></div>
     <div id="to-container" class="input-container"></div>
@@ -143,82 +121,46 @@
       <div class="delivery-item"><span class="delivery-label">Penerima:</span><span class="delivery-value" id="deliveryReceiver">-</span></div>
     </div>
   </div>
-
-  <div id="driverOffers">
-    <div>
-      <div><strong>🏆 Penawaran Driver</strong><button id="closeDriverOffers">✕</button></div>
-      <div id="driverOfferList"></div>
-    </div>
-  </div>
-
+  <div id="driverOffers"><div><div><strong>🏆 Penawaran Driver</strong><button id="closeDriverOffers">✕</button></div><div id="driverOfferList"></div></div></div>
   <div id="map"></div>
   <button id="mapModeBtn" class="map-mode-btn">Mode Malam</button>
   <div class="route-details" id="routeDetails">
-    <div class="route-info">
-      <div class="route-address"><span class="label">Penjemputan:</span><span class="value" id="routeFrom">-</span></div>
-      <div class="route-address"><span class="label">Tujuan:</span><span class="value" id="routeTo">-</span></div>
-    </div>
-    <div class="route-stats">
-      <div class="route-stat"><div class="stat-value" id="routeDuration">-</div><div class="stat-label">Durasi</div></div>
-      <div class="route-stat"><div class="stat-value"><span class="price-highlight" id="routePrice">-</span></div><div class="stat-label">Biaya</div></div>
-    </div>
+    <div class="route-info"><div class="route-address"><span class="label">Penjemputan:</span><span class="value" id="routeFrom">-</span></div>
+    <div class="route-address"><span class="label">Tujuan:</span><span class="value" id="routeTo">-</span></div></div>
+    <div class="route-stats"><div class="route-stat"><div class="stat-value" id="routeDuration">-</div><div class="stat-label">Durasi</div></div>
+    <div class="route-stat"><div class="stat-value"><span class="price-highlight" id="routePrice">-</span></div><div class="stat-label">Biaya</div></div></div>
   </div>
   <button class="confirm-btn" id="confirmBtn" disabled>Konfirmasi Rute</button>
   <button class="cancel-btn" id="cancelBtn" disabled>BATALKAN</button>
   <div class="radar" id="radar"><span>Mencari driver...</span></div>
-
-  <div class="popup-overlay" id="popupOverlay">
-    <div class="popup">
-      <div class="popup-header"><h3 class="popup-title" id="popupTitle">Pemberitahuan</h3><button class="popup-close" id="popupCloseBtn">×</button></div>
-      <div class="popup-content">
-        <div class="popup-icon" id="popupIcon">⚠️</div>
-        <div class="popup-message" id="popupMessage">Pesan akan ditampilkan di sini</div>
-        <div class="popup-buttons"><button class="popup-button popup-button-primary" id="popupButton">OK</button></div>
-      </div>
-    </div>
-  </div>
-
-  <div class="popup-overlay" id="priceOfferPopup">
-    <div class="popup">
-      <div class="popup-header"><h3 class="popup-title">💡 Naikkan Tarif</h3><button class="popup-close" id="closePriceOfferBtn">×</button></div>
-      <div class="popup-content">
-        <div class="popup-icon">💰</div>
-        <div class="popup-message">
-          <p>Belum ada driver yang menerima dalam 30 detik. Coba naikkan tarif untuk menarik perhatian driver.</p>
-          <div style="margin: 15px 0; padding: 12px; background: #f8f9fa; border-radius: 8px;">
-            <div style="font-size: 0.9rem; color: #666;">Tarif Saat Ini:</div>
-            <div style="font-size: 1.4rem; font-weight: 700; color: var(--success);" id="currentPriceDisplay">Rp 0</div>
-          </div>
-        </div>
-        <div class="popup-buttons" style="flex-direction: column; gap: 8px;">
-          <button class="popup-button popup-button-primary" id="price10Btn">+ 10% (Rp <span id="price10">0</span>)</button>
-          <button class="popup-button popup-button-primary" id="price20Btn">+ 20% (Rp <span id="price20">0</span>)</button>
-          <button class="popup-button popup-button-warning" id="price30Btn">+ 30% (Rp <span id="price30">0</span>)</button>
-          <button class="popup-button popup-button-secondary" id="continueWaitingBtn">Tidak, Terus Tunggu</button>
-        </div>
-      </div>
-    </div>
-  </div>
+  <div class="popup-overlay" id="popupOverlay"><div class="popup"><div class="popup-header"><h3 class="popup-title" id="popupTitle">Pemberitahuan</h3><button class="popup-close" id="popupCloseBtn">×</button></div><div class="popup-content"><div class="popup-icon" id="popupIcon">⚠️</div><div class="popup-message" id="popupMessage">Pesan akan ditampilkan di sini</div><div class="popup-buttons"><button class="popup-button popup-button-primary" id="popupButton">OK</button></div></div></div></div>
+  <div class="popup-overlay" id="priceOfferPopup"><div class="popup"><div class="popup-header"><h3 class="popup-title">💡 Naikkan Tarif</h3><button class="popup-close" id="closePriceOfferBtn">×</button></div><div class="popup-content"><div class="popup-icon">💰</div><div class="popup-message"><p>Belum ada driver yang menerima dalam 30 detik. Coba naikkan tarif untuk menarik perhatian driver.</p><div style="margin: 15px 0; padding: 12px; background: #f8f9fa; border-radius: 8px;"><div style="font-size: 0.9rem; color: #666;">Tarif Saat Ini:</div><div style="font-size: 1.4rem; font-weight: 700; color: var(--success);" id="currentPriceDisplay">Rp 0</div></div></div><div class="popup-buttons" style="flex-direction: column; gap: 8px;"><button class="popup-button popup-button-primary" id="price10Btn">+ 10% (Rp <span id="price10">0</span>)</button><button class="popup-button popup-button-primary" id="price20Btn">+ 20% (Rp <span id="price20">0</span>)</button><button class="popup-button popup-button-warning" id="price30Btn">+ 30% (Rp <span id="price30">0</span>)</button><button class="popup-button popup-button-secondary" id="continueWaitingBtn">Tidak, Terus Tunggu</button></div></div></div></div>
 
   <script>
-    // ========== KONFIGURASI FIREBASE ==========
+    // --------------------------------------------------------------
+    // KONFIGURASI FIREBASE PROYEK BARU (jego-35a2b)
+    // --------------------------------------------------------------
     const FIREBASE_CONFIG = {
-      apiKey: "AIzaSyDpGc_CsbNi1igA29n6qDhcX0oDkHNVscc",
-      authDomain: "game-balap-simpel.firebaseapp.com",
-      databaseURL: "https://game-balap-simpel-default-rtdb.firebaseio.com",
-      projectId: "game-balap-simpel",
-      storageBucket: "game-balap-simpel.firebasestorage.app",
-      messagingSenderId: "864576853495",
-      appId: "1:864576853495:web:6f16eb757fd3d8affb0af2",
-      measurementId: "G-YWJPK7Y3J4"
+      apiKey: "AIzaSyCD0pgeZio-LdKqYDtWxcdXcZwyL4ngYQI",
+      authDomain: "jego-35a2b.firebaseapp.com",
+      databaseURL: "https://jego-35a2b-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "jego-35a2b",
+      storageBucket: "jego-35a2b.firebasestorage.app",
+      messagingSenderId: "600037007040",
+      appId: "1:600037007040:web:ac3243ad9b472647ffd725",
+      measurementId: "G-H5F9TSK50K"
     };
 
+    // Inisialisasi Firebase
     if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
+    const auth = firebase.auth();
     const database = firebase.database();
 
-    // ========== VARIABEL GLOBAL ==========
+    // --------------------------------------------------------------
+    // VARIABEL GLOBAL
+    // --------------------------------------------------------------
     let map;
-    let currentUser = null;
+    let currentUser = null;           // objek user dari Firebase Auth + data DB
     let currentRoute = null;
     let pickupCoord = null, destCoord = null;
     let pickupAddress = '', destAddress = '';
@@ -230,14 +172,8 @@
     let deliveryData = null;
     let isCourier = false;
     let mapboxAccessToken = null;
-
-    let transportRate = {
-      minimal_distance: 4,
-      minimal_price: 10000,
-      price_per_km: 2200
-    };
+    let transportRate = { minimal_distance: 4, minimal_price: 10000, price_per_km: 2200 };
     let currentPrice = 0;
-
     let currentOrderId = null;
     let orderRef = null;
     let offersRef = null;
@@ -246,24 +182,27 @@
     let isSearching = false;
     let priceOfferTimer = null;
     let priceOfferShown = false;
+    let currentZoomAnimation = null;
 
-    // Fungsi utility
+    // --------------------------------------------------------------
+    // UTILITY
+    // --------------------------------------------------------------
     function showPopup(title, message, icon = '⚠️', onClose = null) {
       document.getElementById('popupTitle').innerText = title;
       document.getElementById('popupMessage').innerHTML = message;
       document.getElementById('popupIcon').innerHTML = icon;
       const overlay = document.getElementById('popupOverlay');
       overlay.classList.add('active');
-      const closeBtn = document.getElementById('popupCloseBtn');
-      const okBtn = document.getElementById('popupButton');
-      const handler = () => {
+      const closeHandler = () => {
         overlay.classList.remove('active');
         if (onClose) onClose();
-        closeBtn.removeEventListener('click', handler);
-        okBtn.removeEventListener('click', handler);
+        closeBtn.removeEventListener('click', closeHandler);
+        okBtn.removeEventListener('click', closeHandler);
       };
-      closeBtn.addEventListener('click', handler);
-      okBtn.addEventListener('click', handler);
+      const closeBtn = document.getElementById('popupCloseBtn');
+      const okBtn = document.getElementById('popupButton');
+      closeBtn.addEventListener('click', closeHandler);
+      okBtn.addEventListener('click', closeHandler);
     }
 
     function formatRupiah(amount) {
@@ -282,7 +221,11 @@
       return Math.round(price / 1000) * 1000;
     }
 
-    // AMBIL TOKEN MAPBOX
+    function escapeHtml(str) { if (!str) return ''; return str.replace(/[&<>]/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[m])); }
+
+    // --------------------------------------------------------------
+    // AMBIL DATA DARI DATABASE (HARUS LOGIN)
+    // --------------------------------------------------------------
     async function fetchMapboxToken() {
       try {
         const snapshot = await database.ref('data-jego/mapbox_acces_token').once('value');
@@ -298,7 +241,6 @@
       }
     }
 
-    // LOAD TARIF
     async function loadTransportRateFromDB(transportName) {
       try {
         const snapshot = await database.ref('tarif').once('value');
@@ -334,6 +276,42 @@
       else { transportRate = { minimal_distance: 4, minimal_price: 10000, price_per_km: 2200 }; transportIconUrl = 'https://cdn-icons-png.flaticon.com/128/5811/5811823.png'; }
     }
 
+    // --------------------------------------------------------------
+    // CEK SESSION & LOAD USER DARI FIREBASE AUTH + DB
+    // --------------------------------------------------------------
+    async function checkUserSession() {
+      return new Promise((resolve, reject) => {
+        const unsubscribe = auth.onAuthStateChanged(async (user) => {
+          unsubscribe();
+          if (!user) {
+            showPopup('Akses Ditolak', 'Anda belum login.', '🔐', () => window.location.href = 'loginUser.html');
+            reject(false);
+            return;
+          }
+          try {
+            const uid = user.uid;
+            const snapshot = await database.ref(`users/${uid}`).once('value');
+            const data = snapshot.val();
+            if (!data) throw new Error('User data not found');
+            currentUser = {
+              id: uid,
+              name: data.name,
+              phone: data.phone,
+              email: data.email,
+              rating: data.rating || 5,
+              perjalanan: data.perjalanan || 0,
+              photoURL: data.photoURL || ''
+            };
+            resolve(true);
+          } catch (err) {
+            localStorage.removeItem('jego_logged_in_user');
+            showPopup('Sesi Tidak Valid', 'Silakan login ulang.', '⚠️', () => window.location.href = 'loginUser.html');
+            reject(false);
+          }
+        });
+      });
+    }
+
     async function loadSelectedTransport() {
       const lastTransport = localStorage.getItem('jego_last_transport');
       if (!lastTransport) {
@@ -350,10 +328,10 @@
         if (transportType === 'bentor') typeForDB = 'Bentor';
         if (transportType === 'mobil') typeForDB = 'Mobil';
         if (transportType === 'motor') typeForDB = 'Motor';
-        
+
         isCourier = transportType && transportType.toLowerCase().includes('kurir');
         await loadTransportRateFromDB(typeForDB);
-        
+
         if (isCourier && selectedTransport.deliveryData) {
           deliveryData = selectedTransport.deliveryData;
           document.getElementById('deliveryInfoPanel').style.display = 'block';
@@ -367,41 +345,14 @@
         }
         return true;
       } catch (e) {
+        showPopup('Error', 'Gagal memuat data transportasi', '⚠️');
         return false;
       }
     }
 
-    // CEK SESSION USER
-    async function checkUserSession() {
-      const stored = localStorage.getItem('jego_logged_in_user');
-      if (!stored) {
-        showPopup('Akses Ditolak', 'Anda belum login.', '🔐', () => window.location.href = 'loginUser.html');
-        return false;
-      }
-      try {
-        const userData = JSON.parse(stored);
-        const uid = userData.uid;
-        const snapshot = await database.ref(`users/${uid}`).once('value');
-        const data = snapshot.val();
-        if (!data) throw new Error();
-        currentUser = {
-          id: uid,
-          name: data.name,
-          phone: data.phone,
-          email: data.email,
-          rating: data.rating,
-          perjalanan: data.perjalanan,
-          photoURL: data.photoURL || ''
-        };
-        return true;
-      } catch (e) {
-        localStorage.removeItem('jego_logged_in_user');
-        showPopup('Sesi Tidak Valid', 'Silakan login ulang.', '⚠️', () => window.location.href = 'loginUser.html');
-        return false;
-      }
-    }
-
-    // FUNGSI PETA & RUTE
+    // --------------------------------------------------------------
+    // FUNGSI PETA & RUTE (TIDAK BERUBAH)
+    // --------------------------------------------------------------
     function getFullAddress(feature) {
       const name = feature.properties?.name;
       const fullAddress = feature.properties?.full_address || feature.properties?.address || '';
@@ -451,9 +402,7 @@
         navigator.geolocation.getCurrentPosition(async (position) => {
           const { latitude, longitude } = position.coords;
           let address = await reverseGeocode(longitude, latitude);
-          if (!address || address.trim() === '') {
-            address = '(Jalan Tanpa Nama)';
-          }
+          if (!address || address.trim() === '') address = '(Jalan Tanpa Nama)';
           pickupCoord = [longitude, latitude];
           pickupAddress = address;
           updateMarkers();
@@ -503,20 +452,14 @@
         const el = document.createElement('div');
         el.style.backgroundImage = `url(${transportIconUrl || 'https://cdn-icons-png.flaticon.com/128/5811/5811823.png'})`;
         el.style.backgroundSize = 'cover';
-        el.style.width = '35px';
-        el.style.height = '35px';
-        el.style.borderRadius = '50%';
-        el.style.border = '2px solid white';
+        el.style.width = '35px'; el.style.height = '35px'; el.style.borderRadius = '50%'; el.style.border = '2px solid white';
         pickupMarker = new mapboxgl.Marker({ element: el }).setLngLat(pickupCoord).addTo(map);
       }
       if (destCoord) {
         const el = document.createElement('div');
         el.style.backgroundImage = `url(${transportIconUrl || 'https://cdn-icons-png.flaticon.com/128/5811/5811823.png'})`;
         el.style.backgroundSize = 'cover';
-        el.style.width = '35px';
-        el.style.height = '35px';
-        el.style.borderRadius = '50%';
-        el.style.border = '2px solid white';
+        el.style.width = '35px'; el.style.height = '35px'; el.style.borderRadius = '50%'; el.style.border = '2px solid white';
         destMarker = new mapboxgl.Marker({ element: el }).setLngLat(destCoord).addTo(map);
       }
     }
@@ -554,39 +497,27 @@
       } catch (err) { showPopup('Error', 'Gagal menghitung rute.', '⚠️'); }
     }
 
-    // EFEK RADAR DAN ZOOM OUT
-    let currentZoomAnimation = null;
+    // --------------------------------------------------------------
+    // EFEK RADAR & ZOOM OUT (TIDAK BERUBAH)
+    // --------------------------------------------------------------
     function startSlowZoomOut() {
       if (!map || !pickupCoord) return;
-      if (currentZoomAnimation) {
-        map.stop();
-        currentZoomAnimation = null;
-      }
-      currentZoomAnimation = map.flyTo({
-        center: pickupCoord,
-        zoom: 9,
-        duration: 30000,
-        easing: function(t) { return t; }
-      });
+      if (currentZoomAnimation) { map.stop(); currentZoomAnimation = null; }
+      currentZoomAnimation = map.flyTo({ center: pickupCoord, zoom: 9, duration: 30000, easing: t => t });
     }
     function stopSlowZoomOut() {
-      if (currentZoomAnimation) {
-        map.stop();
-        currentZoomAnimation = null;
-      }
+      if (currentZoomAnimation) { map.stop(); currentZoomAnimation = null; }
     }
     function activateRadarOnPickup() {
-      if (pickupMarker && pickupMarker.getElement()) {
-        pickupMarker.getElement().classList.add('radar-marker-effect');
-      }
+      if (pickupMarker && pickupMarker.getElement()) pickupMarker.getElement().classList.add('radar-marker-effect');
     }
     function deactivateRadarOnPickup() {
-      if (pickupMarker && pickupMarker.getElement()) {
-        pickupMarker.getElement().classList.remove('radar-marker-effect');
-      }
+      if (pickupMarker && pickupMarker.getElement()) pickupMarker.getElement().classList.remove('radar-marker-effect');
     }
 
-    // ORDER & DRIVER OFFERS
+    // --------------------------------------------------------------
+    // ORDER & DRIVER OFFERS (MENGGUNAKAN orders/{uid})
+    // --------------------------------------------------------------
     function renderOffers(offers) {
       const container = document.getElementById('driverOfferList');
       if (!container) return;
@@ -618,22 +549,20 @@
       document.querySelectorAll('.reject-btn').forEach(btn => btn.addEventListener('click', (e) => rejectOffer(btn.getAttribute('data-driver'))));
     }
 
-    function escapeHtml(str) { if (!str) return ''; return str.replace(/[&<>]/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[m])); }
-
     async function acceptOffer(driverId) {
       if (!currentOrderId) return;
-      await database.ref(`orders/${currentOrderId}/driver_offers/${driverId}/status`).set('accepted');
-      await database.ref(`orders/${currentOrderId}`).update({ status: 'accepted', driver_id: driverId, accepted_at: new Date().toISOString() });
+      await database.ref(`orders/${currentUser.id}/${currentOrderId}/driver_offers/${driverId}/status`).set('accepted');
+      await database.ref(`orders/${currentUser.id}/${currentOrderId}`).update({ status: 'accepted', driver_id: driverId, accepted_at: new Date().toISOString() });
       showPopup('Berhasil', 'Driver telah dipilih. Menunggu driver menuju lokasi.', '✅', () => window.location.href = 'orderAccepted.html');
       cleanupSearch();
     }
 
     async function rejectOffer(driverId) {
       if (!currentOrderId) return;
-      await database.ref(`orders/${currentOrderId}/driver_offers/${driverId}/status`).set('rejected');
+      await database.ref(`orders/${currentUser.id}/${currentOrderId}/driver_offers/${driverId}/status`).set('rejected');
     }
 
-    // Fungsi utama ketika tombol "CARI DRIVER" diklik
+    // Fungsi utama ketika tombol CARI DRIVER diklik
     async function confirmRoute() {
       if (!currentRoute || !currentUser) {
         showPopup('Perhatian', 'Lengkapi asal dan tujuan.', '⚠️');
@@ -641,30 +570,21 @@
       }
       const btn = document.getElementById('confirmBtn');
       btn.disabled = true;
-      
-      // Hentikan semua animasi peta yang mungkin berjalan
       if (map) map.stop();
-      
-      // Ubah teks tombol menjadi "Batalkan Pencarian"
       btn.innerHTML = 'Batalkan Pencarian';
-      // Ganti event listener
       btn.removeEventListener('click', confirmRoute);
       btn.addEventListener('click', cancelSearchHandler);
       btn.disabled = false;
-      
-      // Pastikan tombol terlihat di layar (scroll halus)
-      setTimeout(() => {
-        btn.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }, 100);
-      
+      setTimeout(() => btn.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100);
       document.getElementById('routeDetails').style.display = 'none';
       document.getElementById('radar').style.display = 'block';
       setTimeout(() => document.getElementById('radar').classList.add('expanding'), 100);
-      
       activateRadarOnPickup();
       startSlowZoomOut();
-      
-      const newOrderRef = database.ref('orders').push();
+
+      // Simpan order di orders/{userId} menggunakan push()
+      const userOrdersRef = database.ref(`orders/${currentUser.id}`);
+      const newOrderRef = userOrdersRef.push();
       currentOrderId = newOrderRef.key;
       const orderData = {
         user_id: currentUser.id,
@@ -693,11 +613,11 @@
       }
       await newOrderRef.set(orderData);
       localStorage.setItem('current_order_id', currentOrderId);
-      
       isSearching = true;
       document.getElementById('driverOffers').style.display = 'block';
-      
-      orderRef = database.ref(`orders/${currentOrderId}/status`);
+
+      // Listener status order (dalam path users/uid/orderId)
+      orderRef = database.ref(`orders/${currentUser.id}/${currentOrderId}/status`);
       orderStatusCallback = (snapshot) => {
         const status = snapshot.val();
         if (status === 'cancelled' || status === 'cancelled_by_user') {
@@ -708,15 +628,13 @@
         }
       };
       orderRef.on('value', orderStatusCallback);
-      
-      offersRef = database.ref(`orders/${currentOrderId}/driver_offers`);
+
+      offersRef = database.ref(`orders/${currentUser.id}/${currentOrderId}/driver_offers`);
       offersCallback = (snapshot) => renderOffers(snapshot.val());
       offersRef.on('value', offersCallback);
-      
+
       priceOfferTimer = setTimeout(() => {
-        if (isSearching && currentOrderId) {
-          showPriceOfferPopup();
-        }
+        if (isSearching && currentOrderId) showPriceOfferPopup();
       }, 30000);
     }
 
@@ -735,10 +653,8 @@
       document.getElementById('price10').innerText = formatRupiah(price10);
       document.getElementById('price20').innerText = formatRupiah(price20);
       document.getElementById('price30').innerText = formatRupiah(price30);
-      
       const popup = document.getElementById('priceOfferPopup');
       popup.classList.add('active');
-      
       const closePopup = () => popup.classList.remove('active');
       document.getElementById('closePriceOfferBtn').onclick = closePopup;
       document.getElementById('continueWaitingBtn').onclick = closePopup;
@@ -746,11 +662,11 @@
       document.getElementById('price20Btn').onclick = () => { updateOrderPrice(price20); closePopup(); };
       document.getElementById('price30Btn').onclick = () => { updateOrderPrice(price30); closePopup(); };
     }
-    
+
     async function updateOrderPrice(newPrice) {
       if (!currentOrderId) return;
       currentPrice = newPrice;
-      await database.ref(`orders/${currentOrderId}`).update({ price: newPrice, price_updated_at: new Date().toISOString() });
+      await database.ref(`orders/${currentUser.id}/${currentOrderId}`).update({ price: newPrice, price_updated_at: new Date().toISOString() });
       showPopup('Tarif Dinaikkan', `Tarif baru: ${formatRupiah(newPrice)}. Menunggu driver...`, '💰');
     }
 
@@ -761,7 +677,7 @@
         return;
       }
       try {
-        await database.ref(`orders/${currentOrderId}`).update({ status: 'cancelled_by_user', cancelled_at: new Date().toISOString() });
+        await database.ref(`orders/${currentUser.id}/${currentOrderId}`).update({ status: 'cancelled_by_user', cancelled_at: new Date().toISOString() });
         cleanupSearch();
         localStorage.removeItem('current_order_id');
         showPopup('Pencarian Dibatalkan', 'Order berhasil dibatalkan.', 'ℹ️');
@@ -779,7 +695,6 @@
       document.getElementById('radar').style.display = 'none';
       document.getElementById('radar').classList.remove('expanding');
       document.getElementById('driverOffers').style.display = 'none';
-      
       const btn = document.getElementById('confirmBtn');
       btn.removeEventListener('click', cancelSearchHandler);
       btn.addEventListener('click', confirmRoute);
@@ -788,25 +703,26 @@
       document.getElementById('cancelBtn').style.display = 'none';
       document.getElementById('routeDetails').style.display = 'block';
       currentOrderId = null;
-      
       deactivateRadarOnPickup();
       stopSlowZoomOut();
     }
 
+    // --------------------------------------------------------------
     // INISIALISASI
+    // --------------------------------------------------------------
     window.onload = async () => {
       const tokenOk = await fetchMapboxToken();
       if (!tokenOk) return;
-      const isLoggedIn = await checkUserSession();
-      if (!isLoggedIn) return;
+      const loggedIn = await checkUserSession().catch(() => false);
+      if (!loggedIn) return;
       const transportLoaded = await loadSelectedTransport();
       if (!transportLoaded) return;
       await initMap();
       await autoFillPickupLocation();
-      
+
       document.getElementById('confirmBtn').addEventListener('click', confirmRoute);
       document.getElementById('closeDriverOffers').addEventListener('click', () => document.getElementById('driverOffers').style.display = 'none');
-      
+
       let nightMode = false;
       document.getElementById('mapModeBtn').addEventListener('click', () => {
         nightMode = !nightMode;
@@ -815,50 +731,5 @@
       });
     };
   </script>
-  <style>
-    /* Efek radar pada marker (sama seperti sebelumnya) */
-    .radar-marker-effect {
-      position: relative;
-    }
-    .radar-marker-effect::after {
-      content: '';
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      width: 60px;
-      height: 60px;
-      margin-left: -30px;
-      margin-top: -30px;
-      border-radius: 50%;
-      background: radial-gradient(circle, rgba(255,152,0,0.4) 0%, rgba(255,152,0,0) 70%);
-      animation: radarPulse 1.5s infinite ease-out;
-      pointer-events: none;
-      z-index: -1;
-    }
-    .radar-marker-effect::before {
-      content: '';
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      width: 80px;
-      height: 80px;
-      margin-left: -40px;
-      margin-top: -40px;
-      border-radius: 50%;
-      border: 2px solid rgba(255,152,0,0.8);
-      border-top-color: transparent;
-      animation: radarSpin 2s infinite linear;
-      pointer-events: none;
-      z-index: -1;
-    }
-    @keyframes radarPulse {
-      0% { transform: scale(0.5); opacity: 0.7; }
-      100% { transform: scale(2); opacity: 0; }
-    }
-    @keyframes radarSpin {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
-    }
-  </style>
 </body>
 </html>
