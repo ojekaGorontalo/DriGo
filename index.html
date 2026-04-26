@@ -2,248 +2,81 @@
 <html lang="id">
 <head>
   <meta charset="utf-8" />
-  <title>List Permintaan - JeGo</title>
+  <title>List Permintaan - JeGo (Driver)</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <!-- Firebase SDK (versi compat 9) -->
+  <!-- Firebase SDK (compat) -->
   <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-database-compat.js"></script>
   <!-- Mapbox GL -->
   <script src='https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js'></script>
   <link href='https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css' rel='stylesheet' />
   <style>
-    /* ========== CSS (SAMA PERSIS DENGAN SEBELUMNYA) ========== */
-    :root {
-      --primary: #FF9800;
-      --secondary: #FFB74D;
-      --accent: #FF5722;
-      --light: #f8f9fa;
-      --dark: #343a40;
-      --success: #4CAF50;
-      --danger: #F44336;
-      --promo: #FF9800;
-    }
+    /* ========== CSS (sama seperti sebelumnya, tidak diubah) ========== */
+    :root { --primary: #FF9800; --secondary: #FFB74D; --accent: #FF5722; --light: #f8f9fa; --dark: #343a40; --success: #4CAF50; --danger: #F44336; --promo: #FF9800; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      background-color: #f5f5f5;
-      color: #333;
-      line-height: 1.4;
-      font-size: 0.85rem;
-      padding-bottom: 70px;
-      overflow-x: hidden;
-    }
-    body.radar-active {
-      background: linear-gradient(135deg, #ff6b35 0%, #ff8e53 100%) !important;
-      overflow: hidden;
-    }
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f5f5f5; color: #333; line-height: 1.4; font-size: 0.85rem; padding-bottom: 70px; overflow-x: hidden; }
+    body.radar-active { background: linear-gradient(135deg, #ff6b35 0%, #ff8e53 100%) !important; overflow: hidden; }
     body.radar-active .container { display: none !important; }
     #radarContainer {
-      position: fixed;
-      top: 70px;
-      left: 0;
-      width: 100%;
-      height: calc(100vh - 130px);
-      background: linear-gradient(135deg, #ff6b35 0%, #ff8e53 100%);
-      display: none;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      z-index: 90;
-      overflow: hidden;
-      margin: 0;
-      padding: 0;
+      position: fixed; top: 70px; left: 0; width: 100%; height: calc(100vh - 130px);
+      background: linear-gradient(135deg, #ff6b35 0%, #ff8e53 100%); display: none; flex-direction: column;
+      justify-content: center; align-items: center; z-index: 90; overflow: hidden;
     }
     .radar-main { width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; position: relative; }
-    .radar-circle {
-      position: relative;
-      width: 95vmin;
-      height: 95vmin;
-      max-width: 95%;
-      max-height: 95%;
-      border-radius: 50%;
-      background: rgba(255, 255, 255, 0.05);
-      border: 2px solid rgba(255, 255, 255, 0.15);
-      box-shadow: 0 0 60px rgba(255, 107, 53, 0.3), inset 0 0 40px rgba(255, 255, 255, 0.05);
-      overflow: hidden;
-    }
-    .concentric-circle {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      border-radius: 50%;
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      transform: translate(-50%, -50%);
-    }
-    .circle-1 { width: 80%; height: 80%; }
-    .circle-2 { width: 60%; height: 60%; }
-    .circle-3 { width: 40%; height: 40%; }
-    .radar-axis {
-      position: absolute;
-      background: rgba(255, 255, 255, 0.1);
-      transform-origin: center;
-    }
+    .radar-circle { position: relative; width: 95vmin; height: 95vmin; max-width: 95%; max-height: 95%; border-radius: 50%; background: rgba(255,255,255,0.05); border: 2px solid rgba(255,255,255,0.15); box-shadow: 0 0 60px rgba(255,107,53,0.3), inset 0 0 40px rgba(255,255,255,0.05); overflow: hidden; }
+    .concentric-circle { position: absolute; top: 50%; left: 50%; border-radius: 50%; border: 1px solid rgba(255,255,255,0.1); transform: translate(-50%, -50%); }
+    .circle-1 { width: 80%; height: 80%; } .circle-2 { width: 60%; height: 60%; } .circle-3 { width: 40%; height: 40%; }
+    .radar-axis { position: absolute; background: rgba(255,255,255,0.1); transform-origin: center; }
     .axis-horizontal { width: 100%; height: 1px; top: 50%; left: 0; }
     .axis-vertical { width: 1px; height: 100%; top: 0; left: 50%; }
     .axis-diagonal-1 { width: 140%; height: 1px; top: 50%; left: -20%; transform: rotate(45deg); }
     .axis-diagonal-2 { width: 140%; height: 1px; top: 50%; left: -20%; transform: rotate(-45deg); }
-    .radar-sweep {
-      position: absolute;
-      width: 100%;
-      height: 100%;
-      border-radius: 50%;
-      animation: radarSpin 3s linear infinite;
-    }
-    .sweep-line {
-      position: absolute;
-      width: 50%;
-      height: 2px;
-      top: 50%;
-      left: 50%;
-      background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.8) 50%, rgba(255,107,53,0.8) 100%);
-      transform-origin: left center;
-      box-shadow: 0 0 15px rgba(255,255,255,0.6);
-    }
-    .sweep-dot {
-      position: absolute;
-      width: 12px;
-      height: 12px;
-      border-radius: 50%;
-      background: #FF9800;
-      top: 50%;
-      left: 100%;
-      transform: translate(-50%, -50%);
-      box-shadow: 0 0 20px #FF9800;
-    }
-    .radar-center {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      width: 30px;
-      height: 30px;
-      z-index: 5;
-    }
-    .center-dot {
-      position: absolute;
-      width: 16px;
-      height: 16px;
-      border-radius: 50%;
-      background: #FFFFFF;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      box-shadow: 0 0 20px #FFFFFF;
-    }
-    .center-pulse {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      border-radius: 50%;
-      border: 2px solid rgba(255, 255, 255, 0.6);
-      transform: translate(-50%, -50%);
-      animation: centerPulse 2s ease-out infinite;
-    }
-    .pulse-1 { width: 40px; height: 40px; animation-delay: 0s; }
-    .pulse-2 { width: 60px; height: 60px; animation-delay: 0.5s; }
-    .radar-point {
-      position: absolute;
-      width: 14px;
-      height: 14px;
-      border-radius: 50%;
-      background: linear-gradient(135deg, #4CAF50, #8BC34A);
-      box-shadow: 0 0 15px #4CAF50;
-      animation: pointBlink 2s ease-in-out infinite;
-      z-index: 2;
-    }
-    .point-1 { top: 30%; left: 30%; animation-delay: 0s; }
-    .point-2 { top: 40%; left: 70%; animation-delay: 0.3s; }
-    .point-3 { top: 65%; left: 25%; animation-delay: 0.6s; }
-    .point-4 { top: 75%; left: 60%; animation-delay: 0.9s; }
+    .radar-sweep { position: absolute; width: 100%; height: 100%; border-radius: 50%; animation: radarSpin 3s linear infinite; }
+    .sweep-line { position: absolute; width: 50%; height: 2px; top: 50%; left: 50%; background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.8) 50%, rgba(255,107,53,0.8) 100%); transform-origin: left center; box-shadow: 0 0 15px rgba(255,255,255,0.6); }
+    .sweep-dot { position: absolute; width: 12px; height: 12px; border-radius: 50%; background: #FF9800; top: 50%; left: 100%; transform: translate(-50%, -50%); box-shadow: 0 0 20px #FF9800; }
+    .radar-center { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 30px; height: 30px; z-index: 5; }
+    .center-dot { position: absolute; width: 16px; height: 16px; border-radius: 50%; background: #FFFFFF; top: 50%; left: 50%; transform: translate(-50%, -50%); box-shadow: 0 0 20px #FFFFFF; }
+    .center-pulse { position: absolute; top: 50%; left: 50%; border-radius: 50%; border: 2px solid rgba(255,255,255,0.6); transform: translate(-50%, -50%); animation: centerPulse 2s ease-out infinite; }
+    .pulse-1 { width: 40px; height: 40px; animation-delay: 0s; } .pulse-2 { width: 60px; height: 60px; animation-delay: 0.5s; }
+    .radar-point { position: absolute; width: 14px; height: 14px; border-radius: 50%; background: linear-gradient(135deg, #4CAF50, #8BC34A); box-shadow: 0 0 15px #4CAF50; animation: pointBlink 2s ease-in-out infinite; z-index: 2; }
+    .point-1 { top: 30%; left: 30%; animation-delay: 0s; } .point-2 { top: 40%; left: 70%; animation-delay: 0.3s; } .point-3 { top: 65%; left: 25%; animation-delay: 0.6s; } .point-4 { top: 75%; left: 60%; animation-delay: 0.9s; }
     .radar-status { text-align: center; padding: 20px; color: white; z-index: 3; margin-top: 20px; }
-    .radar-title { font-size: 1.4rem; font-weight: 600; margin-bottom: 8px; color: white; text-shadow: 0 2px 10px rgba(0,0,0,0.3); }
-    .radar-subtitle { font-size: 0.9rem; color: rgba(255,255,255,0.8); margin-bottom: 15px; }
+    .radar-title { font-size: 1.4rem; font-weight: 600; margin-bottom: 8px; } .radar-subtitle { font-size: 0.9rem; color: rgba(255,255,255,0.8); margin-bottom: 15px; }
     .radar-loading { display: flex; justify-content: center; gap: 8px; margin-top: 10px; }
     .loading-dot { width: 10px; height: 10px; border-radius: 50%; background: rgba(255,255,255,0.8); animation: loadingBounce 1.4s ease-in-out infinite; }
-    .dot-1 { animation-delay: 0s; }
-    .dot-2 { animation-delay: 0.2s; }
-    .dot-3 { animation-delay: 0.4s; }
-    @keyframes radarSpin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    .dot-1 { animation-delay: 0s; } .dot-2 { animation-delay: 0.2s; } .dot-3 { animation-delay: 0.4s; }
+    @keyframes radarSpin { 100% { transform: rotate(360deg); } }
     @keyframes centerPulse { 0% { width: 20px; height: 20px; opacity: 1; } 100% { width: 80px; height: 80px; opacity: 0; } }
-    @keyframes pointBlink { 0%, 100% { opacity: 0.3; transform: scale(0.8); } 50% { opacity: 1; transform: scale(1.1); } }
-    @keyframes loadingBounce { 0%, 80%, 100% { transform: translateY(0); opacity: 0.5; } 40% { transform: translateY(-10px); opacity: 1; } }
+    @keyframes pointBlink { 0%,100% { opacity: 0.3; transform: scale(0.8); } 50% { opacity: 1; transform: scale(1.1); } }
+    @keyframes loadingBounce { 0%,80%,100% { transform: translateY(0); opacity: 0.5; } 40% { transform: translateY(-10px); opacity: 1; } }
     /* ===== HEADER ===== */
     .header {
       background: linear-gradient(135deg, var(--primary), var(--secondary));
-      color: white;
-      padding: 15px 20px;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      position: sticky;
-      top: 0;
-      z-index: 100;
-      height: 70px;
+      color: white; padding: 15px 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+      display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; height: 70px;
     }
     .logo-container { display: flex; align-items: center; gap: 10px; }
-    .menu-btn {
-      background: rgba(255,255,255,0.2);
-      color: white;
-      border: none;
-      border-radius: 8px;
-      padding: 8px;
-      cursor: pointer;
-      transition: all 0.3s;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
+    .menu-btn { background: rgba(255,255,255,0.2); border: none; border-radius: 8px; padding: 8px; cursor: pointer; }
     .driver-photo { width: 40px; height: 40px; border-radius: 75%; object-fit: cover; border: 2px solid var(--accent); }
     .gps-status { display: flex; align-items: center; gap: 5px; font-size: 0.75rem; background: rgba(255,255,255,0.1); padding: 4px 8px; border-radius: 4px; }
     .gps-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
-    .gps-active { background-color: #4ade80; }
-    .gps-inactive { background-color: #f87171; }
+    .gps-active { background-color: #4ade80; } .gps-inactive { background-color: #f87171; }
     .header-controls { display: flex; align-items: center; gap: 8px; }
     .location-toggle-btn, .autobid-btn, .refresh-btn {
-      background: rgba(255,255,255,0.2);
-      color: white;
-      border: none;
-      border-radius: 8px;
-      padding: 8px 12px;
-      cursor: pointer;
-      font-weight: 600;
-      transition: all 0.3s;
-      display: flex;
-      align-items: center;
-      gap: 5px;
-      font-size: 0.75rem;
+      background: rgba(255,255,255,0.2); color: white; border: none; border-radius: 8px; padding: 8px 12px;
+      cursor: pointer; font-weight: 600; display: flex; align-items: center; gap: 5px; font-size: 0.75rem;
     }
     .location-toggle-btn.active, .autobid-btn.active { background: var(--accent); color: var(--dark); }
     /* ===== CONTAINER & CARD ===== */
     .container { max-width: 100%; padding: 15px; position: relative; z-index: 1; }
     .orders-list { display: flex; flex-direction: column; gap: 10px; }
     .order-item {
-      background: white;
-      border-radius: 8px;
-      padding: 12px;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.08);
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      cursor: pointer;
-      transition: all 0.3s;
+      background: white; border-radius: 8px; padding: 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+      display: flex; flex-direction: column; gap: 8px; cursor: pointer; transition: all 0.3s;
     }
     .order-header { display: flex; justify-content: space-between; align-items: flex-start; }
     .order-badges { display: flex; gap: 5px; flex-wrap: wrap; }
-    .customer-photo-left {
-      width: 48px;
-      height: 48px;
-      border-radius: 50%;
-      object-fit: cover;
-      border: 2px solid var(--primary);
-      margin-bottom: 4px;
-      cursor: pointer;
-    }
+    .customer-photo-left { width: 48px; height: 48px; border-radius: 50%; object-fit: cover; border: 2px solid var(--primary); margin-bottom: 4px; cursor: pointer; }
     .customer-name-left { font-size: 0.60rem; font-weight: 600; color: var(--primary); text-align: center; }
     .customer-rating { display: flex; align-items: center; justify-content: center; gap: 4px; font-size: 0.55rem; }
     .order-time { font-size: 0.50rem; color: #666; text-align: center; }
@@ -251,22 +84,13 @@
     .customer-info-left { display: flex; flex-direction: column; align-items: center; width: 55px; flex-shrink: 0; }
     .route-addresses-right { flex: 1; display: flex; flex-direction: column; gap: 8px; }
     .route-point { display: flex; align-items: flex-start; }
-    .point-marker {
-      width: 16px; height: 16px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
-      margin-right: 8px; font-size: 0.7rem; color: white; font-weight: bold;
-    }
-    .point-marker-a { background-color: var(--primary); }
-    .point-marker-b { background-color: var(--secondary); }
-    .point-address { flex: 1; word-break: break-word; }
-    .point-address-a { font-weight: 700; }
+    .point-marker { width: 16px; height: 16px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-right: 8px; font-size: 0.7rem; color: white; font-weight: bold; }
+    .point-marker-a { background-color: var(--primary); } .point-marker-b { background-color: var(--secondary); }
+    .point-address { flex: 1; word-break: break-word; } .point-address-a { font-weight: 700; }
     .delivery-desc-card { background: #f0f0f0; padding: 4px 8px; border-radius: 4px; margin-top: 6px; font-size: 0.7rem; }
     .order-details {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 5px;
-      border-top: 1px solid #eee;
-      padding-top: 8px;
-      font-size: 0.8rem;
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px;
+      border-top: 1px solid #eee; padding-top: 8px; font-size: 0.8rem;
     }
     .detail-item { display: flex; flex-direction: column; align-items: center; text-align: center; }
     .detail-value { font-weight: 600; color: var(--primary); font-size: 0.75rem; }
@@ -278,32 +102,11 @@
     @keyframes spin { to { transform: rotate(360deg); } }
     /* ===== MODAL ===== */
     .modal {
-      display: none;
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(0,0,0,0.5);
-      z-index: 1000;
-      align-items: center;
-      justify-content: center;
+      display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;
     }
-    .modal-content {
-      background: white;
-      border-radius: 12px;
-      width: 95%;
-      max-width: 380px;
-      max-height: 90vh;
-      overflow-y: auto;
-    }
-    .modal-header-with-customer {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      padding: 12px 15px;
-      border-bottom: 1px solid #eee;
-    }
+    .modal-content { background: white; border-radius: 12px; width: 95%; max-width: 380px; max-height: 90vh; overflow-y: auto; }
+    .modal-header-with-customer { display: flex; justify-content: space-between; align-items: flex-start; padding: 12px 15px; border-bottom: 1px solid #eee; }
     .modal-title { font-size: 1rem; font-weight: 600; color: var(--primary); }
     .modal-customer-photo { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; border: 2px solid var(--accent); }
     .close-btn { background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #666; }
@@ -311,228 +114,81 @@
     .modal-map { height: 50vh; min-height: 200px; max-height: 300px; width: 100%; }
     .modal-details { padding: 12px 15px; }
     .modal-route-point { display: flex; align-items: flex-start; margin-bottom: 8px; }
-    .modal-point-marker {
-      width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
-      margin-right: 8px; font-size: 0.7rem; color: white; font-weight: bold;
-    }
-    .modal-order-details {
-      display: grid;
-      grid-template-columns: 1fr 1fr 1fr;
-      gap: 8px;
-      background: #f9f9f9;
-      padding: 10px;
-      border-radius: 8px;
-      margin: 10px 0;
-    }
+    .modal-point-marker { width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-right: 8px; font-size: 0.7rem; color: white; font-weight: bold; }
+    .modal-order-details { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; background: #f9f9f9; padding: 10px; border-radius: 8px; margin: 10px 0; }
     .modal-footer { padding: 12px 15px; border-top: 1px solid #eee; }
     .progress-container { width: 100%; background: #e0e0e0; border-radius: 10px; overflow: hidden; margin-bottom: 10px; }
     .progress-bar { height: 8px; background: linear-gradient(to right, var(--primary), var(--secondary)); width: 100%; transition: width 0.3s; }
     .progress-info { display: flex; justify-content: space-between; font-size: 0.75rem; color: #666; }
     .ambil-btn {
-      width: 100%;
-      background: linear-gradient(to right, var(--primary), var(--secondary));
-      color: white;
-      border: none;
-      border-radius: 8px;
-      padding: 12px;
-      font-weight: 600;
-      cursor: pointer;
+      width: 100%; background: linear-gradient(to right, var(--primary), var(--secondary));
+      color: white; border: none; border-radius: 8px; padding: 12px; font-weight: 600; cursor: pointer;
     }
     .ambil-btn:disabled { background: #ccc; cursor: not-allowed; }
     /* ===== BOTTOM NAV ===== */
     .bottom-nav {
-      position: fixed;
-      bottom: 0;
-      left: 0;
-      width: 100%;
-      background: white;
-      display: flex;
-      justify-content: space-around;
-      padding: 10px 0;
-      box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
-      z-index: 99;
-      height: 60px;
+      position: fixed; bottom: 0; left: 0; width: 100%; background: white;
+      display: flex; justify-content: space-around; padding: 10px 0; box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+      z-index: 99; height: 60px;
     }
-    .nav-item {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      flex: 1;
-      cursor: pointer;
-    }
-    .nav-item.active .nav-icon { color: var(--primary); }
-    .nav-item.active .nav-label { color: var(--primary); font-weight: 600; }
-    .nav-icon { font-size: 1.2rem; color: #666; }
-    .nav-label { font-size: 0.7rem; color: #666; }
+    .nav-item { display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 1; cursor: pointer; }
+    .nav-item.active .nav-icon { color: var(--primary); } .nav-item.active .nav-label { color: var(--primary); font-weight: 600; }
+    .nav-icon { font-size: 1.2rem; color: #666; } .nav-label { font-size: 0.7rem; color: #666; }
     /* ===== SIDEBAR ===== */
     .sidebar {
-      display: none;
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      z-index: 1100;
+      display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1100;
     }
-    .sidebar-overlay {
-      position: absolute;
-      width: 100%;
-      height: 100%;
-      background: rgba(0,0,0,0.5);
-    }
+    .sidebar-overlay { position: absolute; width: 100%; height: 100%; background: rgba(0,0,0,0.5); }
     .sidebar-content {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 85%;
-      max-width: 350px;
-      height: 100%;
-      background: white;
-      display: flex;
-      flex-direction: column;
-      animation: slideInLeft 0.3s ease;
+      position: absolute; top: 0; left: 0; width: 85%; max-width: 350px; height: 100%;
+      background: white; display: flex; flex-direction: column; animation: slideInLeft 0.3s ease;
     }
     @keyframes slideInLeft { from { transform: translateX(-100%); } to { transform: translateX(0); } }
     .sidebar-header {
-      padding: 15px 20px;
-      background: linear-gradient(135deg, var(--primary), var(--secondary));
-      color: white;
-      display: flex;
-      align-items: center;
-      gap: 15px;
+      padding: 15px 20px; background: linear-gradient(135deg, var(--primary), var(--secondary));
+      color: white; display: flex; align-items: center; gap: 15px;
     }
     .sidebar-driver-photo { width: 50px; height: 50px; border-radius: 50%; object-fit: cover; border: 2px solid white; }
     .sidebar-driver-name { font-weight: 600; }
     .close-sidebar { background: none; border: none; color: white; font-size: 1.5rem; cursor: pointer; }
     .sidebar-body { flex: 1; overflow-y: auto; padding: 15px; }
-    .menu-section { margin-bottom: 20px; }
-    .menu-section h4 { color: var(--primary); font-size: 0.85rem; margin-bottom: 10px; }
-    .menu-item {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 10px 0;
-      border-bottom: 1px solid #eee;
-    }
-    .toggle-switch {
-      position: relative;
-      display: inline-block;
-      width: 50px;
-      height: 24px;
-    }
+    .menu-section { margin-bottom: 20px; } .menu-section h4 { color: var(--primary); font-size: 0.85rem; margin-bottom: 10px; }
+    .menu-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #eee; }
+    .toggle-switch { position: relative; display: inline-block; width: 50px; height: 24px; }
     .toggle-switch input { opacity: 0; width: 0; height: 0; }
-    .toggle-slider {
-      position: absolute;
-      cursor: pointer;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background: #ccc;
-      transition: .4s;
-      border-radius: 24px;
-    }
-    .toggle-slider:before {
-      position: absolute;
-      content: "";
-      height: 18px;
-      width: 18px;
-      left: 3px;
-      bottom: 3px;
-      background: white;
-      transition: .4s;
-      border-radius: 50%;
-    }
+    .toggle-slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background: #ccc; transition: .4s; border-radius: 24px; }
+    .toggle-slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background: white; transition: .4s; border-radius: 50%; }
     input:checked + .toggle-slider { background-color: var(--primary); }
     input:checked + .toggle-slider:before { transform: translateX(26px); }
     .status-info { background: #f8f9fa; border-radius: 8px; padding: 12px; }
     .status-item { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 0.8rem; }
-    .status-label { color: #666; }
-    .status-value { font-weight: 600; color: var(--primary); }
-    .sidebar-nav-button {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      background: #f8f9fa;
-      border-radius: 8px;
-      padding: 12px;
-      margin-bottom: 8px;
-      cursor: pointer;
-    }
+    .status-label { color: #666; } .status-value { font-weight: 600; color: var(--primary); }
+    .sidebar-nav-button { display: flex; align-items: center; justify-content: space-between; background: #f8f9fa; border-radius: 8px; padding: 12px; margin-bottom: 8px; cursor: pointer; }
     .app-version { text-align: center; margin-top: 20px; font-size: 0.7rem; color: #666; }
     /* ===== POPUP ===== */
     .popup-overlay {
-      display: none;
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(0,0,0,0.7);
-      z-index: 2000;
-      align-items: center;
-      justify-content: center;
+      display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0,0,0,0.7); z-index: 2000; align-items: center; justify-content: center;
     }
-    .popup {
-      background: white;
-      border-radius: 12px;
-      width: 90%;
-      max-width: 320px;
-      overflow: hidden;
-    }
-    .popup-header {
-      padding: 15px 20px;
-      background: linear-gradient(135deg, var(--primary), var(--secondary));
-      color: white;
-      text-align: center;
-    }
+    .popup { background: white; border-radius: 12px; width: 90%; max-width: 320px; overflow: hidden; }
+    .popup-header { padding: 15px 20px; background: linear-gradient(135deg, var(--primary), var(--secondary)); color: white; text-align: center; }
     .popup-body { padding: 20px; text-align: center; }
     .popup-footer { padding: 15px 20px; border-top: 1px solid #eee; display: flex; justify-content: center; }
-    .popup-button {
-      background: linear-gradient(to right, var(--primary), var(--secondary));
-      color: white;
-      border: none;
-      border-radius: 8px;
-      padding: 10px 30px;
-      cursor: pointer;
-    }
+    .popup-button { background: linear-gradient(to right, var(--primary), var(--secondary)); color: white; border: none; border-radius: 8px; padding: 10px 30px; cursor: pointer; }
     /* ===== LOADING OVERLAY ===== */
-    #loadingOverlay {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(255,255,255,0.95);
-      display: none;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      z-index: 3000;
-    }
-    @media (max-width: 768px) {
-      .header { height: 60px; padding: 12px 15px; }
-      #radarContainer { top: 60px; height: calc(100vh - 114px); }
-      .radar-circle { width: 90vmin; height: 90vmin; }
-    }
+    #loadingOverlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.95); display: none; flex-direction: column; justify-content: center; align-items: center; z-index: 3000; }
+    @media (max-width: 768px) { .header { height: 60px; padding: 12px 15px; } #radarContainer { top: 60px; height: calc(100vh - 114px); } .radar-circle { width: 90vmin; height: 90vmin; } }
   </style>
 </head>
 <body>
-  <!-- Guard Login -->
   <script>
+    // Guard login driver
     (function () {
       const raw = localStorage.getItem('jego_logged_in_driver');
-      if (!raw) {
-        window.location.href = 'loginDriver.html';
-        return;
-      }
+      if (!raw) { window.location.href = 'loginDriver.html'; return; }
       const driver = JSON.parse(raw);
       const status = driver.status || driver.driverStatus;
-      if (!["active", "approved", "accepted"].includes(status)) {
-        window.location.href = 'loginDriver.html';
-        return;
-      }
+      if (!["active", "approved", "accepted"].includes(status)) { window.location.href = 'loginDriver.html'; return; }
     })();
   </script>
 
@@ -557,13 +213,9 @@
   <div id="radarContainer">
     <div class="radar-main">
       <div class="radar-circle">
-        <div class="concentric-circle circle-1"></div>
-        <div class="concentric-circle circle-2"></div>
-        <div class="concentric-circle circle-3"></div>
-        <div class="radar-axis axis-horizontal"></div>
-        <div class="radar-axis axis-vertical"></div>
-        <div class="radar-axis axis-diagonal-1"></div>
-        <div class="radar-axis axis-diagonal-2"></div>
+        <div class="concentric-circle circle-1"></div><div class="concentric-circle circle-2"></div><div class="concentric-circle circle-3"></div>
+        <div class="radar-axis axis-horizontal"></div><div class="radar-axis axis-vertical"></div>
+        <div class="radar-axis axis-diagonal-1"></div><div class="radar-axis axis-diagonal-2"></div>
         <div class="radar-sweep"><div class="sweep-line"></div><div class="sweep-dot"></div></div>
         <div class="radar-center"><div class="center-dot"></div><div class="center-pulse pulse-1"></div><div class="center-pulse pulse-2"></div></div>
         <div class="radar-point point-1"></div><div class="radar-point point-2"></div><div class="radar-point point-3"></div><div class="radar-point point-4"></div>
@@ -662,13 +314,13 @@
     <div class="nav-item" data-screen="account"><div class="nav-icon">👤</div><div class="nav-label">Akun</div></div>
   </div>
 
-  <!-- Audio notifikasi (tetap) -->
+  <!-- Audio notifikasi -->
   <audio id="newOrderSound" preload="auto"><source src="https://assets.mixkit.co/sfx/preview/mixkit-alarm-tone-996.mp3" type="audio/mpeg"></audio>
   <audio id="autobidSound" preload="auto"><source src="https://assets.mixkit.co/sfx/preview/mixkit-classic-alarm-995.mp3" type="audio/mpeg"></audio>
   <audio id="orderAcceptedSound" preload="auto"><source src="https://assets.mixkit.co/sfx/preview/mixkit-positive-notification-951.mp3" type="audio/mpeg"></audio>
 
   <script>
-    // ==================== FIREBASE CONFIG (SAMA DENGAN pendaftaranDriver.html) ====================
+    // ==================== FIREBASE CONFIG (sama dengan pendaftaranDriver.html) ====================
     const firebaseConfig = {
       apiKey: "AIzaSyCD0pgeZio-LdKqYDtWxcdXcZwyL4ngYQI",
       authDomain: "jego-35a2b.firebaseapp.com",
@@ -691,14 +343,14 @@
     // Variabel global
     let ordersRef = null, ordersListener = null;
     let modalMap = null;
-    let currentSelectedOrder = null;
+    let currentSelectedOrder = null;          // { customerId, orderId, orderData }
     let currentDriverId = null, currentDriverData = null;
     let autobidEnabled = false, driverLocation = { latitude: null, longitude: null };
     let locationWatchId = null, locationTrackingEnabled = false;
     let mapboxAccessToken = null;
     let countdownInterval = null, countdownOrderId = null, countdownDriverId = null, orderStatusListener = null;
     let acceptKurirEnabled = false;
-    let previousOrderIds = new Set();
+    let previousOrderIds = new Set();  // untuk deteksi order baru (simpan string "customerId|orderId")
     let mapMarkers = [];
 
     // ==================== FUNGSI PENDUKUNG ====================
@@ -726,7 +378,6 @@
       const toggle = document.getElementById('acceptKurirToggle');
       if (toggle) toggle.checked = acceptKurirEnabled;
     }
-
     function updateTrackingButton() {
       const btn = document.getElementById('locationToggleBtn');
       if (locationTrackingEnabled) { btn.innerHTML = '📍 ON'; btn.classList.add('active'); }
@@ -743,49 +394,68 @@
       loadOrders();
     }
 
-    // ==================== FUNGSI UTAMA ====================
+    // ==================== LOAD ORDERS DARI SEMUA CUSTOMER (STRUKTUR orders/{customerId}/{orderId}) ====================
     function loadOrders() {
       const ordersList = document.getElementById('ordersList');
       if (!ordersList) return;
       ordersList.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
       if (!checkDriverData() || !database) return;
       if (ordersListener && ordersRef) ordersRef.off('value', ordersListener);
-      ordersRef = database.ref('orders');
+      ordersRef = database.ref('orders');  // root orders
       ordersListener = ordersRef.on('value', (snapshot) => {
-        const orders = snapshot.val();
+        const customersOrders = snapshot.val(); // { customerId1: { orderId1: {...}, orderId2: {...} }, ... }
         ordersList.innerHTML = '';
-        if (!orders || Object.keys(orders).length === 0) {
+        if (!customersOrders || Object.keys(customersOrders).length === 0) {
           ordersList.innerHTML = '<div class="empty-state"><div>📭</div><p>Tidak ada permintaan order saat ini</p></div>';
           return;
         }
+
         const driverVehicleType = currentDriverData?.vehicleType;
         if (!driverVehicleType) {
           ordersList.innerHTML = '<div class="empty-state"><div>⚠️</div><p>Data kendaraan driver tidak ditemukan.</p></div>';
           return;
         }
-        const allOrders = Object.entries(orders)
-          .map(([id, order]) => ({ id, ...order }))
-          .filter(order => order.status === 'searching');
+
+        // Kumpulkan semua order dari semua customer
+        let allOrders = [];
+        for (const customerId in customersOrders) {
+          const userOrders = customersOrders[customerId];
+          for (const orderId in userOrders) {
+            const order = userOrders[orderId];
+            if (order.status === 'waiting') {   // status 'waiting' dari rute.html
+              allOrders.push({
+                id: orderId,
+                customerId: customerId,
+                ...order
+              });
+            }
+          }
+        }
+
+        // Filter berdasarkan tipe kendaraan driver dan preferensi kurir
         const filteredOrders = allOrders.filter(order => {
+          // Tentukan tipe order (dari field transport_type atau vehicle)
+          const orderType = order.transport_type || order.vehicle || 'motor';
           if (acceptKurirEnabled) {
-            if (driverVehicleType === 'motor') return order.vehicle === 'motor' || order.vehicle === 'kurir_motor';
-            if (driverVehicleType === 'bentor') return order.vehicle === 'bentor' || order.vehicle === 'kurir_bentor';
-            return order.vehicle === driverVehicleType;
+            if (driverVehicleType === 'motor') return orderType === 'motor' || orderType === 'kurir_motor';
+            if (driverVehicleType === 'bentor') return orderType === 'bentor' || orderType === 'kurir_bentor';
+            return orderType === driverVehicleType;
           } else {
-            return order.vehicle === driverVehicleType;
+            return orderType === driverVehicleType;
           }
         });
-        // Deteksi order baru
-        const newOrderIds = new Set(filteredOrders.map(o => o.id));
-        const addedOrders = filteredOrders.filter(o => !previousOrderIds.has(o.id));
-        previousOrderIds = newOrderIds;
+
+        // Deteksi order baru (gunakan key unik customerId|orderId)
+        const newOrderKeys = new Set(filteredOrders.map(o => `${o.customerId}|${o.id}`));
+        const addedOrders = filteredOrders.filter(o => !previousOrderIds.has(`${o.customerId}|${o.id}`));
+        previousOrderIds = newOrderKeys;
 
         // Tampilkan popup order baru jika tracking aktif dan jarak < 3 km
         addedOrders.forEach(order => {
-          if (locationTrackingEnabled && driverLocation.latitude && driverLocation.longitude && order.from_lat && order.from_lng) {
-            const dist = calculateDistance(driverLocation.latitude, driverLocation.longitude, order.from_lat, order.from_lng);
+          if (locationTrackingEnabled && driverLocation.latitude && driverLocation.longitude && order.pickup_lat && order.pickup_lng) {
+            const dist = calculateDistance(driverLocation.latitude, driverLocation.longitude, order.pickup_lat, order.pickup_lng);
             if (dist !== null && dist < 3) {
-              showOrderDetail(order, true);
+              showOrderDetail({ customerId: order.customerId, orderId: order.id, orderData: order }, true);
             }
           }
         });
@@ -796,6 +466,7 @@
           ordersList.innerHTML = `<div class="empty-state"><div>🛵</div><p>${msg}</p></div>`;
           return;
         }
+
         const sortedOrders = filteredOrders.sort((a,b) => new Date(b.created_at||0) - new Date(a.created_at||0));
         renderOrdersList(sortedOrders, ordersList);
       }, (error) => {
@@ -806,41 +477,37 @@
 
     function renderOrdersList(orders, ordersList) {
       orders.forEach(order => {
-        const orderItem = document.createElement('div');
-        orderItem.className = 'order-item';
-        orderItem.dataset.orderId = order.id;
-        const user = order.user_data || {};
-        const customerName = user.name || 'Tidak diketahui';
-        const customerPhoto = user.fotoProfilURL || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png';
-        const alamatA = order.alamat_a || '-';
-        const alamatB = order.alamat_b || '-';
-        const durasi = order.durasi || '-';
-        const jarak = order.jarak || '-';
-        const harga = order.harga_total || 0;
-        const isKurir = order.vehicle && order.vehicle.includes('kurir');
-        const promoBadge = (order.diskon_persen || order.promo_data) ? '<span class="promo-badge">🎁 PROMO</span>' : '';
+        const customerName = order.customer_name || 'Tidak diketahui';
+        const customerPhoto = order.photoURL || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png';
+        const alamatA = order.pickup_address || '-';
+        const alamatB = order.destination_address || '-';
+        const durasi = order.duration_seconds ? Math.round(order.duration_seconds / 60) + ' menit' : '-';
+        const jarak = order.distance_meters ? (order.distance_meters / 1000).toFixed(1) + ' km' : '-';
+        const harga = order.price || 0;
+        const isKurir = order.transport_type && order.transport_type.includes('kurir');
+        // Hitung jarak driver ke titik jemput
         let jarakDriver = '-';
-        if (driverLocation.latitude && driverLocation.longitude && order.from_lat && order.from_lng) {
-          const dist = calculateDistance(driverLocation.latitude, driverLocation.longitude, order.from_lat, order.from_lng);
+        if (driverLocation.latitude && driverLocation.longitude && order.pickup_lat && order.pickup_lng) {
+          const dist = calculateDistance(driverLocation.latitude, driverLocation.longitude, order.pickup_lat, order.pickup_lng);
           if (dist !== null) jarakDriver = dist.toFixed(1) + ' km';
         }
-        let kurirDescHtml = '';
-        if (isKurir && order.delivery_data && order.delivery_data.description) {
-          kurirDescHtml = `<div class="delivery-desc-card"><span>📦 ${order.delivery_data.description}</span></div>`;
-        }
+
+        const orderItem = document.createElement('div');
+        orderItem.className = 'order-item';
+        orderItem.dataset.customerId = order.customerId;
+        orderItem.dataset.orderId = order.id;
         orderItem.innerHTML = `
-          <div class="order-header"><div class="order-badges">${isKurir ? '<span class="kurir-badge">📦 KURIR</span>' : ''}${promoBadge}</div></div>
+          <div class="order-header"><div class="order-badges">${isKurir ? '<span class="kurir-badge">📦 KURIR</span>' : ''}</div></div>
           <div class="route-info-with-photo">
             <div class="customer-info-left">
               <img src="${customerPhoto}" class="customer-photo-left" onclick="showPhotoModal('${customerPhoto}', '${customerName}')">
-              <div class="customer-name-left">${customerName}</div>
-              <div class="customer-rating"><span>★</span><span class="rating-value" data-customer-id="${user.uid||user.userId||''}" data-order-id="${order.id}">...</span></div>
+              <div class="customer-name-left">${escapeHtml(customerName)}</div>
+              <div class="customer-rating"><span>★</span><span class="rating-value" data-customer-id="${order.customerId}" data-order-id="${order.id}">${(order.passenger_rating || 0).toFixed(1)}</span></div>
               <div class="order-time">${new Date(order.created_at).toLocaleTimeString('id-ID', {hour:'2-digit',minute:'2-digit'})}</div>
             </div>
             <div class="route-addresses-right">
               <div class="route-point"><div class="point-marker point-marker-a">A</div><div class="point-address point-address-a">${alamatA}</div></div>
               <div class="route-point"><div class="point-marker point-marker-b">B</div><div class="point-address">${alamatB}</div></div>
-              ${kurirDescHtml}
             </div>
           </div>
           <div class="order-details">
@@ -850,72 +517,81 @@
             <div class="detail-item"><span class="detail-value">${jarakDriver}</span><span class="detail-label">Jarak Driver</span></div>
           </div>
         `;
-        orderItem.addEventListener('click', () => showOrderDetail(order, false));
+        orderItem.addEventListener('click', () => {
+          showOrderDetail({ customerId: order.customerId, orderId: order.id, orderData: order }, false);
+        });
         ordersList.appendChild(orderItem);
-        // Ambil rating customer
-        const customerId = user.uid || user.userId;
-        if (customerId) {
-          database.ref('users/' + customerId).once('value').then(snap => {
-            const cust = snap.val();
-            if (cust) {
-              const ratingSpan = orderItem.querySelector(`.rating-value[data-order-id="${order.id}"]`);
-              if (ratingSpan) ratingSpan.textContent = `${(cust.avgRating||0).toFixed(1)} (${cust.ratingCount||0})`;
-            }
-          });
-        }
       });
     }
 
-    function showOrderDetail(order, fromAuto = false) {
+    function escapeHtml(str) {
+      if (!str) return '';
+      return str.replace(/[&<>]/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[m]));
+    }
+
+    // ==================== MENAMPILKAN DETAIL ORDER DI MODAL ====================
+    async function showOrderDetail(orderObj, fromAuto = false) {
       if (!checkDriverData()) return;
-      const orderKey = order.order_id || order.id;
-      database.ref('orders/' + orderKey).once('value').then((snapshot) => {
-        const currentOrder = snapshot.val();
-        if (!currentOrder || currentOrder.status !== 'searching') {
-          showPopup('Info', 'Order ini sudah diambil oleh driver lain.', 'warning');
-          loadOrders();
-          return;
-        }
-        currentSelectedOrder = currentOrder;
-        currentDriverId = currentDriverData?.driverId || 'DRIVER_' + Date.now();
-        document.getElementById('modalAddressA').textContent = currentOrder.alamat_a || '-';
-        document.getElementById('modalAddressB').textContent = currentOrder.alamat_b || '-';
-        document.getElementById('modalDuration').textContent = currentOrder.durasi || '-';
-        document.getElementById('modalDistance').textContent = currentOrder.jarak || '-';
-        document.getElementById('modalPrice').textContent = currentOrder.harga_total ? `Rp ${currentOrder.harga_total.toLocaleString('id-ID')}` : '-';
-        document.getElementById('modalCustomerName').textContent = (currentOrder.user_data || {}).name || 'Customer';
-        const modalPhoto = document.getElementById('modalCustomerPhoto');
-        if (currentOrder.user_data?.fotoProfilURL) {
-          modalPhoto.src = currentOrder.user_data.fotoProfilURL;
-          modalPhoto.style.display = 'block';
-        } else modalPhoto.style.display = 'none';
-        const deliveryDiv = document.getElementById('modalDeliveryInfo');
-        if (currentOrder.delivery_data) {
-          deliveryDiv.innerHTML = `<div>Jenis: ${currentOrder.delivery_data.itemCategory||'-'}</div><div>Deskripsi: ${currentOrder.delivery_data.description||'-'}</div>`;
-          deliveryDiv.style.display = 'block';
-        } else deliveryDiv.style.display = 'none';
-        document.getElementById('countdownContainer').style.display = 'none';
-        document.getElementById('ambilBtn').disabled = false;
-        document.getElementById('ambilBtn').textContent = 'Kirim Penawaran';
-        document.getElementById('orderModal').style.display = 'flex';
-        // Autobid
-        if (autobidEnabled && fromAuto && currentSelectedOrder && !currentSelectedOrder.vehicle.includes('kurir')) {
-          setTimeout(() => sendDriverOffer(), 500);
-        }
-        if (mapboxAccessToken) {
+      const { customerId, orderId, orderData } = orderObj;
+      // Ambil ulang data terbaru
+      const snapshot = await database.ref(`orders/${customerId}/${orderId}`).once('value');
+      const currentOrder = snapshot.val();
+      if (!currentOrder || currentOrder.status !== 'waiting') {
+        showPopup('Info', 'Order ini sudah tidak tersedia.', 'warning');
+        loadOrders();
+        return;
+      }
+      currentSelectedOrder = {
+        customerId: customerId,
+        orderId: orderId,
+        orderData: currentOrder
+      };
+      currentDriverId = currentDriverData?.driverId || (currentDriverData?.uid) || 'DRIVER_' + Date.now();
+
+      // Update modal
+      document.getElementById('modalAddressA').textContent = currentOrder.pickup_address || '-';
+      document.getElementById('modalAddressB').textContent = currentOrder.destination_address || '-';
+      document.getElementById('modalDuration').textContent = currentOrder.duration_seconds ? Math.round(currentOrder.duration_seconds / 60) + ' menit' : '-';
+      document.getElementById('modalDistance').textContent = currentOrder.distance_meters ? (currentOrder.distance_meters / 1000).toFixed(1) + ' km' : '-';
+      document.getElementById('modalPrice').textContent = currentOrder.price ? `Rp ${currentOrder.price.toLocaleString('id-ID')}` : '-';
+      document.getElementById('modalCustomerName').textContent = currentOrder.customer_name || 'Customer';
+      const modalPhoto = document.getElementById('modalCustomerPhoto');
+      if (currentOrder.photoURL) {
+        modalPhoto.src = currentOrder.photoURL;
+        modalPhoto.style.display = 'block';
+      } else modalPhoto.style.display = 'none';
+      // Info kurir jika ada
+      const deliveryDiv = document.getElementById('modalDeliveryInfo');
+      if (currentOrder.item_description) {
+        deliveryDiv.innerHTML = `<div>Jenis: ${currentOrder.item_category||'-'}</div><div>Deskripsi: ${currentOrder.item_description}</div>`;
+        deliveryDiv.style.display = 'block';
+      } else deliveryDiv.style.display = 'none';
+
+      document.getElementById('countdownContainer').style.display = 'none';
+      document.getElementById('ambilBtn').disabled = false;
+      document.getElementById('ambilBtn').textContent = 'Kirim Penawaran';
+      document.getElementById('orderModal').style.display = 'flex';
+
+      // Autobid jika aktif dan fromAuto true (order baru muncul otomatis)
+      if (autobidEnabled && fromAuto && currentSelectedOrder) {
+        setTimeout(() => sendDriverOffer(), 500);
+      }
+
+      // Tampilkan peta (jika token mapbox sudah diambil)
+      if (mapboxAccessToken) {
+        if (!modalMap) initModalMapbox();
+        showRouteOnMapbox(currentOrder);
+      } else {
+        fetchMapboxToken().then(() => {
           if (!modalMap) initModalMapbox();
           showRouteOnMapbox(currentOrder);
-        } else {
-          fetchMapboxToken().then(() => {
-            if (!modalMap) initModalMapbox();
-            showRouteOnMapbox(currentOrder);
-          }).catch(console.error);
-        }
-      });
+        }).catch(console.error);
+      }
     }
 
+    // ==================== MAPBOX ====================
     async function fetchMapboxToken() {
-      const snapshot = await database.ref('Secret/Key').once('value');
+      const snapshot = await database.ref('data-jego/mapbox_acces_token').once('value');
       const token = snapshot.val();
       if (token) { mapboxAccessToken = token; return token; }
       throw new Error('Token tidak valid');
@@ -926,21 +602,23 @@
       modalMap.addControl(new mapboxgl.NavigationControl(), 'bottom-right');
     }
     function showRouteOnMapbox(order) {
-      if (!order.from_lat || !order.from_lng || !order.to_lat || !order.to_lng) return;
+      if (!order.pickup_lng || !order.pickup_lat || !order.dest_lng || !order.dest_lat) return;
       if (mapMarkers.length) mapMarkers.forEach(m => m.remove());
       if (modalMap.getLayer('route')) modalMap.removeLayer('route');
       if (modalMap.getSource('route')) modalMap.removeSource('route');
+      const pickupIcon = 'https://cdn-icons-png.flaticon.com/128/5811/5811823.png';
+      const destIcon = 'https://cdn-icons-png.flaticon.com/128/684/684908.png';
       const pickupEl = document.createElement('div');
-      pickupEl.innerHTML = `<img src="https://cdn-icons-png.flaticon.com/128/5811/5811823.png" style="width:40px;">`;
-      const pickupMarker = new mapboxgl.Marker({ element: pickupEl }).setLngLat([order.from_lng, order.from_lat]).addTo(modalMap);
+      pickupEl.innerHTML = `<img src="${pickupIcon}" style="width:40px;">`;
+      const pickupMarker = new mapboxgl.Marker({ element: pickupEl }).setLngLat([order.pickup_lng, order.pickup_lat]).addTo(modalMap);
       mapMarkers.push(pickupMarker);
       const destEl = document.createElement('div');
-      destEl.innerHTML = `<img src="https://cdn-icons-png.flaticon.com/128/684/684908.png" style="width:40px;">`;
-      const destMarker = new mapboxgl.Marker({ element: destEl }).setLngLat([order.to_lng, order.to_lat]).addTo(modalMap);
+      destEl.innerHTML = `<img src="${destIcon}" style="width:40px;">`;
+      const destMarker = new mapboxgl.Marker({ element: destEl }).setLngLat([order.dest_lng, order.dest_lat]).addTo(modalMap);
       mapMarkers.push(destMarker);
-      const bounds = new mapboxgl.LngLatBounds().extend([order.from_lng, order.from_lat]).extend([order.to_lng, order.to_lat]);
+      const bounds = new mapboxgl.LngLatBounds().extend([order.pickup_lng, order.pickup_lat]).extend([order.dest_lng, order.dest_lat]);
       modalMap.fitBounds(bounds, { padding: 40 });
-      const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${order.from_lng},${order.from_lat};${order.to_lng},${order.to_lat}?geometries=geojson&access_token=${mapboxAccessToken}`;
+      const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${order.pickup_lng},${order.pickup_lat};${order.dest_lng},${order.dest_lat}?geometries=geojson&access_token=${mapboxAccessToken}`;
       fetch(url).then(res => res.json()).then(data => {
         if (data.routes && data.routes.length) {
           modalMap.addSource('route', { type: 'geojson', data: data.routes[0].geometry });
@@ -948,46 +626,63 @@
         } else fallbackLine();
       }).catch(fallbackLine);
       function fallbackLine() {
-        modalMap.addSource('route', { type: 'geojson', data: { type: 'Feature', geometry: { type: 'LineString', coordinates: [[order.from_lng, order.from_lat], [order.to_lng, order.to_lat]] } } });
+        modalMap.addSource('route', { type: 'geojson', data: { type: 'Feature', geometry: { type: 'LineString', coordinates: [[order.pickup_lng, order.pickup_lat], [order.dest_lng, order.dest_lat]] } } });
         modalMap.addLayer({ id: 'route', type: 'line', source: 'route', paint: { 'line-color': '#289672', 'line-width': 4, 'line-dasharray': [2,1] } });
       }
     }
 
-    function sendDriverOffer() {
+    // ==================== KIRIM PENAWARAN ====================
+    async function sendDriverOffer() {
       if (!currentSelectedOrder || !currentDriverId || !checkDriverData()) return;
-      const hargaTotal = currentSelectedOrder.harga_total || 0;
+      const { customerId, orderId, orderData } = currentSelectedOrder;
+      const hargaTotal = orderData.price || 0;
       const requiredBalance = hargaTotal * 0.1;
       const driverBalance = currentDriverData.balance || 0;
       if (driverBalance < requiredBalance) {
         showPopup('Saldo Tidak Cukup', `Saldo Anda Rp ${driverBalance.toLocaleString('id-ID')} tidak mencukupi untuk membayar 10% dari tarif (Rp ${requiredBalance.toLocaleString('id-ID')}).`, 'warning');
         return;
       }
-      const orderId = currentSelectedOrder.order_id || currentSelectedOrder.id;
-      const driverId = currentDriverId;
       const ambilBtn = document.getElementById('ambilBtn');
       ambilBtn.disabled = true; ambilBtn.textContent = 'Mengirim...';
-      database.ref('orders/' + orderId).once('value').then((snapshot) => {
-        const currentOrder = snapshot.val();
-        if (!currentOrder || currentOrder.status !== 'searching') {
-          showPopup('Info', 'Order ini sudah diambil oleh driver lain.', 'warning');
-          closeModal(); return;
-        }
-        const driverData = {
-          id: driverId, name: currentDriverData.fullName, plate_number: currentDriverData.plateNumber,
-          vehicle_type: currentDriverData.vehicleType, rating: currentDriverData.rating,
-          profile_photo_url: currentDriverData.profilePhotoUrl || '', avg_rating: currentDriverData.rating,
-          offered_at: new Date().toISOString(), status: 'offered'
-        };
-        database.ref('orders/' + orderId + '/driver_offers/' + driverId).set(driverData)
-          .then(() => { ambilBtn.textContent = 'Menunggu Konfirmasi'; startCountdown(orderId, driverId); })
-          .catch(error => { showPopup('Error', 'Gagal mengirim penawaran.', 'error'); ambilBtn.disabled = false; ambilBtn.textContent = 'Kirim Penawaran'; });
-      }).catch(error => { showPopup('Error', 'Gagal memeriksa status order.', 'error'); ambilBtn.disabled = false; ambilBtn.textContent = 'Kirim Penawaran'; });
+      // Cek ulang status order
+      const snapshot = await database.ref(`orders/${customerId}/${orderId}`).once('value');
+      const currentOrder = snapshot.val();
+      if (!currentOrder || currentOrder.status !== 'waiting') {
+        showPopup('Info', 'Order ini sudah diambil oleh driver lain.', 'warning');
+        closeModal();
+        return;
+      }
+      const driverData = {
+        driver_id: currentDriverId,
+        driver_name: currentDriverData.fullName,
+        driver_plate: currentDriverData.plateNumber,
+        driver_type: currentDriverData.vehicleType,
+        driver_rating: currentDriverData.rating,
+        driver_trips: currentDriverData.perjalanan,
+        driver_photo: currentDriverData.profilePhotoUrl || '',
+        offered_at: new Date().toISOString(),
+        status: 'offered'
+      };
+      try {
+        await database.ref(`orders/${customerId}/${orderId}/driver_offers/${currentDriverId}`).set(driverData);
+        ambilBtn.textContent = 'Menunggu Konfirmasi';
+        startCountdown(customerId, orderId, currentDriverId);
+      } catch (err) {
+        showPopup('Error', 'Gagal mengirim penawaran.', 'error');
+        ambilBtn.disabled = false;
+        ambilBtn.textContent = 'Kirim Penawaran';
+      }
     }
 
+    // ==================== COUNTDOWN & LISTENER ====================
     function stopCountdown() {
       if (countdownInterval) clearInterval(countdownInterval);
-      if (orderStatusListener && countdownOrderId) database.ref('orders/' + countdownOrderId).off('value', orderStatusListener);
-      document.getElementById('countdownContainer').style.display = 'none';
+      if (orderStatusListener && countdownOrderId && countdownDriverId && countdownOrderId.customerId) {
+        const { customerId, orderId } = countdownOrderId;
+        database.ref(`orders/${customerId}/${orderId}`).off('value', orderStatusListener);
+      }
+      const container = document.getElementById('countdownContainer');
+      if (container) container.style.display = 'none';
       const ambilBtn = document.getElementById('ambilBtn');
       if (ambilBtn) { ambilBtn.disabled = false; ambilBtn.textContent = 'Kirim Penawaran'; }
       const closeBtn = document.getElementById('closeModal');
@@ -995,9 +690,10 @@
       countdownOrderId = null; countdownDriverId = null; orderStatusListener = null; countdownInterval = null;
     }
 
-    function startCountdown(orderId, driverId) {
+    function startCountdown(customerId, orderId, driverId) {
       stopCountdown();
-      countdownOrderId = orderId; countdownDriverId = driverId;
+      countdownOrderId = { customerId, orderId };
+      countdownDriverId = driverId;
       const container = document.getElementById('countdownContainer');
       const progress = document.getElementById('countdownProgress');
       const secondsSpan = document.getElementById('countdownSeconds');
@@ -1014,27 +710,31 @@
         if (timeLeft <= 0) {
           clearInterval(countdownInterval);
           countdownInterval = null;
-          database.ref('orders/' + orderId + '/driver_offers/' + driverId).remove()
+          database.ref(`orders/${customerId}/${orderId}/driver_offers/${driverId}`).remove()
             .then(() => { showPopup('Info', 'Waktu penawaran habis. Silakan coba lagi.', 'info'); closeModal(); })
             .catch(() => closeModal());
         }
       }, 1000);
-      orderStatusListener = database.ref('orders/' + orderId).on('value', (snapshot) => {
+      // Listener perubahan status order
+      orderStatusListener = database.ref(`orders/${customerId}/${orderId}`).on('value', (snapshot) => {
         const order = snapshot.val();
         if (!order) { stopCountdown(); closeModal(); return; }
         if (order.status === 'accepted') {
-          if (order.accepted_driver_id === driverId) {
+          // Cek apakah driver yang diterima adalah kita
+          if (order.driver_id === driverId) {
             stopCountdown();
             showPopup('Sukses', 'Penawaran Anda diterima!', 'success');
             localStorage.setItem('jego_driver_active_order', orderId);
             setTimeout(() => window.location.href = 'orderAccepted.html?id=' + orderId, 1500);
-          } else if (order.selected_driver?.id === driverId || order.driver?.id === driverId) {
+          } else {
             stopCountdown();
-            showPopup('Sukses', 'Penawaran Anda diterima!', 'success');
-            localStorage.setItem('jego_driver_active_order', orderId);
-            setTimeout(() => window.location.href = 'orderAccepted.html?id=' + orderId, 1500);
-          } else { stopCountdown(); showPopup('Info', 'Order sudah diambil driver lain.', 'warning'); closeModal(); }
-        } else if (order.status !== 'searching') { stopCountdown(); closeModal(); }
+            showPopup('Info', 'Order sudah diambil driver lain.', 'warning');
+            closeModal();
+          }
+        } else if (order.status !== 'waiting') {
+          stopCountdown();
+          closeModal();
+        }
       });
     }
 
@@ -1046,7 +746,7 @@
       loadOrders();
     }
 
-    // GPS
+    // ==================== GPS ====================
     function startGPSMonitoring() {
       if (!navigator.geolocation) return;
       navigator.geolocation.getCurrentPosition(updateDriverLocation, console.error);
@@ -1062,7 +762,7 @@
       }
     }
 
-    // Data driver
+    // ==================== DATA DRIVER ====================
     function checkDriverData() {
       try {
         const driverDataStr = localStorage.getItem('jego_logged_in_driver');
@@ -1070,11 +770,19 @@
         const driverData = JSON.parse(driverDataStr);
         if (driverData.uid && driverData.name) {
           currentDriverData = {
-            driverId: driverData.uid, fullName: driverData.name, phoneNumber: driverData.phone,
-            email: driverData.email, profilePhotoUrl: driverData.fotoProfilURL || driverData.profilePhotoUrl || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png',
-            vehicleType: driverData.vehicleType, plateNumber: driverData.plateNumber, vehicleBrand: driverData.vehicleBrand,
-            status: driverData.status || driverData.driverStatus || 'pending', rating: driverData.rating || 5,
-            perjalanan: driverData.perjalanan || 0, balance: driverData.Balance || 0, potongan: driverData.Potongan || 0
+            driverId: driverData.uid,
+            fullName: driverData.name,
+            phoneNumber: driverData.phone,
+            email: driverData.email,
+            profilePhotoUrl: driverData.fotoProfilURL || driverData.profilePhotoUrl || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png',
+            vehicleType: driverData.vehicleType,
+            plateNumber: driverData.plateNumber,
+            vehicleBrand: driverData.vehicleBrand,
+            status: driverData.status || driverData.driverStatus || 'pending',
+            rating: driverData.rating || 5,
+            perjalanan: driverData.perjalanan || 0,
+            balance: driverData.Balance || 0,
+            potongan: driverData.Potongan || 0
           };
           document.getElementById('driverPhoto').src = currentDriverData.profilePhotoUrl;
           document.getElementById('sidebarDriverPhoto').src = currentDriverData.profilePhotoUrl;
@@ -1092,7 +800,7 @@
       if (ordersList) ordersList.innerHTML = `<div class="empty-state"><div>🚫</div><p>Anda belum terdaftar sebagai driver atau belum login</p><p><a href="loginDriver.html" style="color:var(--primary);">Login sebagai Driver</a></p></div>`;
     }
 
-    // Navigasi
+    // ==================== NAVIGASI ====================
     function navigateToScreen(screen) {
       if (screen === 'home') window.location.reload();
       else if (screen === 'history') window.location.href = 'riwayat.html';
@@ -1104,7 +812,9 @@
       localStorage.setItem(STORAGE_TRACKING, locationTrackingEnabled);
       updateTrackingButton();
       if (locationTrackingEnabled && driverLocation.latitude && currentDriverData) {
-        database.ref('drivers/' + currentDriverData.driverId).update({ latitude: driverLocation.latitude, longitude: driverLocation.longitude, last_update: new Date().toISOString() });
+        database.ref('drivers/' + currentDriverData.driverId).update({
+          latitude: driverLocation.latitude, longitude: driverLocation.longitude, last_update: new Date().toISOString()
+        });
       }
     }
     function toggleAutobid() {
@@ -1115,7 +825,7 @@
     }
     function refreshData() { loadOrders(); }
 
-    // Popup
+    // ==================== POPUP ====================
     function showPopup(title, message, type = 'info') {
       document.getElementById('popupTitle').textContent = title;
       document.getElementById('popupMessage').textContent = message;
@@ -1124,30 +834,42 @@
     }
     function hidePopup() { document.getElementById('popupOverlay').classList.remove('active'); }
 
-    // Photo modal sederhana
+    // ==================== PHOTO MODAL SEDERHANA ====================
     window.showPhotoModal = function(photoUrl, name) {
       const modal = document.createElement('div');
       modal.className = 'modal';
       modal.style.display = 'flex';
-      modal.innerHTML = `<div class="modal-content" style="max-width:300px; background:transparent;"><div style="text-align:center"><img src="${photoUrl}" style="width:100%; border-radius:12px; border:2px solid white;"><p style="color:white; margin-top:10px;">${name}</p><button class="close-btn" style="color:white; margin-top:10px;">Tutup</button></div></div>`;
+      modal.innerHTML = `<div class="modal-content" style="max-width:300px; background:transparent;"><div style="text-align:center"><img src="${photoUrl}" style="width:100%; border-radius:12px; border:2px solid white;"><p style="color:white; margin-top:10px;">${escapeHtml(name)}</p><button class="close-btn" style="color:white; margin-top:10px;">Tutup</button></div></div>`;
       document.body.appendChild(modal);
       modal.querySelector('.close-btn').onclick = () => modal.remove();
       modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
     };
 
-    // Cek order aktif
+    // ==================== CEK ORDER AKTIF ====================
     async function checkDriverActiveOrder() {
       const activeOrderId = localStorage.getItem('jego_driver_active_order');
       if (!activeOrderId) return false;
-      const snap = await database.ref('orders/' + activeOrderId).once('value');
-      const order = snap.val();
-      if (order && ['accepted','on_the_way','arrived','on_trip'].includes(order.status)) {
-        window.location.href = 'orderAccepted.html?id=' + activeOrderId;
-        return true;
-      } else { localStorage.removeItem('jego_driver_active_order'); return false; }
+      // Cari order di semua customer (tidak efisien, tapi aman)
+      const snap = await database.ref('orders').once('value');
+      const allCustomers = snap.val();
+      if (allCustomers) {
+        for (const custId in allCustomers) {
+          if (allCustomers[custId][activeOrderId]) {
+            const order = allCustomers[custId][activeOrderId];
+            if (['accepted', 'on_the_way', 'arrived', 'on_trip'].includes(order.status)) {
+              window.location.href = 'orderAccepted.html?id=' + activeOrderId;
+              return true;
+            } else {
+              localStorage.removeItem('jego_driver_active_order');
+            }
+            break;
+          }
+        }
+      }
+      return false;
     }
 
-    // Inisialisasi
+    // ==================== INISIALISASI ====================
     document.addEventListener('DOMContentLoaded', async () => {
       if (await checkDriverActiveOrder()) return;
       if (!checkDriverData()) return;
