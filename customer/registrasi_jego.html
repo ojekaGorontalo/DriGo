@@ -5,8 +5,9 @@
   <title>Daftar - JeGo</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-  <!-- Firebase SDK (Compat) hanya untuk Realtime Database -->
+  <!-- Firebase SDK (Auth + Database) -->
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
 
   <style>
@@ -21,8 +22,25 @@
     .form-title { font-size: 1.5rem; font-weight: 600; color: var(--primary); text-align: center; margin-bottom: 20px; }
     .form-group { margin-bottom: 15px; }
     .form-label { display: block; font-weight: 600; margin-bottom: 5px; color: var(--dark); }
-    .form-input, .form-select, .form-textarea { width: 100%; padding: 10px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 1rem; font-family: inherit; }
-    .form-input:focus, .form-select:focus, .form-textarea:focus { border-color: var(--primary); outline: none; box-shadow: 0 0 0 3px rgba(255,152,0,0.1); }
+    .input-group { position: relative; display: flex; align-items: center; }
+    .form-input { width: 100%; padding: 10px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 1rem; font-family: inherit; }
+    .form-input:focus { border-color: var(--primary); outline: none; box-shadow: 0 0 0 3px rgba(255,152,0,0.1); }
+    .form-input.password-input { padding-right: 40px; }
+    .toggle-password {
+      position: absolute;
+      right: 12px;
+      cursor: pointer;
+      font-size: 1.2rem;
+      user-select: none;
+      background: none;
+      border: none;
+      padding: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #888;
+    }
+    .form-select, .form-textarea { width: 100%; padding: 10px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 1rem; font-family: inherit; }
     .form-textarea { min-height: 80px; resize: vertical; }
     .submit-btn { background: linear-gradient(to right, var(--primary), var(--secondary)); color: white; border: none; border-radius: 8px; padding: 12px; font-size: 1rem; font-weight: 600; cursor: pointer; width: 100%; transition: 0.3s; }
     .submit-btn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 6px 15px rgba(0,0,0,0.2); }
@@ -31,16 +49,9 @@
     .status-success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
     .status-error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
     .status-info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
-    .otp-section { display: none; margin-top: 20px; border-top: 1px solid #eee; padding-top: 20px; }
-    .otp-single-input { width: 100%; padding: 15px; text-align: center; font-size: 2rem; letter-spacing: 10px; border: 2px solid #ddd; border-radius: 8px; font-family: monospace; margin-bottom: 15px; }
-    .otp-single-input:focus { border-color: var(--primary); }
-    .resend-otp { text-align: center; margin-top: 10px; }
-    .resend-link { color: var(--primary); cursor: pointer; text-decoration: underline; }
-    .resend-link.disabled { color: #999; cursor: not-allowed; text-decoration: none; }
     .progress-container { height: 4px; background: #e0e0e0; margin: 10px 0; display: none; }
     .progress-bar { height: 100%; background: linear-gradient(to right, var(--primary), var(--secondary)); width: 0%; }
     .notification { position: fixed; top: 20px; right: 20px; background: white; padding: 15px; border-radius: 8px; border-left: 4px solid var(--primary); display: none; max-width: 300px; z-index: 1000; }
-    #recaptcha-container { display: none; }
   </style>
 </head>
 <body>
@@ -60,20 +71,27 @@
 
       <form id="registerForm">
         <div class="form-group">
-          <label class="form-label" for="namaInput">Nama Lengkap</label>
+          <label class="form-label" for="namaInput">Nama Lengkap *</label>
           <input type="text" class="form-input" id="namaInput" required>
         </div>
         <div class="form-group">
-          <label class="form-label" for="teleponInput">Nomor Telepon</label>
+          <label class="form-label" for="emailInput">Email *</label>
+          <input type="email" class="form-input" id="emailInput" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="passwordInput">Password *</label>
+          <div class="input-group">
+            <input type="password" class="form-input password-input" id="passwordInput" required minlength="6">
+            <button type="button" class="toggle-password" id="togglePassword">👁️</button>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="teleponInput">Nomor Telepon *</label>
           <input type="tel" class="form-input" id="teleponInput" placeholder="08123456789" required inputmode="numeric">
         </div>
         <div class="form-group">
-          <label class="form-label" for="emailInput">Email (opsional)</label>
-          <input type="email" class="form-input" id="emailInput">
-        </div>
-        <div class="form-group">
-          <label class="form-label" for="alamatInput">Alamat (opsional)</label>
-          <textarea class="form-textarea" id="alamatInput" placeholder="Masukkan alamat lengkap..."></textarea>
+          <label class="form-label" for="alamatInput">Alamat *</label>
+          <textarea class="form-textarea" id="alamatInput" placeholder="Masukkan alamat lengkap..." required></textarea>
         </div>
         <div class="form-group">
           <label class="form-label" for="genderSelect">Jenis Kelamin (opsional)</label>
@@ -83,18 +101,8 @@
             <option value="Perempuan">Perempuan</option>
           </select>
         </div>
-        <button type="submit" class="submit-btn" id="registerBtn">Daftar & Kirim OTP</button>
+        <button type="submit" class="submit-btn" id="registerBtn">Daftar</button>
       </form>
-
-      <div class="otp-section" id="otpSection">
-        <h2 style="font-size: 1.3rem; text-align: center;">Verifikasi OTP</h2>
-        <input type="text" class="otp-single-input" id="otpInput" maxlength="6" inputmode="numeric" placeholder="000000">
-        <button class="submit-btn" id="verifyOtpBtn">Verifikasi & Selesai</button>
-        <div class="resend-otp">
-          <span class="resend-link" id="resendOtpLink">Kirim ulang OTP</span>
-          <span id="countdownText" style="display: none;"> (Tunggu <span id="countdown">60</span> detik)</span>
-        </div>
-      </div>
 
       <div style="text-align: center; margin-top: 15px;">
         Sudah punya akun? <a href="loginUser.html" style="color: var(--primary);">Login</a>
@@ -108,30 +116,25 @@
   </div>
 
   <script>
+    // KONFIGURASI FIREBASE yang baru (proyek jego-35a2b)
     const FIREBASE_CONFIG = {
-      apiKey: "AIzaSyDpGc_CsbNi1igA29n6qDhcX0oDkHNVscc",
-      authDomain: "game-balap-simpel.firebaseapp.com",
-      databaseURL: "https://game-balap-simpel-default-rtdb.firebaseio.com",
-      projectId: "game-balap-simpel",
-      storageBucket: "game-balap-simpel.firebasestorage.app",
-      messagingSenderId: "864576853495",
-      appId: "1:864576853495:web:6f16eb757fd3d8affb0af2"
+      apiKey: "AIzaSyCD0pgeZio-LdKqYDtWxcdXcZwyL4ngYQI",
+      authDomain: "jego-35a2b.firebaseapp.com",
+      databaseURL: "https://jego-35a2b-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "jego-35a2b",
+      storageBucket: "jego-35a2b.firebasestorage.app",
+      messagingSenderId: "600037007040",
+      appId: "1:600037007040:web:ac3243ad9b472647ffd725",
+      measurementId: "G-H5F9TSK50K"
     };
 
-    const SMS_GATEWAY_CONFIG = {
-      user: 'gsmreload',
-      pass: 'Jd59dm$jr*dj^hy',
-      baseUrl: 'https://srv2.soufasms.com/sms_gateway/'
-    };
-
+    let firebaseAuth;
     let firebaseDatabase;
-    let currentPhone = '';
-    let registrationData = {};
 
     function showNotif(title, msg, type = 'info') {
       const n = document.getElementById('notificationPopup');
       document.getElementById('notificationTitle').innerText = title;
-      document.getElementById('notificationMessage').innerText = msg;
+      document.getElementById('notificationMessage').innerHTML = msg;
       n.className = `notification ${type}`;
       n.style.display = 'block';
       setTimeout(() => n.style.display = 'none', 4000);
@@ -153,6 +156,14 @@
       document.getElementById('progressContainer').style.display = 'none';
     }
 
+    async function initFirebase() {
+      if (typeof firebase === 'undefined') throw new Error('Firebase SDK not loaded');
+      if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
+      firebaseAuth = firebase.auth();
+      firebaseDatabase = firebase.database();
+    }
+
+    // Format nomor telepon ke format internasional +62...
     function formatPhoneNumber(phone) {
       let cleaned = phone.replace(/\D/g, '');
       if (cleaned.startsWith('0')) cleaned = '+62' + cleaned.substring(1);
@@ -161,200 +172,88 @@
       return cleaned;
     }
 
-    function validatePhoneFormat(phone) {
+    // Validasi nomor telepon (harus +62 dan panjang 10-13 digit setelah +62)
+    function validatePhoneNumber(phone) {
       return /^\+62[0-9]{9,12}$/.test(phone);
     }
 
-    function startResendCountdown(seconds) {
-      const link = document.getElementById('resendOtpLink');
-      const cdText = document.getElementById('countdownText');
-      const cdSpan = document.getElementById('countdown');
-      link.classList.add('disabled');
-      cdText.style.display = 'inline';
-      let count = seconds;
-      cdSpan.innerText = count;
-      const interval = setInterval(() => {
-        count--;
-        cdSpan.innerText = count;
-        if (count <= 0) {
-          clearInterval(interval);
-          link.classList.remove('disabled');
-          cdText.style.display = 'none';
-        }
-      }, 1000);
-    }
-
-    function generateOTP() {
-      return Math.floor(100000 + Math.random() * 900000).toString();
-    }
-
-    async function initFirebase() {
-      if (typeof firebase === 'undefined') throw new Error('Firebase SDK not loaded');
-      if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
-      firebaseDatabase = firebase.database();
-    }
-
-    // ================= LOGIKA OTP =================
-    async function canSendOTP(phone) {
-      const ref = firebaseDatabase.ref('otp_verification/' + phone.replace(/\+/g, '_'));
-      const snap = await ref.child('requests').once('value');
-      const requests = snap.val() || [];
-      const now = Date.now();
-      const tenMinutesAgo = now - 10 * 60 * 1000;
-      return requests.filter(ts => ts > tenMinutesAgo).length < 3;
-    }
-
-    async function saveOTP(phone, code) {
-      const path = 'otp_verification/' + phone.replace(/\+/g, '_');
-      const ref = firebaseDatabase.ref(path);
-      const now = Date.now();
-      const snap = await ref.child('requests').once('value');
-      let requests = snap.val() || [];
-      requests = requests.filter(ts => ts > now - 10 * 60 * 1000);
-      requests.push(now);
-      await ref.set({ code, created_at: now, expires_at: now + 5 * 60 * 1000, requests });
-    }
-
-    async function sendOTPviaDirectGateway(phone, code) {
-      const message = `Kode OTP Anda adalah ${code}`;
-      const no = phone.replace('+', '');
-      const params = new URLSearchParams({ user: SMS_GATEWAY_CONFIG.user, pass: SMS_GATEWAY_CONFIG.pass, no, msg: message, max: '1' });
-      const url = `${SMS_GATEWAY_CONFIG.baseUrl}?${params.toString()}`;
-      try {
-        await fetch(url, { mode: 'no-cors' });
-        return true;
-      } catch (e) {
-        showStatus('Gagal mengirim OTP. Periksa koneksi internet.', 'error');
-        return false;
+    // Simpan data user ke database (users/{uid} dan phone_check)
+    async function saveUserToDatabase(uid, userData) {
+      const userRef = firebaseDatabase.ref(`users/${uid}`);
+      await userRef.set(userData);
+      // Simpan juga ke phone_check untuk keperluan login via telepon nanti
+      if (userData.phone) {
+        const phoneKey = userData.phone.replace(/\+/g, '_');
+        await firebaseDatabase.ref(`phone_check/${phoneKey}`).set({
+          phone: userData.phone,
+          uid: uid,
+          status: 'active',
+          registered_at: new Date().toISOString()
+        });
       }
     }
 
-    async function sendOTP(phone) {
-      try {
-        if (!await canSendOTP(phone)) {
-          showStatus('Terlalu banyak permintaan OTP. Coba lagi nanti.', 'error');
-          return false;
-        }
-        const code = generateOTP();
-        await saveOTP(phone, code);
-        if (!await sendOTPviaDirectGateway(phone, code)) {
-          await firebaseDatabase.ref('otp_verification/' + phone.replace(/\+/g, '_')).remove();
-          return false;
-        }
-        showStatus('OTP terkirim!', 'success');
-        return true;
-      } catch (e) {
-        showStatus('Gagal kirim OTP: ' + e.message, 'error');
-        return false;
-      }
-    }
-
-    async function verifyOTP(phone, code) {
-      const path = 'otp_verification/' + phone.replace(/\+/g, '_');
-      const ref = firebaseDatabase.ref(path);
-      const data = (await ref.once('value')).val();
-      if (!data) { showStatus('Kode OTP tidak ditemukan.', 'error'); return false; }
-      if (Date.now() > data.expires_at) { showStatus('Kode OTP kadaluarsa.', 'error'); await ref.remove(); return false; }
-      if (data.code !== code) { showStatus('Kode OTP salah.', 'error'); return false; }
-      await ref.remove();
-      return true;
-    }
-
-    // ================= HANDLER REGISTRASI =================
+    // Handler registrasi
     document.getElementById('registerForm').addEventListener('submit', async (e) => {
       e.preventDefault();
+
       const nama = document.getElementById('namaInput').value.trim();
-      const phoneRaw = document.getElementById('teleponInput').value.trim();
       const email = document.getElementById('emailInput').value.trim();
+      const password = document.getElementById('passwordInput').value;
+      const teleponRaw = document.getElementById('teleponInput').value.trim();
       const alamat = document.getElementById('alamatInput').value.trim();
       const gender = document.getElementById('genderSelect').value;
 
-      if (!nama) return showStatus('Nama harus diisi', 'error');
-      if (!phoneRaw) return showStatus('Nomor telepon harus diisi', 'error');
+      // Validasi semua field wajib diisi
+      if (!nama) return showStatus('Nama lengkap harus diisi', 'error');
+      if (!email) return showStatus('Email harus diisi', 'error');
+      if (!password || password.length < 6) return showStatus('Password minimal 6 karakter', 'error');
+      if (!teleponRaw) return showStatus('Nomor telepon harus diisi', 'error');
+      if (!alamat) return showStatus('Alamat harus diisi', 'error');
 
-      const phone = formatPhoneNumber(phoneRaw);
-      if (!validatePhoneFormat(phone)) return showStatus('Format nomor tidak valid', 'error');
+      const phone = formatPhoneNumber(teleponRaw);
+      if (!validatePhoneNumber(phone)) return showStatus('Format nomor telepon tidak valid (contoh: 08123456789)', 'error');
 
       const btn = document.getElementById('registerBtn');
-      btn.disabled = true; btn.innerText = 'Memeriksa...';
+      btn.disabled = true;
+      btn.innerText = 'Mendaftar...';
       showProgress(30);
 
       try {
-        const usersRef = firebaseDatabase.ref('users');
-        const snapshot = await usersRef.orderByChild('phone').equalTo(phone).once('value');
-        
-        if (snapshot.exists()) {
-          const users = snapshot.val();
-          const uid = Object.keys(users)[0];
-          const existingUser = users[uid];
-          
-          if (existingUser.status === 'delete_account') {
-            showStatus('Nomor ini telah dihapus dan tidak dapat digunakan lagi untuk mendaftar.', 'error');
-          } else {
-            showStatus('Nomor sudah terdaftar. Silakan login.', 'error');
-          }
-          btn.disabled = false; btn.innerText = 'Daftar & Kirim OTP';
-          hideProgress();
-          return;
-        }
+        // 1. Buat akun dengan email/password di Firebase Auth
+        const userCredential = await firebaseAuth.createUserWithEmailAndPassword(email, password);
+        const user = userCredential.user;
+        const uid = user.uid;
 
-        registrationData = { name: nama, phone, email, address: alamat, gender };
+        showProgress(70);
 
-        btn.innerText = 'Mengirim OTP...';
-        const sent = await sendOTP(phone);
-        if (sent) {
-          currentPhone = phone;
-          document.getElementById('registerForm').style.display = 'none';
-          document.getElementById('otpSection').style.display = 'block';
-          document.getElementById('otpInput').focus();
-          startResendCountdown(60);
-          showProgress(100);
-        }
-      } catch (err) {
-        showStatus('Error: ' + err.message, 'error');
-      } finally {
-        btn.disabled = false; btn.innerText = 'Daftar & Kirim OTP';
-        hideProgress();
-      }
-    });
-
-    document.getElementById('verifyOtpBtn').addEventListener('click', async () => {
-      const otp = document.getElementById('otpInput').value;
-      if (otp.length !== 6) return showStatus('Masukkan 6 digit OTP', 'error');
-
-      const btn = document.getElementById('verifyOtpBtn');
-      btn.disabled = true; btn.innerText = 'Memverifikasi...';
-
-      try {
-        if (!await verifyOTP(currentPhone, otp)) {
-          btn.disabled = false; btn.innerText = 'Verifikasi & Selesai';
-          return;
-        }
-
-        const newUserRef = firebaseDatabase.ref('users').push();
-        const uid = newUserRef.key;
+        // 2. Siapkan data user untuk database
         const userData = {
-          name: registrationData.name,
-          phone: registrationData.phone,
-          email: registrationData.email || '',
-          address: registrationData.address || '',
-          gender: registrationData.gender || '',
+          name: nama,
+          email: email,
+          phone: phone,          // simpan dalam format internasional
+          address: alamat,
+          gender: gender,
           uid: uid,
           status: 'active',
-          photoURL: '',     // ← sinkron dengan field yang dibaca rute.html & jenis_kenderaan.html
+          photoURL: '',
           rating: 5,
           perjalanan: 0,
           createdAt: new Date().toISOString()
         };
-        await newUserRef.set(userData);
 
+        // 3. Simpan ke Realtime Database
+        await saveUserToDatabase(uid, userData);
+
+        // 4. Simpan session ke localStorage (agar kompatibel dengan halaman lain)
         const session = {
-          userId: uid, uid: uid,
-          name: userData.name,
-          phone: userData.phone,
-          email: userData.email,
-          address: userData.address,
-          gender: userData.gender,
+          userId: uid,
+          uid: uid,
+          name: nama,
+          phone: phone,
+          email: email,
+          address: alamat,
+          gender: gender,
           status: 'active',
           photoURL: '',
           rating: 5,
@@ -362,31 +261,53 @@
         };
         localStorage.setItem('jego_logged_in_user', JSON.stringify(session));
 
+        showProgress(100);
         showStatus('Registrasi berhasil! Mengalihkan...', 'success');
-        setTimeout(() => window.location.href = 'jenis_kenderaan.html', 1500);
-      } catch (err) {
-        showStatus('Gagal verifikasi: ' + err.message, 'error');
+        setTimeout(() => {
+          window.location.href = 'jenis_kenderaan.html';
+        }, 1500);
+      } catch (error) {
+        console.error('Registrasi error:', error);
+        let pesanError = 'Gagal mendaftar. ';
+        switch (error.code) {
+          case 'auth/email-already-in-use':
+            pesanError += 'Email sudah terdaftar.';
+            break;
+          case 'auth/invalid-email':
+            pesanError += 'Format email tidak valid.';
+            break;
+          case 'auth/weak-password':
+            pesanError += 'Password terlalu lemah.';
+            break;
+          default:
+            pesanError += error.message;
+        }
+        showStatus(pesanError, 'error');
       } finally {
-        btn.disabled = false; btn.innerText = 'Verifikasi & Selesai';
+        btn.disabled = false;
+        btn.innerText = 'Daftar';
+        hideProgress();
       }
     });
 
-    document.getElementById('resendOtpLink').addEventListener('click', async function() {
-      if (this.classList.contains('disabled') || !currentPhone) return;
-      this.classList.add('disabled');
-      await sendOTP(currentPhone);
-      startResendCountdown(60);
+    // Toggle password visibility
+    const togglePwdBtn = document.getElementById('togglePassword');
+    const pwdInput = document.getElementById('passwordInput');
+    togglePwdBtn.addEventListener('click', function() {
+      const type = pwdInput.getAttribute('type') === 'password' ? 'text' : 'password';
+      pwdInput.setAttribute('type', type);
+      this.textContent = type === 'password' ? '👁️' : '🙈';
     });
 
+    // Inisialisasi Firebase saat halaman dimuat
     window.onload = async () => {
-      ['user', 'currentUser', 'jegoUser'].forEach(k => localStorage.removeItem(k));
+      // Hapus session lokal sebelum registrasi (opsional, agar tidak bentrok)
+      localStorage.removeItem('jego_logged_in_user');
       try {
         await initFirebase();
-        const session = localStorage.getItem('jego_logged_in_user');
-        if (session) {
-          const user = JSON.parse(session);
-          showStatus(`Anda sudah login sebagai ${user.name}. Mengalihkan...`, 'info');
-          setTimeout(() => window.location.href = 'jenis_kenderaan.html', 1500);
+        // Jika sudah login (misal karena session sebelumnya), kita bisa signOut dulu
+        if (firebaseAuth.currentUser) {
+          await firebaseAuth.signOut();
         }
       } catch (e) {
         showNotif('Error', 'Gagal inisialisasi Firebase', 'error');
