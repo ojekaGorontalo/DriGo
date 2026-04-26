@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-    <title>Daftar Driver - JeGo (Firebase Auth + ImgBB)</title>
+    <title>Daftar Driver - JeGo (Firebase Auth + ImgBB) + Foto Kendaraan</title>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
     <!-- Firebase SDKs -->
     <script src="https://www.gstatic.com/firebasejs/11.0.2/firebase-app-compat.js"></script>
@@ -325,6 +325,13 @@
                 <tr><td>Foto SKCK</td><td>Surat keterangan bebas dari kepolisian</td></tr>
                 <tr><td>Pas foto</td><td>Ukuran 3x4 atau 4x6 (background merah/biru)</td></tr>
             </table>
+            <h2>Foto Kendaraan (wajib)</h2>
+            <ul>
+                <li>Foto tampak depan kendaraan (jelas)</li>
+                <li>Foto samping kiri</li>
+                <li>Foto samping kanan</li>
+                <li>Foto belakang kendaraan (plat nomor harus terbaca jelas)</li>
+            </ul>
             
             <h2>Persyaratan Kendaraan</h2>
             <h3>Motor</h3>
@@ -433,6 +440,40 @@
                         <p>📁 Upload pas foto terbaru</p>
                         <input type="file" id="photoFile" accept="image/jpeg,image/png" capture="environment" required>
                         <img id="photoPreview" class="file-preview" alt="Preview Pas Foto">
+                    </div>
+                </div>
+
+                <h2>Foto Kendaraan (wajib)</h2>
+                <div class="form-group">
+                    <label>Foto Depan Kendaraan (tampak jelas)</label>
+                    <div class="file-upload" id="vehicleFrontUpload">
+                        <p>📁 Upload foto depan kendaraan</p>
+                        <input type="file" id="vehicleFrontFile" accept="image/jpeg,image/png" capture="environment" required>
+                        <img id="vehicleFrontPreview" class="file-preview" alt="Preview Depan">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Foto Samping Kiri Kendaraan</label>
+                    <div class="file-upload" id="vehicleLeftUpload">
+                        <p>📁 Upload foto samping kiri</p>
+                        <input type="file" id="vehicleLeftFile" accept="image/jpeg,image/png" capture="environment" required>
+                        <img id="vehicleLeftPreview" class="file-preview" alt="Preview Samping Kiri">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Foto Samping Kanan Kendaraan</label>
+                    <div class="file-upload" id="vehicleRightUpload">
+                        <p>📁 Upload foto samping kanan</p>
+                        <input type="file" id="vehicleRightFile" accept="image/jpeg,image/png" capture="environment" required>
+                        <img id="vehicleRightPreview" class="file-preview" alt="Preview Samping Kanan">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Foto Belakang Kendaraan (plat nomor terlihat jelas)</label>
+                    <div class="file-upload" id="vehicleBackUpload">
+                        <p>📁 Upload foto belakang (pastikan plat terbaca)</p>
+                        <input type="file" id="vehicleBackFile" accept="image/jpeg,image/png" capture="environment" required>
+                        <img id="vehicleBackPreview" class="file-preview" alt="Preview Belakang">
                     </div>
                 </div>
                 
@@ -573,7 +614,7 @@
             return result.data.url;
         }
         
-        // ========== 5. Proses pendaftaran utama ==========
+        // ========== 5. Proses pendaftaran utama (dengan foto kendaraan) ==========
         async function registerDriver(driverData, files) {
             // 5a. Format nomor & cek duplikat
             const formattedPhone = formatPhoneNumber(driverData.phone);
@@ -584,8 +625,8 @@
                 throw new Error("Nomor telepon sudah terdaftar sebagai driver. Gunakan nomor lain.");
             }
             
-            // 5b. Upload semua file ke ImgBB
-            const fileFields = ['ktp', 'sim', 'stnk', 'skck', 'photo'];
+            // 5b. Upload semua file (5 dokumen + 4 foto kendaraan = total 9 file)
+            const fileFields = ['ktp', 'sim', 'stnk', 'skck', 'photo', 'vehicle_front', 'vehicle_left', 'vehicle_right', 'vehicle_back'];
             const uploadedUrls = {};
             let completed = 0;
             const total = fileFields.length;
@@ -593,11 +634,17 @@
                 const file = files[field];
                 if (!file) throw new Error(`File ${field} tidak ditemukan`);
                 const url = await uploadToImgBB(file, field);
-                uploadedUrls[`${field}_url`] = url;
+                // Simpan dengan nama field yang sesuai di database
+                if (field === 'vehicle_front') uploadedUrls.vehicle_front_url = url;
+                else if (field === 'vehicle_left') uploadedUrls.vehicle_left_url = url;
+                else if (field === 'vehicle_right') uploadedUrls.vehicle_right_url = url;
+                else if (field === 'vehicle_back') uploadedUrls.vehicle_back_url = url;
+                else uploadedUrls[`${field}_url`] = url;
+                
                 completed++;
                 const percent = Math.round((completed / total) * 100);
                 progressBar.style.width = percent + '%';
-                progressText.innerText = `Mengunggah dokumen... ${percent}% (${completed}/${total})`;
+                progressText.innerText = `Mengunggah dokumen & foto... ${percent}% (${completed}/${total})`;
             }
             
             // 5c. Buat akun Firebase Auth (Email/Password)
@@ -607,7 +654,7 @@
             const uid = userCredential.user.uid;
             console.log(`🆔 Akun Auth berhasil dibuat, UID: ${uid}`);
             
-            // 5d. Simpan data driver ke drivers/{uid}
+            // 5d. Simpan data driver ke drivers/{uid} (termasuk URL foto kendaraan)
             const driverRecord = {
                 uid: uid,
                 name: driverData.fullName,
@@ -624,6 +671,12 @@
                 stnk_url: uploadedUrls.stnk_url,
                 skck_url: uploadedUrls.skck_url,
                 photoURL: uploadedUrls.photo_url,
+                vehicle_photos: {
+                    front: uploadedUrls.vehicle_front_url,
+                    left: uploadedUrls.vehicle_left_url,
+                    right: uploadedUrls.vehicle_right_url,
+                    back: uploadedUrls.vehicle_back_url
+                },
                 status: 'pending',
                 role: 'driver',
                 balance: 0,
@@ -633,7 +686,7 @@
                 updated_at: new Date().toISOString()
             };
             await database.ref(`drivers/${uid}`).set(driverRecord);
-            console.log("✅ Data driver disimpan di drivers/");
+            console.log("✅ Data driver disimpan di drivers/ (termasuk foto kendaraan)");
             
             // 5e. Simpan nomor ke phone_check_drivers (untuk cek duplikat nanti)
             const phoneKey = formattedPhone.replace(/\+/g, '_');
@@ -650,7 +703,7 @@
             return true;
         }
         
-        // ========== 6. Event handler submit form ==========
+        // ========== 6. Event handler submit form (dengan penambahan validasi foto kendaraan) ==========
         driverForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             if (submitBtn.disabled) return;
@@ -694,17 +747,28 @@
                 return;
             }
             
-            // Ambil file
+            // Ambil file: dokumen (5) + foto kendaraan (4)
             const files = {
                 ktp: document.getElementById('ktpFile').files[0],
                 sim: document.getElementById('simFile').files[0],
                 stnk: document.getElementById('stnkFile').files[0],
                 skck: document.getElementById('skckFile').files[0],
-                photo: document.getElementById('photoFile').files[0]
+                photo: document.getElementById('photoFile').files[0],
+                vehicle_front: document.getElementById('vehicleFrontFile').files[0],
+                vehicle_left: document.getElementById('vehicleLeftFile').files[0],
+                vehicle_right: document.getElementById('vehicleRightFile').files[0],
+                vehicle_back: document.getElementById('vehicleBackFile').files[0]
             };
+            
+            // Validasi semua file ada dan ukuran ≤2MB, format gambar
             for (const [key, file] of Object.entries(files)) {
                 if (!file) {
-                    alert(`Silakan upload ${key.toUpperCase()}`);
+                    let namaField = key.replace('_', ' ').toUpperCase();
+                    if (key === 'vehicle_front') namaField = 'FOTO DEPAN KENDARAAN';
+                    else if (key === 'vehicle_left') namaField = 'FOTO SAMPING KIRI';
+                    else if (key === 'vehicle_right') namaField = 'FOTO SAMPING KANAN';
+                    else if (key === 'vehicle_back') namaField = 'FOTO BELAKANG KENDARAAN';
+                    alert(`Silakan upload ${namaField}`);
                     return;
                 }
                 if (file.size > 2 * 1024 * 1024) {
@@ -743,13 +807,24 @@
                     img.style.display = 'none';
                     img.src = '';
                 });
-                document.querySelectorAll('.file-upload p').forEach(p => {
-                    const text = p.textContent;
-                    if (text.includes('KTP')) p.innerHTML = '📁 Klik atau tap untuk upload foto KTP';
-                    else if (text.includes('SIM')) p.innerHTML = '📁 Upload foto SIM';
-                    else if (text.includes('STNK')) p.innerHTML = '📁 Upload foto STNK';
-                    else if (text.includes('SKCK')) p.innerHTML = '📁 Upload foto SKCK';
-                    else if (text.includes('pas foto')) p.innerHTML = '📁 Upload pas foto terbaru';
+                // Reset teks di semua upload area
+                const uploadDivs = ['ktpUpload','simUpload','stnkUpload','skckUpload','photoUpload','vehicleFrontUpload','vehicleLeftUpload','vehicleRightUpload','vehicleBackUpload'];
+                uploadDivs.forEach(divId => {
+                    const div = document.getElementById(divId);
+                    if(div) {
+                        const p = div.querySelector('p');
+                        if(p) {
+                            if(divId === 'ktpUpload') p.innerHTML = '📁 Klik atau tap untuk upload foto KTP';
+                            else if(divId === 'simUpload') p.innerHTML = '📁 Upload foto SIM';
+                            else if(divId === 'stnkUpload') p.innerHTML = '📁 Upload foto STNK';
+                            else if(divId === 'skckUpload') p.innerHTML = '📁 Upload foto SKCK';
+                            else if(divId === 'photoUpload') p.innerHTML = '📁 Upload pas foto terbaru';
+                            else if(divId === 'vehicleFrontUpload') p.innerHTML = '📁 Upload foto depan kendaraan';
+                            else if(divId === 'vehicleLeftUpload') p.innerHTML = '📁 Upload foto samping kiri';
+                            else if(divId === 'vehicleRightUpload') p.innerHTML = '📁 Upload foto samping kanan';
+                            else if(divId === 'vehicleBackUpload') p.innerHTML = '📁 Upload foto belakang (pastikan plat terbaca)';
+                        }
+                    }
                 });
                 progressContainer.style.display = 'none';
                 successMsg.style.display = 'block';
@@ -795,11 +870,12 @@
             submitBtn.disabled = false;
         });
         
-        // Preview gambar
+        // ========== 8. Preview gambar untuk semua upload (dokumen + kendaraan) ==========
         function setupPreview(inputId, previewId, uploadDivId) {
             const input = document.getElementById(inputId);
             const preview = document.getElementById(previewId);
             const uploadDiv = document.getElementById(uploadDivId);
+            if (!input || !preview) return;
             input.addEventListener('change', function() {
                 if (this.files && this.files[0]) {
                     const reader = new FileReader();
@@ -816,20 +892,33 @@
                     preview.style.display = 'none';
                     if (uploadDiv) {
                         const p = uploadDiv.querySelector('p');
-                        if (p) p.innerHTML = p.innerHTML.includes('KTP') ? '📁 Klik atau tap untuk upload foto KTP' : 
-                                            (p.innerHTML.includes('SIM') ? '📁 Upload foto SIM' :
-                                            (p.innerHTML.includes('STNK') ? '📁 Upload foto STNK' :
-                                            (p.innerHTML.includes('SKCK') ? '📁 Upload foto SKCK' : '📁 Upload pas foto terbaru')));
+                        if (p) {
+                            if (uploadDivId === 'ktpUpload') p.innerHTML = '📁 Klik atau tap untuk upload foto KTP';
+                            else if (uploadDivId === 'simUpload') p.innerHTML = '📁 Upload foto SIM';
+                            else if (uploadDivId === 'stnkUpload') p.innerHTML = '📁 Upload foto STNK';
+                            else if (uploadDivId === 'skckUpload') p.innerHTML = '📁 Upload foto SKCK';
+                            else if (uploadDivId === 'photoUpload') p.innerHTML = '📁 Upload pas foto terbaru';
+                            else if (uploadDivId === 'vehicleFrontUpload') p.innerHTML = '📁 Upload foto depan kendaraan';
+                            else if (uploadDivId === 'vehicleLeftUpload') p.innerHTML = '📁 Upload foto samping kiri';
+                            else if (uploadDivId === 'vehicleRightUpload') p.innerHTML = '📁 Upload foto samping kanan';
+                            else if (uploadDivId === 'vehicleBackUpload') p.innerHTML = '📁 Upload foto belakang (pastikan plat terbaca)';
+                        }
                     }
                 }
             });
         }
+        
+        // Dokumen
         setupPreview('ktpFile', 'ktpPreview', 'ktpUpload');
         setupPreview('simFile', 'simPreview', 'simUpload');
         setupPreview('stnkFile', 'stnkPreview', 'stnkUpload');
         setupPreview('skckFile', 'skckPreview', 'skckUpload');
         setupPreview('photoFile', 'photoPreview', 'photoUpload');
-        
+        // Foto kendaraan
+        setupPreview('vehicleFrontFile', 'vehicleFrontPreview', 'vehicleFrontUpload');
+        setupPreview('vehicleLeftFile', 'vehicleLeftPreview', 'vehicleLeftUpload');
+        setupPreview('vehicleRightFile', 'vehicleRightPreview', 'vehicleRightUpload');
+        setupPreview('vehicleBackFile', 'vehicleBackPreview', 'vehicleBackUpload');
     </script>
 </body>
 </html>
