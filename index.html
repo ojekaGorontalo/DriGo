@@ -296,9 +296,19 @@
     <div class="nav-item" data-screen="account"><div class="nav-icon">👤</div><div class="nav-label">Akun</div></div>
   </div>
 
-  <audio id="newOrderSound" preload="auto"><source src="https://assets.mixkit.co/sfx/preview/mixkit-alarm-tone-996.mp3" type="audio/mpeg"></audio>
-  <audio id="autobidSound" preload="auto"><source src="https://assets.mixkit.co/sfx/preview/mixkit-classic-alarm-995.mp3" type="audio/mpeg"></audio>
-  <audio id="orderAcceptedSound" preload="auto"><source src="https://assets.mixkit.co/sfx/preview/mixkit-positive-notification-951.mp3" type="audio/mpeg"></audio>
+  <!-- AUDIO ELEMENTS sesuai permintaan -->
+  <audio id="beekSound" preload="auto">
+    <source src="https://jegotiem.netlify.app/audio/beek.mp3" type="audio/mpeg">
+  </audio>
+  <audio id="manualPopupSound" preload="auto">
+    <source src="https://jegotiem.netlify.app/audio/audiopopupmanual.mp3" type="audio/mpeg">
+  </audio>
+  <audio id="autobidSound" preload="auto">
+    <source src="https://jegotiem.netlify.app/audio/audioautobid.mp3" type="audio/mpeg">
+  </audio>
+  <audio id="orderAcceptedSound" preload="auto">
+    <source src="https://jegotiem.netlify.app/audio/audioorderaccepted.mp3" type="audio/mpeg">
+  </audio>
 
   <script>
     // ==================== FIREBASE CONFIG ====================
@@ -438,21 +448,24 @@
         const addedOrders = filteredOrders.filter(o => !previousOrderIds.has(o.id));
         previousOrderIds = newOrderKeys;
 
+        // ===== SUARA 1: beek.mp3 untuk setiap order baru (berapa pun jaraknya) =====
+        if (addedOrders.length > 0) {
+          const beepSound = document.getElementById('beekSound');
+          if (beepSound) {
+            beepSound.play().catch(e => console.log('Audio play error (beek):', e));
+          }
+        }
+
         // Tampilkan notifikasi & popup otomatis jika tracking aktif dan jarak < 3 km
         addedOrders.forEach(order => {
           if (locationTrackingEnabled && driverLocation.latitude && driverLocation.longitude && order.pickup_lat && order.pickup_lng) {
             const dist = calculateDistance(driverLocation.latitude, driverLocation.longitude, order.pickup_lat, order.pickup_lng);
             if (dist !== null && dist < 3) {
-              // Suara notifikasi
-              const sound = document.getElementById('newOrderSound');
-              if (sound) sound.play().catch(e=>console.log('Audio play error', e));
+              // Panggil showOrderDetail dengan fromAuto = true (berasal dari deteksi jarak dekat)
               showOrderDetail({ orderId: order.id, orderData: order }, true);
             }
-          } else if (locationTrackingEnabled) {
-            // tetap bunyi notifikasi tanpa jarak
-            const sound = document.getElementById('newOrderSound');
-            if (sound) sound.play().catch(e=>console.log('Audio play error', e));
           }
+          // Catatan: Jika tracking aktif namun koordinat tidak lengkap, tidak muncul modal otomatis (sesuai deskripsi)
         });
 
         if (filteredOrders.length === 0) {
@@ -562,8 +575,24 @@
       document.getElementById('ambilBtn').textContent = 'Kirim Penawaran';
       document.getElementById('orderModal').style.display = 'flex';
 
-      if (autobidEnabled && fromAuto && currentSelectedOrder) {
-        setTimeout(() => sendDriverOffer(), 500);
+      // ===== LOGIKA SUARA OTOMATIS BERDASARKAN `fromAuto` dan `autobidEnabled` =====
+      if (fromAuto) {
+        if (autobidEnabled) {
+          // Kasus 2: Autobid ON -> suara audioautobid.mp3, lalu kirim penawaran otomatis
+          const autoSound = document.getElementById('autobidSound');
+          if (autoSound) {
+            autoSound.play().catch(e => console.log('Audio play error (autobid):', e));
+          }
+          // Kirim penawaran setelah delay 500ms agar suara sempat diputar
+          setTimeout(() => sendDriverOffer(), 500);
+        } else {
+          // Kasus 1: Tracking ON, Autobid OFF -> suara audiopopupmanual.mp3 (manual klik penawaran)
+          const manualSound = document.getElementById('manualPopupSound');
+          if (manualSound) {
+            manualSound.play().catch(e => console.log('Audio play error (manual popup):', e));
+          }
+          // Tidak otomatis kirim, driver harus klik tombol Kirim Penawaran
+        }
       }
 
       if (mapboxAccessToken) {
@@ -708,9 +737,19 @@
         if (order.status === 'accepted') {
           if (order.driver_id === driverId) {
             stopCountdown();
-            showPopup('Sukses', 'Penawaran Anda diterima!', 'success');
-            localStorage.setItem('jego_driver_active_order', orderId);
-            setTimeout(() => window.location.href = 'orderAccepted.html?id=' + orderId, 1500);
+            // ===== SUARA KETIKA PENAWARAN DITERIMA =====
+            const acceptedSound = document.getElementById('orderAcceptedSound');
+            if (acceptedSound) {
+              acceptedSound.play().catch(e => console.log('Audio play error (accepted):', e));
+              // Tunggu sebentar agar suara sempat diputar sebelum redirect
+              setTimeout(() => {
+                localStorage.setItem('jego_driver_active_order', orderId);
+                window.location.href = 'orderAccepted.html?id=' + orderId;
+              }, 500);
+            } else {
+              localStorage.setItem('jego_driver_active_order', orderId);
+              window.location.href = 'orderAccepted.html?id=' + orderId;
+            }
           } else {
             stopCountdown();
             showPopup('Info', 'Order sudah diambil driver lain.', 'warning');
