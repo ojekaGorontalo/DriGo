@@ -17,7 +17,6 @@
   body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f5f5f5; color: #333; line-height: 1.4; font-size: 0.85rem; padding-bottom: 70px; overflow-x: hidden; }
   
   /* ========== RADAR BARU - FULLSCREEN, LINGKARAN BESAR, SCAN TENGAH ========== */
-  /* Container radar full layar */
   #radarContainer {
     position: fixed;
     top: 0;
@@ -32,13 +31,11 @@
     z-index: 90;
     overflow: hidden;
   }
-  /* Wrapper radar: wajib struktur div.radar */
   .radar {
     position: relative;
     width: 100%;
     height: 100%;
   }
-  /* Lingkaran radar - ukuran besar 200vmax, selalu di tengah */
   .radar-circle {
     position: absolute;
     top: 50%;
@@ -58,7 +55,6 @@
     box-shadow: 0 0 30px rgba(0, 255, 0, 0.2);
     pointer-events: none;
   }
-  /* Scan - ukuran SAMA dengan radar, animasi rotate dengan center tetap */
   .scan {
     position: absolute;
     top: 50%;
@@ -75,7 +71,6 @@
     animation: scan 3s linear infinite;
     pointer-events: none;
   }
-  /* Titik hijau di radar (opsional) */
   .radar-dot {
     position: absolute;
     width: 12px;
@@ -89,7 +84,6 @@
   .dot2 { top: 30%; left: 70%; }
   .dot3 { top: 65%; left: 40%; }
   .dot4 { top: 40%; left: 30%; }
-  /* Teks status radar */
   .radar-status {
     position: absolute;
     top: 15%;
@@ -103,12 +97,8 @@
     pointer-events: none;
   }
   @keyframes scan {
-    from {
-      transform: translate(-50%, -50%) rotate(0deg);
-    }
-    to {
-      transform: translate(-50%, -50%) rotate(360deg);
-    }
+    from { transform: translate(-50%, -50%) rotate(0deg); }
+    to { transform: translate(-50%, -50%) rotate(360deg); }
   }
   /* ========== AKHIR RADAR ========== */
 
@@ -288,12 +278,11 @@
   </div>
 </div>
 
-<!-- RADAR FULLSCREEN DENGAN STRUKTUR YANG DIPERBAIKI (lingkaran besar 200vmax, scan tepat tengah) -->
+<!-- RADAR FULLSCREEN -->
 <div id="radarContainer">
   <div class="radar">
     <div class="radar-circle"></div>
     <div class="scan"></div>
-    <!-- titik-titik radar opsional -->
     <div class="radar-dot dot1"></div>
     <div class="radar-dot dot2"></div>
     <div class="radar-dot dot3"></div>
@@ -359,6 +348,12 @@
           <div><span>Perjalanan</span><span id="sidebarTrips">0</span></div>
           <div><span>Saldo</span><span id="sidebarBalance">Rp 0</span></div>
         </div>
+      </div>
+      <!-- DEBUG ONESIGNAL - DITEMPATKAN DI SINI (BENAR) -->
+      <div class="menu-section">
+        <h4>🔧 Debug OneSignal</h4>
+        <button id="debugOneSignalBtn" style="background:#FF9800; color:white; width:100%; padding:8px; border-radius:8px;">Cek Status OneSignal</button>
+        <div id="debugLog" style="background:#2a2a3b; color:#ddd; font-size:10px; padding:8px; border-radius:6px; margin-top:8px; max-height:150px; overflow-y:auto; white-space:pre-wrap;"></div>
       </div>
       <div class="app-version">JeGo Driver v1.0.0<br>© 2026 Buatan Anak Gorontalo</div>
     </div>
@@ -615,7 +610,6 @@ function loadOrders() {
   });
 }
 
-// ===== renderOrdersList, showOrderDetail, Mapbox, dll (tidak diubah, tetap sama) =====
 function renderOrdersList(orders, ordersList) {
   orders.forEach(order => {
     const customerName = order.customer_name || 'Tidak diketahui';
@@ -706,19 +700,19 @@ async function showOrderDetail(orderObj, fromAuto = false) {
   document.getElementById('ambilBtn').disabled = false;
   document.getElementById('ambilBtn').textContent = 'Kirim Penawaran';
   document.getElementById('orderModal').style.display = 'flex';
+  
   // PASANG LISTENER REALTIME UNTUK ORDER YANG SEDANG DILIHAT
-if (currentModalOrderListener && currentModalOrderRef) {
-  currentModalOrderRef.off('value', currentModalOrderListener);
-}
-currentModalOrderRef = database.ref(`orders/${orderId}`);
-currentModalOrderListener = currentModalOrderRef.on('value', (snapshot) => {
-  const order = snapshot.val();
-  // Tutup modal jika order tidak ada, status waiting hilang, atau dibatalkan customer
-  if (!order || order.status !== 'waiting' || order.status === 'cancelled_by_user') {
-    closeModal();
-    showPopup('Pembatalan', 'Order telah dibatalkan oleh customer.', 'warning');
+  if (currentModalOrderListener && currentModalOrderRef) {
+    currentModalOrderRef.off('value', currentModalOrderListener);
   }
-});
+  currentModalOrderRef = database.ref(`orders/${orderId}`);
+  currentModalOrderListener = currentModalOrderRef.on('value', (snapshot) => {
+    const order = snapshot.val();
+    if (!order || order.status !== 'waiting' || order.status === 'cancelled_by_user') {
+      closeModal();
+      showPopup('Pembatalan', 'Order telah dibatalkan oleh customer.', 'warning');
+    }
+  });
 
   if (fromAuto) {
     const orderType = currentOrder.transport_type || '';
@@ -893,7 +887,7 @@ function startCountdown(orderId, driverId) {
 }
 
 function closeModal() {
-stopAllSounds();
+  stopAllSounds();
   document.getElementById('orderModal').style.display = 'none';
   stopCountdown();
   currentSelectedOrder = null;
@@ -1025,9 +1019,50 @@ function stopAllSounds() {
     }
   });
 }
+
+// ========== DEBUG ONESIGNAL (fungsi terpisah) ==========
+async function showDebugInfo() {
+  const debugDiv = document.getElementById('debugLog');
+  if (!debugDiv) return;
+  debugDiv.innerHTML = "⏳ Mengambil informasi...\n";
+
+  if (typeof median === 'undefined' || !median.onesignal) {
+    debugDiv.innerHTML += "❌ median.onesignal tidak tersedia (bukan app Median)\n";
+    return;
+  }
+
+  try {
+    // Cek consent
+    if (median.onesignal.consentGiven) {
+      const consent = await median.onesignal.consentGiven();
+      debugDiv.innerHTML += `✅ Consent diberikan: ${consent}\n`;
+    }
+    // Ambil info subscription
+    const info = await median.onesignal.onesignalInfo();
+    debugDiv.innerHTML += `📱 Info OneSignal: ${JSON.stringify(info, null, 2)}\n`;
+
+    let playerId = info?.userId || info?.oneSignalUserId || info?.subscription?.id;
+    if (playerId) {
+      debugDiv.innerHTML += `🎉 PlayerId: ${playerId}\n`;
+      if (globalCurrentUid) {
+        const snap = await database.ref(`drivers/${globalCurrentUid}/playerId`).once('value');
+        const savedId = snap.val();
+        if (savedId === playerId) {
+          debugDiv.innerHTML += `✅ PlayerId sudah tersimpan di Firebase\n`;
+        } else {
+          debugDiv.innerHTML += `⚠️ PlayerId belum tersimpan di Firebase (local: ${playerId}, stored: ${savedId})\n`;
+        }
+      }
+    } else {
+      debugDiv.innerHTML += `❌ PlayerId tidak ditemukan. Coba registrasi ulang.\n`;
+    }
+  } catch (err) {
+    debugDiv.innerHTML += `❌ Error: ${err.message}\n`;
+  }
+}
+
 // ========== ONESIGNAL INTEGRATION ==========
 async function initOneSignal() {
-  // Cek apakah lingkungan Median (webview) dan onesignal tersedia
   if (typeof median === 'undefined' || !median.onesignal) {
     console.warn("⚠️ Median OneSignal tidak tersedia (mungkin bukan di app Median)");
     return false;
@@ -1061,11 +1096,7 @@ async function initOneSignal() {
     for (let i = 0; i < 3; i++) {
       const info = await median.onesignal.onesignalInfo();
       addLogOneSignal(`Info OneSignal (${i+1}): ${JSON.stringify(info)}`);
-
-      if (info?.userId) playerId = info.userId;
-      else if (info?.oneSignalUserId) playerId = info.oneSignalUserId;
-      else if (info?.subscription?.id) playerId = info.subscription.id;
-
+      playerId = info?.userId || info?.oneSignalUserId || info?.subscription?.id;
       if (playerId) break;
       await new Promise(r => setTimeout(r, 2000));
     }
@@ -1093,10 +1124,8 @@ async function initOneSignal() {
   }
 }
 
-// Fungsi tambahan untuk log (bisa tampil di console saja, tidak mengganggu UI)
 function addLogOneSignal(msg) {
   console.log(`[OneSignal] ${msg}`);
-  // Bisa juga ditampilkan di UI sementara, misal di popup, tapi tidak wajib
 }
 
 window.showPhotoModal = function(photoUrl, name) {
@@ -1138,29 +1167,29 @@ document.addEventListener('DOMContentLoaded', async () => {
       await fetchMapboxToken().catch(()=>console.warn('Mapbox token tidak tersedia'));
       loadStoredSettings();
       // Sinkronisasi status dari database (tracking_enabled, autobid_enabled)
-if (globalCurrentUid) {
-  database.ref('drivers/' + globalCurrentUid).once('value').then(snap => {
-    const data = snap.val();
-    if (data) {
-      if (data.tracking_enabled !== undefined) {
-        locationTrackingEnabled = data.tracking_enabled;
-        localStorage.setItem(STORAGE_TRACKING, locationTrackingEnabled);
-        updateTrackingButton();
+      if (globalCurrentUid) {
+        database.ref('drivers/' + globalCurrentUid).once('value').then(snap => {
+          const data = snap.val();
+          if (data) {
+            if (data.tracking_enabled !== undefined) {
+              locationTrackingEnabled = data.tracking_enabled;
+              localStorage.setItem(STORAGE_TRACKING, locationTrackingEnabled);
+              updateTrackingButton();
+            }
+            if (data.autobid_enabled !== undefined) {
+              autobidEnabled = data.autobid_enabled;
+              localStorage.setItem(STORAGE_AUTOBID, autobidEnabled);
+              updateAutobidButton();
+            }
+          }
+        }).catch(console.error);
       }
-      if (data.autobid_enabled !== undefined) {
-        autobidEnabled = data.autobid_enabled;
-        localStorage.setItem(STORAGE_AUTOBID, autobidEnabled);
-        updateAutobidButton();
-      }
-    }
-  }).catch(console.error);
-}
       loadOrders();
       setTimeout(startGPSMonitoring, 1000);
       // Inisialisasi OneSignal untuk menerima notifikasi push (hanya di lingkungan Median)
-if (typeof median !== 'undefined') {
-  initOneSignal().catch(err => console.warn("OneSignal init error:", err));
-}
+      if (typeof median !== 'undefined') {
+        initOneSignal().catch(err => console.warn("OneSignal init error:", err));
+      }
     } else {
       console.warn('❌ Driver tidak login, redirect ke loginDriver.html');
       window.location.href = 'loginDriver.html';
@@ -1180,6 +1209,8 @@ if (typeof median !== 'undefined') {
   document.getElementById('popupButton').addEventListener('click', hidePopup);
   document.getElementById('acceptKurirToggle').addEventListener('change', updateAcceptKurirSetting);
   document.querySelectorAll('.nav-item').forEach(item => item.addEventListener('click', () => navigateToScreen(item.dataset.screen)));
+  // Tombol debug OneSignal
+  document.getElementById('debugOneSignalBtn')?.addEventListener('click', showDebugInfo);
 });
 
 window.addEventListener('beforeunload', () => { if (locationWatchId) navigator.geolocation.clearWatch(locationWatchId); });
