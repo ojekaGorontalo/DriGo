@@ -987,8 +987,17 @@ function updateDriverLocation(position) {
     loadOrders();
   }
   if (locationTrackingEnabled && currentDriverData && globalCurrentUid) {
+    // Simpan ke node drivers (private)
     database.ref('drivers/' + globalCurrentUid).update({
       latitude: driverLocation.latitude, longitude: driverLocation.longitude, last_update: new Date().toISOString()
+    }).catch(console.error);
+    
+    // **TAMBAHAN: Simpan juga ke driver_locations (untuk admin)**
+    database.ref(`driver_locations/${globalCurrentUid}`).update({
+      latitude: driverLocation.latitude,
+      longitude: driverLocation.longitude,
+      tracking_enabled: locationTrackingEnabled,
+      last_update: new Date().toISOString()
     }).catch(console.error);
   }
 }
@@ -1047,10 +1056,21 @@ function toggleLocationTracking() {
       tracking_enabled: locationTrackingEnabled,
       last_update: new Date().toISOString()
     }).catch(console.error);
+    
+    // **TAMBAHAN: Simpan juga ke driver_locations**
+    database.ref(`driver_locations/${globalCurrentUid}`).update({
+      tracking_enabled: locationTrackingEnabled,
+      last_update: new Date().toISOString()
+    }).catch(console.error);
   }
 
   if (locationTrackingEnabled && driverLocation.latitude && currentDriverData && globalCurrentUid) {
     database.ref('drivers/' + globalCurrentUid).update({
+      latitude: driverLocation.latitude,
+      longitude: driverLocation.longitude
+    }).catch(console.error);
+    // juga update di driver_locations
+    database.ref(`driver_locations/${globalCurrentUid}`).update({
       latitude: driverLocation.latitude,
       longitude: driverLocation.longitude
     }).catch(console.error);
@@ -1119,9 +1139,17 @@ async function showDebugInfo() {
         const snap = await database.ref(`drivers/${globalCurrentUid}/playerId`).once('value');
         const savedId = snap.val();
         if (savedId === playerId) {
-          debugDiv.innerHTML += `✅ PlayerId sudah tersimpan di Firebase\n`;
+          debugDiv.innerHTML += `✅ PlayerId sudah tersimpan di Firebase (node drivers)\n`;
         } else {
           debugDiv.innerHTML += `⚠️ PlayerId belum tersimpan di Firebase (local: ${playerId}, stored: ${savedId})\n`;
+        }
+        // cek juga di driver_locations
+        const snapLoc = await database.ref(`driver_locations/${globalCurrentUid}/playerId`).once('value');
+        const savedLocId = snapLoc.val();
+        if (savedLocId === playerId) {
+          debugDiv.innerHTML += `✅ PlayerId juga sudah tersimpan di driver_locations\n`;
+        } else {
+          debugDiv.innerHTML += `⚠️ PlayerId belum tersimpan di driver_locations\n`;
         }
       }
     } else {
@@ -1198,13 +1226,24 @@ async function initOneSignal() {
 
     if (playerId) {
       addLog(`🎉 SUCCESS! PlayerId: ${playerId}`);
-      // Simpan ke Firebase di node drivers/{uid}
-      if (globalCurrentUid) {
-        await database.ref(`drivers/${globalCurrentUid}`).update({
+      let uid = globalCurrentUid;
+      if (!uid && auth.currentUser) uid = auth.currentUser.uid;
+      
+      if (uid) {
+        // Simpan ke node drivers (private)
+        await database.ref(`drivers/${uid}`).update({
           playerId: playerId,
           last_playerid_update: new Date().toISOString()
         });
-        addLog(`✅ PlayerId tersimpan di database untuk driver ${globalCurrentUid}`);
+        addLog(`✅ PlayerId tersimpan di database drivers/${uid}/playerId`);
+        
+        // **TAMBAHAN: Simpan juga ke driver_locations (untuk admin)**
+        await database.ref(`driver_locations/${uid}`).update({
+          playerId: playerId,
+          last_update: new Date().toISOString()
+        });
+        addLog(`✅ PlayerId juga tersimpan di driver_locations/${uid}/playerId`);
+        
         showPopup("Notifikasi Aktif", "Perangkat Anda sekarang akan menerima notifikasi order baru.", "success");
       } else {
         addLog("❌ UID driver tidak tersedia, tidak bisa simpan playerId");
@@ -1235,7 +1274,6 @@ async function checkPlayerIdAndPrompt() {
       // Belum ada playerId, tampilkan modal prompt
       document.getElementById('notifPromptModal').style.display = 'flex';
     } else {
-      // Sudah ada, tidak perlu tampilkan modal
       console.log("PlayerId sudah ada di Firebase:", existingPlayerId);
     }
   } catch (err) {
