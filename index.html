@@ -273,10 +273,6 @@
     <button class="location-toggle-btn" id="locationToggleBtn">📍 OFF</button>
     <button class="autobid-btn" id="autobidBtn">Autobid: OFF</button>
   </div>
-  <div style="background:red; color:white; padding:5px; text-align:center;">
-    🔧 DEBUG: Jika Anda melihat ini, file sudah terupdate. 
-    <button id="debugTestBtn" style="background:white;">Test Debug</button>
-</div>
   <div class="right-controls">
     <button class="refresh-btn" id="refreshBtn" title="Refresh">↻</button>
   </div>
@@ -406,9 +402,7 @@ const firebaseConfig = {
   messagingSenderId: "600037007040",
   appId: "1:600037007040:web:ac3243ad9b472647ffd725"
 };
-document.getElementById('debugTestBtn')?.addEventListener('click', () => {
-    alert('Debug button works!');
-});
+
 let database, auth;
 try {
   if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
@@ -1070,58 +1064,12 @@ async function showDebugInfo() {
 // ========== ONESIGNAL INTEGRATION ==========
 async function initOneSignal() {
   if (typeof median === 'undefined' || !median.onesignal) {
-    console.warn("⚠️ OneSignal tidak tersedia");
+    console.warn("⚠️ Median OneSignal tidak tersedia (mungkin bukan di app Median)");
     return false;
   }
 
   try {
-    addLogOneSignal("🔐 set consent...");
-    await median.onesignal.setConsentGiven(true);
-
-    addLogOneSignal("📲 register...");
-    await median.onesignal.register();
-
-    addLogOneSignal("🔔 request izin...");
-    await median.onesignal.promptForPushNotificationsWithUserResponse();
-
-    addLogOneSignal("⏳ tunggu sinkronisasi...");
-    await new Promise(r => setTimeout(r, 12000));
-
-    let playerId = null;
-
-    for (let i = 0; i < 5; i++) {
-      const info = await median.onesignal.onesignalInfo();
-      addLogOneSignal(`DATA (${i+1}): ${JSON.stringify(info)}`);
-
-      playerId = info?.userId || info?.subscription?.id;
-
-      if (playerId) break;
-
-      addLogOneSignal("⏳ retry...");
-      await new Promise(r => setTimeout(r, 5000));
-    }
-
-    if (playerId) {
-      addLogOneSignal(`🎉 PlayerId: ${playerId}`);
-
-      if (globalCurrentUid) {
-        await database.ref(`drivers/${globalCurrentUid}`).update({
-          playerId: playerId,
-          last_playerid_update: new Date().toISOString()
-        });
-      }
-
-      return true;
-    } else {
-      addLogOneSignal("❌ gagal ambil Player ID");
-      return false;
-    }
-
-  } catch (err) {
-    addLogOneSignal(`❌ ERROR: ${err.message}`);
-    return false;
-  }
-}
+    addLogOneSignal("Memulai inisialisasi OneSignal...");
 
     // 1. Beri consent (wajib untuk GDPR)
     if (median.onesignal.setConsentGiven) {
