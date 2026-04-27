@@ -434,6 +434,8 @@ let previousOrderIds = new Set();
 let mapMarkers = [];
 let globalCurrentUid = null;
 let gpsReady = false;
+let currentModalOrderListener = null;
+let currentModalOrderRef = null;
 
 // ========== FUNGSI RADAR ==========
 function startRadarMessages() {
@@ -704,6 +706,19 @@ async function showOrderDetail(orderObj, fromAuto = false) {
   document.getElementById('ambilBtn').disabled = false;
   document.getElementById('ambilBtn').textContent = 'Kirim Penawaran';
   document.getElementById('orderModal').style.display = 'flex';
+  // PASANG LISTENER REALTIME UNTUK ORDER YANG SEDANG DILIHAT
+if (currentModalOrderListener && currentModalOrderRef) {
+  currentModalOrderRef.off('value', currentModalOrderListener);
+}
+currentModalOrderRef = database.ref(`orders/${orderId}`);
+currentModalOrderListener = currentModalOrderRef.on('value', (snapshot) => {
+  const order = snapshot.val();
+  // Tutup modal jika order tidak ada, status waiting hilang, atau dibatalkan customer
+  if (!order || order.status !== 'waiting' || order.status === 'cancelled_by_user') {
+    closeModal();
+    showPopup('Pembatalan', 'Order telah dibatalkan oleh customer.', 'warning');
+  }
+});
 
   if (fromAuto) {
     const orderType = currentOrder.transport_type || '';
@@ -881,6 +896,14 @@ function closeModal() {
   document.getElementById('orderModal').style.display = 'none';
   stopCountdown();
   currentSelectedOrder = null;
+
+  // Hentikan listener modal order
+  if (currentModalOrderListener && currentModalOrderRef) {
+    currentModalOrderRef.off('value', currentModalOrderListener);
+    currentModalOrderListener = null;
+    currentModalOrderRef = null;
+  }
+
   loadOrders();
 }
 
