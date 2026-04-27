@@ -1025,6 +1025,79 @@ function stopAllSounds() {
     }
   });
 }
+// ========== ONESIGNAL INTEGRATION ==========
+async function initOneSignal() {
+  // Cek apakah lingkungan Median (webview) dan onesignal tersedia
+  if (typeof median === 'undefined' || !median.onesignal) {
+    console.warn("⚠️ Median OneSignal tidak tersedia (mungkin bukan di app Median)");
+    return false;
+  }
+
+  try {
+    addLogOneSignal("Memulai inisialisasi OneSignal...");
+
+    // 1. Beri consent (wajib untuk GDPR)
+    if (median.onesignal.setConsentGiven) {
+      await median.onesignal.setConsentGiven(true);
+      addLogOneSignal("✅ Consent diberikan");
+    }
+
+    // 2. Register perangkat
+    await median.onesignal.register();
+    addLogOneSignal("✅ Register berhasil");
+
+    // 3. Minta izin notifikasi (popup)
+    if (median.onesignal.promptForPushNotificationsWithUserResponse) {
+      await median.onesignal.promptForPushNotificationsWithUserResponse();
+      addLogOneSignal("✅ Izin notifikasi diminta");
+    }
+
+    // 4. Tunggu beberapa detik agar playerId tergenerate
+    addLogOneSignal("⏳ Menunggu playerId...");
+    await new Promise(r => setTimeout(r, 3000));
+
+    // 5. Ambil info OneSignal (retry jika perlu)
+    let playerId = null;
+    for (let i = 0; i < 3; i++) {
+      const info = await median.onesignal.onesignalInfo();
+      addLogOneSignal(`Info OneSignal (${i+1}): ${JSON.stringify(info)}`);
+
+      if (info?.userId) playerId = info.userId;
+      else if (info?.oneSignalUserId) playerId = info.oneSignalUserId;
+      else if (info?.subscription?.id) playerId = info.subscription.id;
+
+      if (playerId) break;
+      await new Promise(r => setTimeout(r, 2000));
+    }
+
+    if (playerId) {
+      addLogOneSignal(`🎉 PlayerId didapat: ${playerId}`);
+      // Simpan ke Firebase di node drivers/{uid}
+      if (globalCurrentUid) {
+        await database.ref(`drivers/${globalCurrentUid}`).update({
+          playerId: playerId,
+          last_playerid_update: new Date().toISOString()
+        });
+        addLogOneSignal(`✅ PlayerId tersimpan di database`);
+      } else {
+        addLogOneSignal("❌ UID driver tidak tersedia, tidak bisa simpan playerId");
+      }
+      return true;
+    } else {
+      addLogOneSignal("❌ Gagal mendapatkan playerId setelah beberapa percobaan");
+      return false;
+    }
+  } catch (err) {
+    addLogOneSignal(`❌ Error OneSignal: ${err.message}`);
+    return false;
+  }
+}
+
+// Fungsi tambahan untuk log (bisa tampil di console saja, tidak mengganggu UI)
+function addLogOneSignal(msg) {
+  console.log(`[OneSignal] ${msg}`);
+  // Bisa juga ditampilkan di UI sementara, misal di popup, tapi tidak wajib
+}
 
 window.showPhotoModal = function(photoUrl, name) {
   const modal = document.createElement('div');
@@ -1084,6 +1157,10 @@ if (globalCurrentUid) {
 }
       loadOrders();
       setTimeout(startGPSMonitoring, 1000);
+      // Inisialisasi OneSignal untuk menerima notifikasi push (hanya di lingkungan Median)
+if (typeof median !== 'undefined') {
+  initOneSignal().catch(err => console.warn("OneSignal init error:", err));
+}
     } else {
       console.warn('❌ Driver tidak login, redirect ke loginDriver.html');
       window.location.href = 'loginDriver.html';
