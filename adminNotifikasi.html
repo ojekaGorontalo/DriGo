@@ -196,30 +196,34 @@
     let ordersListener = null;
     const processedOrderIds = new Set(); // Mencegah notifikasi ganda untuk order yang sama
 
-    // Ambil semua driver yang online (tracking_enabled = true) dan punya playerId + koordinat valid
+    // Ambil semua driver yang online dari node driver_locations
+    // Asumsi: di driver_locations terdapat field: tracking_enabled (boolean), playerId, latitude, longitude
     async function loadDrivers() {
         try {
-            const snapshot = await database.ref("drivers").orderByChild("tracking_enabled").equalTo(true).once("value");
-            const drivers = snapshot.val();
-            if (!drivers) return {};
+            // Ambil semua data dari driver_locations
+            const snapshot = await database.ref("driver_locations").once("value");
+            const allDrivers = snapshot.val();
+            if (!allDrivers) return {};
+
             const filtered = {};
-            for (const id in drivers) {
-                const d = drivers[id];
-                if (d.playerId && d.latitude && d.longitude) {
-                    filtered[id] = {
+            for (const uid in allDrivers) {
+                const d = allDrivers[uid];
+                // Hanya driver yang tracking_enabled = true, memiliki playerId dan koordinat valid
+                if (d.tracking_enabled === true && d.playerId && d.latitude && d.longitude) {
+                    filtered[uid] = {
                         playerId: d.playerId,
                         latitude: d.latitude,
                         longitude: d.longitude,
-                        name: d.fullName || d.name || id
+                        name: d.fullName || `Driver ${uid.substring(0,6)}` // optional, jika ada fullName
                     };
-                } else {
-                    addLog(`Driver ${id.substring(0,6)}... tracking aktif tapi tidak memiliki playerId atau koordinat lengkap`, "warning");
+                } else if (d.tracking_enabled === true && (!d.playerId || !d.latitude || !d.longitude)) {
+                    addLog(`Driver ${uid.substring(0,6)}... tracking aktif tapi data tidak lengkap (playerId atau koordinat kosong)`, "warning");
                 }
             }
-            addLog(`Memuat driver online: ${Object.keys(filtered).length} driver siap terima notifikasi`, "info");
+            addLog(`Memuat driver online dari driver_locations: ${Object.keys(filtered).length} driver siap terima notifikasi`, "info");
             return filtered;
         } catch(e) {
-            addLog(`Gagal load drivers: ${e.message}`, "error");
+            addLog(`Gagal load drivers dari driver_locations: ${e.message}`, "error");
             return {};
         }
     }
@@ -251,7 +255,7 @@
 
         const drivers = await loadDrivers();
         if (Object.keys(drivers).length === 0) {
-            addLog(`⚠️ Tidak ada driver online dengan playerId lengkap untuk order ${orderId}`, "warning");
+            addLog(`⚠️ Tidak ada driver online dengan data lengkap untuk order ${orderId}`, "warning");
             return;
         }
 
@@ -294,7 +298,7 @@
         });
         ordersListener = true;
         addLog("👂 Listener order aktif (child_added) - memantau order baru dengan status waiting/searching", "success");
-        updateStatus("Listening order baru... (radius 3 km)");
+        updateStatus("Listening order baru... (radius 3 km dari driver_locations)");
     }
 
     // ================= INISIALISASI API KEY =================
@@ -320,7 +324,7 @@
         const drivers = await loadDrivers();
         const driverIds = Object.keys(drivers);
         if (driverIds.length === 0) {
-            addLog("Tidak ada driver online dengan playerId lengkap untuk test notifikasi", "error");
+            addLog("Tidak ada driver online dengan data lengkap untuk test notifikasi", "error");
             return;
         }
         const firstDriver = drivers[driverIds[0]];
