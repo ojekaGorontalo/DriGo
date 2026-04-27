@@ -255,6 +255,63 @@
   .popup-footer { padding: 15px 20px; border-top: 1px solid #eee; display: flex; justify-content: center; }
   .popup-button { background: linear-gradient(to right, var(--primary), var(--secondary)); color: white; border: none; border-radius: 8px; padding: 10px 30px; cursor: pointer; }
   
+  /* MODAL PROMPT NOTIFIKASI */
+  .notif-prompt-modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.7);
+    z-index: 2100;
+    align-items: center;
+    justify-content: center;
+  }
+  .notif-prompt-content {
+    background: white;
+    border-radius: 16px;
+    width: 85%;
+    max-width: 320px;
+    text-align: center;
+    padding: 20px;
+  }
+  .notif-prompt-icon {
+    font-size: 48px;
+    margin-bottom: 12px;
+  }
+  .notif-prompt-title {
+    font-size: 1.2rem;
+    font-weight: bold;
+    margin-bottom: 8px;
+    color: var(--primary);
+  }
+  .notif-prompt-message {
+    font-size: 0.85rem;
+    color: #666;
+    margin-bottom: 20px;
+  }
+  .notif-prompt-buttons {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+  }
+  .notif-prompt-buttons button {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .btn-allow {
+    background: var(--primary);
+    color: white;
+  }
+  .btn-later {
+    background: #e0e0e0;
+    color: #333;
+  }
+  
   #loadingOverlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.95); display: none; flex-direction: column; justify-content: center; align-items: center; z-index: 3000; }
   </style>
 </head>
@@ -349,15 +406,27 @@
           <div><span>Saldo</span><span id="sidebarBalance">Rp 0</span></div>
         </div>
       </div>
-      <!-- DEBUG ONESIGNAL - DITEMPATKAN DI SINI (BENAR) -->
+      <!-- DEBUG ONESIGNAL - tetap ada -->
       <div class="menu-section">
         <h4>🔧 Debug OneSignal</h4>
         <button id="debugOneSignalBtn" style="background:#FF9800; color:white; width:100%; padding:8px; border-radius:8px;">Cek Status OneSignal</button>
-        <!-- TOMBOL AKTIFKAN NOTIFIKASI (USER GESTURE) -->
-        <button id="enableNotifBtn" style="background:#42E129; color:white; width:100%; padding:8px; border-radius:8px; margin-top:8px;">🔔 Aktifkan Notifikasi</button>
+        <button id="enableNotifBtn" style="background:#42E129; color:white; width:100%; padding:8px; border-radius:8px; margin-top:8px;">🔔 Aktifkan Notifikasi (Manual)</button>
         <div id="debugLog" style="background:#2a2a3b; color:#ddd; font-size:10px; padding:8px; border-radius:6px; margin-top:8px; max-height:150px; overflow-y:auto; white-space:pre-wrap;"></div>
       </div>
       <div class="app-version">JeGo Driver v1.0.0<br>© 2026 Buatan Anak Gorontalo</div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL PROMPT NOTIFIKASI (otomatis muncul jika belum punya playerId) -->
+<div id="notifPromptModal" class="notif-prompt-modal">
+  <div class="notif-prompt-content">
+    <div class="notif-prompt-icon">🔔</div>
+    <div class="notif-prompt-title">Aktifkan Notifikasi</div>
+    <div class="notif-prompt-message">Aktifkan notifikasi untuk mendapatkan informasi order baru dengan cepat.</div>
+    <div class="notif-prompt-buttons">
+      <button id="promptAllowBtn" class="btn-allow">Aktifkan</button>
+      <button id="promptLaterBtn" class="btn-later">Nanti</button>
     </div>
   </div>
 </div>
@@ -1080,20 +1149,19 @@ async function initOneSignal() {
   try {
     addLog("🚀 Memulai inisialisasi OneSignal...");
     
-    // 🔥 Tambahkan ini di awal fungsi initOneSignal()
-// 🔥 Perbaikan: gunakan addLog
-try {
-    if (window.OneSignal && OneSignal.setLogLevel) {
+    // Set log level verbose (untuk debugging)
+    try {
+      if (window.OneSignal && OneSignal.setLogLevel) {
         OneSignal.setLogLevel(OneSignal.LOG_LEVEL.VERBOSE, OneSignal.LOG_LEVEL.NONE);
         addLog("✅ OneSignal log level set to VERBOSE");
-    }
-    if (median.onesignal && median.onesignal.setLogLevel) {
+      }
+      if (median.onesignal && median.onesignal.setLogLevel) {
         await median.onesignal.setLogLevel(median.onesignal.LogLevel.Verbose);
         addLog("✅ Median OneSignal log level set to VERBOSE");
+      }
+    } catch(e) {
+      addLog(`⚠️ Gagal set log level: ${e.message}`);
     }
-} catch(e) {
-    addLog(`⚠️ Gagal set log level: ${e.message}`);
-}
 
     // 1. Berikan consent (wajib untuk GDPR)
     if (median.onesignal.setConsentGiven) {
@@ -1157,6 +1225,29 @@ try {
   }
 }
 
+// ========== CEK APAKAH DRIVER SUDAH MEMILIKI PLAYERID ==========
+async function checkPlayerIdAndPrompt() {
+  if (!globalCurrentUid) return;
+  try {
+    const snap = await database.ref(`drivers/${globalCurrentUid}/playerId`).once('value');
+    const existingPlayerId = snap.val();
+    if (!existingPlayerId) {
+      // Belum ada playerId, tampilkan modal prompt
+      document.getElementById('notifPromptModal').style.display = 'flex';
+    } else {
+      // Sudah ada, tidak perlu tampilkan modal
+      console.log("PlayerId sudah ada di Firebase:", existingPlayerId);
+    }
+  } catch (err) {
+    console.error("Gagal cek playerId:", err);
+  }
+}
+
+// Fungsi untuk menutup modal prompt
+function closeNotifPrompt() {
+  document.getElementById('notifPromptModal').style.display = 'none';
+}
+
 window.showPhotoModal = function(photoUrl, name) {
   const modal = document.createElement('div');
   modal.className = 'modal';
@@ -1215,7 +1306,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
       loadOrders();
       setTimeout(startGPSMonitoring, 1000);
-      // NOTE: OneSignal tidak diinisialisasi otomatis lagi. Harus melalui tombol "Aktifkan Notifikasi"
+      
+      // CEK APAKAH DRIVER SUDAH PUNYA PLAYERID, JIKA BELUM TAMPILKAN MODAL
+      await checkPlayerIdAndPrompt();
     } else {
       console.warn('❌ Driver tidak login, redirect ke loginDriver.html');
       window.location.href = 'loginDriver.html';
@@ -1237,9 +1330,20 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.querySelectorAll('.nav-item').forEach(item => item.addEventListener('click', () => navigateToScreen(item.dataset.screen)));
   // Tombol debug OneSignal
   document.getElementById('debugOneSignalBtn')?.addEventListener('click', showDebugInfo);
-  // Tombol Aktifkan Notifikasi (user gesture)
+  // Tombol Aktifkan Notifikasi (Manual) di sidebar
   document.getElementById('enableNotifBtn')?.addEventListener('click', async () => {
     await initOneSignal();
+    // Setelah selesai (sukses/gagal), tutup modal prompt jika masih terbuka
+    closeNotifPrompt();
+  });
+  // Tombol pada modal prompt
+  document.getElementById('promptAllowBtn')?.addEventListener('click', async () => {
+    closeNotifPrompt();
+    await initOneSignal();
+  });
+  document.getElementById('promptLaterBtn')?.addEventListener('click', () => {
+    closeNotifPrompt();
+    // Tidak melakukan apa-apa, nanti akan muncul lagi saat refresh atau lain kali
   });
 });
 
