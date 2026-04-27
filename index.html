@@ -1070,12 +1070,58 @@ async function showDebugInfo() {
 // ========== ONESIGNAL INTEGRATION ==========
 async function initOneSignal() {
   if (typeof median === 'undefined' || !median.onesignal) {
-    console.warn("⚠️ Median OneSignal tidak tersedia (mungkin bukan di app Median)");
+    console.warn("⚠️ OneSignal tidak tersedia");
     return false;
   }
 
   try {
-    addLogOneSignal("Memulai inisialisasi OneSignal...");
+    addLogOneSignal("🔐 set consent...");
+    await median.onesignal.setConsentGiven(true);
+
+    addLogOneSignal("📲 register...");
+    await median.onesignal.register();
+
+    addLogOneSignal("🔔 request izin...");
+    await median.onesignal.promptForPushNotificationsWithUserResponse();
+
+    addLogOneSignal("⏳ tunggu sinkronisasi...");
+    await new Promise(r => setTimeout(r, 12000));
+
+    let playerId = null;
+
+    for (let i = 0; i < 5; i++) {
+      const info = await median.onesignal.onesignalInfo();
+      addLogOneSignal(`DATA (${i+1}): ${JSON.stringify(info)}`);
+
+      playerId = info?.userId || info?.subscription?.id;
+
+      if (playerId) break;
+
+      addLogOneSignal("⏳ retry...");
+      await new Promise(r => setTimeout(r, 5000));
+    }
+
+    if (playerId) {
+      addLogOneSignal(`🎉 PlayerId: ${playerId}`);
+
+      if (globalCurrentUid) {
+        await database.ref(`drivers/${globalCurrentUid}`).update({
+          playerId: playerId,
+          last_playerid_update: new Date().toISOString()
+        });
+      }
+
+      return true;
+    } else {
+      addLogOneSignal("❌ gagal ambil Player ID");
+      return false;
+    }
+
+  } catch (err) {
+    addLogOneSignal(`❌ ERROR: ${err.message}`);
+    return false;
+  }
+}
 
     // 1. Beri consent (wajib untuk GDPR)
     if (median.onesignal.setConsentGiven) {
