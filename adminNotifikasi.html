@@ -97,7 +97,7 @@
 </div>
 
 <script>
-    // ================= KONFIGURASI FIREBASE (PROYEK JEGO) =================
+    // ================= KONFIGURASI FIREBASE =================
     const firebaseConfig = {
         apiKey: "AIzaSyCD0pgeZio-LdKqYDtWxcdXcZwyL4ngYQI",
         authDomain: "jego-35a2b.firebaseapp.com",
@@ -108,11 +108,10 @@
         appId: "1:600037007040:web:ac3243ad9b472647ffd725"
     };
 
-    // OneSignal konfigurasi (API Key akan diminta pertama kali)
-    let ONESIGNAL_APP_ID = "3357d683-8f6b-4558-9d42-2eeceed6204a";
-    let ONESIGNAL_API_KEY = ""; // akan diminta pertama kali
+    // OneSignal konfigurasi
+    const ONESIGNAL_APP_ID = "3357d683-8f6b-4558-9d42-2eeceed6204a";
+    let ONESIGNAL_API_KEY = "";
 
-    // Inisialisasi Firebase
     let database;
     try {
         if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
@@ -134,7 +133,6 @@
         logDiv.appendChild(entry);
         entry.scrollIntoView({ behavior: "smooth", block: "nearest" });
         console.log(`[${type.toUpperCase()}] ${msg}`);
-        // batasi log
         while (logDiv.children.length > 500) logDiv.removeChild(logDiv.firstChild);
     }
 
@@ -196,11 +194,11 @@
 
     // ================= LOGIKA UTAMA =================
     let ordersListener = null;
+    const processedOrderIds = new Set(); // Mencegah notifikasi ganda untuk order yang sama
 
-    // Ambil semua driver yang online (tracking_enabled = true) dan punya playerId
+    // Ambil semua driver yang online (tracking_enabled = true) dan punya playerId + koordinat valid
     async function loadDrivers() {
         try {
-            // Perhatikan: field sekarang "tracking_enabled" (bukan "trackingEnabled")
             const snapshot = await database.ref("drivers").orderByChild("tracking_enabled").equalTo(true).once("value");
             const drivers = snapshot.val();
             if (!drivers) return {};
@@ -214,6 +212,8 @@
                         longitude: d.longitude,
                         name: d.fullName || d.name || id
                     };
+                } else {
+                    addLog(`Driver ${id.substring(0,6)}... tracking aktif tapi tidak memiliki playerId atau koordinat lengkap`, "warning");
                 }
             }
             addLog(`Memuat driver online: ${Object.keys(filtered).length} driver siap terima notifikasi`, "info");
@@ -224,51 +224,62 @@
         }
     }
 
-    // Proses order baru (dipanggil setiap ada order dengan status 'waiting' atau 'searching')
-    // Sesuaikan dengan status order yang digunakan di aplikasi driver (biasanya 'waiting')
+    // Proses order baru (dipanggil setiap ada order dengan status waiting/searching)
     async function processNewOrder(orderId, orderData) {
-        addLog(`📦 Order baru ID: ${orderId} | status: ${orderData.status} | transport_type: ${orderData.transport_type || orderData.vehicle}`, "info");
-        
-        // Periksa status order (driver menunggu penawaran)
-        if (orderData.status !== "waiting") {
-            addLog(`Order ${orderId} status bukan waiting, dilewat.`, "warning");
+        // Cegah duplikasi
+        if (processedOrderIds.has(orderId)) {
+            addLog(`Order ${orderId} sudah diproses sebelumnya, dilewat.`, "info");
             return;
         }
-        
-        // Koordinat pickup / asal
+
+        // Periksa status order (hanya yang menunggu driver)
+        const orderStatus = orderData.status;
+        if (orderStatus !== "waiting" && orderStatus !== "searching") {
+            addLog(`Order ${orderId} status: ${orderStatus} - bukan waiting/searching, dilewat.`, "warning");
+            return;
+        }
+
+        // Koordinat pickup
         const pickupLat = orderData.pickup_lat || orderData.from_lat;
         const pickupLng = orderData.pickup_lng || orderData.from_lng;
         if (!pickupLat || !pickupLng) {
-            addLog(`Order ${orderId} tidak memiliki koordinat penjemputan`, "warning");
+            addLog(`Order ${orderId} tidak memiliki koordinat penjemputan yang valid`, "warning");
             return;
         }
 
-        // Ambil driver online terbaru
+        addLog(`📦 Order baru ID: ${orderId} | status: ${orderStatus} | transport: ${orderData.transport_type || orderData.vehicle} | pickup: (${pickupLat}, ${pickupLng})`, "info");
+
         const drivers = await loadDrivers();
         if (Object.keys(drivers).length === 0) {
-            addLog(`Tidak ada driver online dengan playerId`, "warning");
+            addLog(`⚠️ Tidak ada driver online dengan playerId lengkap untuk order ${orderId}`, "warning");
             return;
         }
 
-        let notifSent = false;
+        let notifSentCount = 0;
         for (const driverId in drivers) {
             const driver = drivers[driverId];
             const distance = getDistance(pickupLat, pickupLng, driver.latitude, driver.longitude);
             if (distance < 3) {
-                addLog(`🎯 Driver ${driver.name} (${driverId.substring(0,6)}...) berjarak ${distance.toFixed(2)} km - KIRIM NOTIFIKASI`, "success");
+                addLog(`🎯 Driver ${driver.name} (${driverId.substring(0,6)}...) berjarak ${distance.toFixed(2)} km (< 3 km) -> KIRIM NOTIFIKASI`, "success");
                 const customerName = orderData.customer_name || "Customer";
                 const vehicleLabel = (orderData.transport_type && orderData.transport_type.includes("kurir")) ? "Kurir" : "Transportasi";
-                const title = "Order Baru Dekat Anda!";
+                const title = "🚖 Order Baru Dekat Anda!";
                 const hargaTotal = orderData.price || orderData.harga_total || 0;
-                const message = `${customerName} memesan ${vehicleLabel} | Jarak ${distance.toFixed(1)} km | Rp ${hargaTotal.toLocaleString()}`;
+                const message = `${customerName} memesan ${vehicleLabel}\nJarak jemput: ${distance.toFixed(1)} km\nHarga: Rp ${hargaTotal.toLocaleString()}`;
                 await sendPushNotification(driver.playerId, title, message, orderId);
-                notifSent = true;
+                notifSentCount++;
             } else {
                 addLog(`ℹ️ Driver ${driver.name} jarak ${distance.toFixed(2)} km (≥3 km) - lewat`, "info");
             }
         }
-        if (!notifSent) {
-            addLog(`⚠️ Tidak ada driver dalam radius 3 km untuk order ${orderId}`, "warning");
+
+        if (notifSentCount > 0) {
+            addLog(`✅ Order ${orderId}: notifikasi dikirim ke ${notifSentCount} driver dalam radius <3 km`, "success");
+            processedOrderIds.add(orderId);
+        } else {
+            addLog(`⚠️ Order ${orderId}: tidak ada driver dalam radius 3 km`, "warning");
+            // Tetap tandai sebagai diproses agar tidak diulang terus (biar tidak spam log)
+            processedOrderIds.add(orderId);
         }
     }
 
@@ -276,15 +287,14 @@
     function startListeningOrders() {
         if (ordersListener) return;
         const ordersRef = database.ref("orders");
-        // Dengarkan order baru (child_added)
         ordersRef.on("child_added", async (snapshot) => {
             const orderId = snapshot.key;
             const orderData = snapshot.val();
             await processNewOrder(orderId, orderData);
         });
         ordersListener = true;
-        addLog("👂 Listener order aktif (child_added) - memantau order baru", "success");
-        updateStatus("Listening order baru...");
+        addLog("👂 Listener order aktif (child_added) - memantau order baru dengan status waiting/searching", "success");
+        updateStatus("Listening order baru... (radius 3 km)");
     }
 
     // ================= INISIALISASI API KEY =================
@@ -294,11 +304,11 @@
             ONESIGNAL_API_KEY = savedKey;
             addLog("🔑 API Key OneSignal dimuat dari localStorage", "success");
         } else {
-            const key = prompt("Masukkan OneSignal REST API Key (dari Settings -> Keys & IDs):");
+            const key = prompt("🔐 Masukkan OneSignal REST API Key (dari Settings -> Keys & IDs):");
             if (key && key.trim()) {
                 ONESIGNAL_API_KEY = key.trim();
                 localStorage.setItem("onesignal_api_key", ONESIGNAL_API_KEY);
-                addLog("🔑 API Key OneSignal tersimpan di localStorage (hanya untuk admin ini)", "success");
+                addLog("🔑 API Key OneSignal tersimpan di localStorage (hanya untuk browser ini)", "success");
             } else {
                 addLog("⚠️ API Key tidak diisi. Notifikasi push tidak akan berfungsi.", "error");
             }
@@ -310,12 +320,12 @@
         const drivers = await loadDrivers();
         const driverIds = Object.keys(drivers);
         if (driverIds.length === 0) {
-            addLog("Tidak ada driver online untuk test notifikasi", "error");
+            addLog("Tidak ada driver online dengan playerId lengkap untuk test notifikasi", "error");
             return;
         }
         const firstDriver = drivers[driverIds[0]];
         addLog(`🔔 Test notifikasi ke driver: ${firstDriver.name} (${firstDriver.playerId.substring(0,8)}...)`, "info");
-        await sendPushNotification(firstDriver.playerId, "🧪 Test Notifikasi", "Ini adalah notifikasi uji coba dari admin panel JeGo.");
+        await sendPushNotification(firstDriver.playerId, "🧪 Test Notifikasi JeGo", "Ini adalah notifikasi uji coba dari admin panel. Jika Anda menerima ini, notifikasi push berfungsi dengan baik.");
     }
 
     // ================= START =================
