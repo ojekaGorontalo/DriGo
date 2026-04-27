@@ -975,10 +975,20 @@ function toggleLocationTracking() {
   locationTrackingEnabled = !locationTrackingEnabled;
   localStorage.setItem(STORAGE_TRACKING, locationTrackingEnabled);
   updateTrackingButton();
+
+  // Kirim status tracking ke database agar admin tahu driver aktif/nonaktif
+  if (globalCurrentUid) {
+    database.ref('drivers/' + globalCurrentUid).update({
+      tracking_enabled: locationTrackingEnabled,
+      last_update: new Date().toISOString()
+    }).catch(console.error);
+  }
+
   if (locationTrackingEnabled && driverLocation.latitude && currentDriverData && globalCurrentUid) {
     database.ref('drivers/' + globalCurrentUid).update({
-      latitude: driverLocation.latitude, longitude: driverLocation.longitude, last_update: new Date().toISOString()
-    });
+      latitude: driverLocation.latitude,
+      longitude: driverLocation.longitude
+    }).catch(console.error);
   }
 }
 function toggleAutobid() {
@@ -986,6 +996,14 @@ function toggleAutobid() {
   autobidEnabled = !autobidEnabled;
   localStorage.setItem(STORAGE_AUTOBID, autobidEnabled);
   updateAutobidButton();
+
+  // Kirim status autobid ke database agar admin tahu preferensi driver
+  if (globalCurrentUid) {
+    database.ref('drivers/' + globalCurrentUid).update({
+      autobid_enabled: autobidEnabled,
+      last_update: new Date().toISOString()
+    }).catch(console.error);
+  }
 }
 function refreshData() { loadOrders(); }
 
@@ -1046,6 +1064,24 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
       await fetchMapboxToken().catch(()=>console.warn('Mapbox token tidak tersedia'));
       loadStoredSettings();
+      // Sinkronisasi status dari database (tracking_enabled, autobid_enabled)
+if (globalCurrentUid) {
+  database.ref('drivers/' + globalCurrentUid).once('value').then(snap => {
+    const data = snap.val();
+    if (data) {
+      if (data.tracking_enabled !== undefined) {
+        locationTrackingEnabled = data.tracking_enabled;
+        localStorage.setItem(STORAGE_TRACKING, locationTrackingEnabled);
+        updateTrackingButton();
+      }
+      if (data.autobid_enabled !== undefined) {
+        autobidEnabled = data.autobid_enabled;
+        localStorage.setItem(STORAGE_AUTOBID, autobidEnabled);
+        updateAutobidButton();
+      }
+    }
+  }).catch(console.error);
+}
       loadOrders();
       setTimeout(startGPSMonitoring, 1000);
     } else {
