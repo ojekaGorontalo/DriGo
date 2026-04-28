@@ -503,6 +503,10 @@ let gpsReady = false;
 let currentModalOrderListener = null;
 let currentModalOrderRef = null;
 let autobidOfferedOrders = new Set(); // Menyimpan orderId yang sudah ditawarkan otomatis oleh autobid
+// Muat data autobid yang sudah ditawarkan dari localStorage
+const savedOffers = JSON.parse(localStorage.getItem('autobid_offered_orders') || '[]');
+savedOffers.forEach(id => autobidOfferedOrders.add(id));
+console.log(`Loaded ${autobidOfferedOrders.size} offered orders from localStorage`);
 
 // ========== FUNGSI RADAR ==========
 function startRadarMessages() {
@@ -897,9 +901,15 @@ async function sendDriverOffer(isAuto = false) {
     await database.ref(`orders/${orderId}/driver_offers/${globalCurrentUid}`).set(driverDataForOffer);
     
     // Jika ini autobid, catat orderId agar tidak dikirim lagi
-    if (isAuto) {
-      autobidOfferedOrders.add(orderId);
-    }
+if (isAuto) {
+  autobidOfferedOrders.add(orderId);
+  // Simpan ke localStorage
+  let storedOffers = JSON.parse(localStorage.getItem('autobid_offered_orders') || '[]');
+  if (!storedOffers.includes(orderId)) {
+    storedOffers.push(orderId);
+    localStorage.setItem('autobid_offered_orders', JSON.stringify(storedOffers));
+  }
+}
     
     ambilBtn.textContent = 'Menunggu Konfirmasi';
     startCountdown(orderId, globalCurrentUid);
@@ -1357,10 +1367,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         showPopup(title, `Alasan: ${ketGagal}`, 'error', {
           confirmText: 'OK',
           onConfirm: async () => {
-            await auth.signOut();
-            localStorage.removeItem('jego_logged_in_driver');
-            window.location.href = 'loginDriver.html';
-          }
+  await auth.signOut();
+  localStorage.removeItem('jego_logged_in_driver');
+  localStorage.removeItem('autobid_offered_orders');
+  window.location.href = 'loginDriver.html';
+}
         });
         return; // Hentikan eksekusi lebih lanjut
       }
