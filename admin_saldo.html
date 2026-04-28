@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin JeGo - Notifikasi & Kirim Penawaran Driver</title>
+    <title>Admin JeGo - Notifikasi & Kirim Penawaran Driver (Auto Fallback)</title>
     <style>
         * { box-sizing: border-box; }
         body {
@@ -77,7 +77,7 @@
 <body>
 <div class="container">
     <div class="flex" style="justify-content: space-between; align-items: center;">
-        <h1>📡 JeGo Admin Panel</h1>
+        <h1>📡 JeGo Admin Panel (Auto Fallback Offer)</h1>
         <button id="logoutBtn" class="logout-btn">🚪 Logout</button>
     </div>
     <div class="card">
@@ -92,9 +92,9 @@
         </div>
     </div>
 
-    <!-- KIRIM PENAWARAN ATAS NAMA DRIVER VIA ADMIN -->
+    <!-- KIRIM PENAWARAN ATAS NAMA DRIVER VIA ADMIN (MANUAL) -->
     <div class="card">
-        <h3>📨 Kirim Penawaran Atas Nama Driver (Admin)</h3>
+        <h3>📨 Kirim Penawaran Atas Nama Driver (Manual)</h3>
         <div class="flex" style="flex-wrap:wrap; gap:10px;">
             <select id="adminDriverSelect" style="flex:2; background:#0f0f1a; color:white;">
                 <option value="">-- Pilih Driver --</option>
@@ -134,10 +134,15 @@
     const ONESIGNAL_APP_ID = "3357d683-8f6b-4558-9d42-2eeceed6204a";
     let ONESIGNAL_API_KEY = "";
 
+    // Variabel global
     let allDrivers = {};
     let allWaitingOrders = {};
     let ordersListener = false;
-    const processedOrderIds = new Set();
+    const processedOrderIds = new Set();            // Untuk notifikasi push awal (child_added)
+    const fallbackTimers = new Map();               // orderId -> timeoutID
+    const fallbackProcessed = new Set();            // orderId yang sudah diproses fallback (offer sudah dikirim oleh admin)
+
+    const FALLBACK_DELAY_SECONDS = 20;              // Tunggu 20 detik sebelum auto fallback
 
     // ================= UTILS =================
     function addLog(msg, type = "info") {
@@ -174,7 +179,203 @@
         }
     }
 
-    // ========== NOTIFIKASI PUSH (HANYA DRIVER DENGAN autobid_enabled = true) ==========
+    // ========== NOTIFIKASI PUSH (UNTUK FALLBACK & MANUAL) ==========
+    async function sendPushNotification(playerId, title, message, orderId = null, extraData = {}) {
+        if (!playerId) return false;
+        if (!ONESIGNAL_API_KEY) {
+            addLog("❌ OneSignal API Key belum tersedia. Notifikasi tidak dapat dikirim.", "error");
+            return false;
+        }
+        try {
+            const response = await fetch("https://onesignal.com/api/v1/notifications", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Basic ${ONESIGNAL_API_KEY}`
+                },
+                body: JSON.stringify({
+                    app_id: ONESIGNAL_APP_ID,
+                    include_player_ids: [playerId],
+                    headings: { en: title },
+                    contents: { en: message },
+                    data: { orderId: orderId, type: "offer_from_admin", ...extraData }
+                })
+            });
+            const result = await response.json();
+            if (result.errors) {
+                addLog(`Gagal notif: ${JSON.stringify(result.errors)}`, "error");
+                return false;
+            } else {
+                addLog(`✅ Notifikasi terkirim ke driver (${playerId.substring(0,8)}...)`, "success");
+                return true;
+            }
+        } catch(err) {
+            addLog(`Error API: ${err.message}`, "error");
+            return false;
+        }
+    }
+
+    // ========== FUNGSI JARAK ==========
+    function getDistance(lat1, lon1, lat2, lon2) {
+        if (!lat1 || !lon1 || !lat2 || !lon2) return Infinity;
+        const R = 6371;
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) * Math.sin(dLon/2)**2;
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        return R * c;
+    }
+
+    // ========== MENDAPATKAN DRIVER TERDEKAT (TRACKING ON, JARAK < 3 KM) ==========
+    async function getNearestDriver(pickupLat, pickupLng) {
+        const snapshot = await database.ref("driver_locations").once("value");
+        const drivers = snapshot.val();
+        if (!drivers) return null;
+        let nearest = null;
+        let minDist = Infinity;
+        for (const [uid, data] of Object.entries(drivers)) {
+            // Harus tracking ON dan punya koordinat
+            if (data.tracking_enabled !== true) continue;
+            if (!data.latitude || !data.longitude) continue;
+            const dist = getDistance(pickupLat, pickupLng, data.latitude, data.longitude);
+            if (dist < 3 && dist < minDist) {
+                minDist = dist;
+                nearest = { uid, ...data, distance: dist };
+            }
+        }
+        return nearest;
+    }
+
+    // ========== MENGIRIM OFFER OTOMATIS OLEH ADMIN (FALLBACK) ==========
+    async function sendFallbackOffer(orderId, orderData) {
+        // Cek apakah order masih waiting dan belum punya driver_offers
+        const orderSnap = await database.ref(`orders/${orderId}`).once('value');
+        const order = orderSnap.val();
+        if (!order || order.status !== 'waiting') {
+            addLog(`⏭️ Order ${orderId.substring(0,8)} sudah tidak dalam status waiting, fallback dibatalkan.`, "warning");
+            return false;
+        }
+
+        const offersSnap = await database.ref(`orders/${orderId}/driver_offers`).once('value');
+        if (offersSnap.exists() && Object.keys(offersSnap.val()).length > 0) {
+            addLog(`⏭️ Order ${orderId.substring(0,8)} sudah memiliki driver_offers (sudah ada yang menawarkan). Fallback tidak perlu.`, "info");
+            return false;
+        }
+
+        // Ambil driver terdekat
+        const pickupLat = order.pickup_lat;
+        const pickupLng = order.pickup_lng;
+        if (!pickupLat || !pickupLng) {
+            addLog(`❌ Order ${orderId.substring(0,8)} tidak memiliki koordinat pickup. Fallback gagal.`, "error");
+            return false;
+        }
+
+        const nearestDriver = await getNearestDriver(pickupLat, pickupLng);
+        if (!nearestDriver) {
+            addLog(`⚠️ Order ${orderId.substring(0,8)}: Tidak ada driver dengan tracking ON dalam radius 3 km. Fallback dibatalkan.`, "warning");
+            return false;
+        }
+
+        // Ambil detail driver dari node drivers
+        const driverSnap = await database.ref(`drivers/${nearestDriver.uid}`).once('value');
+        const driverData = driverSnap.val();
+        if (!driverData) {
+            addLog(`❌ Data driver ${nearestDriver.uid} tidak ditemukan di node 'drivers'`, "error");
+            return false;
+        }
+
+        const offerData = {
+            driver_id: nearestDriver.uid,
+            driver_name: driverData.name || "Driver",
+            driver_plate: driverData.plateNumber || '',
+            driver_type: driverData.vehicleType || '',
+            driver_rating: driverData.rating || 5,
+            driver_trips: driverData.perjalanan || 0,
+            driver_photo: driverData.profilePhotoUrl || '',
+            offered_at: new Date().toISOString(),
+            status: 'offered',
+            auto_fallback_by_admin: true   // tanda bahwa ini dikirim otomatis oleh admin
+        };
+
+        try {
+            await database.ref(`orders/${orderId}/driver_offers/${nearestDriver.uid}`).set(offerData);
+            addLog(`🤖 AUTO FALLBACK: Admin mengirim offer untuk driver ${offerData.driver_name} (${nearestDriver.uid}) ke order ${orderId.substring(0,8)}. Jarak: ${nearestDriver.distance.toFixed(2)} km`, "success");
+
+            // Kirim notifikasi push ke driver tersebut
+            if (nearestDriver.playerId) {
+                const title = "🚖 Order Baru (Auto Offer dari Admin)";
+                const customerName = order.customer_name || "Customer";
+                const harga = order.price || 0;
+                const message = `Halo ${driverData.name}, admin secara otomatis mengirimkan penawaran untuk order dari ${customerName} (Rp ${harga.toLocaleString()}) karena tidak ada driver yang merespon. Segera cek aplikasi.`;
+                await sendPushNotification(nearestDriver.playerId, title, message, orderId, { auto_fallback: true });
+            } else {
+                addLog(`⚠️ Driver ${nearestDriver.uid} tidak memiliki playerId, notifikasi tidak terkirim.`, "warning");
+            }
+            return true;
+        } catch (err) {
+            addLog(`❌ Gagal mengirim offer fallback: ${err.message}`, "error");
+            return false;
+        }
+    }
+
+    // ========== MEMPROSES ORDER BARU (NOTIF AWAL + SET FALLBACK TIMER) ==========
+    async function processNewOrder(orderId, orderData) {
+        if (processedOrderIds.has(orderId)) return;
+        if (orderData.status !== "waiting" && orderData.status !== "searching") return;
+        const lat = orderData.pickup_lat || orderData.from_lat;
+        const lng = orderData.pickup_lng || orderData.from_lng;
+        if (!lat || !lng) return;
+        addLog(`📦 Order baru: ${orderId} | pickup (${lat}, ${lng})`, "info");
+        
+        // 1. Kirim notifikasi push ke driver dengan autobid ON & tracking ON dalam radius 3 km (sesuai kode awal)
+        const drivers = await loadDriversForNotification(); // fungsi ini sudah ada di bawah
+        let count = 0;
+        for (const driverId in drivers) {
+            const d = drivers[driverId];
+            const dist = getDistance(lat, lng, d.latitude, d.longitude);
+            if (dist < 3) {
+                const customerName = orderData.customer_name || "Customer";
+                const vehicle = (orderData.transport_type || "transportasi").includes("kurir") ? "Kurir" : "Transportasi";
+                const harga = orderData.price || 0;
+                const title = "🚖 Order Baru Dekat Anda!";
+                const message = `${customerName} memesan ${vehicle}\nJarak: ${dist.toFixed(1)} km\nHarga: Rp ${harga.toLocaleString()}`;
+                await sendPushNotification(d.playerId, title, message, orderId);
+                count++;
+            }
+        }
+        if (count > 0) addLog(`✅ Order ${orderId}: notifikasi awal ke ${count} driver (autobid ON, radius <3 km)`, "success");
+        else addLog(`⚠️ Order ${orderId}: tidak ada driver autobid ON dalam radius 3 km untuk notifikasi awal`, "warning");
+
+        // 2. Pasang timer fallback (jika order ini belum pernah diproses fallback)
+        if (!fallbackProcessed.has(orderId)) {
+            if (fallbackTimers.has(orderId)) clearTimeout(fallbackTimers.get(orderId));
+            const timer = setTimeout(async () => {
+                addLog(`⏰ Timer fallback untuk order ${orderId.substring(0,8)}: mengecek driver_offers...`, "info");
+                const currentOrderSnap = await database.ref(`orders/${orderId}`).once('value');
+                const currentOrder = currentOrderSnap.val();
+                if (!currentOrder || currentOrder.status !== 'waiting') {
+                    addLog(`⏭️ Order ${orderId.substring(0,8)} sudah tidak waiting, fallback diabaikan.`, "warning");
+                    fallbackTimers.delete(orderId);
+                    return;
+                }
+                const offersSnap = await database.ref(`orders/${orderId}/driver_offers`).once('value');
+                const hasOffers = offersSnap.exists() && Object.keys(offersSnap.val()).length > 0;
+                if (hasOffers) {
+                    addLog(`✅ Order ${orderId.substring(0,8)} sudah memiliki penawaran driver. Fallback tidak diperlukan.`, "success");
+                } else {
+                    addLog(`🚨 Order ${orderId.substring(0,8)} TIDAK memiliki penawaran driver setelah ${FALLBACK_DELAY_SECONDS} detik. Admin akan mengirim offer otomatis.`, "warning");
+                    await sendFallbackOffer(orderId, currentOrder);
+                    fallbackProcessed.add(orderId);
+                }
+                fallbackTimers.delete(orderId);
+            }, FALLBACK_DELAY_SECONDS * 1000);
+            fallbackTimers.set(orderId, timer);
+            addLog(`⏲️ Timer fallback ${FALLBACK_DELAY_SECONDS} detik dipasang untuk order ${orderId.substring(0,8)}`, "info");
+        }
+        processedOrderIds.add(orderId);
+    }
+
+    // Fungsi loadDriversForNotification (sama seperti versi sebelumnya, untuk notifikasi autobid)
     async function loadDriversForNotification() {
         try {
             const snapshot = await database.ref("driver_locations").once("value");
@@ -200,136 +401,7 @@
         }
     }
 
-    async function sendPushNotification(playerId, title, message, orderId = null, extraData = {}) {
-        if (!playerId) return false;
-        if (!ONESIGNAL_API_KEY) {
-            addLog("❌ OneSignal API Key belum tersedia. Notifikasi tidak dapat dikirim.", "error");
-            return false;
-        }
-        try {
-            const response = await fetch("https://onesignal.com/api/v1/notifications", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "Authorization": `Basic ${ONESIGNAL_API_KEY}`
-                },
-                body: JSON.stringify({
-                    app_id: ONESIGNAL_APP_ID,
-                    include_player_ids: [playerId],
-                    headings: { en: title },
-                    contents: { en: message },
-                    data: { orderId: orderId, type: "new_order", ...extraData }
-                })
-            });
-            const result = await response.json();
-            if (result.errors) {
-                addLog(`Gagal notif: ${JSON.stringify(result.errors)}`, "error");
-                return false;
-            } else {
-                addLog(`✅ Notifikasi terkirim ke driver (${playerId.substring(0,8)}...)`, "success");
-                return true;
-            }
-        } catch(err) {
-            addLog(`Error API: ${err.message}`, "error");
-            return false;
-        }
-    }
-
-    async function testNotification() {
-        if (!ONESIGNAL_API_KEY) {
-            addLog("❌ API Key tidak tersedia. Notifikasi tidak dapat dikirim.", "error");
-            return;
-        }
-        const drivers = await loadDriversForNotification();
-        const driverIds = Object.keys(drivers);
-        if (driverIds.length === 0) {
-            addLog("Tidak ada driver dengan tracking+autobid ON untuk test.", "error");
-            return;
-        }
-        const first = drivers[driverIds[0]];
-        await sendPushNotification(first.playerId, "🧪 Test Notifikasi JeGo", "Ini notifikasi uji coba dari admin panel (hanya driver autobid ON).");
-    }
-
-    // ========== NOTIFIKASI MANUAL KE DRIVER (UNTUK PENAWARAN ADMIN) ==========
-    async function sendManualPushToDriver(driverId, title, message, orderId = null) {
-        if (!ONESIGNAL_API_KEY) {
-            addLog("❌ OneSignal API Key belum tersedia, tidak bisa kirim notifikasi.", "error");
-            return false;
-        }
-        const locSnap = await database.ref(`driver_locations/${driverId}/playerId`).once('value');
-        const playerId = locSnap.val();
-        if (!playerId) {
-            addLog(`⚠️ Driver ${driverId} tidak memiliki playerId, tidak bisa kirim notifikasi.`, "warning");
-            return false;
-        }
-        try {
-            const response = await fetch("https://onesignal.com/api/v1/notifications", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "Authorization": `Basic ${ONESIGNAL_API_KEY}`
-                },
-                body: JSON.stringify({
-                    app_id: ONESIGNAL_APP_ID,
-                    include_player_ids: [playerId],
-                    headings: { en: title },
-                    contents: { en: message },
-                    data: { orderId: orderId, type: "offer_from_admin" }
-                })
-            });
-            const result = await response.json();
-            if (result.errors) {
-                addLog(`Gagal notif manual ke driver ${driverId}: ${JSON.stringify(result.errors)}`, "error");
-                return false;
-            } else {
-                addLog(`✅ Notifikasi manual terkirim ke driver ${driverId} (${playerId.substring(0,8)}...)`, "success");
-                return true;
-            }
-        } catch(err) {
-            addLog(`Error API OneSignal: ${err.message}`, "error");
-            return false;
-        }
-    }
-
-    // ========== LISTENER ORDER OTOMATIS (NOTIF KE DRIVER DEKAT DENGAN AUTOBID ON) ==========
-    function getDistance(lat1, lon1, lat2, lon2) {
-        if (!lat1 || !lon1 || !lat2 || !lon2) return Infinity;
-        const R = 6371;
-        const dLat = (lat2 - lat1) * Math.PI / 180;
-        const dLon = (lon2 - lon1) * Math.PI / 180;
-        const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) * Math.sin(dLon/2)**2;
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-        return R * c;
-    }
-
-    async function processNewOrder(orderId, orderData) {
-        if (processedOrderIds.has(orderId)) return;
-        if (orderData.status !== "waiting" && orderData.status !== "searching") return;
-        const lat = orderData.pickup_lat || orderData.from_lat;
-        const lng = orderData.pickup_lng || orderData.from_lng;
-        if (!lat || !lng) return;
-        addLog(`📦 Order baru: ${orderId} | pickup (${lat}, ${lng})`, "info");
-        
-        const drivers = await loadDriversForNotification();
-        let count = 0;
-        for (const driverId in drivers) {
-            const d = drivers[driverId];
-            const dist = getDistance(lat, lng, d.latitude, d.longitude);
-            if (dist < 3) {
-                const customerName = orderData.customer_name || "Customer";
-                const vehicle = (orderData.transport_type || "transportasi").includes("kurir") ? "Kurir" : "Transportasi";
-                const harga = orderData.price || 0;
-                const title = "🚖 Order Baru Dekat Anda!";
-                const message = `${customerName} memesan ${vehicle}\nJarak: ${dist.toFixed(1)} km\nHarga: Rp ${harga.toLocaleString()}`;
-                await sendPushNotification(d.playerId, title, message, orderId);
-                count++;
-            }
-        }
-        if (count > 0) addLog(`✅ Order ${orderId}: notif ke ${count} driver (radius <3 km, autobid ON)`, "success");
-        else addLog(`⚠️ Order ${orderId}: tidak ada driver autobid ON dalam radius 3 km`, "warning");
-        processedOrderIds.add(orderId);
-    }
-
+    // ========== LISTENER ORDER OTOMATIS (child_added) ==========
     function startListeningOrders() {
         if (ordersListener) return;
         const ordersRef = database.ref("orders");
@@ -337,8 +409,8 @@
             await processNewOrder(snapshot.key, snapshot.val());
         });
         ordersListener = true;
-        addLog("👂 Listener order aktif (child_added) - hanya untuk driver dengan autobid ON.", "success");
-        document.getElementById("statusText").innerText = "Listening order (autobid ON) & siap kirim penawaran manual";
+        addLog(`👂 Listener order aktif (child_added) - notifikasi awal + auto fallback offer setelah ${FALLBACK_DELAY_SECONDS} detik.`, "success");
+        document.getElementById("statusText").innerText = `Listening order (auto fallback ${FALLBACK_DELAY_SECONDS}s)`;
     }
 
     // ========== DENGARKAN PERUBAHAN ORDER (untuk pemberitahuan jika penawaran diterima) ==========
@@ -352,7 +424,6 @@
                 const notifKey = `notif_admin_accepted_${orderId}`;
                 if (sessionStorage.getItem(notifKey)) return;
                 sessionStorage.setItem(notifKey, 'true');
-
                 addLog(`🎉 Order ${orderId} telah diterima oleh customer. Driver terpilih: ${order.driver_id}`, "success");
                 const title = "🎉 Penawaran Anda Diterima!";
                 const message = `Selamat! Penawaran Anda untuk order ${orderId.substring(0,8)} telah diterima. Segera proses order.`;
@@ -360,6 +431,20 @@
             }
         });
         addLog("👂 Listener perubahan order (child_changed) aktif untuk pemberitahuan otomatis.", "success");
+    }
+
+    async function sendManualPushToDriver(driverId, title, message, orderId = null) {
+        if (!ONESIGNAL_API_KEY) {
+            addLog("❌ OneSignal API Key belum tersedia, tidak bisa kirim notifikasi.", "error");
+            return false;
+        }
+        const locSnap = await database.ref(`driver_locations/${driverId}/playerId`).once('value');
+        const playerId = locSnap.val();
+        if (!playerId) {
+            addLog(`⚠️ Driver ${driverId} tidak memiliki playerId, tidak bisa kirim notifikasi.`, "warning");
+            return false;
+        }
+        return sendPushNotification(playerId, title, message, orderId);
     }
 
     // ================= HAPUS ORDER KADALUARSA (>30 MENIT) =================
@@ -379,6 +464,11 @@
             if (order.status === 'waiting' && order.created_at) {
                 const orderCreated = new Date(order.created_at);
                 if (orderCreated <= thirtyMinutesAgo) {
+                    // Hapus juga timer fallback jika ada
+                    if (fallbackTimers.has(orderId)) {
+                        clearTimeout(fallbackTimers.get(orderId));
+                        fallbackTimers.delete(orderId);
+                    }
                     await ordersRef.child(orderId).remove();
                     addLog(`🗑 Order ${orderId.substring(0,8)} dihapus karena kadaluarsa (dibuat ${orderCreated.toLocaleTimeString()})`, "warning");
                     deletedCount++;
@@ -393,7 +483,7 @@
         }
     }
 
-    // ================= KIRIM PENAWARAN SEBAGAI ADMIN (ke driver_offers) =================
+    // ================= KIRIM PENAWARAN MANUAL (ADMIN) =================
     async function loadDriversForSelect() {
         const snapshot = await database.ref('drivers').once('value');
         allDrivers = snapshot.val() || {};
@@ -474,10 +564,10 @@
             return;
         }
 
-        // Cek apakah driver sudah pernah menawarkan order ini (mencegah duplikasi)
+        // Cek apakah driver sudah pernah menawarkan order ini
         const existingOfferSnap = await database.ref(`orders/${orderId}/driver_offers/${driverId}`).once('value');
         if (existingOfferSnap.exists()) {
-            resultDiv.innerHTML = '<span style="color:#ffaa66;">⚠️ Driver ini sudah pernah mengirim penawaran untuk order ini. Tidak perlu mengirim ulang.</span>';
+            resultDiv.innerHTML = '<span style="color:#ffaa66;">⚠️ Driver ini sudah pernah mengirim penawaran untuk order ini.</span>';
             return;
         }
 
@@ -496,7 +586,7 @@
         try {
             await database.ref(`orders/${orderId}/driver_offers/${driverId}`).set(offerData);
             resultDiv.innerHTML = `<span style="color:#66ff66;">✅ Penawaran berhasil dikirim untuk driver ${driver.name} ke order ${orderId.substring(0,8)}. (Jarak: ${dist.toFixed(1)} km)</span>`;
-            addLog(`Admin mengirim offer untuk driver ${driver.name} (${driverId}) ke orders/${orderId}/driver_offers/${driverId}, jarak ${dist.toFixed(1)} km`, "success");
+            addLog(`Admin MANUAL mengirim offer untuk driver ${driver.name} (${driverId}) ke orders/${orderId}/driver_offers/${driverId}, jarak ${dist.toFixed(1)} km`, "success");
 
             // Kirim notifikasi push ke driver
             const title = "📢 Penawaran Dikirim oleh Admin";
@@ -508,12 +598,26 @@
         }
     }
 
-    // ================= REFRESH DATA =================
     async function refreshDriversAndOrders() {
         await loadDriversForSelect();
         await loadWaitingOrdersForSelect();
         document.getElementById('adminOfferResult').innerHTML = '';
         addLog("Data driver & order berhasil direfresh.", "success");
+    }
+
+    async function testNotification() {
+        if (!ONESIGNAL_API_KEY) {
+            addLog("❌ API Key tidak tersedia. Notifikasi tidak dapat dikirim.", "error");
+            return;
+        }
+        const drivers = await loadDriversForNotification();
+        const driverIds = Object.keys(drivers);
+        if (driverIds.length === 0) {
+            addLog("Tidak ada driver dengan tracking+autobid ON untuk test.", "error");
+            return;
+        }
+        const first = drivers[driverIds[0]];
+        await sendPushNotification(first.playerId, "🧪 Test Notifikasi JeGo", "Ini notifikasi uji coba dari admin panel (hanya driver autobid ON).");
     }
 
     // ================= AUTENTIKASI & INIT =================
@@ -534,20 +638,20 @@
         await loadDriversForSelect();
         await loadWaitingOrdersForSelect();
 
-        // Mulai listener order otomatis
+        // Mulai listener order otomatis (notifikasi awal + fallback timer)
         startListeningOrders();
         // Listener perubahan status order
         startListeningToOrderChanges();
 
         document.getElementById("firebaseStatus").innerText = "✅ Terhubung";
-        addLog("Firebase terhubung, admin panel siap (notifikasi otomatis + kirim penawaran manual).", "success");
+        addLog("Firebase terhubung, admin panel siap (auto fallback offer aktif).", "success");
 
         // Ambil API Key
         await fetchOneSignalApiKey();
 
         // Jalankan sekali saat startup untuk membersihkan order kadaluarsa
         await deleteExpiredOrders();
-        // Jadwalkan pembersihan setiap 10 menit (600.000 ms)
+        // Jadwalkan pembersihan setiap 10 menit
         setInterval(deleteExpiredOrders, 10 * 60 * 1000);
     }
 
