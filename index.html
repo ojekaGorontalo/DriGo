@@ -1092,10 +1092,20 @@ function toggleAutobid() {
 }
 function refreshData() { loadOrders(); }
 
-function showPopup(title, message, type = 'info') {
+function showPopup(title, message, type = 'info', options = {}) {
   document.getElementById('popupTitle').textContent = title;
   document.getElementById('popupMessage').textContent = message;
   document.getElementById('popupIcon').innerHTML = { success: '✅', error: '❌', warning: '⚠️', info: 'ℹ️' }[type] || 'ℹ️';
+  
+  const confirmBtn = document.getElementById('popupButton');
+  // Simpan callback onConfirm jika ada
+  confirmBtn.onclick = () => {
+    hidePopup();
+    if (options.onConfirm && typeof options.onConfirm === 'function') {
+      options.onConfirm();
+    }
+  };
+  
   document.getElementById('popupOverlay').style.display = 'flex';
 }
 function hidePopup() { document.getElementById('popupOverlay').style.display = 'none'; }
@@ -1312,46 +1322,68 @@ async function checkDriverActiveOrder() {
 
 document.addEventListener('DOMContentLoaded', async () => {
   auth.onAuthStateChanged(async (user) => {
-    if (user) {
-      console.log('🔐 Driver terautentikasi dengan UID:', user.uid);
-      globalCurrentUid = user.uid;
-      if (await checkDriverActiveOrder()) return;
-      if (!checkDriverData()) {
-        await auth.signOut();
-        localStorage.removeItem('jego_logged_in_driver');
-        window.location.href = 'loginDriver.html';
-        return;
-      }
-      await fetchMapboxToken().catch(()=>console.warn('Mapbox token tidak tersedia'));
-      loadStoredSettings();
-      // Sinkronisasi status dari database (tracking_enabled, autobid_enabled)
-      if (globalCurrentUid) {
-        database.ref('drivers/' + globalCurrentUid).once('value').then(snap => {
-          const data = snap.val();
-          if (data) {
-            if (data.tracking_enabled !== undefined) {
-              locationTrackingEnabled = data.tracking_enabled;
-              localStorage.setItem(STORAGE_TRACKING, locationTrackingEnabled);
-              updateTrackingButton();
-            }
-            if (data.autobid_enabled !== undefined) {
-              autobidEnabled = data.autobid_enabled;
-              localStorage.setItem(STORAGE_AUTOBID, autobidEnabled);
-              updateAutobidButton();
-            }
+  if (user) {
+    console.log('🔐 Driver terautentikasi dengan UID:', user.uid);
+    globalCurrentUid = user.uid;
+
+    // ========== CEK STATUS DRIVER DARI DATABASE ==========
+    const driverSnapshot = await database.ref(`drivers/${user.uid}`).once('value');
+    const driverDataDB = driverSnapshot.val();
+    if (driverDataDB) {
+      const status = driverDataDB.status;
+      if (status === 'rejected' || status === 'blocked') {
+        const ketGagal = driverDataDB.ketGagal || driverDataDB.rejectionReason || driverDataDB.blockReason || 'Tidak ada keterangan.';
+        const title = (status === 'rejected') ? 'Akun Ditolak' : 'Akun Diblokir';
+        // Tampilkan popup alasan, lalu logout setelah klik OK
+        showPopup(title, `Alasan: ${ketGagal}`, 'error', {
+          confirmText: 'OK',
+          onConfirm: async () => {
+            await auth.signOut();
+            localStorage.removeItem('jego_logged_in_driver');
+            window.location.href = 'loginDriver.html';
           }
-        }).catch(console.error);
+        });
+        return; // Hentikan eksekusi lebih lanjut
       }
-      loadOrders();
-      setTimeout(startGPSMonitoring, 1000);
-      
-      // CEK APAKAH DRIVER SUDAH PUNYA PLAYERID, JIKA BELUM TAMPILKAN MODAL
-      await checkPlayerIdAndPrompt();
-    } else {
-      console.warn('❌ Driver tidak login, redirect ke loginDriver.html');
-      window.location.href = 'loginDriver.html';
     }
-  });
+    // =====================================================
+
+    if (await checkDriverActiveOrder()) return;
+    if (!checkDriverData()) {
+      await auth.signOut();
+      localStorage.removeItem('jego_logged_in_driver');
+      window.location.href = 'loginDriver.html';
+      return;
+    }
+    await fetchMapboxToken().catch(()=>console.warn('Mapbox token tidak tersedia'));
+    loadStoredSettings();
+    // Sinkronisasi status dari database (tracking_enabled, autobid_enabled)
+    if (globalCurrentUid) {
+      database.ref('drivers/' + globalCurrentUid).once('value').then(snap => {
+        const data = snap.val();
+        if (data) {
+          if (data.tracking_enabled !== undefined) {
+            locationTrackingEnabled = data.tracking_enabled;
+            localStorage.setItem(STORAGE_TRACKING, locationTrackingEnabled);
+            updateTrackingButton();
+          }
+          if (data.autobid_enabled !== undefined) {
+            autobidEnabled = data.autobid_enabled;
+            localStorage.setItem(STORAGE_AUTOBID, autobidEnabled);
+            updateAutobidButton();
+          }
+        }
+      }).catch(console.error);
+    }
+    loadOrders();
+    setTimeout(startGPSMonitoring, 1000);
+    // CEK APAKAH DRIVER SUDAH PUNYA PLAYERID, JIKA BELUM TAMPILKAN MODAL
+    await checkPlayerIdAndPrompt();
+  } else {
+    console.warn('❌ Driver tidak login, redirect ke loginDriver.html');
+    window.location.href = 'loginDriver.html';
+  }
+});
 
   document.getElementById('menuBtn').addEventListener('click', () => document.getElementById('sidebar').style.display = 'flex');
   document.getElementById('closeSidebar').addEventListener('click', () => document.getElementById('sidebar').style.display = 'none');
