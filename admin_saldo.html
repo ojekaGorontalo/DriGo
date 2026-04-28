@@ -134,9 +134,9 @@
     const auth = firebase.auth();
     const database = firebase.database();
 
-    // OneSignal hardcoded
+    // Konfigurasi OneSignal (APP_ID akan diambil dari database)
     const ONESIGNAL_APP_ID = "3357d683-8f6b-4558-9d42-2eeceed6204a";
-    const ONESIGNAL_API_KEY = "os_v2_app_gnl5na4pnncvrhkcf3wo5vrajlyzbbkbd2ouib4e7qya7iffkeyllqumonqwxcmhrfzxm6pvcc5cbuk72rohuo6o7e6mk7x3mj6j4gy";
+    let ONESIGNAL_API_KEY = ""; // Tidak di-hardcode, akan diambil dari data-jego/PushKey
 
     let currentSelectedDriver = null;
     let ordersListener = null;
@@ -155,6 +155,25 @@
 
     function formatRupiah(amount) {
         return 'Rp ' + (amount || 0).toLocaleString('id-ID');
+    }
+
+    // ================= AMBIL API KEY =================
+    async function fetchOneSignalApiKey() {
+        try {
+            const snapshot = await database.ref('data-jego/PushKey').once('value');
+            const apiKey = snapshot.val();
+            if (apiKey && typeof apiKey === 'string') {
+                ONESIGNAL_API_KEY = apiKey;
+                addLog("🔑 OneSignal API Key berhasil dimuat dari database.", "success");
+                return true;
+            } else {
+                addLog("⚠️ PushKey tidak ditemukan di data-jego. Notifikasi tidak akan berfungsi.", "error");
+                return false;
+            }
+        } catch (error) {
+            addLog(`❌ Gagal memuat PushKey: ${error.message}`, "error");
+            return false;
+        }
     }
 
     // ================= MANAJEMEN SALDO =================
@@ -258,6 +277,10 @@
 
     async function sendPushNotification(playerId, title, message, orderId = null) {
         if (!playerId) return false;
+        if (!ONESIGNAL_API_KEY) {
+            addLog("❌ OneSignal API Key belum tersedia. Pastikan PushKey sudah diatur di data-jego.", "error");
+            return false;
+        }
         try {
             const response = await fetch("https://onesignal.com/api/v1/notifications", {
                 method: "POST",
@@ -288,6 +311,10 @@
     }
 
     async function testNotification() {
+        if (!ONESIGNAL_API_KEY) {
+            addLog("❌ API Key tidak tersedia. Notifikasi tidak dapat dikirim.", "error");
+            return;
+        }
         const drivers = await loadDrivers();
         const driverIds = Object.keys(drivers);
         if (driverIds.length === 0) {
@@ -363,6 +390,8 @@
         startListeningOrders();
         document.getElementById("firebaseStatus").innerText = "✅ Terhubung";
         addLog("Firebase terhubung, admin panel siap.", "success");
+        // Ambil API Key OneSignal dari database saat panel dimuat
+        fetchOneSignalApiKey();
     }
 
     auth.onAuthStateChanged(async (user) => {
