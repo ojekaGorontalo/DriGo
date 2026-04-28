@@ -1109,11 +1109,12 @@ function updateDriverLocation(position) {
     
     // **TAMBAHAN: Simpan juga ke driver_locations (untuk admin)**
     database.ref(`driver_locations/${globalCurrentUid}`).update({
-      latitude: driverLocation.latitude,
-      longitude: driverLocation.longitude,
-      tracking_enabled: locationTrackingEnabled,
-      last_update: new Date().toISOString()
-    }).catch(console.error);
+  latitude: driverLocation.latitude,
+  longitude: driverLocation.longitude,
+  tracking_enabled: locationTrackingEnabled,
+  autobid_enabled: autobidEnabled,   // <-- TAMBAHKAN INI
+  last_update: new Date().toISOString()
+}).catch(console.error);
   }
 }
 
@@ -1197,9 +1198,15 @@ function toggleAutobid() {
   localStorage.setItem(STORAGE_AUTOBID, autobidEnabled);
   updateAutobidButton();
 
-  // Kirim status autobid ke database agar admin tahu preferensi driver
+  // Kirim status autobid ke database (node drivers)
   if (globalCurrentUid) {
     database.ref('drivers/' + globalCurrentUid).update({
+      autobid_enabled: autobidEnabled,
+      last_update: new Date().toISOString()
+    }).catch(console.error);
+    
+    // **TAMBAH: Simpan juga ke driver_locations (untuk admin)**
+    database.ref(`driver_locations/${globalCurrentUid}`).update({
       autobid_enabled: autobidEnabled,
       last_update: new Date().toISOString()
     }).catch(console.error);
