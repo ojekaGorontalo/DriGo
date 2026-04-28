@@ -502,6 +502,7 @@ let globalCurrentUid = null;
 let gpsReady = false;
 let currentModalOrderListener = null;
 let currentModalOrderRef = null;
+let autobidOfferedOrders = new Set(); // Menyimpan orderId yang sudah ditawarkan otomatis oleh autobid
 
 // ========== FUNGSI RADAR ==========
 function startRadarMessages() {
@@ -786,17 +787,22 @@ async function showOrderDetail(orderObj, fromAuto = false) {
   });
 
   if (fromAuto) {
-    const orderType = currentOrder.transport_type || '';
-    const isKurir = orderType.includes('kurir');
-    if (autobidEnabled && !isKurir) {
-      const autoSound = document.getElementById('autobidSound');
-      if (autoSound) autoSound.play().catch(e => console.log('Audio error:', e));
-      setTimeout(() => sendDriverOffer(), 500);
-    } else {
-      const manualSound = document.getElementById('manualPopupSound');
-      if (manualSound) manualSound.play().catch(e => console.log('Audio error:', e));
+  const orderType = currentOrder.transport_type || '';
+  const isKurir = orderType.includes('kurir');
+  if (autobidEnabled && !isKurir) {
+    // CEK: Cegah autobid berulang untuk order yang sama
+    if (autobidOfferedOrders.has(orderId)) {
+      console.log(`Autobid untuk order ${orderId} sudah dikirim sebelumnya, lewat.`);
+      return;
     }
+    const autoSound = document.getElementById('autobidSound');
+    if (autoSound) autoSound.play().catch(e => console.log('Audio error:', e));
+    setTimeout(() => sendDriverOffer(true), 500); // Kirim dengan parameter true (auto)
+  } else {
+    const manualSound = document.getElementById('manualPopupSound');
+    if (manualSound) manualSound.play().catch(e => console.log('Audio error:', e));
   }
+}
 
   if (mapboxAccessToken) {
     if (!modalMap) initModalMapbox();
@@ -850,9 +856,16 @@ function showRouteOnMapbox(order) {
   }
 }
 
-async function sendDriverOffer() {
+async function sendDriverOffer(isAuto = false) {
   if (!currentSelectedOrder || !globalCurrentUid || !checkDriverData()) return;
   const { orderId, orderData } = currentSelectedOrder;
+  
+  // CEK: Jika ini autobid dan order sudah pernah ditawarkan sebelumnya, BATALKAN
+  if (isAuto && autobidOfferedOrders.has(orderId)) {
+    console.log(`Autobid: Order ${orderId} sudah pernah ditawarkan, lewat.`);
+    return;
+  }
+  
   const hargaTotal = orderData.price || 0;
   const requiredBalance = hargaTotal * 0.1;
   const driverBalance = currentDriverData.balance || 0;
@@ -882,6 +895,12 @@ async function sendDriverOffer() {
   };
   try {
     await database.ref(`orders/${orderId}/driver_offers/${globalCurrentUid}`).set(driverDataForOffer);
+    
+    // Jika ini autobid, catat orderId agar tidak dikirim lagi
+    if (isAuto) {
+      autobidOfferedOrders.add(orderId);
+    }
+    
     ambilBtn.textContent = 'Menunggu Konfirmasi';
     startCountdown(orderId, globalCurrentUid);
   } catch (err) {
