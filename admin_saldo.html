@@ -88,6 +88,7 @@
         <div class="flex" style="margin-top: 10px;">
             <button id="clearLogBtn">🗑 Bersihkan Log</button>
             <button id="testNotifBtn">🔔 Test Notifikasi (driver pertama)</button>
+            <button id="cleanupOrdersBtn" style="background:#f44336;">🗑 Hapus Order Kadaluarsa (>30 menit)</button>
         </div>
     </div>
 
@@ -182,7 +183,6 @@
             const filtered = {};
             for (const uid in allDrivers) {
                 const d = allDrivers[uid];
-                // Syarat: tracking ON, autobid ON, punya playerId, dan lokasi
                 if (d.tracking_enabled === true && d.autobid_enabled === true && d.playerId && d.latitude && d.longitude) {
                     filtered[uid] = {
                         playerId: d.playerId,
@@ -310,7 +310,6 @@
         if (!lat || !lng) return;
         addLog(`📦 Order baru: ${orderId} | pickup (${lat}, ${lng})`, "info");
         
-        // Hanya ambil driver dengan autobid ON
         const drivers = await loadDriversForNotification();
         let count = 0;
         for (const driverId in drivers) {
@@ -355,13 +354,43 @@
                 sessionStorage.setItem(notifKey, 'true');
 
                 addLog(`🎉 Order ${orderId} telah diterima oleh customer. Driver terpilih: ${order.driver_id}`, "success");
-                // Kirim notifikasi ke driver yang dipilih
                 const title = "🎉 Penawaran Anda Diterima!";
                 const message = `Selamat! Penawaran Anda untuk order ${orderId.substring(0,8)} telah diterima. Segera proses order.`;
                 await sendManualPushToDriver(order.driver_id, title, message, orderId);
             }
         });
         addLog("👂 Listener perubahan order (child_changed) aktif untuk pemberitahuan otomatis.", "success");
+    }
+
+    // ================= HAPUS ORDER KADALUARSA (>30 MENIT) =================
+    async function deleteExpiredOrders() {
+        addLog("🕒 Memeriksa order yang sudah lebih dari 30 menit (status waiting)...", "info");
+        const now = new Date();
+        const thirtyMinutesAgo = new Date(now.getTime() - 30 * 60 * 1000);
+        const ordersRef = database.ref('orders');
+        const snapshot = await ordersRef.once('value');
+        const orders = snapshot.val();
+        if (!orders) {
+            addLog("Tidak ada order untuk diperiksa.", "info");
+            return;
+        }
+        let deletedCount = 0;
+        for (const [orderId, order] of Object.entries(orders)) {
+            if (order.status === 'waiting' && order.created_at) {
+                const orderCreated = new Date(order.created_at);
+                if (orderCreated <= thirtyMinutesAgo) {
+                    await ordersRef.child(orderId).remove();
+                    addLog(`🗑 Order ${orderId.substring(0,8)} dihapus karena kadaluarsa (dibuat ${orderCreated.toLocaleTimeString()})`, "warning");
+                    deletedCount++;
+                }
+            }
+        }
+        if (deletedCount > 0) {
+            addLog(`✅ Berhasil menghapus ${deletedCount} order kadaluarsa.`, "success");
+            await refreshDriversAndOrders();
+        } else {
+            addLog("Tidak ada order kadaluarsa yang ditemukan.", "info");
+        }
     }
 
     // ================= KIRIM PENAWARAN SEBAGAI ADMIN (ke driver_offers) =================
@@ -494,6 +523,7 @@
             addLog("Log dihapus manual", "info");
         };
         document.getElementById("testNotifBtn").onclick = testNotification;
+        document.getElementById("cleanupOrdersBtn").onclick = deleteExpiredOrders;
         document.getElementById("logoutBtn").onclick = async () => {
             await auth.signOut();
             window.location.href = 'login_admin.html';
@@ -504,15 +534,21 @@
         await loadDriversForSelect();
         await loadWaitingOrdersForSelect();
 
-        // Mulai listener order otomatis (notifikasi order baru ke driver autobid ON)
+        // Mulai listener order otomatis
         startListeningOrders();
-        // Listener perubahan status order (jika diterima)
+        // Listener perubahan status order
         startListeningToOrderChanges();
 
         document.getElementById("firebaseStatus").innerText = "✅ Terhubung";
         addLog("Firebase terhubung, admin panel siap (notifikasi otomatis + kirim penawaran manual).", "success");
 
+        // Ambil API Key
         await fetchOneSignalApiKey();
+
+        // Jalankan sekali saat startup untuk membersihkan order kadaluarsa
+        await deleteExpiredOrders();
+        // Jadwalkan pembersihan setiap 10 menit (600.000 ms)
+        setInterval(deleteExpiredOrders, 10 * 60 * 1000);
     }
 
     auth.onAuthStateChanged(async (user) => {
