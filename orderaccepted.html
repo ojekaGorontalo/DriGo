@@ -180,7 +180,12 @@
       const snap = await database.ref('orders/' + orderId).once('value');
       const order = snap.val();
       if (!order) { showErrorPage('Data order tidak ditemukan.'); return; }
-      if (order.driver_id !== driverData.driverId && order.driver_id !== driverData.id) { showErrorPage('Order ini bukan milik Anda.'); return; }
+      // Ambil ID driver dari localStorage (prioritas: uid, driverId, id)
+const driverUid = driverData.uid || driverData.driverId || driverData.id;
+if (order.driver_id !== driverUid) {
+    showErrorPage('Order ini bukan milik Anda.');
+    return;
+}
       if (!['accepted','on_the_way','arrived','on_trip','completed','cancelled'].includes(order.status)) { showErrorPage('Order ini tidak dalam status aktif.'); return; }
       orderData = order;
       customerId = order.user_id;
