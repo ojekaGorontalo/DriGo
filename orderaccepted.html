@@ -8,7 +8,6 @@
   <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-database-compat.js"></script>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <style>
-    /* CSS sama persis dengan orderAccepted.html sebelumnya - tidak diubah */
     :root { --primary: #FF9800; --secondary: #FF5722; --accent: #FFC107; --light: #f8f9fa; --dark: #343a40; --success: #4CAF50; --danger: #f44336; --warning: #FFC107; --info: #2196F3; --gray: #9E9E9E; }
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, var(--primary), var(--secondary)); color: var(--dark); height: 100vh; padding: 0; display: flex; flex-direction: column; align-items: center; overflow: hidden; }
@@ -55,7 +54,7 @@
     .info-value { font-weight: 600; color: var(--dark); font-size: 0.8rem; }
     .price-highlight { color: var(--success); font-weight: 700; font-size: 0.9rem; }
     .actions-section { position: fixed; bottom: 0; left: 0; right: 0; padding: 12px 15px; display: flex; flex-direction: column; gap: 8px; background: white; border-top: 1px solid #eee; box-shadow: 0 -2px 10px rgba(0,0,0,0.1); z-index: 1000; }
-    .action-btn { padding: 14px; border: none; border-radius: 10px; font-size: 15px; font-weight: 600; cursor: pointer; transition: all 0.3s; display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; }
+    .action-btn { padding: 14px; border: none; border-radius: 10px; font-size: 15px; font-weight: 600; cursor: pointer; transition: all 0.3s; display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; position: relative; }
     .chat-btn { background: linear-gradient(to right, var(--primary), var(--secondary)); color: white; box-shadow: 0 4px 15px rgba(40, 150, 114, 0.3); }
     .start-btn { background: linear-gradient(to right, var(--success), #218838); color: white; }
     .complete-btn { background: linear-gradient(to right, var(--info), #0b7dda); color: white; }
@@ -66,9 +65,9 @@
     .spinner { width: 50px; height: 50px; border: 5px solid rgba(40, 150, 114, 0.2); border-radius: 50%; border-top-color: var(--secondary); animation: spin 1s linear infinite; margin-bottom: 20px; }
     .error-message { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 50px; text-align: center; color: var(--danger); flex: 1; }
     .error-icon { font-size: 48px; margin-bottom: 20px; }
-    .toast { position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%) scale(0.9); background: rgba(0,0,0,0.8); color: white; padding: 12px 20px; border-radius: 40px; font-size: 14px; z-index: 3000; opacity: 0; transition: all 0.3s ease; pointer-events: none; white-space: normal; text-align: center; max-width: 90%; box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+    .toast { position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%) scale(0.9); background: rgba(0,0,0,0.8); color: white; padding: 12px 20px; border-radius: 40px; font-size: 14px; z-index: 3000; opacity: 0; transition: all 0.3s ease; pointer-events: none; white-space: normal; text-align: center; max-width: 90%; }
     .toast.show { opacity: 1; transform: translateX(-50%) scale(1); }
-    .chat-overlay, .rating-modal, .confirmation-modal, .info-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 2000; align-items: center; justify-content: center; backdrop-filter: blur(5px); }
+    .rating-modal, .confirmation-modal, .info-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 2000; align-items: center; justify-content: center; backdrop-filter: blur(5px); }
     .rating-modal-content, .confirmation-modal-content { background: white; padding: 25px; border-radius: 12px; width: 90%; max-width: 350px; text-align: center; }
     .rating-stars { display: flex; justify-content: center; gap: 8px; margin: 15px 0; font-size: 2rem; }
     .rating-star { cursor: pointer; color: #ddd; }
@@ -85,6 +84,28 @@
     .btn-ok { background: var(--primary); color: white; }
     @keyframes spin { to { transform: rotate(360deg); } }
     @media (max-width: 480px) { .map-section { height: 40vh; } .content-wrapper { max-height: calc(100vh - 40vh - 60px); } .customer-photo { width: 60px; height: 60px; } }
+
+    /* ==================== STYLE CHAT UNTUK DRIVER ==================== */
+    .chat-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); display: none; justify-content: center; align-items: center; z-index: 2000; }
+    .chat-container { width: 100%; height: 100%; background: white; display: flex; flex-direction: column; }
+    .chat-header { background: linear-gradient(135deg, var(--primary), var(--secondary)); color: white; padding: 15px; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+    .chat-header-info { display: flex; align-items: center; gap: 12px; }
+    .chat-avatar { width: 40px; height: 40px; border-radius: 50%; overflow: hidden; border: 2px solid white; }
+    .chat-avatar img { width: 100%; height: 100%; object-fit: cover; }
+    .chat-name { font-weight: 600; font-size: 16px; }
+    .chat-status { font-size: 12px; opacity: 0.8; }
+    .close-chat { background: none; border: none; color: white; font-size: 20px; cursor: pointer; }
+    .chat-messages { flex: 1; overflow-y: auto; padding: 15px; background: #ECE5DD; display: flex; flex-direction: column; gap: 10px; }
+    .message-bubble { max-width: 75%; padding: 10px 15px; border-radius: 18px; font-size: 14px; line-height: 1.4; }
+    .message-left { align-self: flex-start; background: white; border-bottom-left-radius: 5px; }
+    .message-right { align-self: flex-end; background: #DCF8C6; border-bottom-right-radius: 5px; }
+    .message-time { font-size: 11px; color: #888; margin-top: 5px; text-align: right; }
+    .chat-input-area { display: flex; padding: 10px; background: white; border-top: 1px solid #ddd; flex-shrink: 0; }
+    .chat-input { flex: 1; padding: 12px 15px; border: 1px solid #ddd; border-radius: 25px; font-size: 14px; outline: none; }
+    .chat-send-btn { margin-left: 10px; padding: 12px 20px; background: var(--primary); color: white; border: none; border-radius: 25px; cursor: pointer; font-weight: 600; }
+    .chat-notification { position: fixed; top: 70px; right: 10px; left: 10px; background: #25D366; color: white; padding: 15px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); z-index: 2001; cursor: pointer; display: none; }
+    .chat-notification strong { display: block; margin-bottom: 5px; }
+    .chat-badge { position: absolute; top: -5px; right: -5px; background: #ff4444; color: white; border-radius: 50%; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; }
   </style>
 </head>
 <body>
@@ -125,20 +146,50 @@
     </div>
   </div>
   <div class="actions-section" id="actionsSection" style="display: none;">
-    <button class="action-btn chat-btn" onclick="openChat()" id="contactBtn"><span>💬</span> Chat Customer</button>
+    <button class="action-btn chat-btn" onclick="openChat()" id="contactBtn" style="position: relative;"><span>💬</span> Chat Customer<span class="chat-badge" id="chatBadge" style="display: none;">0</span></button>
     <button class="action-btn start-btn" onclick="startTrip()" id="startBtn">Mulai Perjalanan</button>
     <button class="action-btn complete-btn" onclick="completeTrip()" id="completeBtn" style="display: none;">Selesaikan Perjalanan</button>
     <button class="action-btn cancel-btn" onclick="cancelTrip()" id="cancelBtn">Batalkan Perjalanan</button>
   </div>
 </div>
 
+<!-- Modal Rating -->
 <div id="ratingModal" class="rating-modal"><div class="rating-modal-content"><h2>Beri Rating Customer</h2><p>Bagaimana pengalaman Anda dengan customer ini?</p><div class="rating-stars" id="ratingStars"><span class="rating-star" data-rating="1">☆</span><span class="rating-star" data-rating="2">☆</span><span class="rating-star" data-rating="3">☆</span><span class="rating-star" data-rating="4">☆</span><span class="rating-star" data-rating="5">☆</span></div><textarea id="ratingComment" class="rating-comment" placeholder="Tambahkan komentar (opsional)..."></textarea><div class="modal-buttons"><button class="modal-btn modal-cancel" onclick="closeRatingModal()">Batal</button><button class="modal-btn modal-submit" onclick="submitRating()">Kirim Rating</button></div></div></div>
 <div id="confirmationModal" class="confirmation-modal"><div class="confirmation-modal-content"><div class="confirmation-title" id="confirmationTitle">Konfirmasi</div><div class="confirmation-message" id="confirmationMessage"></div><div class="confirmation-buttons"><button class="confirmation-btn btn-cancel" onclick="closeConfirmationModal()">Batal</button><button class="confirmation-btn btn-confirm" onclick="confirmAction()">Ya</button></div></div></div>
+<div id="infoModal" class="info-modal"><div class="info-modal-content"><div class="info-title" id="infoTitle">Informasi</div><div class="info-message" id="infoMessage"></div><div class="info-buttons"><button class="info-btn btn-ok" onclick="closeInfoModal()">OK</button></div></div></div>
 <div id="toast" class="toast"></div>
+
+<!-- CHAT OVERLAY -->
+<div class="chat-overlay" id="chatOverlay">
+  <div class="chat-container">
+    <div class="chat-header">
+      <div class="chat-header-info">
+        <div class="chat-avatar" id="chatAvatar"></div>
+        <div>
+          <div class="chat-name" id="chatName">Customer</div>
+          <div class="chat-status">Online</div>
+        </div>
+      </div>
+      <button class="close-chat" onclick="closeChat()">✕</button>
+    </div>
+    <div class="chat-messages" id="chatMessages"></div>
+    <div class="chat-input-area">
+      <input type="text" class="chat-input" id="chatInput" placeholder="Ketik pesan..." />
+      <button class="chat-send-btn" id="chatSendBtn">Kirim</button>
+    </div>
+  </div>
+</div>
+
+<!-- NOTIFIKASI CHAT -->
+<div class="chat-notification" id="chatNotification">
+  <strong>💬 Pesan Baru</strong>
+  <p id="notificationMessage"></p>
+  <small>Klik untuk membalas</small>
+</div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-  // Konfigurasi Firebase (sama dengan index.html)
+  // ==================== KONFIGURASI FIREBASE ====================
   const firebaseConfig = {
     apiKey: "AIzaSyCD0pgeZio-LdKqYDtWxcdXcZwyL4ngYQI",
     authDomain: "jego-35a2b.firebaseapp.com",
@@ -151,26 +202,148 @@
   if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
   const database = firebase.database();
 
-  // Konstanta potongan
-  const FEE_APLIKASI_PERSEN = 0.117;
-  const PPN_PERSEN = 0.11;
-  const TOTAL_POTONGAN = FEE_APLIKASI_PERSEN * (1 + PPN_PERSEN);
-  function hitungPotongan(harga) {
-    const fee = harga * FEE_APLIKASI_PERSEN;
-    const ppn = fee * PPN_PERSEN;
-    return { fee, ppn, total: fee + ppn, bersih: harga - (fee+ppn) };
-  }
-
+  // ==================== VARIABEL GLOBAL ====================
   let orderData = null, driverData = null, orderId = null, orderRef = null;
   let currentOrderStatus = '';
   let orderMap = null, routePolyline = null;
   let selectedRating = 0, isRatingSubmitted = false, customerId = null;
+  let confirmCallback = null;
+  
+  // Chat variables
+  let chatRef = null, chatListener = null;
+  let unreadMessages = 0;
+  let chatOpen = false;
 
+  // ==================== UTILITY ====================
   function showToast(msg) { const t = document.getElementById('toast'); t.textContent = msg; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 2500); }
   function showErrorPage(msg) { document.getElementById('loading').style.display = 'none'; document.getElementById('errorMessage').innerText = msg; document.getElementById('error').style.display = 'flex'; }
   function getDriverData() { const raw = localStorage.getItem('jego_logged_in_driver'); return raw ? JSON.parse(raw) : null; }
   function getOrderIdFromURL() { const params = new URLSearchParams(window.location.search); return params.get('order_id') || params.get('id'); }
+  function escapeHtml(str) { return str.replace(/[&<>]/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[m])); }
+  function callCustomer() { const phone = document.getElementById('customerPhone').innerText; if (phone && phone !== '-') window.location.href = `tel:${phone}`; else showToast('Nomor telepon tidak tersedia'); }
 
+  // ==================== SISTEM CHAT UNTUK DRIVER ====================
+  function initChat(orderId) {
+    if (chatRef && chatListener) chatRef.off('child_added', chatListener);
+    chatRef = database.ref(`chat/${orderId}`);
+    chatListener = chatRef.on('child_added', (snapshot) => {
+      const msg = snapshot.val();
+      if (chatOpen) displayMessage(msg);
+      else {
+        unreadMessages++;
+        updateChatBadge();
+        showChatNotification(msg);
+      }
+    });
+    loadExistingMessages();
+  }
+
+  function loadExistingMessages() {
+    chatRef.once('value').then((snap) => {
+      const msgs = snap.val();
+      const container = document.getElementById('chatMessages');
+      if (container) container.innerHTML = '';
+      if (msgs) Object.keys(msgs).forEach(key => displayMessage(msgs[key]));
+      scrollChatToBottom();
+    });
+  }
+
+  function displayMessage(msg) {
+    const container = document.getElementById('chatMessages');
+    if (!container) return;
+    const div = document.createElement('div');
+    div.className = `message-bubble ${msg.sender === 'customer' ? 'message-right' : 'message-left'}`;
+    const time = new Date(msg.timestamp).toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit' });
+    div.innerHTML = `${escapeHtml(msg.message)}<div class="message-time">${time}</div>`;
+    container.appendChild(div);
+    scrollChatToBottom();
+  }
+
+  function scrollChatToBottom() {
+    const container = document.getElementById('chatMessages');
+    if (container) container.scrollTop = container.scrollHeight;
+  }
+
+  function showChatNotification(msg) {
+    const notif = document.getElementById('chatNotification');
+    if (!notif) return;
+    document.getElementById('notificationMessage').textContent = msg.message;
+    notif.style.display = 'block';
+    setTimeout(() => notif.style.display = 'none', 5000);
+    notif.onclick = () => { notif.style.display = 'none'; openChat(); };
+  }
+
+  function updateChatBadge() {
+    const badge = document.getElementById('chatBadge');
+    if (!badge) return;
+    if (unreadMessages > 0) {
+      badge.textContent = unreadMessages > 99 ? '99+' : unreadMessages;
+      badge.style.display = 'flex';
+    } else badge.style.display = 'none';
+  }
+
+  function openChat() {
+    chatOpen = true;
+    unreadMessages = 0;
+    updateChatBadge();
+    setupChatUI();
+    loadExistingMessages();
+    document.getElementById('chatOverlay').style.display = 'flex';
+    setTimeout(() => document.getElementById('chatInput')?.focus(), 300);
+    const notif = document.getElementById('chatNotification');
+    if (notif) notif.style.display = 'none';
+  }
+
+  function closeChat() {
+    chatOpen = false;
+    document.getElementById('chatOverlay').style.display = 'none';
+  }
+
+  function setupChatUI() {
+    if (!orderData) return;
+    const customerName = orderData.customer_name || 'Customer';
+    const customerPhoto = orderData.photoURL || '';
+    document.getElementById('chatName').textContent = customerName;
+    const avatarDiv = document.getElementById('chatAvatar');
+    if (avatarDiv) {
+      if (customerPhoto) avatarDiv.innerHTML = `<img src="${customerPhoto}" alt="${customerName}">`;
+      else avatarDiv.innerHTML = '<div style="background:#FF9800; width:40px; height:40px; border-radius:50%; display:flex; align-items:center; justify-content:center;">👤</div>';
+    }
+    document.getElementById('chatSendBtn').onclick = sendChatMessage;
+    const input = document.getElementById('chatInput');
+    if (input) input.onkeypress = (e) => { if (e.key === 'Enter') sendChatMessage(); };
+  }
+
+  function sendChatMessage() {
+    const input = document.getElementById('chatInput');
+    const msg = input?.value.trim();
+    if (!msg) return;
+    const driver = getDriverData();
+    chatRef.push({
+      sender: 'driver',
+      sender_id: driver?.uid || 'driver',
+      message: msg,
+      timestamp: Date.now()
+    }).then(() => { if (input) input.value = ''; scrollChatToBottom(); })
+      .catch(err => console.error('Gagal kirim pesan:', err));
+  }
+
+  // ==================== PETA & ROUTE ====================
+  async function drawRoute(slat, slng, elat, elng) {
+    try {
+      const url = `https://router.project-osrm.org/route/v1/driving/${slng},${slat};${elng},${elat}?overview=full&geometries=geojson`;
+      const resp = await fetch(url);
+      const data = await resp.json();
+      if (data.routes && data.routes.length) {
+        const coords = data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
+        if (routePolyline) orderMap.removeLayer(routePolyline);
+        routePolyline = L.polyline(coords, { color: '#FF9800', weight: 5 }).addTo(orderMap);
+        orderMap.fitBounds(routePolyline.getBounds(), { padding: [50,50] });
+      }
+    } catch(e) { console.warn(e); }
+  }
+
+  // ==================== LOAD ORDER & LISTENER ====================
   async function loadOrder() {
     driverData = getDriverData();
     if (!driverData) { showErrorPage('Driver belum login. Silakan login kembali.'); setTimeout(()=>window.location.href='loginDriver.html',2000); return; }
@@ -180,17 +353,13 @@
       const snap = await database.ref('orders/' + orderId).once('value');
       const order = snap.val();
       if (!order) { showErrorPage('Data order tidak ditemukan.'); return; }
-      // Ambil ID driver dari localStorage (prioritas: uid, driverId, id)
-const driverUid = driverData.uid || driverData.driverId || driverData.id;
-if (order.driver_id !== driverUid) {
-    showErrorPage('Order ini bukan milik Anda.');
-    return;
-}
+      if (order.driver_id !== (driverData.uid || driverData.driverId)) { showErrorPage('Order ini bukan milik Anda.'); return; }
       if (!['accepted','on_the_way','arrived','on_trip','completed','cancelled'].includes(order.status)) { showErrorPage('Order ini tidak dalam status aktif.'); return; }
       orderData = order;
       customerId = order.user_id;
       displayOrderData();
       listenOrderUpdates();
+      initChat(orderId); // Mulai chat
     } catch(err) { showErrorPage('Gagal memuat data: ' + err.message); }
   }
 
@@ -272,20 +441,7 @@ if (order.driver_id !== driverUid) {
     updateOrderStatus(orderData.status);
   }
 
-  async function drawRoute(slat, slng, elat, elng) {
-    try {
-      const url = `https://router.project-osrm.org/route/v1/driving/${slng},${slat};${elng},${elat}?overview=full&geometries=geojson`;
-      const resp = await fetch(url);
-      const data = await resp.json();
-      if (data.routes && data.routes.length) {
-        const coords = data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
-        if (routePolyline) orderMap.removeLayer(routePolyline);
-        routePolyline = L.polyline(coords, { color: '#FF9800', weight: 5 }).addTo(orderMap);
-        orderMap.fitBounds(routePolyline.getBounds(), { padding: [50,50] });
-      }
-    } catch(e) { console.warn(e); }
-  }
-
+  // ==================== AKSI PERJALANAN ====================
   function startTrip() {
     if (!orderData) return;
     let newStatus = '', actionText = '';
@@ -294,32 +450,14 @@ if (order.driver_id !== driverUid) {
     else if (currentOrderStatus === 'arrived') { newStatus = 'on_trip'; actionText = 'memulai perjalanan ke tujuan'; }
     else { showToast('Aksi tidak tersedia'); return; }
     showConfirmationModal('Konfirmasi', `Apakah Anda yakin ingin ${actionText}?`, () => {
-      database.ref('orders/' + orderId).update({ status: newStatus, updated_at: new Date().toISOString() }).then(() => {
-        showToast('Status diperbarui');
-        if (newStatus === 'on_trip') {
-          const harga = orderData.price || 0;
-          const { total } = hitungPotongan(harga);
-          const potongan = Math.round(total);
-          if (potongan > 0 && driverData) {
-            const driverIdKey = driverData.driverId || driverData.id;
-            database.ref('drivers/' + driverIdKey + '/balance').transaction(bal => (bal || 0) - potongan).then(() => {
-              showToast(`Saldo dipotong Rp ${potongan.toLocaleString('id-ID')} (fee 11,7% + PPN 11%)`);
-              // Update local driver data
-              if (driverData.balance) driverData.balance -= potongan;
-              localStorage.setItem('jego_logged_in_driver', JSON.stringify(driverData));
-            });
-          }
-        }
-      }).catch(err => showToast(err.message));
+      database.ref('orders/' + orderId).update({ status: newStatus, updated_at: new Date().toISOString() }).then(() => showToast('Status diperbarui')).catch(err => showToast(err.message));
     });
   }
 
   function completeTrip() {
     if (currentOrderStatus !== 'on_trip') { showToast('Perjalanan belum dimulai'); return; }
     showConfirmationModal('Konfirmasi', 'Selesaikan perjalanan ini?', () => {
-      database.ref('orders/' + orderId).update({ status: 'completed', completed_at: new Date().toISOString() }).then(() => {
-        showToast('Perjalanan selesai');
-      });
+      database.ref('orders/' + orderId).update({ status: 'completed', completed_at: new Date().toISOString() }).then(() => showToast('Perjalanan selesai'));
     });
   }
 
@@ -333,11 +471,9 @@ if (order.driver_id !== driverUid) {
     });
   }
 
-  function callCustomer() { const phone = document.getElementById('customerPhone').innerText; if (phone && phone !== '-') window.location.href = `tel:${phone}`; else showToast('Nomor telepon tidak tersedia'); }
-  function openChat() { alert('Fitur chat akan segera hadir'); }
-
-  // Rating modal
+  // ==================== RATING ====================
   function showRatingModal() {
+    if (isRatingSubmitted) return;
     selectedRating = 0;
     const stars = document.querySelectorAll('#ratingStars .rating-star');
     stars.forEach(s => { s.textContent = '☆'; s.classList.remove('active'); });
@@ -345,6 +481,7 @@ if (order.driver_id !== driverUid) {
     document.getElementById('ratingModal').style.display = 'flex';
     setupRatingStars();
   }
+
   function setupRatingStars() {
     const container = document.getElementById('ratingStars');
     const newContainer = container.cloneNode(true);
@@ -357,7 +494,9 @@ if (order.driver_id !== driverUid) {
       }
     });
   }
+
   function closeRatingModal() { document.getElementById('ratingModal').style.display = 'none'; }
+
   async function submitRating() {
     if (selectedRating === 0) { showToast('Pilih rating terlebih dahulu'); return; }
     if (!customerId) { showToast('ID customer tidak ditemukan'); return; }
@@ -366,11 +505,12 @@ if (order.driver_id !== driverUid) {
     btn.disabled = true; btn.textContent = 'Mengirim...';
     const ratingRef = database.ref(`users/${customerId}/ratings`).push();
     ratingRef.set({
-      rating: selectedRating, order_id: orderId, customer_id: customerId, driver_id: driverData.driverId || driverData.id,
+      rating: selectedRating, order_id: orderId, customer_id: customerId, driver_id: driverData.uid || driverData.driverId,
       driver_name: driverData.name, comment: comment, rated_at: new Date().toISOString(), timestamp: Date.now()
     }).then(() => updateCustomerRating(customerId, selectedRating))
       .catch(err => { btn.disabled = false; btn.textContent = 'Kirim Rating'; showToast('Gagal mengirim rating'); });
   }
+
   async function updateCustomerRating(custId, newRating) {
     const userRef = database.ref('users/' + custId);
     const snap = await userRef.once('value');
@@ -384,13 +524,25 @@ if (order.driver_id !== driverUid) {
     showToast(`Rating ${newRating} bintang diberikan.`);
   }
 
-  // Modal konfirmasi
-  let confirmCallback = null;
-  function showConfirmationModal(title, message, callback) { document.getElementById('confirmationTitle').innerText = title; document.getElementById('confirmationMessage').innerText = message; confirmCallback = callback; document.getElementById('confirmationModal').style.display = 'flex'; }
+  // ==================== MODAL KONFIRMASI ====================
+  function showConfirmationModal(title, message, callback) {
+    document.getElementById('confirmationTitle').innerText = title;
+    document.getElementById('confirmationMessage').innerText = message;
+    confirmCallback = callback;
+    document.getElementById('confirmationModal').style.display = 'flex';
+  }
   function closeConfirmationModal() { document.getElementById('confirmationModal').style.display = 'none'; confirmCallback = null; }
   function confirmAction() { if (confirmCallback) confirmCallback(); closeConfirmationModal(); }
+  function closeInfoModal() { document.getElementById('infoModal').style.display = 'none'; }
 
-  window.onload = () => { loadOrder(); };
+  // ==================== INISIALISASI ====================
+  window.onload = () => {
+    loadOrder();
+    // Bersihkan listener chat saat halaman ditutup
+    window.addEventListener('beforeunload', () => {
+      if (chatRef && chatListener) chatRef.off('child_added', chatListener);
+    });
+  };
 </script>
 </body>
 </html>
