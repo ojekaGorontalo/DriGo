@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>Perjalanan Aktif - JeGo Driver</title>
   <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-database-compat.js"></script>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <style>
@@ -200,6 +201,7 @@
     appId: "1:600037007040:web:ac3243ad9b472647ffd725"
   };
   if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+  const auth = firebase.auth();
   const database = firebase.database();
 
   // ==================== VARIABEL GLOBAL ====================
@@ -319,13 +321,22 @@
     const msg = input?.value.trim();
     if (!msg) return;
     const driver = getDriverData();
+    if (!chatRef) {
+      showToast('Chat belum siap, coba lagi nanti.');
+      return;
+    }
     chatRef.push({
       sender: 'driver',
       sender_id: driver?.uid || 'driver',
       message: msg,
       timestamp: Date.now()
-    }).then(() => { if (input) input.value = ''; scrollChatToBottom(); })
-      .catch(err => console.error('Gagal kirim pesan:', err));
+    }).then(() => {
+      if (input) input.value = '';
+      scrollChatToBottom();
+    }).catch(err => {
+      console.error('Gagal kirim pesan:', err);
+      showToast('Gagal kirim: ' + err.message);
+    });
   }
 
   // ==================== PETA & ROUTE ====================
@@ -353,7 +364,9 @@
       const snap = await database.ref('orders/' + orderId).once('value');
       const order = snap.val();
       if (!order) { showErrorPage('Data order tidak ditemukan.'); return; }
-      if (order.driver_id !== (driverData.uid || driverData.driverId)) { showErrorPage('Order ini bukan milik Anda.'); return; }
+      // Pastikan order ini milik driver yang sedang login
+      const driverUid = driverData.uid || driverData.driverId;
+      if (order.driver_id !== driverUid) { showErrorPage('Order ini bukan milik Anda.'); return; }
       if (!['accepted','on_the_way','arrived','on_trip','completed','cancelled'].includes(order.status)) { showErrorPage('Order ini tidak dalam status aktif.'); return; }
       orderData = order;
       customerId = order.user_id;
@@ -535,9 +548,40 @@
   function confirmAction() { if (confirmCallback) confirmCallback(); closeConfirmationModal(); }
   function closeInfoModal() { document.getElementById('infoModal').style.display = 'none'; }
 
+  // ==================== OTENTIKASI FIREBASE ====================
+  // Pastikan driver sudah login ke Firebase Auth sebelum memuat data
+  auth.onAuthStateChanged(async (user) => {
+    if (user) {
+      console.log('Driver sudah login Firebase:', user.uid);
+      // Coba cocokkan dengan data driver di localStorage
+      const localDriver = getDriverData();
+      if (localDriver && (localDriver.uid === user.uid || localDriver.driverId === user.uid)) {
+        // Data cocok, lanjut load order
+        loadOrder();
+      } else {
+        // Tidak cocok, logout dan redirect ke login
+        await auth.signOut();
+        showErrorPage('Sesi tidak valid, silakan login ulang.');
+        setTimeout(() => window.location.href = 'loginDriver.html', 2000);
+      }
+    } else {
+      console.log('Driver belum login Firebase, mencoba login ulang...');
+      const localDriver = getDriverData();
+      if (localDriver && localDriver.email) {
+        // Coba login menggunakan email (password tidak disimpan, jadi kita minta input ulang? Tidak aman)
+        // Lebih baik redirect ke halaman login
+        showErrorPage('Sesi habis, silakan login kembali.');
+        setTimeout(() => window.location.href = 'loginDriver.html', 2000);
+      } else {
+        showErrorPage('Anda belum login sebagai driver.');
+        setTimeout(() => window.location.href = 'loginDriver.html', 2000);
+      }
+    }
+  });
+
   // ==================== INISIALISASI ====================
+  // Hapus panggilan loadOrder() langsung, karena sudah ditangani oleh auth.onAuthStateChanged
   window.onload = () => {
-    loadOrder();
     // Bersihkan listener chat saat halaman ditutup
     window.addEventListener('beforeunload', () => {
       if (chatRef && chatListener) chatRef.off('child_added', chatListener);
