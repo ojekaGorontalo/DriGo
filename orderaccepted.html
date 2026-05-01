@@ -86,7 +86,7 @@
     @keyframes spin { to { transform: rotate(360deg); } }
     @media (max-width: 480px) { .map-section { height: 40vh; } .content-wrapper { max-height: calc(100vh - 40vh - 60px); } .customer-photo { width: 60px; height: 60px; } }
 
-    /* ==================== STYLE CHAT UNTUK DRIVER ==================== */
+    /* ==================== STYLE CHAT ==================== */
     .chat-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); display: none; justify-content: center; align-items: center; z-index: 2000; }
     .chat-container { width: 100%; height: 100%; background: white; display: flex; flex-direction: column; }
     .chat-header { background: linear-gradient(135deg, var(--primary), var(--secondary)); color: white; padding: 15px; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
@@ -224,7 +224,7 @@
   function escapeHtml(str) { return str.replace(/[&<>]/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[m])); }
   function callCustomer() { const phone = document.getElementById('customerPhone').innerText; if (phone && phone !== '-') window.location.href = `tel:${phone}`; else showToast('Nomor telepon tidak tersedia'); }
 
-  // ==================== SISTEM CHAT UNTUK DRIVER ====================
+  // ==================== SISTEM CHAT ====================
   function initChat(orderId) {
     if (chatRef && chatListener) chatRef.off('child_added', chatListener);
     chatRef = database.ref(`chat/${orderId}`);
@@ -321,25 +321,17 @@
     const msg = input?.value.trim();
     if (!msg) return;
     const driver = getDriverData();
-    if (!chatRef) {
-      showToast('Chat belum siap, coba lagi nanti.');
-      return;
-    }
+    if (!chatRef) { showToast('Chat belum siap'); return; }
     chatRef.push({
       sender: 'driver',
       sender_id: driver?.uid || 'driver',
       message: msg,
       timestamp: Date.now()
-    }).then(() => {
-      if (input) input.value = '';
-      scrollChatToBottom();
-    }).catch(err => {
-      console.error('Gagal kirim pesan:', err);
-      showToast('Gagal kirim: ' + err.message);
-    });
+    }).then(() => { if (input) input.value = ''; scrollChatToBottom(); })
+      .catch(err => { console.error(err); showToast('Gagal kirim pesan'); });
   }
 
-  // ==================== PETA & ROUTE ====================
+  // ==================== PETA & RUTE ====================
   async function drawRoute(slat, slng, elat, elng) {
     try {
       const url = `https://router.project-osrm.org/route/v1/driving/${slng},${slat};${elng},${elat}?overview=full&geometries=geojson`;
@@ -359,20 +351,19 @@
     driverData = getDriverData();
     if (!driverData) { showErrorPage('Driver belum login. Silakan login kembali.'); setTimeout(()=>window.location.href='loginDriver.html',2000); return; }
     orderId = getOrderIdFromURL();
-    if (!orderId) { showErrorPage('Tidak ada ID order. Periksa kembali.'); return; }
+    if (!orderId) { showErrorPage('Tidak ada ID order.'); return; }
     try {
       const snap = await database.ref('orders/' + orderId).once('value');
       const order = snap.val();
       if (!order) { showErrorPage('Data order tidak ditemukan.'); return; }
-      // Pastikan order ini milik driver yang sedang login
       const driverUid = driverData.uid || driverData.driverId;
       if (order.driver_id !== driverUid) { showErrorPage('Order ini bukan milik Anda.'); return; }
-      if (!['accepted','on_the_way','arrived','on_trip','completed','cancelled'].includes(order.status)) { showErrorPage('Order ini tidak dalam status aktif.'); return; }
+      if (!['accepted','on_the_way','arrived','on_trip','completed','cancelled'].includes(order.status)) { showErrorPage('Order tidak dalam status aktif.'); return; }
       orderData = order;
       customerId = order.user_id;
       displayOrderData();
       listenOrderUpdates();
-      initChat(orderId); // Mulai chat
+      initChat(orderId);
     } catch(err) { showErrorPage('Gagal memuat data: ' + err.message); }
   }
 
@@ -484,7 +475,7 @@
     });
   }
 
-  // ==================== RATING ====================
+  // ==================== RATING (disimpan ke node ratings) ====================
   function showRatingModal() {
     if (isRatingSubmitted) return;
     selectedRating = 0;
@@ -512,29 +503,33 @@
 
   async function submitRating() {
     if (selectedRating === 0) { showToast('Pilih rating terlebih dahulu'); return; }
-    if (!customerId) { showToast('ID customer tidak ditemukan'); return; }
     const comment = document.getElementById('ratingComment').value.trim();
     const btn = document.querySelector('#ratingModal .modal-submit');
     btn.disabled = true; btn.textContent = 'Mengirim...';
-    const ratingRef = database.ref(`users/${customerId}/ratings`).push();
-    ratingRef.set({
-      rating: selectedRating, order_id: orderId, customer_id: customerId, driver_id: driverData.uid || driverData.driverId,
-      driver_name: driverData.name, comment: comment, rated_at: new Date().toISOString(), timestamp: Date.now()
-    }).then(() => updateCustomerRating(customerId, selectedRating))
-      .catch(err => { btn.disabled = false; btn.textContent = 'Kirim Rating'; showToast('Gagal mengirim rating'); });
-  }
-
-  async function updateCustomerRating(custId, newRating) {
-    const userRef = database.ref('users/' + custId);
-    const snap = await userRef.once('value');
-    const u = snap.val();
-    if (!u) throw new Error('Customer tidak ditemukan');
-    const current = { avgRating: u.avgRating || 0, ratingCount: u.ratingCount || 0, totalRating: u.totalRating || 0 };
-    const updated = { ratingCount: current.ratingCount + 1, totalRating: current.totalRating + newRating, avgRating: parseFloat(((current.totalRating + newRating) / (current.ratingCount + 1)).toFixed(1)) };
-    await userRef.update({ avgRating: updated.avgRating, ratingCount: updated.ratingCount, totalRating: updated.totalRating, last_rating_update: new Date().toISOString() });
-    closeRatingModal();
-    isRatingSubmitted = true;
-    showToast(`Rating ${newRating} bintang diberikan.`);
+    try {
+      // Simpan rating ke node ratings/{orderId}/customer_rating
+      const driverUid = driverData.uid || driverData.driverId;
+      const ratingData = {
+        rating: selectedRating,
+        driver_id: driverUid,
+        driver_name: driverData.name,
+        order_id: orderId,
+        customer_id: customerId,
+        comment: comment,
+        created_at: new Date().toISOString(),
+        timestamp: Date.now()
+      };
+      await database.ref(`ratings/${orderId}/customer_rating`).set(ratingData);
+      isRatingSubmitted = true;
+      closeRatingModal();
+      showToast(`Rating ${selectedRating} bintang berhasil diberikan.`);
+      setTimeout(() => window.location.href = 'index.html', 2000);
+    } catch (err) {
+      console.error(err);
+      showToast('Gagal mengirim rating: ' + err.message);
+      btn.disabled = false;
+      btn.textContent = 'Kirim Rating';
+    }
   }
 
   // ==================== MODAL KONFIRMASI ====================
@@ -548,28 +543,21 @@
   function confirmAction() { if (confirmCallback) confirmCallback(); closeConfirmationModal(); }
   function closeInfoModal() { document.getElementById('infoModal').style.display = 'none'; }
 
-  // ==================== OTENTIKASI FIREBASE ====================
-  // Pastikan driver sudah login ke Firebase Auth sebelum memuat data
+  // ==================== AUTENTIKASI ====================
   auth.onAuthStateChanged(async (user) => {
     if (user) {
-      console.log('Driver sudah login Firebase:', user.uid);
-      // Coba cocokkan dengan data driver di localStorage
+      console.log('Driver login Firebase:', user.uid);
       const localDriver = getDriverData();
       if (localDriver && (localDriver.uid === user.uid || localDriver.driverId === user.uid)) {
-        // Data cocok, lanjut load order
         loadOrder();
       } else {
-        // Tidak cocok, logout dan redirect ke login
         await auth.signOut();
         showErrorPage('Sesi tidak valid, silakan login ulang.');
         setTimeout(() => window.location.href = 'loginDriver.html', 2000);
       }
     } else {
-      console.log('Driver belum login Firebase, mencoba login ulang...');
       const localDriver = getDriverData();
       if (localDriver && localDriver.email) {
-        // Coba login menggunakan email (password tidak disimpan, jadi kita minta input ulang? Tidak aman)
-        // Lebih baik redirect ke halaman login
         showErrorPage('Sesi habis, silakan login kembali.');
         setTimeout(() => window.location.href = 'loginDriver.html', 2000);
       } else {
@@ -579,10 +567,7 @@
     }
   });
 
-  // ==================== INISIALISASI ====================
-  // Hapus panggilan loadOrder() langsung, karena sudah ditangani oleh auth.onAuthStateChanged
   window.onload = () => {
-    // Bersihkan listener chat saat halaman ditutup
     window.addEventListener('beforeunload', () => {
       if (chatRef && chatListener) chatRef.off('child_added', chatListener);
     });
