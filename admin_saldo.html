@@ -141,6 +141,7 @@
     const processedOrderIds = new Set();            // Untuk notifikasi push awal (child_added)
     const fallbackTimers = new Map();               // orderId -> timeoutID
     const fallbackProcessed = new Set();            // orderId yang sudah diproses fallback (offer sudah dikirim oleh admin)
+    const processedDeductionOrders = new Set();     // orderId yang sudah dipotong saldonya
 
     const FALLBACK_DELAY_SECONDS = 20;              // Tunggu 20 detik sebelum auto fallback
 
@@ -414,38 +415,114 @@
     }
 
     // ========== DENGARKAN PERUBAHAN ORDER (untuk pemberitahuan jika penawaran diterima) ==========
-    function startListeningToOrderChanges() {
-        const ordersRef = database.ref('orders');
-        ordersRef.on('child_changed', async (snapshot) => {
-            const order = snapshot.val();
-            const orderId = snapshot.key;
-            if (!order) return;
-            if (order.status === 'accepted' && order.driver_id) {
-                const notifKey = `notif_admin_accepted_${orderId}`;
-                if (sessionStorage.getItem(notifKey)) return;
-                sessionStorage.setItem(notifKey, 'true');
-                addLog(`🎉 Order ${orderId} telah diterima oleh customer. Driver terpilih: ${order.driver_id}`, "success");
-                const title = "🎉 Penawaran Anda Diterima!";
-                const message = `Selamat! Penawaran Anda untuk order ${orderId.substring(0,8)} telah diterima. Segera proses order.`;
-                await sendManualPushToDriver(order.driver_id, title, message, orderId);
-            }
-        });
-        addLog("👂 Listener perubahan order (child_changed) aktif untuk pemberitahuan otomatis.", "success");
+    // ========== DENGARKAN PERUBAHAN ORDER (untuk pemberitahuan jika penawaran diterima) ==========
+function startListeningToOrderChanges() {
+    const ordersRef = database.ref('orders');
+    ordersRef.on('child_changed', async (snapshot) => {
+        const order = snapshot.val();
+        const orderId = snapshot.key;
+        if (!order) return;
+
+        // --- AUTO DEDUCT JIKA STATUS ON_TRIP ---
+        if (order.status === 'on_trip') {
+            await autoDeductOnTrip(orderId, order);
+        }
+
+        // --- NOTIFIKASI JIKA ORDER DIACCEPT CUSTOMER ---
+        if (order.status === 'accepted' && order.driver_id) {
+            const notifKey = `notif_admin_accepted_${orderId}`;
+            if (sessionStorage.getItem(notifKey)) return;
+            sessionStorage.setItem(notifKey, 'true');
+            addLog(`🎉 Order ${orderId} telah diterima oleh customer. Driver terpilih: ${order.driver_id}`, "success");
+            const title = "🎉 Penawaran Anda Diterima!";
+            const message = `Selamat! Penawaran Anda untuk order ${orderId.substring(0,8)} telah diterima. Segera proses order.`;
+            await sendManualPushToDriver(order.driver_id, title, message, orderId);
+        }
+    });
+    addLog("👂 Listener perubahan order (child_changed) aktif untuk auto deduct on_trip dan notifikasi.", "success");
+}
+
+// ========== FUNGSI MANUAL PUSH KE DRIVER ==========
+async function sendManualPushToDriver(driverId, title, message, orderId = null) {
+    if (!ONESIGNAL_API_KEY) {
+        addLog("❌ OneSignal API Key belum tersedia, tidak bisa kirim notifikasi.", "error");
+        return false;
+    }
+    const locSnap = await database.ref(`driver_locations/${driverId}/playerId`).once('value');
+    const playerId = locSnap.val();
+    if (!playerId) {
+        addLog(`⚠️ Driver ${driverId} tidak memiliki playerId, tidak bisa kirim notifikasi.`, "warning");
+        return false;
+    }
+    return sendPushNotification(playerId, title, message, orderId);
+}
+
+// ========== OTOMATIS PEMOTONGAN SAAT ORDER ON_TRIP ==========
+async function autoDeductOnTrip(orderId, orderData) {
+    // Cegah potong ganda
+    if (processedDeductionOrders.has(orderId)) return;
+    if (orderData.status !== 'on_trip') return;
+    if (orderData.balance_deducted === true) return;
+
+    const driverId = orderData.driver_id;
+    const hargaOrder = orderData.price;
+    if (!driverId || !hargaOrder) {
+        addLog(`⚠️ Auto deduct gagal untuk order ${orderId}: driver_id atau price tidak valid.`, "warning");
+        return;
     }
 
-    async function sendManualPushToDriver(driverId, title, message, orderId = null) {
-        if (!ONESIGNAL_API_KEY) {
-            addLog("❌ OneSignal API Key belum tersedia, tidak bisa kirim notifikasi.", "error");
-            return false;
+    try {
+        // Ambil fee dan pajak dari data-jego
+        const potonganSnap = await database.ref('data-jego/potongan').once('value');
+        const pajakSnap = await database.ref('data-jego/pajak').once('value');
+        let feePersen = parseFloat(potonganSnap.val()) || 0;
+        let pajakPersen = parseFloat(pajakSnap.val()) || 0;
+
+        const potonganRupiah = hargaOrder * (feePersen / 100);
+        const pajakRupiah = potonganRupiah * (pajakPersen / 100);
+        const totalPotongan = potonganRupiah + pajakRupiah;
+
+        // Cek saldo driver cukup
+        const balanceSnap = await database.ref(`drivers/${driverId}/balance`).once('value');
+        const currentBalance = balanceSnap.val() || 0;
+        if (currentBalance < totalPotongan) {
+            addLog(`⚠️ Auto deduct: Saldo driver ${driverId} tidak cukup (${formatRupiah(currentBalance)} < ${formatRupiah(totalPotongan)}).`, "warning");
+            return;
         }
-        const locSnap = await database.ref(`driver_locations/${driverId}/playerId`).once('value');
-        const playerId = locSnap.val();
-        if (!playerId) {
-            addLog(`⚠️ Driver ${driverId} tidak memiliki playerId, tidak bisa kirim notifikasi.`, "warning");
-            return false;
-        }
-        return sendPushNotification(playerId, title, message, orderId);
+
+        // Lakukan pemotongan (transaction)
+        const driverRef = database.ref(`drivers/${driverId}/balance`);
+        await driverRef.transaction(current => (current || 0) - totalPotongan);
+
+        // Tandai order sudah dipotong
+        await database.ref(`orders/${orderId}`).update({
+            balance_deducted: true,
+            deducted_at: new Date().toISOString(),
+            deduction_fee_persen: feePersen,
+            deduction_tax_persen: pajakPersen,
+            deduction_amount: totalPotongan
+        });
+
+        // Catat riwayat (opsional)
+        await database.ref(`driver_deductions/${driverId}/${orderId}`).set({
+            amount: totalPotongan,
+            order_price: hargaOrder,
+            fee_percentage: feePersen,
+            fee_amount: potonganRupiah,
+            tax_percentage: pajakPersen,
+            tax_amount: pajakRupiah,
+            timestamp: firebase.database.ServerValue.TIMESTAMP,
+            status: 'auto_deducted_by_admin_panel',
+            order_id: orderId
+        });
+
+        addLog(`💰 OTOMATIS: Potong saldo driver ${orderData.driver_name || driverId} sebesar ${formatRupiah(totalPotongan)} dari order ${orderId.substring(0,8)} (fee ${feePersen}%, pajak ${pajakPersen}%)`, "success");
+        processedDeductionOrders.add(orderId);
+
+    } catch (err) {
+        addLog(`❌ Auto deduct error untuk order ${orderId}: ${err.message}`, "error");
     }
+}
 
     // ================= HAPUS ORDER KADALUARSA (>30 MENIT) =================
     async function deleteExpiredOrders() {
