@@ -41,8 +41,14 @@
             color: #eee;
             font-weight: 500;
         }
-        input {
-            width: 100%;
+        /* Wrapper untuk password: flex agar tombol mata di samping */
+        .password-wrapper {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+        .password-wrapper input {
+            flex: 1;
             padding: 12px;
             border-radius: 8px;
             border: 1px solid #FF9800;
@@ -50,7 +56,24 @@
             color: white;
             font-size: 16px;
         }
-        button {
+        .toggle-password {
+            background: #FF9800;
+            border: none;
+            border-radius: 8px;
+            padding: 0 12px;
+            font-size: 18px;
+            cursor: pointer;
+            height: 44px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: normal;
+            transition: background 0.3s;
+        }
+        .toggle-password:hover {
+            background: #ffb74d;
+        }
+        button[type="button"].login-btn {
             width: 100%;
             padding: 12px;
             background: #FF9800;
@@ -60,8 +83,9 @@
             font-size: 16px;
             cursor: pointer;
             transition: background 0.3s;
+            margin-top: 5px;
         }
-        button:hover {
+        button[type="button"].login-btn:hover {
             background: #ffb74d;
         }
         .error-message {
@@ -77,7 +101,6 @@
             font-size: 12px;
         }
     </style>
-    <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-database-compat.js"></script>
@@ -91,9 +114,12 @@
     </div>
     <div class="input-group">
         <label>Password</label>
-        <input type="password" id="password" placeholder="********">
+        <div class="password-wrapper">
+            <input type="password" id="password" placeholder="********">
+            <button type="button" class="toggle-password" id="togglePassword">👁️</button>
+        </div>
     </div>
-    <button id="loginBtn">Login</button>
+    <button type="button" class="login-btn" id="loginBtn">Login</button>
     <div id="errorMsg" class="error-message"></div>
     <div class="info">Hanya untuk admin. Pastikan akun sudah terdaftar di Firebase Authentication.</div>
 </div>
@@ -112,9 +138,18 @@
     const auth = firebase.auth();
     const database = firebase.database();
 
+    const togglePassword = document.getElementById('togglePassword');
+    const passwordInput = document.getElementById('password');
+
+    togglePassword.addEventListener('click', function () {
+        const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
+        passwordInput.setAttribute('type', type);
+        this.textContent = type === 'password' ? '👁️' : '🙈';
+    });
+
     document.getElementById('loginBtn').onclick = async () => {
         const email = document.getElementById('email').value.trim();
-        const password = document.getElementById('password').value;
+        const password = passwordInput.value;
         const errorDiv = document.getElementById('errorMsg');
         errorDiv.textContent = '';
 
@@ -123,20 +158,15 @@
             return;
         }
         try {
-            // Login ke Firebase Auth
             const userCredential = await auth.signInWithEmailAndPassword(email, password);
             const user = userCredential.user;
-
-            // Verifikasi apakah UID user ada di node 'admins' database
             const adminSnap = await database.ref(`admins/${user.uid}`).once('value');
             if (!adminSnap.exists()) {
                 await auth.signOut();
                 errorDiv.textContent = 'Akun Anda tidak terdaftar sebagai admin. Hubungi super admin.';
                 return;
             }
-
-            // Jika sukses, arahkan ke halaman admin panel
-            window.location.href = 'admin_saldo.html';
+            window.location.href = 'admin_jego.html';
         } catch (err) {
             console.error(err);
             errorDiv.textContent = 'Login gagal: ' + (err.message || 'Periksa email/password');
