@@ -459,40 +459,55 @@ async function sendManualPushToDriver(driverId, title, message, orderId = null) 
 
 // ========== OTOMATIS PEMOTONGAN SAAT ORDER ON_TRIP ==========
 async function autoDeductOnTrip(orderId, orderData) {
-    // Cegah potong ganda
     if (processedDeductionOrders.has(orderId)) return;
     if (orderData.status !== 'on_trip') return;
     if (orderData.balance_deducted === true) return;
 
     const driverId = orderData.driver_id;
-    const hargaOrder = orderData.price;
+    const hargaOrder = orderData.price;  // asumsi harga dalam Rupiah penuh (integer)
     if (!driverId || !hargaOrder) {
         addLog(`⚠️ Auto deduct gagal untuk order ${orderId}: driver_id atau price tidak valid.`, "warning");
         return;
     }
 
     try {
-        // Ambil fee dan pajak dari data-jego
         const potonganSnap = await database.ref('data-jego/potongan').once('value');
         const pajakSnap = await database.ref('data-jego/pajak').once('value');
         let feePersen = parseFloat(potonganSnap.val()) || 0;
         let pajakPersen = parseFloat(pajakSnap.val()) || 0;
 
+        // Hitung potongan dalam satuan Rupiah desimal (tanpa pembulatan)
         const potonganRupiah = hargaOrder * (feePersen / 100);
         const pajakRupiah = potonganRupiah * (pajakPersen / 100);
-        const totalPotongan = potonganRupiah + pajakRupiah;
+        let totalPotongan = potonganRupiah + pajakRupiah; // misal 1298.7
 
-        // Cek saldo driver cukup
+        // Ubah ke integer dengan skala 10 (kalikan 10, lalu bulatkan untuk menghilangkan error floating)
+        const totalPotonganInt10 = Math.round(totalPotongan * 10); // 12987
+
+        // Baca saldo driver, asumsikan tersimpan dalam Rupiah biasa (integer)
         const balanceSnap = await database.ref(`drivers/${driverId}/balance`).once('value');
-        const currentBalance = balanceSnap.val() || 0;
-        if (currentBalance < totalPotongan) {
-            addLog(`⚠️ Auto deduct: Saldo driver ${driverId} tidak cukup (${formatRupiah(currentBalance)} < ${formatRupiah(totalPotongan)}).`, "warning");
+        let currentBalance = balanceSnap.val() || 0;
+        // Ubah saldo saat ini ke skala 10
+        let currentBalanceInt10 = Math.round(currentBalance * 10);
+
+        if (currentBalanceInt10 < totalPotonganInt10) {
+            addLog(`⚠️ Auto deduct: Saldo driver ${driverId} tidak cukup (${(currentBalanceInt10/10).toFixed(1)} < ${(totalPotonganInt10/10).toFixed(1)}).`, "warning");
             return;
         }
 
-        // Lakukan pemotongan (transaction)
+        // Hitung saldo baru dalam skala 10
+        const newBalanceInt10 = currentBalanceInt10 - totalPotonganInt10;
+        // Kembalikan ke Rupiah biasa (integer, karena akan disimpan)
+        const newBalance = newBalanceInt10 / 10; // 84804.3 -> angka desimal
+
+        // Lakukan update dengan transaction, set nilai desimal langsung (dengan presisi 1 desimal)
         const driverRef = database.ref(`drivers/${driverId}/balance`);
-        await driverRef.transaction(current => (current || 0) - totalPotongan);
+        await driverRef.transaction(current => {
+            // Pastikan nilai dikonversi ke skala 10, dioperasikan, lalu kembali
+            let curInt10 = Math.round((current || 0) * 10);
+            let newInt10 = curInt10 - totalPotonganInt10;
+            return newInt10 / 10;
+        });
 
         // Tandai order sudah dipotong
         await database.ref(`orders/${orderId}`).update({
@@ -500,10 +515,10 @@ async function autoDeductOnTrip(orderId, orderData) {
             deducted_at: new Date().toISOString(),
             deduction_fee_persen: feePersen,
             deduction_tax_persen: pajakPersen,
-            deduction_amount: totalPotongan
+            deduction_amount: totalPotongan  // tetap simpan desimal asli (bisa 1298.7)
         });
 
-        // Catat riwayat (opsional)
+        // Catat riwayat
         await database.ref(`driver_deductions/${driverId}/${orderId}`).set({
             amount: totalPotongan,
             order_price: hargaOrder,
@@ -516,12 +531,17 @@ async function autoDeductOnTrip(orderId, orderData) {
             order_id: orderId
         });
 
-        addLog(`💰 OTOMATIS: Potong saldo driver ${orderData.driver_name || driverId} sebesar ${formatRupiah(totalPotongan)} dari order ${orderId.substring(0,8)} (fee ${feePersen}%, pajak ${pajakPersen}%)`, "success");
+        addLog(`💰 OTOMATIS: Potong saldo driver ${orderData.driver_name || driverId} sebesar ${formatRupiahDesimal(totalPotongan)} dari order ${orderId.substring(0,8)} (fee ${feePersen}%, pajak ${pajakPersen}%)`, "success");
         processedDeductionOrders.add(orderId);
 
     } catch (err) {
         addLog(`❌ Auto deduct error untuk order ${orderId}: ${err.message}`, "error");
     }
+}
+
+// Fungsi format Rupiah dengan satu desimal
+function formatRupiahDesimal(amount) {
+    return 'Rp ' + amount.toFixed(1).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
 }
 
     // ================= HAPUS ORDER KADALUARSA (>30 MENIT) =================
