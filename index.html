@@ -966,12 +966,29 @@ async function sendDriverOffer(isAuto = false) {
   }
   
   const hargaTotal = orderData.price || 0;
-  const requiredBalance = hargaTotal * 0.1;
-  const driverBalance = currentDriverData.balance || 0;
-  if (driverBalance < requiredBalance) {
-    showPopup('Saldo Tidak Cukup', `Saldo Anda Rp ${driverBalance.toLocaleString('id-ID')} tidak mencukupi untuk membayar 10% dari tarif (Rp ${requiredBalance.toLocaleString('id-ID')}).`, 'warning');
-    return;
-  }
+const driverBalance = currentDriverData.balance || 0;
+
+// Ambil fee dan pajak dari database
+let feePersen = 0, pajakPersen = 0;
+try {
+  const potonganSnap = await database.ref('data-jego/potongan').once('value');
+  const pajakSnap = await database.ref('data-jego/pajak').once('value');
+  feePersen = parseFloat(potonganSnap.val()) || 0;
+  pajakPersen = parseFloat(pajakSnap.val()) || 0;
+} catch(e) {
+  console.warn("Gagal ambil fee/pajak:", e);
+}
+
+const potonganRupiah = hargaTotal * (feePersen / 100);
+const pajakRupiah = potonganRupiah * (pajakPersen / 100);
+const totalPotongan = potonganRupiah + pajakRupiah;
+
+if (driverBalance < totalPotongan) {
+  showPopup('Saldo Tidak Cukup', 
+    `Saldo Anda Rp ${driverBalance.toLocaleString('id-ID')} tidak mencukupi untuk membayar potongan (fee ${feePersen}% + pajak ${pajakPersen}%) sebesar Rp ${totalPotongan.toLocaleString('id-ID')}.`, 
+    'warning');
+  return;
+}
   const ambilBtn = document.getElementById('ambilBtn');
   ambilBtn.disabled = true; ambilBtn.textContent = 'Mengirim...';
   const snapshot = await database.ref(`orders/${orderId}`).once('value');
