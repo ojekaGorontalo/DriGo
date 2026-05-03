@@ -294,10 +294,103 @@
 
     // ========== FUNGSI JARAK ==========
     function getDistance(lat1, lon1, lat2, lon2) { if (!lat1 || !lon1 || !lat2 || !lon2) return Infinity; const R = 6371; const dLat = (lat2 - lat1) * Math.PI / 180; const dLon = (lon2 - lon1) * Math.PI / 180; const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) * Math.sin(dLon/2)**2; const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); return R * c; }
+    
+    // ========== FUNGSI HITUNG TOTAL POTONGAN FEE + PAJAK ==========
+async function hitungTotalPotongan(hargaOrder) {
+    try {
+        const potonganSnap = await database.ref('data-jego/potongan').once('value');
+        const pajakSnap = await database.ref('data-jego/pajak').once('value');
+        let feePersen = parseFloat(potonganSnap.val()) || 0;
+        let pajakPersen = parseFloat(pajakSnap.val()) || 0;
+        const potonganRupiah = hargaOrder * (feePersen / 100);
+        const pajakRupiah = potonganRupiah * (pajakPersen / 100);
+        return { total: potonganRupiah + pajakRupiah, feePersen, pajakPersen };
+    } catch(e) {
+        console.warn("Gagal ambil fee/pajak:", e);
+        return { total: 0, feePersen: 0, pajakPersen: 0 };
+    }
+}
 
     async function getNearestDriver(pickupLat, pickupLng) { /* sama */ const snap = await database.ref("driver_locations").once("value"); const drivers = snap.val(); if (!drivers) return null; let nearest = null, minDist = Infinity; for (const [uid, data] of Object.entries(drivers)) { if (data.tracking_enabled !== true) continue; if (!data.latitude || !data.longitude) continue; const dist = getDistance(pickupLat, pickupLng, data.latitude, data.longitude); if (dist < 3 && dist < minDist) { minDist = dist; nearest = { uid, ...data, distance: dist }; } } return nearest; }
 
-    async function sendFallbackOffer(orderId, orderData) { /* sama seperti kode sebelumnya */ const orderSnap = await database.ref(`orders/${orderId}`).once('value'); const order = orderSnap.val(); if (!order || order.status !== 'waiting') return false; const offersSnap = await database.ref(`orders/${orderId}/driver_offers`).once('value'); if (offersSnap.exists() && Object.keys(offersSnap.val()).length > 0) return false; const pickupLat = order.pickup_lat, pickupLng = order.pickup_lng; if (!pickupLat || !pickupLng) return false; const nearestDriver = await getNearestDriver(pickupLat, pickupLng); if (!nearestDriver) return false; const driverSnap = await database.ref(`drivers/${nearestDriver.uid}`).once('value'); const driverData = driverSnap.val(); if (!driverData) return false; const offerData = { driver_id: nearestDriver.uid, driver_name: driverData.name || "Driver", driver_plate: driverData.plate_number || '', driver_type: driverData.vehicle_type || '', driver_rating: driverData.rating || 5, driver_trips: driverData.perjalanan || 0, driver_photo: driverData.photoURL || '', offered_at: new Date().toISOString(), status: 'offered', auto_fallback_by_admin: true }; try { await database.ref(`orders/${orderId}/driver_offers/${nearestDriver.uid}`).set(offerData); addLog(`🤖 AUTO FALLBACK: offer ke ${offerData.driver_name} (${nearestDriver.uid}) jarak ${nearestDriver.distance.toFixed(2)}km`, "success"); if (nearestDriver.playerId) { const title = "🚖 Order Baru (Auto Offer dari Admin)"; const message = `Halo ${driverData.name}, admin mengirim penawaran order dari ${order.customer_name || 'Customer'} (Rp ${order.price?.toLocaleString()}) karena tidak ada driver merespon.`; await sendPushNotification(nearestDriver.playerId, title, message, orderId, { auto_fallback: true }); } return true; } catch(err) { addLog(`❌ Gagal fallback: ${err.message}`, "error"); return false; } }
+    async function sendFallbackOffer(orderId, orderData) {
+    const orderSnap = await database.ref(`orders/${orderId}`).once('value');
+    const order = orderSnap.val();
+    if (!order || order.status !== 'waiting') return false;
+    const offersSnap = await database.ref(`orders/${orderId}/driver_offers`).once('value');
+    if (offersSnap.exists() && Object.keys(offersSnap.val()).length > 0) return false;
+    const pickupLat = order.pickup_lat, pickupLng = order.pickup_lng;
+    if (!pickupLat || !pickupLng) return false;
+
+    // Cari semua driver dalam radius 3 km
+    const driversLoc = await database.ref("driver_locations").once('value');
+    const allDrivers = driversLoc.val() || {};
+    let eligibleDrivers = [];
+    for (const [uid, data] of Object.entries(allDrivers)) {
+        if (data.tracking_enabled !== true) continue;
+        if (!data.latitude || !data.longitude) continue;
+        const dist = getDistance(pickupLat, pickupLng, data.latitude, data.longitude);
+        if (dist < 3) {
+            eligibleDrivers.push({ uid, ...data, distance: dist });
+        }
+    }
+    if (eligibleDrivers.length === 0) {
+        addLog(`⚠️ Order ${orderId.substring(0,8)}: Tidak ada driver dalam radius 3 km.`, "warning");
+        return false;
+    }
+
+    // Urutkan berdasarkan jarak terdekat
+    eligibleDrivers.sort((a,b) => a.distance - b.distance);
+
+    // Loop cari driver dengan saldo cukup
+    let selectedDriver = null;
+    for (const driver of eligibleDrivers) {
+        const driverSnap = await database.ref(`drivers/${driver.uid}`).once('value');
+        const driverData = driverSnap.val();
+        if (!driverData) continue;
+        
+        const potonganInfo = await hitungTotalPotongan(order.price || 0);
+        const saldoDriver = driverData.balance || 0;
+        
+        if (saldoDriver >= potonganInfo.total) {
+            selectedDriver = { uid: driver.uid, data: driverData, distance: driver.distance, playerId: driver.playerId };
+            break;
+        } else {
+            addLog(`⚠️ Driver ${driverData.name || driver.uid} saldo tidak cukup (${saldoDriver} < ${potonganInfo.total}), dilewati.`, "warning");
+        }
+    }
+
+    if (!selectedDriver) {
+        addLog(`🚨 Auto fallback gagal: Tidak ada driver dengan saldo cukup dalam radius 3 km untuk order ${orderId.substring(0,8)}.`, "error");
+        return false;
+    }
+
+    const offerData = {
+        driver_id: selectedDriver.uid,
+        driver_name: selectedDriver.data.name || "Driver",
+        driver_plate: selectedDriver.data.plate_number || '',
+        driver_type: selectedDriver.data.vehicle_type || '',
+        driver_rating: selectedDriver.data.rating || 5,
+        driver_trips: selectedDriver.data.perjalanan || 0,
+        driver_photo: selectedDriver.data.photoURL || '',
+        offered_at: new Date().toISOString(),
+        status: 'offered',
+        auto_fallback_by_admin: true
+    };
+    try {
+        await database.ref(`orders/${orderId}/driver_offers/${selectedDriver.uid}`).set(offerData);
+        addLog(`🤖 AUTO FALLBACK: offer ke ${offerData.driver_name} (${selectedDriver.uid}) jarak ${selectedDriver.distance.toFixed(2)}km, saldo cukup ✅`, "success");
+        if (selectedDriver.playerId) {
+            const title = "🚖 Order Baru (Auto Offer dari Admin)";
+            const message = `Halo ${selectedDriver.data.name}, admin mengirim penawaran order dari ${order.customer_name || 'Customer'} (Rp ${order.price?.toLocaleString()}) karena tidak ada driver merespon.`;
+            await sendPushNotification(selectedDriver.playerId, title, message, orderId, { auto_fallback: true });
+        }
+        return true;
+    } catch(err) {
+        addLog(`❌ Gagal fallback: ${err.message}`, "error");
+        return false;
+    }
+}
 
     async function loadDriversForNotification() { const snap = await database.ref("driver_locations").once("value"); const all = snap.val() || {}; const filtered = {}; for (const uid in all) { const d = all[uid]; if (d.tracking_enabled === true && d.autobid_enabled === true && d.playerId && d.latitude && d.longitude) { filtered[uid] = { playerId: d.playerId, latitude: d.latitude, longitude: d.longitude, name: d.fullName || uid }; } } addLog(`Driver online (tracking+autobid): ${Object.keys(filtered).length}`, "info"); return filtered; }
 
@@ -505,7 +598,63 @@
             document.getElementById("adminSendOfferBtn").onclick = sendAdminOffer;
             async function loadDriversForSelect() { const snap = await database.ref('drivers').once('value'); const drvs = snap.val() || {}; const select = document.getElementById('adminDriverSelect'); select.innerHTML = '<option value="">-- Pilih Driver --</option>'; for (let [uid, d] of Object.entries(drvs)) { if (d.name && d.vehicle_type) select.innerHTML += `<option value="${uid}">${d.name} (${d.vehicle_type}) - ${d.plate_number || ''}</option>`; } }
             async function loadWaitingOrdersForSelect() { const snap = await database.ref('orders').once('value'); const ords = snap.val() || {}; const select = document.getElementById('adminOrderSelect'); select.innerHTML = '<option value="">-- Pilih Order (waiting) --</option>'; for (let [oid, o] of Object.entries(ords)) { if (o.status === 'waiting') select.innerHTML += `<option value="${oid}">${oid.substring(0,8)} - ${o.pickup_address?.substring(0,30)}</option>`; } }
-            window.sendAdminOffer = async function() { /* sama seperti sebelumnya */ const driverId = document.getElementById('adminDriverSelect').value; const orderId = document.getElementById('adminOrderSelect').value; const resultDiv = document.getElementById('adminOfferResult'); if (!driverId || !orderId) { resultDiv.innerHTML = '<span style="color:#ffaa66;">⚠️ Pilih driver dan order</span>'; return; } const driver = allDrivers[driverId]; const order = allWaitingOrders[orderId]; if (!driver || !order) { resultDiv.innerHTML = '<span style="color:#ff6666;">❌ Data tidak valid</span>'; return; } const locSnap = await database.ref(`driver_locations/${driverId}`).once('value'); const loc = locSnap.val(); const dist = getDistance(loc?.latitude, loc?.longitude, order.pickup_lat, order.pickup_lng); if (dist > 3) { resultDiv.innerHTML = `<span style="color:#ffaa66;">⚠️ Jarak ${dist.toFixed(1)} km >3 km, offer batal</span>`; return; } const existing = await database.ref(`orders/${orderId}/driver_offers/${driverId}`).once('value'); if (existing.exists()) { resultDiv.innerHTML = '<span style="color:#ffaa66;">⚠️ Driver sudah pernah offer</span>'; return; } const offerData = { driver_id: driverId, driver_name: driver.name, driver_plate: driver.plate_number, driver_type: driver.vehicle_type, driver_rating: driver.rating, driver_trips: driver.perjalanan, driver_photo: driver.photoURL, offered_at: new Date().toISOString(), status: 'offered' }; try { await database.ref(`orders/${orderId}/driver_offers/${driverId}`).set(offerData); resultDiv.innerHTML = `<span style="color:#66ff66;">✅ Penawaran dikirim ke ${driver.name}</span>`; addLog(`Admin MANUAL offer ke ${driver.name} untuk order ${orderId.substring(0,8)}`, "success"); await sendManualPushToDriver(driverId, "📢 Penawaran Dikirim oleh Admin", `Halo ${driver.name}, admin mengirim penawaran untuk order dari ${order.customer_name || 'customer'}. Segera cek aplikasi.`, orderId); } catch(e) { resultDiv.innerHTML = `<span style="color:#ff6666;">❌ Gagal: ${e.message}</span>`; } };
+            window.sendAdminOffer = async function() {
+    const driverId = document.getElementById('adminDriverSelect').value;
+    const orderId = document.getElementById('adminOrderSelect').value;
+    const resultDiv = document.getElementById('adminOfferResult');
+    if (!driverId || !orderId) {
+        resultDiv.innerHTML = '<span style="color:#ffaa66;">⚠️ Pilih driver dan order</span>';
+        return;
+    }
+    const driver = allDrivers[driverId];
+    const order = allWaitingOrders[orderId];
+    if (!driver || !order) {
+        resultDiv.innerHTML = '<span style="color:#ff6666;">❌ Data tidak valid</span>';
+        return;
+    }
+    
+    // CEK SALDO DRIVER
+    const potonganInfo = await hitungTotalPotongan(order.price || 0);
+    const saldoDriver = driver.balance || 0;
+    if (saldoDriver < potonganInfo.total) {
+        resultDiv.innerHTML = `<span style="color:#ff6666;">❌ Saldo driver tidak cukup! Saldo: Rp ${saldoDriver.toLocaleString()}, Potongan: Rp ${potonganInfo.total.toLocaleString()} (fee ${potonganInfo.feePersen}% + pajak ${potonganInfo.pajakPersen}%)</span>`;
+        addLog(`⚠️ Gagal kirim offer manual: saldo driver ${driver.name} tidak cukup`, "warning");
+        return;
+    }
+    
+    const locSnap = await database.ref(`driver_locations/${driverId}`).once('value');
+    const loc = locSnap.val();
+    const dist = getDistance(loc?.latitude, loc?.longitude, order.pickup_lat, order.pickup_lng);
+    if (dist > 3) {
+        resultDiv.innerHTML = `<span style="color:#ffaa66;">⚠️ Jarak ${dist.toFixed(1)} km >3 km, offer batal</span>`;
+        return;
+    }
+    const existing = await database.ref(`orders/${orderId}/driver_offers/${driverId}`).once('value');
+    if (existing.exists()) {
+        resultDiv.innerHTML = '<span style="color:#ffaa66;">⚠️ Driver sudah pernah offer</span>';
+        return;
+    }
+    const offerData = {
+        driver_id: driverId,
+        driver_name: driver.name || "Driver",
+        driver_plate: driver.plate_number || '',
+        driver_type: driver.vehicle_type || '',
+        driver_rating: driver.rating || 5,
+        driver_trips: driver.perjalanan || 0,
+        driver_photo: driver.photoURL || '',
+        offered_at: new Date().toISOString(),
+        status: 'offered'
+    };
+    try {
+        await database.ref(`orders/${orderId}/driver_offers/${driverId}`).set(offerData);
+        resultDiv.innerHTML = `<span style="color:#66ff66;">✅ Penawaran dikirim ke ${driver.name} (saldo cukup)</span>`;
+        addLog(`Admin MANUAL offer ke ${driver.name} untuk order ${orderId.substring(0,8)} (saldo cukup)`, "success");
+        await sendManualPushToDriver(driverId, "📢 Penawaran Dikirim oleh Admin", `Halo ${driver.name}, admin mengirim penawaran untuk order dari ${order.customer_name || 'customer'}. Segera cek aplikasi.`, orderId);
+    } catch(e) {
+        resultDiv.innerHTML = `<span style="color:#ff6666;">❌ Gagal: ${e.message}</span>`;
+        addLog(`Gagal kirim offer admin: ${e.message}`, "error");
+    }
+};
         } else if (view === 'tools') {
             container.innerHTML = `<div class="inline-form"><button id="testNotifBtn" class="action-btn"><i class="fas fa-bell"></i> Test Notifikasi (driver pertama)</button><button id="cleanupOrdersBtn" class="action-btn" style="background:#f44336;"><i class="fas fa-trash"></i> Hapus Order Kadaluarsa</button><button id="clearLogBtn" class="action-btn"><i class="fas fa-eraser"></i> Bersihkan Log</button><button id="refreshDataBtn" class="action-btn"><i class="fas fa-sync"></i> Refresh Data Driver & Order</button></div><div id="toolResult" style="padding:10px;"></div>`;
             document.getElementById('testNotifBtn').onclick = async () => { if (!ONESIGNAL_API_KEY) { addLog("API Key tidak tersedia", "error"); return; } const drivers = await loadDriversForNotification(); const first = Object.values(drivers)[0]; if (first) await sendPushNotification(first.playerId, "🧪 Test Notifikasi JeGo", "Test dari admin panel"); else addLog("Tidak ada driver online", "warning"); };
