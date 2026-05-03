@@ -301,29 +301,40 @@
 }
 
     async function loadDriverOrders(uid) {
-      try {
-        const ordersSnap = await database.ref('orders').once('value');
-        const ordersData = ordersSnap.val();
-        driverOrders = [];
-        if (ordersData) {
-          Object.entries(ordersData).forEach(([orderId, order]) => {
-            const isDriverOrder = order.accepted_driver_id === uid || order.driver_id === uid || (order.selected_driver && (order.selected_driver.id === uid || order.selected_driver.driver_id === uid));
-            if (isDriverOrder && order.status === 'completed') {
-              driverOrders.push({ ...order, completed_at: order.completed_at || order.finished_at || order.updated_at || order.created_at });
-            }
+  try {
+    const ordersSnap = await database.ref('orders').once('value');
+    const ordersData = ordersSnap.val();
+    driverOrders = [];
+    if (ordersData) {
+      Object.entries(ordersData).forEach(([orderId, order]) => {
+        // Pastikan order milik driver ini dan status completed
+        if (order.driver_id === uid && order.status === 'completed') {
+          driverOrders.push({
+            ...order,
+            completed_at: order.completed_at || order.updated_at || order.created_at,
+            price: order.price || 0
           });
         }
-        updateTodayEarnings();
-        updateOrderStats();
-      } catch(e) { console.error(e); }
+      });
     }
+    updateTodayEarnings();
+    updateOrderStats();
+  } catch(e) { 
+    console.error(e); 
+  }
+}
 
-    function updateTodayEarnings() {
-      if (!driverOrders.length) { document.getElementById('todayEarnings').textContent = 'Rp 0'; return; }
-      const today = new Date().toISOString().split('T')[0];
-      const earnings = driverOrders.filter(o => o.completed_at && o.completed_at.split('T')[0] === today).reduce((sum, o) => sum + (parseInt(o.harga_total) || 0), 0);
-      document.getElementById('todayEarnings').textContent = formatCurrency(earnings);
-    }
+function updateTodayEarnings() {
+  if (!driverOrders.length) {
+    document.getElementById('todayEarnings').textContent = 'Rp 0';
+    return;
+  }
+  const today = new Date().toISOString().split('T')[0];
+  const earnings = driverOrders
+    .filter(o => o.completed_at && o.completed_at.split('T')[0] === today)
+    .reduce((sum, o) => sum + (parseInt(o.price) || 0), 0);
+  document.getElementById('todayEarnings').textContent = formatCurrency(earnings);
+}
     function updateOrderStats() {
       document.getElementById('totalOrders').textContent = driverOrders.length;
       document.getElementById('completedOrders').textContent = driverOrders.filter(o => o.status === 'completed').length;
