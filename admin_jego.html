@@ -213,20 +213,22 @@
             <div style="font-size: 12px; margin-top: 8px;">Auto Deduct & Fallback</div>
         </div>
         <div class="sidebar-menu">
-            <div class="menu-item" data-view="dashboard"><i class="fas fa-chart-line"></i> <span>Dashboard</span></div>
-            <div class="menu-item" data-view="waiting_orders"><i class="fas fa-clock"></i> <span>Order Waiting</span></div>
-            <div class="menu-item" data-view="drivers_list"><i class="fas fa-users"></i> <span>Data Driver</span></div>
-            <div class="menu-item" data-view="send_offer"><i class="fas fa-paper-plane"></i> <span>Kirim Penawaran Manual</span></div>
-            <div class="menu-item" data-view="auto_deduct_log"><i class="fas fa-cut"></i> <span>Log Auto Deduct</span></div>
-            <div class="menu-item" data-view="statistik_driver"><i class="fas fa-star"></i> <span>Statistik Rating</span></div>
-            <div class="menu-item" data-view="fallback_log"><i class="fas fa-history"></i> <span>Fallback Log</span></div>
-            <div class="menu-item" data-view="tools"><i class="fas fa-tools"></i> <span>Tools</span></div>
-        </div>
+    <div class="menu-item" data-view="dashboard"><i class="fas fa-chart-line"></i> <span>Dashboard</span></div>
+    <div class="menu-item" data-view="waiting_orders"><i class="fas fa-clock"></i> <span>Order Waiting</span></div>
+    <div class="menu-item" data-view="drivers_list"><i class="fas fa-users"></i> <span>Data Driver</span></div>
+    <div class="menu-item" data-view="send_offer"><i class="fas fa-paper-plane"></i> <span>Kirim Penawaran Manual</span></div>
+    <div class="menu-item" data-view="auto_deduct_log"><i class="fas fa-cut"></i> <span>Log Auto Deduct</span></div>
+    <div class="menu-item" data-view="statistik_driver"><i class="fas fa-star"></i> <span>Statistik Rating</span></div>
+    <div class="menu-item" data-view="fallback_log"><i class="fas fa-history"></i> <span>Fallback Log</span></div>
+    <div class="menu-item" data-view="realtime_log"><i class="fas fa-terminal"></i> <span>Real-time Log</span></div>
+    <div class="menu-item" data-view="tools"><i class="fas fa-tools"></i> <span>Tools</span></div>
+</div>
         <div style="padding: 20px;">
             <button id="sidebarLogout" class="action-btn" style="background:#f44336; width:100%"><i class="fas fa-sign-out-alt"></i> Logout</button>
         </div>
     </div>
-
+<!-- Tempat penyimpanan log tersembunyi -->
+<div id="logMessages" style="display:none;"></div>
     <!-- Main Content -->
     <div class="main-content">
         <div class="top-bar">
@@ -234,10 +236,6 @@
             <button class="logout-top" id="topLogoutBtn"><i class="fas fa-power-off"></i> Logout</button>
         </div>
         <div id="viewContainer" style="flex:1; display: flex; flex-direction: column; overflow: hidden;"></div>
-        <div class="compact-log" id="compactLog">
-            <div><strong><i class="fas fa-terminal"></i> Real-time Log</strong></div>
-            <div id="logMessages">▶️ Menunggu autentikasi...</div>
-        </div>
     </div>
 </div>
 
@@ -663,7 +661,35 @@ async function hitungTotalPotongan(hargaOrder) {
             document.getElementById('refreshDataBtn').onclick = async () => { await loadDriversForSelectGlobal(); await loadWaitingOrdersForSelectGlobal(); addLog("Data driver & order direfresh", "success"); };
         } else if (view === 'fallback_log') {
             container.innerHTML = `<div style="padding:20px;">Log auto fallback tercatat di area log realtime di bawah. Setiap order baru yang tidak mendapat offer setelah ${FALLBACK_DELAY_SECONDS} detik akan diproses otomatis.</div>`;
-        }
+        } else if (view === 'realtime_log') {
+    // Tampilkan log yang tersimpan
+    const logContainer = document.getElementById('viewContainer');
+    const logMessages = document.getElementById('logMessages');
+    let logHtml = `<div class="table-container">
+        <div class="table-toolbar">
+            <button id="clearLogViewBtn" class="action-btn"><i class="fas fa-eraser"></i> Bersihkan Log</button>
+        </div>
+        <div class="compact-log" style="background:#1e1e2f; color:#eee; padding:15px; font-family:monospace; font-size:12px; max-height:70vh; overflow-y:auto; margin:10px; border-radius:8px;">
+            <div id="logMessagesView">${logMessages ? logMessages.innerHTML : '▶️ Log kosong...'}</div>
+        </div>
+    </div>`;
+    container.innerHTML = logHtml;
+    
+    // Pindahkan konten log dari area tersembunyi ke view
+    const sourceLog = document.getElementById('logMessages');
+    const targetLog = document.getElementById('logMessagesView');
+    if (sourceLog && targetLog) {
+        targetLog.innerHTML = sourceLog.innerHTML;
+    }
+    
+    document.getElementById('clearLogViewBtn')?.addEventListener('click', () => {
+        const target = document.getElementById('logMessagesView');
+        const source = document.getElementById('logMessages');
+        if (target) target.innerHTML = '';
+        if (source) source.innerHTML = '';
+        addLog("Log dibersihkan", "info");
+    });
+}
     }
 
     async function loadDriversForSelectGlobal() { const snap = await database.ref('drivers').once('value'); allDrivers = snap.val() || {}; }
