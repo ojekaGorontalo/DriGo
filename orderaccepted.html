@@ -370,17 +370,20 @@
     if (orderRef) orderRef.off();
     orderRef = database.ref('orders/' + orderId);
     orderRef.on('value', (snap) => {
-      const updated = snap.val();
-      if (updated) {
-        orderData = updated;
-        updateOrderStatus(updated.status);
-        updateCustomerData(updated);
-        updateRouteData(updated);
-        if (updated.status === 'completed' && !isRatingSubmitted) setTimeout(() => showRatingModal(), 1000);
-        if (updated.status === 'cancelled') { showToast('Perjalanan dibatalkan.'); setTimeout(() => window.location.href='index.html',2000); }
-      }
+        const updated = snap.val();
+        if (updated) {
+            orderData = updated;
+            updateOrderStatus(updated.status);
+            updateCustomerData(updated);
+            updateRouteData(updated);
+            if (updated.status === 'completed' && !isRatingSubmitted) setTimeout(() => showRatingModal(), 1000);
+            if (updated.status === 'cancelled') {
+                showToast('Perjalanan dibatalkan.');
+                // Tidak redirect otomatis
+            }
+        }
     });
-  }
+}
 
   function updateOrderStatus(status) {
     currentOrderStatus = status;
@@ -399,8 +402,13 @@
     } else if (status === 'arrived') {
       badge.textContent = 'Telah Tiba'; title.textContent = 'Tiba di Lokasi'; startBtn.style.display = 'flex'; startBtn.textContent = 'Mulai Perjalanan';
     } else if (status === 'on_trip') {
-      badge.textContent = 'Dalam Perjalanan'; title.textContent = 'Perjalanan Berlangsung'; startBtn.style.display = 'none'; completeBtn.style.display = 'flex'; cancelBtn.style.display = 'flex';
-    } else if (status === 'completed') {
+  badge.textContent = 'Dalam Perjalanan'; title.textContent = 'Perjalanan Berlangsung';
+  startBtn.style.display = 'none'; completeBtn.style.display = 'flex'; 
+  cancelBtn.style.display = 'flex';
+  cancelBtn.disabled = true; // 🔥 Tombol cancel dinonaktifkan
+  cancelBtn.style.opacity = '0.6'; // 🔥 Efek visual abu-abu
+  cancelBtn.style.cursor = 'not-allowed';
+} else if (status === 'completed') {
       badge.textContent = 'Selesai'; title.textContent = 'Perjalanan Selesai'; startBtn.style.display = 'none'; completeBtn.style.display = 'none'; cancelBtn.style.display = 'none';
     } else if (status === 'cancelled') {
       badge.textContent = 'Dibatalkan'; startBtn.style.display = 'none'; completeBtn.style.display = 'none'; cancelBtn.style.display = 'none';
@@ -485,14 +493,26 @@
   }
 
   function cancelTrip() {
-    if (['completed','cancelled'].includes(currentOrderStatus)) { showToast('Perjalanan sudah selesai/dibatalkan'); return; }
-    showConfirmationModal('Konfirmasi Pembatalan', 'Batalkan perjalanan ini?', () => {
-      database.ref('orders/' + orderId).update({ status: 'cancelled', cancelled_by: 'driver', cancelled_at: new Date().toISOString() }).then(() => {
-        showToast('Perjalanan dibatalkan');
-        setTimeout(() => window.location.href = 'index.html', 1500);
-      });
-    });
+  // Cek jika status sudah on_trip, tolak pembatalan
+  if (currentOrderStatus === 'on_trip') {
+    showToast('Tidak dapat membatalkan perjalanan yang sedang berlangsung!');
+    return;
   }
+  if (['completed','cancelled'].includes(currentOrderStatus)) { 
+    showToast('Perjalanan sudah selesai/dibatalkan'); 
+    return; 
+  }
+  showConfirmationModal('Konfirmasi Pembatalan', 'Batalkan perjalanan ini?', () => {
+    database.ref('orders/' + orderId).update({ 
+      status: 'cancelled', 
+      cancelled_by: 'driver', 
+      cancelled_at: new Date().toISOString() 
+    }).then(() => {
+      showToast('Perjalanan dibatalkan');
+    //  setTimeout(() => window.location.href = 'index.html', 1500);
+    });
+  });
+}
 
   // ==================== RATING (disimpan ke node ratings) ====================
   function showRatingModal() {
@@ -541,7 +561,7 @@
       isRatingSubmitted = true;
       closeRatingModal();
       showToast(`Rating ${selectedRating} bintang berhasil diberikan.`);
-      setTimeout(() => window.location.href = 'index.html', 2000);
+    //  setTimeout(() => window.location.href = 'index.html', 2000);
     } catch (err) {
       console.error(err);
       showToast('Gagal mengirim rating: ' + err.message);
