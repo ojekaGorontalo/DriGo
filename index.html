@@ -595,6 +595,7 @@ let currentModalOrderListener = null;
 let currentModalOrderRef = null;
 let autobidOfferedOrders = new Set(); // Menyimpan orderId yang sudah ditawarkan otomatis oleh autobid
 // Muat data autobid yang sudah ditawarkan dari localStorage
+let offerRejectionListener = null; // listener untuk penolakan penawaran oleh customer
 const savedOffers = JSON.parse(localStorage.getItem('autobid_offered_orders') || '[]');
 savedOffers.forEach(id => autobidOfferedOrders.add(id));
 console.log(`Loaded ${autobidOfferedOrders.size} offered orders from localStorage`);
@@ -1036,7 +1037,14 @@ function stopCountdown() {
   if (countdownInterval) clearInterval(countdownInterval);
   if (orderStatusListener && countdownOrderId) {
     database.ref(`orders/${countdownOrderId}`).off('value', orderStatusListener);
+    orderStatusListener = null;
   }
+  // ========== TAMBAHKAN INI ==========
+  if (offerRejectionListener && countdownOrderId && countdownDriverId) {
+    database.ref(`orders/${countdownOrderId}/driver_offers/${countdownDriverId}/status`).off('value', offerRejectionListener);
+    offerRejectionListener = null;
+  }
+  // =================================
   const container = document.getElementById('countdownContainer');
   if (container) container.style.display = 'none';
   const ambilBtn = document.getElementById('ambilBtn');
@@ -1069,6 +1077,8 @@ function startCountdown(orderId, driverId) {
       database.ref(`orders/${orderId}/driver_offers/${driverId}`).remove().then(() => closeModal()).catch(() => closeModal());
     }
   }, 1000);
+  
+  // Listener status order (apakah diterima)
   orderStatusListener = database.ref(`orders/${orderId}`).on('value', (snapshot) => {
     const order = snapshot.val();
     if (!order) { stopCountdown(); closeModal(); return; }
@@ -1095,6 +1105,16 @@ function startCountdown(orderId, driverId) {
       stopCountdown();
       closeModal();
     }
+  });
+  
+  // ========== LISTENER UNTUK DETEKSI PENOLAKAN PENAWARAN ==========
+  offerRejectionListener = database.ref(`orders/${orderId}/driver_offers/${driverId}/status`).on('value', (snap) => {
+      const status = snap.val();
+      if (status === 'rejected') {
+          stopCountdown();
+          closeModal();
+          showPopup('Penawaran Ditolak', 'Customer menolak penawaran Anda.', 'info');
+      }
   });
 }
 
