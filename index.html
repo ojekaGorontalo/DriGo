@@ -66,6 +66,39 @@
   color: #666;
   margin-left: 4px;
 }
+
+/* Toast notification */
+.toast-notification {
+  position: fixed;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #333;
+  color: white;
+  padding: 12px 20px;
+  border-radius: 30px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  z-index: 9999;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+  max-width: 90%;
+  text-align: center;
+}
+.toast-notification.show {
+  opacity: 1;
+}
+.toast-notification.warning {
+  background: #F44336;
+}
+.toast-notification.info {
+  background: #FF9800;
+}
+.toast-notification.success {
+  background: #4CAF50;
+}
   
   /* ========== RADAR BARU - FULLSCREEN, LINGKARAN BESAR, SCAN TENGAH ========== */
   #radarContainer {
@@ -879,12 +912,12 @@ async function showOrderDetail(orderObj, fromAuto = false) {
   }
   currentModalOrderRef = database.ref(`orders/${orderId}`);
   currentModalOrderListener = currentModalOrderRef.on('value', (snapshot) => {
-    const order = snapshot.val();
-    if (!order || order.status !== 'waiting' || order.status === 'cancelled_by_user') {
-      closeModal();
-      showPopup('Pembatalan', 'Order telah dibatalkan oleh customer.', 'warning');
-    }
-  });
+  const order = snapshot.val();
+  if (!order || order.status !== 'waiting' || order.status === 'cancelled_by_user') {
+    closeModal();
+    showToast('Order telah dibatalkan oleh customer.', 'warning');
+  }
+});
 
   if (fromAuto) {
   const orderType = currentOrder.transport_type || '';
@@ -1109,13 +1142,13 @@ function startCountdown(orderId, driverId) {
   
   // ========== LISTENER UNTUK DETEKSI PENOLAKAN PENAWARAN ==========
   offerRejectionListener = database.ref(`orders/${orderId}/driver_offers/${driverId}/status`).on('value', (snap) => {
-      const status = snap.val();
-      if (status === 'rejected') {
-          stopCountdown();
-          closeModal();
-          showPopup('Penawaran Ditolak', 'Customer menolak penawaran Anda.', 'info');
-      }
-  });
+  const status = snap.val();
+  if (status === 'rejected') {
+    stopCountdown();
+    closeModal();
+    showToast('Customer menolak penawaran Anda.', 'warning');
+  }
+});
 }
 
 function closeModal() {
@@ -1266,7 +1299,6 @@ function showPopup(title, message, type = 'info', options = {}) {
   document.getElementById('popupIcon').innerHTML = { success: '✅', error: '❌', warning: '⚠️', info: 'ℹ️' }[type] || 'ℹ️';
   
   const confirmBtn = document.getElementById('popupButton');
-  // Simpan callback onConfirm jika ada
   confirmBtn.onclick = () => {
     hidePopup();
     if (options.onConfirm && typeof options.onConfirm === 'function') {
@@ -1276,7 +1308,10 @@ function showPopup(title, message, type = 'info', options = {}) {
   
   document.getElementById('popupOverlay').style.display = 'flex';
 }
-function hidePopup() { document.getElementById('popupOverlay').style.display = 'none'; }
+
+function hidePopup() { 
+  document.getElementById('popupOverlay').style.display = 'none'; 
+}
 
 function stopAllSounds() {
   const soundIds = ['beekSound', 'manualPopupSound', 'autobidSound', 'orderAcceptedSound'];
@@ -1287,6 +1322,29 @@ function stopAllSounds() {
       audio.currentTime = 0;
     }
   });
+}
+
+// ========== TOAST NOTIFICATION ==========
+let toastTimeout = null;
+
+function showToast(message, type = 'info') {
+  // Hapus toast lama jika ada
+  const existingToast = document.querySelector('.toast-notification');
+  if (existingToast) existingToast.remove();
+  if (toastTimeout) clearTimeout(toastTimeout);
+
+  const toast = document.createElement('div');
+  toast.className = `toast-notification ${type}`;
+  toast.textContent = message;
+  document.body.appendChild(toast);
+
+  // Force reflow agar transisi berjalan
+  setTimeout(() => toast.classList.add('show'), 10);
+
+  toastTimeout = setTimeout(() => {
+    toast.classList.remove('show');
+    setTimeout(() => toast.remove(), 300);
+  }, 2500);
 }
 
 // ========== DEBUG ONESIGNAL (fungsi terpisah) ==========
