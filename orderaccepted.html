@@ -9,7 +9,6 @@
   <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-database-compat.js"></script>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <style>
-    /* (CSS sama persis seperti sebelumnya, tidak diubah) */
     :root { --primary: #FF9800; --secondary: #FF5722; --accent: #FFC107; --light: #f8f9fa; --dark: #343a40; --success: #4CAF50; --danger: #f44336; --warning: #FFC107; --info: #2196F3; --gray: #9E9E9E; }
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, var(--primary), var(--secondary)); color: var(--dark); height: 100vh; padding: 0; display: flex; flex-direction: column; align-items: center; overflow: hidden; }
@@ -106,6 +105,31 @@
     .chat-notification { position: fixed; top: 70px; right: 10px; left: 10px; background: #25D366; color: white; padding: 15px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); z-index: 2001; cursor: pointer; display: none; }
     .chat-notification strong { display: block; margin-bottom: 5px; }
     .chat-badge { position: absolute; top: -5px; right: -5px; background: #ff4444; color: white; border-radius: 50%; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; }
+
+    /* Rating presets buttons */
+    .rating-presets {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 12px 0;
+      justify-content: center;
+    }
+    .preset-btn {
+      background: #f0f0f0;
+      border: 1px solid #ddd;
+      border-radius: 20px;
+      padding: 6px 12px;
+      font-size: 0.75rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .preset-btn:hover {
+      background: var(--primary);
+      color: white;
+      border-color: var(--primary);
+      transform: translateY(-1px);
+    }
   </style>
 </head>
 <body>
@@ -154,7 +178,26 @@
 </div>
 
 <!-- Modal Rating -->
-<div id="ratingModal" class="rating-modal"><div class="rating-modal-content"><h2>Beri Rating Customer</h2><p>Bagaimana pengalaman Anda dengan customer ini?</p><div class="rating-stars" id="ratingStars"><span class="rating-star" data-rating="1">☆</span><span class="rating-star" data-rating="2">☆</span><span class="rating-star" data-rating="3">☆</span><span class="rating-star" data-rating="4">☆</span><span class="rating-star" data-rating="5">☆</span></div><textarea id="ratingComment" class="rating-comment" placeholder="Tambahkan komentar (opsional)..."></textarea><div class="modal-buttons"><button class="modal-btn modal-cancel" onclick="closeRatingModal()">Batal</button><button class="modal-btn modal-submit" onclick="submitRating()">Kirim Rating</button></div></div></div>
+<div id="ratingModal" class="rating-modal">
+  <div class="rating-modal-content">
+    <h2>Beri Rating Customer</h2>
+    <p>Bagaimana pengalaman Anda dengan customer ini?</p>
+    <div class="rating-stars" id="ratingStars">
+      <span class="rating-star" data-rating="1">☆</span>
+      <span class="rating-star" data-rating="2">☆</span>
+      <span class="rating-star" data-rating="3">☆</span>
+      <span class="rating-star" data-rating="4">☆</span>
+      <span class="rating-star" data-rating="5">☆</span>
+    </div>
+    <div id="ratingPresetsContainer" style="min-height: 50px;"></div>
+    <textarea id="ratingComment" class="rating-comment" placeholder="Tambahkan komentar (opsional)..."></textarea>
+    <div class="modal-buttons">
+      <button class="modal-btn modal-cancel" onclick="closeRatingModal()">Batal</button>
+      <button class="modal-btn modal-submit" onclick="submitRating()">Kirim Rating</button>
+    </div>
+  </div>
+</div>
+
 <div id="confirmationModal" class="confirmation-modal"><div class="confirmation-modal-content"><div class="confirmation-title" id="confirmationTitle">Konfirmasi</div><div class="confirmation-message" id="confirmationMessage"></div><div class="confirmation-buttons"><button class="confirmation-btn btn-cancel" onclick="closeConfirmationModal()">Batal</button><button class="confirmation-btn btn-confirm" onclick="confirmAction()">Ya</button></div></div></div>
 <div id="infoModal" class="info-modal"><div class="info-modal-content"><div class="info-title" id="infoTitle">Informasi</div><div class="info-message" id="infoMessage"></div><div class="info-buttons"><button class="info-btn btn-ok" onclick="closeInfoModal()">OK</button></div></div></div>
 <div id="toast" class="toast"></div>
@@ -180,7 +223,6 @@
   </div>
 </div>
 
-<!-- NOTIFIKASI CHAT -->
 <div class="chat-notification" id="chatNotification">
   <strong>💬 Pesan Baru</strong>
   <p id="notificationMessage"></p>
@@ -210,7 +252,6 @@
   let selectedRating = 0, isRatingSubmitted = false, customerId = null;
   let confirmCallback = null;
   
-  // Chat variables
   let chatRef = null, chatListener = null;
   let unreadMessages = 0;
   let chatOpen = false;
@@ -383,7 +424,7 @@
             }
         }
     });
-}
+  }
 
   function updateOrderStatus(status) {
     currentOrderStatus = status;
@@ -395,20 +436,20 @@
     const cancelBtn = document.getElementById('cancelBtn');
     badge.style.display = 'block';
     if (status === 'accepted') {
-  badge.textContent = 'Order Diterima'; title.textContent = 'Order Diterima'; subtitle.innerHTML = 'Segera menuju lokasi penjemputan.';
-  startBtn.style.display = 'flex'; startBtn.textContent = 'Ke Jemputan'; completeBtn.style.display = 'none'; cancelBtn.style.display = 'flex';
-}else if (status === 'on_the_way') {
+      badge.textContent = 'Order Diterima'; title.textContent = 'Order Diterima'; subtitle.innerHTML = 'Segera menuju lokasi penjemputan.';
+      startBtn.style.display = 'flex'; startBtn.textContent = 'Ke Jemputan'; completeBtn.style.display = 'none'; cancelBtn.style.display = 'flex';
+    } else if (status === 'on_the_way') {
       badge.textContent = 'Menuju Lokasi'; title.textContent = 'Menuju Penjemputan'; startBtn.style.display = 'flex'; startBtn.textContent = 'Sampai di Lokasi';
     } else if (status === 'arrived') {
       badge.textContent = 'Telah Tiba'; title.textContent = 'Tiba di Lokasi'; startBtn.style.display = 'flex'; startBtn.textContent = 'Mulai Perjalanan';
     } else if (status === 'on_trip') {
-  badge.textContent = 'Dalam Perjalanan'; title.textContent = 'Perjalanan Berlangsung';
-  startBtn.style.display = 'none'; completeBtn.style.display = 'flex'; 
-  cancelBtn.style.display = 'flex';
-  cancelBtn.disabled = true; // 🔥 Tombol cancel dinonaktifkan
-  cancelBtn.style.opacity = '0.6'; // 🔥 Efek visual abu-abu
-  cancelBtn.style.cursor = 'not-allowed';
-} else if (status === 'completed') {
+      badge.textContent = 'Dalam Perjalanan'; title.textContent = 'Perjalanan Berlangsung';
+      startBtn.style.display = 'none'; completeBtn.style.display = 'flex'; 
+      cancelBtn.style.display = 'flex';
+      cancelBtn.disabled = true;
+      cancelBtn.style.opacity = '0.6';
+      cancelBtn.style.cursor = 'not-allowed';
+    } else if (status === 'completed') {
       badge.textContent = 'Selesai'; title.textContent = 'Perjalanan Selesai'; startBtn.style.display = 'none'; completeBtn.style.display = 'none'; cancelBtn.style.display = 'none';
     } else if (status === 'cancelled') {
       badge.textContent = 'Dibatalkan'; startBtn.style.display = 'none'; completeBtn.style.display = 'none'; cancelBtn.style.display = 'none';
@@ -452,24 +493,24 @@
     updateOrderStatus(orderData.status);
   }
 
-  // ==================== AKSI PERJALANAN (DIPERBAIKI) ====================
+  // ==================== AKSI PERJALANAN ====================
   function startTrip() {
     if (!orderData) return;
     let newStatus = '', actionText = '', updateData = { updated_at: new Date().toISOString() };
     
     if (currentOrderStatus === 'accepted') {
       newStatus = 'on_the_way';
-      actionText = 'mulai menuju lokasi penjemputan';
+      actionText = 'berangkat menuju lokasi jemput';
     }
     else if (currentOrderStatus === 'on_the_way') {
       newStatus = 'arrived';
       actionText = 'menandai telah tiba di lokasi';
-      updateData.arrived_at = new Date().toISOString(); // 🔥 simpan waktu tiba di penjemputan
+      updateData.arrived_at = new Date().toISOString();
     }
     else if (currentOrderStatus === 'arrived') {
       newStatus = 'on_trip';
       actionText = 'memulai perjalanan ke tujuan';
-      updateData.trip_started_at = new Date().toISOString(); // 🔥 simpan waktu perjalanan dimulai
+      updateData.trip_started_at = new Date().toISOString();
     }
     else {
       showToast('Aksi tidak tersedia');
@@ -486,55 +527,93 @@
   function completeTrip() {
     if (currentOrderStatus !== 'on_trip') { showToast('Perjalanan belum dimulai'); return; }
     showConfirmationModal('Konfirmasi', 'Selesaikan perjalanan ini?', () => {
-      // Catatan: jika ingin menyimpan completed_at, sudah dilakukan di sini
       database.ref('orders/' + orderId).update({ status: 'completed', completed_at: new Date().toISOString() })
         .then(() => showToast('Perjalanan selesai'));
     });
   }
 
   function cancelTrip() {
-  // Cek jika status sudah on_trip, tolak pembatalan
-  if (currentOrderStatus === 'on_trip') {
-    showToast('Tidak dapat membatalkan perjalanan yang sedang berlangsung!');
-    return;
-  }
-  if (['completed','cancelled'].includes(currentOrderStatus)) { 
-    showToast('Perjalanan sudah selesai/dibatalkan'); 
-    return; 
-  }
-  showConfirmationModal('Konfirmasi Pembatalan', 'Batalkan perjalanan ini?', () => {
-    database.ref('orders/' + orderId).update({ 
-      status: 'cancelled', 
-      cancelled_by: 'driver', 
-      cancelled_at: new Date().toISOString() 
-    }).then(() => {
-      showToast('Perjalanan dibatalkan');
-    //  setTimeout(() => window.location.href = 'index.html', 1500);
+    if (currentOrderStatus === 'on_trip') {
+      showToast('Tidak dapat membatalkan perjalanan yang sedang berlangsung!');
+      return;
+    }
+    if (['completed','cancelled'].includes(currentOrderStatus)) { 
+      showToast('Perjalanan sudah selesai/dibatalkan'); 
+      return; 
+    }
+    showConfirmationModal('Konfirmasi Pembatalan', 'Batalkan perjalanan ini?', () => {
+      database.ref('orders/' + orderId).update({ 
+        status: 'cancelled', 
+        cancelled_by: 'driver', 
+        cancelled_at: new Date().toISOString() 
+      }).then(() => {
+        showToast('Perjalanan dibatalkan');
+      });
     });
-  });
-}
+  }
 
-  // ==================== RATING (disimpan ke node ratings) ====================
+  // ==================== FUNGSI RATING DENGAN PRESET DINAMIS ====================
   function showRatingModal() {
     if (isRatingSubmitted) return;
     selectedRating = 0;
     const stars = document.querySelectorAll('#ratingStars .rating-star');
     stars.forEach(s => { s.textContent = '☆'; s.classList.remove('active'); });
     document.getElementById('ratingComment').value = '';
+    document.getElementById('ratingPresetsContainer').innerHTML = '';
     document.getElementById('ratingModal').style.display = 'flex';
     setupRatingStars();
   }
 
   function setupRatingStars() {
     const container = document.getElementById('ratingStars');
+    if (!container) return;
     const newContainer = container.cloneNode(true);
     container.parentNode.replaceChild(newContainer, container);
     const stars = newContainer.querySelectorAll('.rating-star');
+    
+    const ratingPresets = {
+        1: ["Customer tidak sopan", "Membuat driver menunggu lama", "Lokasi penjemputan tidak jelas", "Membatalkan order setelah driver tiba", "Perilaku tidak menyenangkan"],
+        2: ["Customer kurang kooperatif", "Komunikasi agak sulit", "Lokasi kurang jelas", "Sedikit terlambat"],
+        3: ["Customer biasa saja", "Komunikasi cukup", "Tepat waktu sedang"],
+        4: ["Customer ramah", "Komunikasi baik", "Menunggu tepat waktu", "Lokasi jelas"],
+        5: ["Customer sangat ramah", "Komunikasi lancar", "Menunggu tepat waktu", "Lokasi penjemputan sangat jelas", "Perilaku sopan dan menyenangkan", "Rekomendasi untuk driver lain"]
+    };
+
     newContainer.addEventListener('click', (e) => {
-      if (e.target.classList.contains('rating-star')) {
-        selectedRating = parseInt(e.target.dataset.rating);
-        stars.forEach((s,idx) => { s.textContent = idx < selectedRating ? '★' : '☆'; s.classList.toggle('active', idx < selectedRating); });
-      }
+        if (e.target.classList.contains('rating-star')) {
+            const rating = parseInt(e.target.dataset.rating);
+            selectedRating = rating;
+            stars.forEach((s, idx) => {
+                s.textContent = idx < rating ? '★' : '☆';
+                s.classList.toggle('active', idx < rating);
+            });
+            generatePresetButtons(rating, ratingPresets);
+        }
+    });
+  }
+
+  function generatePresetButtons(rating, ratingPresets) {
+    const container = document.getElementById('ratingPresetsContainer');
+    if (!container) return;
+    container.innerHTML = '';
+    const presets = ratingPresets[rating];
+    if (!presets) return;
+    
+    presets.forEach(text => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'preset-btn';
+        btn.textContent = text;
+        btn.setAttribute('data-text', text);
+        btn.addEventListener('click', () => {
+            const textarea = document.getElementById('ratingComment');
+            if (textarea.value.trim() === '') {
+                textarea.value = text;
+            } else {
+                textarea.value += ', ' + text;
+            }
+        });
+        container.appendChild(btn);
     });
   }
 
@@ -561,7 +640,6 @@
       isRatingSubmitted = true;
       closeRatingModal();
       showToast(`Rating ${selectedRating} bintang berhasil diberikan.`);
-    //  setTimeout(() => window.location.href = 'index.html', 2000);
     } catch (err) {
       console.error(err);
       showToast('Gagal mengirim rating: ' + err.message);
