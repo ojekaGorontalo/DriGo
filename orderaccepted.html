@@ -9,6 +9,7 @@
   <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-database-compat.js"></script>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <style>
+    /* (CSS sama persis seperti sebelumnya, tidak diubah) */
     :root { --primary: #FF9800; --secondary: #FF5722; --accent: #FFC107; --light: #f8f9fa; --dark: #343a40; --success: #4CAF50; --danger: #f44336; --warning: #FFC107; --info: #2196F3; --gray: #9E9E9E; }
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, var(--primary), var(--secondary)); color: var(--dark); height: 100vh; padding: 0; display: flex; flex-direction: column; align-items: center; overflow: hidden; }
@@ -85,8 +86,6 @@
     .btn-ok { background: var(--primary); color: white; }
     @keyframes spin { to { transform: rotate(360deg); } }
     @media (max-width: 480px) { .map-section { height: 40vh; } .content-wrapper { max-height: calc(100vh - 40vh - 60px); } .customer-photo { width: 60px; height: 60px; } }
-
-    /* ==================== STYLE CHAT ==================== */
     .chat-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); display: none; justify-content: center; align-items: center; z-index: 2000; }
     .chat-container { width: 100%; height: 100%; background: white; display: flex; flex-direction: column; }
     .chat-header { background: linear-gradient(135deg, var(--primary), var(--secondary)); color: white; padding: 15px; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
@@ -445,23 +444,43 @@
     updateOrderStatus(orderData.status);
   }
 
-  // ==================== AKSI PERJALANAN ====================
+  // ==================== AKSI PERJALANAN (DIPERBAIKI) ====================
   function startTrip() {
     if (!orderData) return;
-    let newStatus = '', actionText = '';
-    if (currentOrderStatus === 'accepted') { newStatus = 'on_the_way'; actionText = 'mulai menuju lokasi penjemputan'; }
-    else if (currentOrderStatus === 'on_the_way') { newStatus = 'arrived'; actionText = 'menandai telah tiba di lokasi'; }
-    else if (currentOrderStatus === 'arrived') { newStatus = 'on_trip'; actionText = 'memulai perjalanan ke tujuan'; }
-    else { showToast('Aksi tidak tersedia'); return; }
+    let newStatus = '', actionText = '', updateData = { updated_at: new Date().toISOString() };
+    
+    if (currentOrderStatus === 'accepted') {
+      newStatus = 'on_the_way';
+      actionText = 'mulai menuju lokasi penjemputan';
+    }
+    else if (currentOrderStatus === 'on_the_way') {
+      newStatus = 'arrived';
+      actionText = 'menandai telah tiba di lokasi';
+      updateData.arrived_at = new Date().toISOString(); // 🔥 simpan waktu tiba di penjemputan
+    }
+    else if (currentOrderStatus === 'arrived') {
+      newStatus = 'on_trip';
+      actionText = 'memulai perjalanan ke tujuan';
+      updateData.trip_started_at = new Date().toISOString(); // 🔥 simpan waktu perjalanan dimulai
+    }
+    else {
+      showToast('Aksi tidak tersedia');
+      return;
+    }
+
     showConfirmationModal('Konfirmasi', `Apakah Anda yakin ingin ${actionText}?`, () => {
-      database.ref('orders/' + orderId).update({ status: newStatus, updated_at: new Date().toISOString() }).then(() => showToast('Status diperbarui')).catch(err => showToast(err.message));
+      database.ref('orders/' + orderId).update({ ...updateData, status: newStatus })
+        .then(() => showToast('Status diperbarui'))
+        .catch(err => showToast(err.message));
     });
   }
 
   function completeTrip() {
     if (currentOrderStatus !== 'on_trip') { showToast('Perjalanan belum dimulai'); return; }
     showConfirmationModal('Konfirmasi', 'Selesaikan perjalanan ini?', () => {
-      database.ref('orders/' + orderId).update({ status: 'completed', completed_at: new Date().toISOString() }).then(() => showToast('Perjalanan selesai'));
+      // Catatan: jika ingin menyimpan completed_at, sudah dilakukan di sini
+      database.ref('orders/' + orderId).update({ status: 'completed', completed_at: new Date().toISOString() })
+        .then(() => showToast('Perjalanan selesai'));
     });
   }
 
@@ -507,7 +526,6 @@
     const btn = document.querySelector('#ratingModal .modal-submit');
     btn.disabled = true; btn.textContent = 'Mengirim...';
     try {
-      // Simpan rating ke node ratings/{orderId}/customer_rating
       const driverUid = driverData.uid || driverData.driverId;
       const ratingData = {
         rating: selectedRating,
