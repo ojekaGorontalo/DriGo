@@ -255,9 +255,17 @@
   
   /* BOTTOM NAV */
   .bottom-nav {
-    position: fixed; bottom: 0; left: 0; width: 100%; background: white;
-    display: flex; justify-content: space-around; padding: 10px 0; box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
-    z-index: 99; height: 60px;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    background: white;
+    display: flex;
+    justify-content: space-around;
+    padding: 10px 0;
+    box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+    z-index: 99;
+    height: 60px;
   }
   .nav-item { display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 1; cursor: pointer; }
   .nav-item.active .nav-icon { color: var(--primary); } .nav-item.active .nav-label { color: var(--primary); font-weight: 600; }
@@ -496,14 +504,6 @@
     <span class="status-value" id="sidebarBalance">Rp 0</span>
   </div>
 </div>
-      <!-- 
-<div class="menu-section">
-  <h4>🔧 Debug OneSignal</h4>
-  <button id="debugOneSignalBtn" style="background:#FF9800; color:white; width:100%; padding:8px; border-radius:8px;">Cek Status OneSignal</button>
-  <button id="enableNotifBtn" style="background:#42E129; color:white; width:100%; padding:8px; border-radius:8px; margin-top:8px;">🔔 Aktifkan Notifikasi (Manual)</button>
-  <div id="debugLog" style="background:#2a2a3b; color:#ddd; font-size:10px; padding:8px; border-radius:6px; margin-top:8px; max-height:150px; overflow-y:auto; white-space:pre-wrap;"></div>
-</div>
--->
       <div class="app-version">JeGo Driver v1.0.0<br>© 2026 Buatan Anak Gorontalo</div>
     </div>
   </div>
@@ -599,6 +599,9 @@ let offerRejectionListener = null; // listener untuk penolakan penawaran oleh cu
 const savedOffers = JSON.parse(localStorage.getItem('autobid_offered_orders') || '[]');
 savedOffers.forEach(id => autobidOfferedOrders.add(id));
 console.log(`Loaded ${autobidOfferedOrders.size} offered orders from localStorage`);
+
+// Flag untuk mencegah popup penolakan setelah countdown selesai
+let isCountdownRunning = false;
 
 // ========== FUNGSI RADAR ==========
 function startRadarMessages() {
@@ -890,14 +893,13 @@ async function showOrderDetail(orderObj, fromAuto = false) {
   const orderType = currentOrder.transport_type || '';
   const isKurir = orderType.includes('kurir');
   if (autobidEnabled && !isKurir) {
-    // CEK: Cegah autobid berulang untuk order yang sama
     if (autobidOfferedOrders.has(orderId)) {
       console.log(`Autobid untuk order ${orderId} sudah dikirim sebelumnya, lewat.`);
       return;
     }
     const autoSound = document.getElementById('autobidSound');
     if (autoSound) autoSound.play().catch(e => console.log('Audio error:', e));
-    setTimeout(() => sendDriverOffer(true), 500); // Kirim dengan parameter true (auto)
+    setTimeout(() => sendDriverOffer(true), 500);
   } else {
     const manualSound = document.getElementById('manualPopupSound');
     if (manualSound) manualSound.play().catch(e => console.log('Audio error:', e));
@@ -960,36 +962,37 @@ async function sendDriverOffer(isAuto = false) {
   if (!currentSelectedOrder || !globalCurrentUid || !checkDriverData()) return;
   const { orderId, orderData } = currentSelectedOrder;
   
-  // CEK: Jika ini autobid dan order sudah pernah ditawarkan sebelumnya, BATALKAN
   if (isAuto && autobidOfferedOrders.has(orderId)) {
     console.log(`Autobid: Order ${orderId} sudah pernah ditawarkan, lewat.`);
     return;
   }
   
   const hargaTotal = orderData.price || 0;
-const driverBalance = currentDriverData.balance || 0;
-
-// Ambil fee dan pajak dari database
-let feePersen = 0, pajakPersen = 0;
-try {
-  const potonganSnap = await database.ref('data-jego/potongan').once('value');
-  const pajakSnap = await database.ref('data-jego/pajak').once('value');
-  feePersen = parseFloat(potonganSnap.val()) || 0;
-  pajakPersen = parseFloat(pajakSnap.val()) || 0;
-} catch(e) {
-  console.warn("Gagal ambil fee/pajak:", e);
-}
-
-const potonganRupiah = hargaTotal * (feePersen / 100);
-const pajakRupiah = potonganRupiah * (pajakPersen / 100);
-const totalPotongan = potonganRupiah + pajakRupiah;
-
-if (driverBalance < totalPotongan) {
-  showPopup('Saldo Tidak Cukup', 
-    `Saldo Anda Rp ${driverBalance.toLocaleString('id-ID')} tidak mencukupi untuk membayar potongan (fee ${feePersen}% + pajak ${pajakPersen}%) sebesar Rp ${totalPotongan.toLocaleString('id-ID')}.`, 
-    'warning');
-  return;
-}
+  const driverBalance = Number(currentDriverData.balance) || 0;
+  
+  let feePersen = 0, pajakPersen = 0;
+  try {
+    const potonganSnap = await database.ref('data-jego/potongan').once('value');
+    const pajakSnap = await database.ref('data-jego/pajak').once('value');
+    feePersen = parseFloat(potonganSnap.val()) || 0;
+    pajakPersen = parseFloat(pajakSnap.val()) || 0;
+  } catch(e) {
+    console.warn("Gagal ambil fee/pajak:", e);
+  }
+  
+  const potonganRupiah = hargaTotal * (feePersen / 100);
+  const pajakRupiah = potonganRupiah * (pajakPersen / 100);
+  const totalPotongan = potonganRupiah + pajakRupiah;
+  
+  console.log(`Saldo driver: ${driverBalance}, Total potongan: ${totalPotongan}, harga: ${hargaTotal}, fee: ${feePersen}%, pajak: ${pajakPersen}%`);
+  
+  if (driverBalance < totalPotongan) {
+    showPopup('Saldo Tidak Cukup', 
+      `Saldo Anda Rp ${driverBalance.toLocaleString('id-ID')} tidak mencukupi untuk membayar potongan (fee ${feePersen}% + pajak ${pajakPersen}%) sebesar Rp ${totalPotongan.toLocaleString('id-ID')}.`, 
+      'warning');
+    return;
+  }
+  
   const ambilBtn = document.getElementById('ambilBtn');
   ambilBtn.disabled = true; ambilBtn.textContent = 'Mengirim...';
   const snapshot = await database.ref(`orders/${orderId}`).once('value');
@@ -1013,16 +1016,14 @@ if (driverBalance < totalPotongan) {
   try {
     await database.ref(`orders/${orderId}/driver_offers/${globalCurrentUid}`).set(driverDataForOffer);
     
-    // Jika ini autobid, catat orderId agar tidak dikirim lagi
-if (isAuto) {
-  autobidOfferedOrders.add(orderId);
-  // Simpan ke localStorage
-  let storedOffers = JSON.parse(localStorage.getItem('autobid_offered_orders') || '[]');
-  if (!storedOffers.includes(orderId)) {
-    storedOffers.push(orderId);
-    localStorage.setItem('autobid_offered_orders', JSON.stringify(storedOffers));
-  }
-}
+    if (isAuto) {
+      autobidOfferedOrders.add(orderId);
+      let storedOffers = JSON.parse(localStorage.getItem('autobid_offered_orders') || '[]');
+      if (!storedOffers.includes(orderId)) {
+        storedOffers.push(orderId);
+        localStorage.setItem('autobid_offered_orders', JSON.stringify(storedOffers));
+      }
+    }
     
     ambilBtn.textContent = 'Menunggu Konfirmasi';
     startCountdown(orderId, globalCurrentUid);
@@ -1034,17 +1035,16 @@ if (isAuto) {
 }
 
 function stopCountdown() {
+  isCountdownRunning = false;
   if (countdownInterval) clearInterval(countdownInterval);
   if (orderStatusListener && countdownOrderId) {
     database.ref(`orders/${countdownOrderId}`).off('value', orderStatusListener);
     orderStatusListener = null;
   }
-  // ========== TAMBAHKAN INI ==========
   if (offerRejectionListener && countdownOrderId && countdownDriverId) {
     database.ref(`orders/${countdownOrderId}/driver_offers/${countdownDriverId}/status`).off('value', offerRejectionListener);
     offerRejectionListener = null;
   }
-  // =================================
   const container = document.getElementById('countdownContainer');
   if (container) container.style.display = 'none';
   const ambilBtn = document.getElementById('ambilBtn');
@@ -1056,6 +1056,7 @@ function stopCountdown() {
 
 function startCountdown(orderId, driverId) {
   stopCountdown();
+  isCountdownRunning = true;
   countdownOrderId = orderId;
   countdownDriverId = driverId;
   const container = document.getElementById('countdownContainer');
@@ -1078,7 +1079,6 @@ function startCountdown(orderId, driverId) {
     }
   }, 1000);
   
-  // Listener status order (apakah diterima)
   orderStatusListener = database.ref(`orders/${orderId}`).on('value', (snapshot) => {
     const order = snapshot.val();
     if (!order) { stopCountdown(); closeModal(); return; }
@@ -1107,14 +1107,13 @@ function startCountdown(orderId, driverId) {
     }
   });
   
-  // ========== LISTENER UNTUK DETEKSI PENOLAKAN PENAWARAN ==========
   offerRejectionListener = database.ref(`orders/${orderId}/driver_offers/${driverId}/status`).on('value', (snap) => {
-      const status = snap.val();
-      if (status === 'rejected') {
-          stopCountdown();
-          closeModal();
-          showPopup('Penawaran Ditolak', 'Customer menolak penawaran Anda.', 'info');
-      }
+    const status = snap.val();
+    if (status === 'rejected' && isCountdownRunning) {
+      stopCountdown();
+      closeModal();
+      showPopup('Penawaran Ditolak', 'Customer menolak penawaran Anda.', 'info');
+    }
   });
 }
 
@@ -1123,14 +1122,11 @@ function closeModal() {
   document.getElementById('orderModal').style.display = 'none';
   stopCountdown();
   currentSelectedOrder = null;
-
-  // Hentikan listener modal order
   if (currentModalOrderListener && currentModalOrderRef) {
     currentModalOrderRef.off('value', currentModalOrderListener);
     currentModalOrderListener = null;
     currentModalOrderRef = null;
   }
-
   loadOrders();
 }
 
@@ -1148,19 +1144,16 @@ function updateDriverLocation(position) {
     loadOrders();
   }
   if (locationTrackingEnabled && currentDriverData && globalCurrentUid) {
-    // Simpan ke node drivers (private)
     database.ref('drivers/' + globalCurrentUid).update({
       latitude: driverLocation.latitude, longitude: driverLocation.longitude, last_update: new Date().toISOString()
     }).catch(console.error);
-    
-    // **TAMBAHAN: Simpan juga ke driver_locations (untuk admin)**
     database.ref(`driver_locations/${globalCurrentUid}`).update({
-  latitude: driverLocation.latitude,
-  longitude: driverLocation.longitude,
-  tracking_enabled: locationTrackingEnabled,
-  autobid_enabled: autobidEnabled,   // <-- TAMBAHKAN INI
-  last_update: new Date().toISOString()
-}).catch(console.error);
+      latitude: driverLocation.latitude,
+      longitude: driverLocation.longitude,
+      tracking_enabled: locationTrackingEnabled,
+      autobid_enabled: autobidEnabled,
+      last_update: new Date().toISOString()
+    }).catch(console.error);
   }
 }
 
@@ -1211,27 +1204,21 @@ function toggleLocationTracking() {
   locationTrackingEnabled = !locationTrackingEnabled;
   localStorage.setItem(STORAGE_TRACKING, locationTrackingEnabled);
   updateTrackingButton();
-
-  // Kirim status tracking ke database agar admin tahu driver aktif/nonaktif
   if (globalCurrentUid) {
     database.ref('drivers/' + globalCurrentUid).update({
       tracking_enabled: locationTrackingEnabled,
       last_update: new Date().toISOString()
     }).catch(console.error);
-    
-    // **TAMBAHAN: Simpan juga ke driver_locations**
     database.ref(`driver_locations/${globalCurrentUid}`).update({
       tracking_enabled: locationTrackingEnabled,
       last_update: new Date().toISOString()
     }).catch(console.error);
   }
-
   if (locationTrackingEnabled && driverLocation.latitude && currentDriverData && globalCurrentUid) {
     database.ref('drivers/' + globalCurrentUid).update({
       latitude: driverLocation.latitude,
       longitude: driverLocation.longitude
     }).catch(console.error);
-    // juga update di driver_locations
     database.ref(`driver_locations/${globalCurrentUid}`).update({
       latitude: driverLocation.latitude,
       longitude: driverLocation.longitude
@@ -1243,15 +1230,11 @@ function toggleAutobid() {
   autobidEnabled = !autobidEnabled;
   localStorage.setItem(STORAGE_AUTOBID, autobidEnabled);
   updateAutobidButton();
-
-  // Kirim status autobid ke database (node drivers)
   if (globalCurrentUid) {
     database.ref('drivers/' + globalCurrentUid).update({
       autobid_enabled: autobidEnabled,
       last_update: new Date().toISOString()
     }).catch(console.error);
-    
-    // **TAMBAH: Simpan juga ke driver_locations (untuk admin)**
     database.ref(`driver_locations/${globalCurrentUid}`).update({
       autobid_enabled: autobidEnabled,
       last_update: new Date().toISOString()
@@ -1262,18 +1245,15 @@ function refreshData() { loadOrders(); }
 
 function showPopup(title, message, type = 'info', options = {}) {
   document.getElementById('popupTitle').textContent = title;
-  document.getElementById('popupMessage').textContent = message;
+  document.getElementById('popupMessage').innerHTML = message;
   document.getElementById('popupIcon').innerHTML = { success: '✅', error: '❌', warning: '⚠️', info: 'ℹ️' }[type] || 'ℹ️';
-  
   const confirmBtn = document.getElementById('popupButton');
-  // Simpan callback onConfirm jika ada
   confirmBtn.onclick = () => {
     hidePopup();
     if (options.onConfirm && typeof options.onConfirm === 'function') {
       options.onConfirm();
     }
   };
-  
   document.getElementById('popupOverlay').style.display = 'flex';
 }
 function hidePopup() { document.getElementById('popupOverlay').style.display = 'none'; }
@@ -1289,159 +1269,6 @@ function stopAllSounds() {
   });
 }
 
-// ========== DEBUG ONESIGNAL (fungsi terpisah) ==========
-async function showDebugInfo() {
-  const debugDiv = document.getElementById('debugLog');
-  if (!debugDiv) return;
-  debugDiv.innerHTML = "⏳ Mengambil informasi...\n";
-
-  if (typeof median === 'undefined' || !median.onesignal) {
-    debugDiv.innerHTML += "❌ median.onesignal tidak tersedia (bukan app Median)\n";
-    return;
-  }
-
-  try {
-    // Cek consent
-    if (median.onesignal.consentGiven) {
-      const consent = await median.onesignal.consentGiven();
-      debugDiv.innerHTML += `✅ Consent diberikan: ${consent}\n`;
-    }
-    // Ambil info subscription
-    const info = await median.onesignal.onesignalInfo();
-    debugDiv.innerHTML += `📱 Info OneSignal: ${JSON.stringify(info, null, 2)}\n`;
-
-    let playerId = info?.userId || info?.oneSignalUserId || info?.subscription?.id;
-    if (playerId) {
-      debugDiv.innerHTML += `🎉 PlayerId: ${playerId}\n`;
-      if (globalCurrentUid) {
-        const snap = await database.ref(`drivers/${globalCurrentUid}/playerId`).once('value');
-        const savedId = snap.val();
-        if (savedId === playerId) {
-          debugDiv.innerHTML += `✅ PlayerId sudah tersimpan di Firebase (node drivers)\n`;
-        } else {
-          debugDiv.innerHTML += `⚠️ PlayerId belum tersimpan di Firebase (local: ${playerId}, stored: ${savedId})\n`;
-        }
-        // cek juga di driver_locations
-        const snapLoc = await database.ref(`driver_locations/${globalCurrentUid}/playerId`).once('value');
-        const savedLocId = snapLoc.val();
-        if (savedLocId === playerId) {
-          debugDiv.innerHTML += `✅ PlayerId juga sudah tersimpan di driver_locations\n`;
-        } else {
-          debugDiv.innerHTML += `⚠️ PlayerId belum tersimpan di driver_locations\n`;
-        }
-      }
-    } else {
-      debugDiv.innerHTML += `❌ PlayerId tidak ditemukan. Klik tombol "Aktifkan Notifikasi" untuk memulai.\n`;
-    }
-  } catch (err) {
-    debugDiv.innerHTML += `❌ Error: ${err.message}\n`;
-  }
-}
-
-// ========== ONESIGNAL INTEGRATION (DIPANGGIL SAAT USER GESTURE) ==========
-async function initOneSignal() {
-  if (typeof median === 'undefined' || !median.onesignal) {
-    console.warn("⚠️ Median OneSignal tidak tersedia (mungkin bukan di app Median)");
-    showPopup("Info", "OneSignal tidak tersedia. Pastikan aplikasi berjalan di lingkungan Median.", "warning");
-    return false;
-  }
-
-  const debugDiv = document.getElementById('debugLog');
-  function addLog(msg) {
-    if (debugDiv) debugDiv.innerHTML += msg + "\n";
-    console.log("[OneSignal]", msg);
-  }
-
-  try {
-    addLog("🚀 Memulai inisialisasi OneSignal...");
-    
-    // Set log level verbose (untuk debugging)
-    try {
-      if (window.OneSignal && OneSignal.setLogLevel) {
-        OneSignal.setLogLevel(OneSignal.LOG_LEVEL.VERBOSE, OneSignal.LOG_LEVEL.NONE);
-        addLog("✅ OneSignal log level set to VERBOSE");
-      }
-      if (median.onesignal && median.onesignal.setLogLevel) {
-        await median.onesignal.setLogLevel(median.onesignal.LogLevel.Verbose);
-        addLog("✅ Median OneSignal log level set to VERBOSE");
-      }
-    } catch(e) {
-      addLog(`⚠️ Gagal set log level: ${e.message}`);
-    }
-
-    // 1. Berikan consent (wajib untuk GDPR)
-    if (median.onesignal.setConsentGiven) {
-      await median.onesignal.setConsentGiven(true);
-      addLog("✅ Consent diberikan");
-    }
-
-    // 2. Register perangkat
-    await median.onesignal.register();
-    addLog("✅ Register berhasil");
-
-    // 3. Minta izin notifikasi (popup) - HARUS dengan user gesture
-    if (median.onesignal.promptForPushNotificationsWithUserResponse) {
-      addLog("🔔 Meminta izin notifikasi...");
-      await median.onesignal.promptForPushNotificationsWithUserResponse();
-      addLog("✅ Izin notifikasi diminta");
-    }
-
-    // 4. Tunggu sinkronisasi (lebih lama)
-    addLog("⏳ Menunggu sinkronisasi (8 detik)...");
-    await new Promise(r => setTimeout(r, 8000));
-
-    // 5. Ambil info OneSignal dengan retry
-    let playerId = null;
-    for (let i = 0; i < 3; i++) {
-      addLog(`🔍 Percobaan ${i+1} mengambil info OneSignal...`);
-      const info = await median.onesignal.onesignalInfo();
-      addLog(`Info: ${JSON.stringify(info)}`);
-      playerId = info?.userId || info?.oneSignalUserId || info?.subscription?.id;
-      if (playerId) break;
-      addLog("⏳ Player ID belum ada, tunggu 5 detik lagi...");
-      await new Promise(r => setTimeout(r, 5000));
-    }
-
-    if (playerId) {
-      addLog(`🎉 SUCCESS! PlayerId: ${playerId}`);
-      let uid = globalCurrentUid;
-      if (!uid && auth.currentUser) uid = auth.currentUser.uid;
-      
-      if (uid) {
-        // Simpan ke node drivers (private)
-        await database.ref(`drivers/${uid}`).update({
-          playerId: playerId,
-          last_playerid_update: new Date().toISOString()
-        });
-        addLog(`✅ PlayerId tersimpan di database drivers/${uid}/playerId`);
-        
-        // **TAMBAHAN: Simpan juga ke driver_locations (untuk admin)**
-        await database.ref(`driver_locations/${uid}`).update({
-          playerId: playerId,
-          last_update: new Date().toISOString()
-        });
-        addLog(`✅ PlayerId juga tersimpan di driver_locations/${uid}/playerId`);
-        
-        showPopup("Notifikasi Aktif", "Perangkat Anda sekarang akan menerima notifikasi order baru.", "success");
-      } else {
-        addLog("❌ UID driver tidak tersedia, tidak bisa simpan playerId");
-        showPopup("Perhatian", "UID driver tidak ditemukan. Coba login ulang.", "warning");
-      }
-      return true;
-    } else {
-      addLog("❌ Gagal mendapatkan playerId setelah beberapa percobaan");
-      showPopup("Gagal", "Tidak dapat mengaktifkan notifikasi. Coba lagi atau periksa koneksi.", "error");
-      return false;
-    }
-  } catch (err) {
-    const debugDiv = document.getElementById('debugLog');
-    if (debugDiv) debugDiv.innerHTML += `❌ Error: ${err.message}\n`;
-    console.error("OneSignal error:", err);
-    showPopup("Error", `Gagal mengaktifkan notifikasi: ${err.message}`, "error");
-    return false;
-  }
-}
-
 // ========== CEK APAKAH DRIVER SUDAH MEMILIKI PLAYERID ==========
 async function checkPlayerIdAndPrompt() {
   if (!globalCurrentUid) return;
@@ -1449,7 +1276,6 @@ async function checkPlayerIdAndPrompt() {
     const snap = await database.ref(`drivers/${globalCurrentUid}/playerId`).once('value');
     const existingPlayerId = snap.val();
     if (!existingPlayerId) {
-      // Belum ada playerId, tampilkan modal prompt
       document.getElementById('notifPromptModal').style.display = 'flex';
     } else {
       console.log("PlayerId sudah ada di Firebase:", existingPlayerId);
@@ -1459,7 +1285,6 @@ async function checkPlayerIdAndPrompt() {
   }
 }
 
-// Fungsi untuk menutup modal prompt
 function closeNotifPrompt() {
   document.getElementById('notifPromptModal').style.display = 'none';
 }
@@ -1493,8 +1318,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (user) {
     console.log('🔐 Driver terautentikasi dengan UID:', user.uid);
     globalCurrentUid = user.uid;
-
-    // ========== CEK STATUS DRIVER DARI DATABASE ==========
     const driverSnapshot = await database.ref(`drivers/${user.uid}`).once('value');
     const driverDataDB = driverSnapshot.val();
     if (driverDataDB) {
@@ -1502,21 +1325,18 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (status === 'rejected' || status === 'blocked') {
         const ketGagal = driverDataDB.ketGagal || driverDataDB.rejectionReason || driverDataDB.blockReason || 'Tidak ada keterangan.';
         const title = (status === 'rejected') ? 'Akun Ditolak' : 'Akun Diblokir';
-        // Tampilkan popup alasan, lalu logout setelah klik OK
         showPopup(title, `Alasan: ${ketGagal}`, 'error', {
           confirmText: 'OK',
           onConfirm: async () => {
-  await auth.signOut();
-  localStorage.removeItem('jego_logged_in_driver');
-  localStorage.removeItem('autobid_offered_orders');
-  window.location.href = 'loginDriver.html';
-}
+            await auth.signOut();
+            localStorage.removeItem('jego_logged_in_driver');
+            localStorage.removeItem('autobid_offered_orders');
+            window.location.href = 'loginDriver.html';
+          }
         });
-        return; // Hentikan eksekusi lebih lanjut
+        return;
       }
     }
-    // =====================================================
-
     if (await checkDriverActiveOrder()) return;
     if (!checkDriverData()) {
       await auth.signOut();
@@ -1526,7 +1346,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     await fetchMapboxToken().catch(()=>console.warn('Mapbox token tidak tersedia'));
     loadStoredSettings();
-    // Sinkronisasi status dari database (tracking_enabled, autobid_enabled)
     if (globalCurrentUid) {
       database.ref('drivers/' + globalCurrentUid).once('value').then(snap => {
         const data = snap.val();
@@ -1546,7 +1365,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     loadOrders();
     setTimeout(startGPSMonitoring, 1000);
-    // CEK APAKAH DRIVER SUDAH PUNYA PLAYERID, JIKA BELUM TAMPILKAN MODAL
     await checkPlayerIdAndPrompt();
   } else {
     console.warn('❌ Driver tidak login, redirect ke loginDriver.html');
@@ -1561,28 +1379,19 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('locationToggleBtn').addEventListener('click', toggleLocationTracking);
   document.getElementById('refreshBtn').addEventListener('click', refreshData);
   document.getElementById('closeModal').addEventListener('click', closeModal);
-  document.getElementById('ambilBtn').addEventListener('click', sendDriverOffer);
+  document.getElementById('ambilBtn').addEventListener('click', () => sendDriverOffer(false));
   document.getElementById('autobidBtn').addEventListener('click', toggleAutobid);
   document.getElementById('orderModal').addEventListener('click', e => { if (e.target === document.getElementById('orderModal') && !countdownInterval) closeModal(); });
   document.getElementById('popupButton').addEventListener('click', hidePopup);
   document.getElementById('acceptKurirToggle').addEventListener('change', updateAcceptKurirSetting);
   document.querySelectorAll('.nav-item').forEach(item => item.addEventListener('click', () => navigateToScreen(item.dataset.screen)));
-  // Tombol debug OneSignal
-  document.getElementById('debugOneSignalBtn')?.addEventListener('click', showDebugInfo);
-  // Tombol Aktifkan Notifikasi (Manual) di sidebar
-  document.getElementById('enableNotifBtn')?.addEventListener('click', async () => {
-    await initOneSignal();
-    // Setelah selesai (sukses/gagal), tutup modal prompt jika masih terbuka
-    closeNotifPrompt();
-  });
-  // Tombol pada modal prompt
   document.getElementById('promptAllowBtn')?.addEventListener('click', async () => {
     closeNotifPrompt();
-    await initOneSignal();
+    // Inisialisasi OneSignal (jika ada) – disarankan tidak langsung, tapi biarkan pengguna mengaktifkan nanti
+    if (typeof initOneSignal !== 'undefined') await initOneSignal();
   });
   document.getElementById('promptLaterBtn')?.addEventListener('click', () => {
     closeNotifPrompt();
-    // Tidak melakukan apa-apa, nanti akan muncul lagi saat refresh atau lain kali
   });
 });
 
