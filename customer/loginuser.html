@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <title>Login - JeGo</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
 
   <!-- Firebase SDK (Auth + Database) -->
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
@@ -11,59 +11,240 @@
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
 
   <style>
-    :root { --primary: #FF9800; --secondary: #FF5722; --accent: #FFC107; --dark: #343a40; }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'Segoe UI', sans-serif; background: #f5f5f5; color: #333; font-size: 0.9rem; }
-    .header { background: linear-gradient(135deg, var(--primary), var(--secondary)); color: white; padding: 15px 20px; display: flex; align-items: center; box-shadow: 0 2px 10px rgba(0,0,0,0.2); }
-    .logo { width: 40px; height: 40px; background: var(--accent); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-right: 10px; font-weight: bold; color: var(--dark); }
-    .header-title { font-size: 1.2rem; font-weight: 600; }
-    .container { max-width: 500px; margin: 20px auto; padding: 0 15px; }
-    .form-container { background: white; border-radius: 8px; padding: 20px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
-    .form-title { font-size: 1.5rem; font-weight: 600; color: var(--primary); text-align: center; margin-bottom: 20px; }
-    .form-group { margin-bottom: 15px; }
-    .form-label { display: block; font-weight: 600; margin-bottom: 5px; color: var(--dark); }
-    .input-group { position: relative; display: flex; align-items: center; }
-    .form-input { width: 100%; padding: 10px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 1rem; }
-    .form-input:focus { border-color: var(--primary); outline: none; box-shadow: 0 0 0 3px rgba(255,152,0,0.1); }
-    .form-input.password-input { padding-right: 40px; }
-    .toggle-password {
-      position: absolute;
-      right: 12px;
-      cursor: pointer;
-      font-size: 1.2rem;
-      user-select: none;
-      background: none;
-      border: none;
+    * {
+      margin: 0;
       padding: 0;
+      box-sizing: border-box;
+    }
+
+    :root {
+      --primary: #FF9800;
+      --primary-dark: #E65100;
+      --secondary: #FF5722;
+      --accent: #FFC107;
+      --dark: #2C3E50;
+      --light: #F8F9FA;
+      --gray: #6C757D;
+      --white: #FFFFFF;
+      --danger: #E74C3C;
+      --success: #2ECC71;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #FFF3E0, #FFE0B2);
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+    }
+
+    .auth-container {
+      width: 100%;
+      max-width: 450px;
+    }
+
+    .card {
+      background: var(--white);
+      border-radius: 32px;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1), 0 4px 12px rgba(0, 0, 0, 0.05);
+      overflow: hidden;
+      transition: transform 0.3s ease;
+    }
+
+    .card-header {
+      background: linear-gradient(135deg, var(--primary), var(--secondary));
+      padding: 30px 20px;
+      text-align: center;
+      color: white;
+    }
+
+    .logo-wrapper {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      margin-bottom: 8px;
+    }
+
+    .logo-icon {
+      width: 48px;
+      height: 48px;
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 50%;
       display: flex;
       align-items: center;
       justify-content: center;
-      color: #888;
+      font-size: 28px;
     }
-    .submit-btn { background: linear-gradient(to right, var(--primary), var(--secondary)); color: white; border: none; border-radius: 8px; padding: 12px; font-size: 1rem; font-weight: 600; cursor: pointer; width: 100%; transition: 0.3s; }
-    .submit-btn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 6px 15px rgba(0,0,0,0.2); }
-    .submit-btn:disabled { background: #ccc; cursor: not-allowed; }
-    .secondary-btn { background: transparent; color: var(--primary); border: 1px solid var(--primary); border-radius: 8px; padding: 12px; font-size: 1rem; font-weight: 600; cursor: pointer; width: 100%; margin-top: 10px; }
-    .status-message { padding: 12px; border-radius: 6px; margin-bottom: 15px; display: none; }
-    .status-success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
-    .status-error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
-    .status-info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
-    .progress-container { height: 4px; background: #e0e0e0; margin: 10px 0; display: none; }
-    .progress-bar { height: 100%; background: linear-gradient(to right, var(--primary), var(--secondary)); width: 0%; }
-    .notification { position: fixed; top: 20px; right: 20px; background: white; padding: 15px; border-radius: 8px; border-left: 4px solid var(--primary); display: none; max-width: 300px; z-index: 1000; }
+
+    .card-header h1 {
+      font-size: 1.8rem;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+    }
+
+    .card-header p {
+      font-size: 0.9rem;
+      opacity: 0.9;
+      margin-top: 4px;
+    }
+
+    .card-body {
+      padding: 32px 24px;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    .form-label {
+      display: block;
+      font-weight: 600;
+      margin-bottom: 8px;
+      color: var(--dark);
+      font-size: 0.9rem;
+    }
+
+    .input-group {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+
+    .form-control {
+      width: 100%;
+      padding: 14px 16px;
+      font-size: 1rem;
+      border: 2px solid #EDF2F7;
+      border-radius: 24px;
+      background: var(--light);
+      transition: all 0.2s ease;
+      font-family: inherit;
+    }
+
+    .form-control:focus {
+      outline: none;
+      border-color: var(--primary);
+      background: white;
+      box-shadow: 0 0 0 3px rgba(255, 152, 0, 0.1);
+    }
+
+    .toggle-password {
+      position: absolute;
+      right: 16px;
+      background: none;
+      border: none;
+      font-size: 1.2rem;
+      cursor: pointer;
+      color: var(--gray);
+      padding: 0;
+    }
+
+    .btn-login {
+      width: 100%;
+      padding: 14px;
+      background: linear-gradient(135deg, var(--primary), var(--secondary));
+      color: white;
+      border: none;
+      border-radius: 40px;
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      margin-top: 8px;
+      box-shadow: 0 4px 10px rgba(255, 152, 0, 0.3);
+    }
+
+    .btn-login:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 16px rgba(255, 152, 0, 0.4);
+    }
+
+    .btn-login:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .register-link {
+      text-align: center;
+      margin-top: 24px;
+      font-size: 0.9rem;
+      color: var(--gray);
+    }
+
+    .register-link a {
+      color: var(--primary);
+      text-decoration: none;
+      font-weight: 600;
+    }
+
+    .register-link a:hover {
+      text-decoration: underline;
+    }
+
+    .alert {
+      padding: 12px 16px;
+      border-radius: 16px;
+      margin-bottom: 20px;
+      font-size: 0.85rem;
+      display: none;
+      background: #FFF3CD;
+      border-left: 4px solid #FFC107;
+      color: #856404;
+    }
+
+    .alert.error {
+      background: #FEE2E2;
+      border-left-color: var(--danger);
+      color: #991B1B;
+    }
+
+    .alert.success {
+      background: #D1FAE5;
+      border-left-color: var(--success);
+      color: #065F46;
+    }
+
+    .progress-container {
+      height: 4px;
+      background: #EDF2F7;
+      border-radius: 4px;
+      margin-top: 12px;
+      overflow: hidden;
+      display: none;
+    }
+
+    .progress-bar {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--primary), var(--secondary));
+      transition: width 0.3s;
+    }
+
+    @media (max-width: 480px) {
+      .card-body {
+        padding: 24px 20px;
+      }
+      .card-header {
+        padding: 24px 20px;
+      }
+    }
   </style>
 </head>
 <body>
-  <div class="header">
-    <div class="logo">JG</div>
-    <div class="header-title">JeGo - Login</div>
-  </div>
-
-  <div class="container">
-    <div class="form-container">
-      <h1 class="form-title">Masuk ke JeGo</h1>
-
-      <div class="status-message" id="statusMessage"></div>
+<div class="auth-container">
+  <div class="card">
+    <div class="card-header">
+      <div class="logo-wrapper">
+        <div class="logo-icon">🚗</div>
+        <h1>JeGo</h1>
+      </div>
+      <p>Masuk ke akun Anda</p>
+    </div>
+    <div class="card-body">
+      <div class="alert" id="statusMessage"></div>
       <div class="progress-container" id="progressContainer">
         <div class="progress-bar" id="progressBar"></div>
       </div>
@@ -71,179 +252,166 @@
       <form id="loginForm">
         <div class="form-group">
           <label class="form-label" for="emailInput">Email</label>
-          <input type="email" class="form-input" id="emailInput" required>
+          <input type="email" id="emailInput" class="form-control" placeholder="contoh@email.com" required autocomplete="email">
         </div>
         <div class="form-group">
           <label class="form-label" for="passwordInput">Password</label>
           <div class="input-group">
-            <input type="password" class="form-input password-input" id="passwordInput" required>
+            <input type="password" id="passwordInput" class="form-control" placeholder="********" required autocomplete="current-password">
             <button type="button" class="toggle-password" id="togglePassword">👁️</button>
           </div>
         </div>
-        <button type="submit" class="submit-btn" id="loginBtn">Login</button>
-        <button type="button" class="secondary-btn" id="registerBtn" onclick="window.location.href='registrasi_jego.html'">Belum punya akun? Daftar</button>
+        <button type="submit" class="btn-login" id="loginBtn">Login</button>
       </form>
+
+      <div class="register-link">
+        Belum punya akun? <a href="registrasi_jego.html">Daftar sekarang</a>
+      </div>
     </div>
   </div>
+</div>
 
-  <div class="notification" id="notificationPopup">
-    <div id="notificationTitle"></div>
-    <div id="notificationMessage"></div>
-  </div>
+<script>
+  // Konfigurasi Firebase
+  const FIREBASE_CONFIG = {
+    apiKey: "AIzaSyCD0pgeZio-LdKqYDtWxcdXcZwyL4ngYQI",
+    authDomain: "jego-35a2b.firebaseapp.com",
+    databaseURL: "https://jego-35a2b-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "jego-35a2b",
+    storageBucket: "jego-35a2b.firebasestorage.app",
+    messagingSenderId: "600037007040",
+    appId: "1:600037007040:web:ac3243ad9b472647ffd725"
+  };
 
-  <script>
-    // KONFIGURASI FIREBASE PROYEK BARU (jego-35a2b)
-    const FIREBASE_CONFIG = {
-      apiKey: "AIzaSyCD0pgeZio-LdKqYDtWxcdXcZwyL4ngYQI",
-      authDomain: "jego-35a2b.firebaseapp.com",
-      databaseURL: "https://jego-35a2b-default-rtdb.asia-southeast1.firebasedatabase.app",
-      projectId: "jego-35a2b",
-      storageBucket: "jego-35a2b.firebasestorage.app",
-      messagingSenderId: "600037007040",
-      appId: "1:600037007040:web:ac3243ad9b472647ffd725",
-      measurementId: "G-H5F9TSK50K"
-    };
+  let firebaseAuth;
+  let firebaseDatabase;
 
-    let firebaseAuth;
-    let firebaseDatabase;
+  function showStatus(msg, type) {
+    const el = document.getElementById('statusMessage');
+    el.textContent = msg;
+    el.className = `alert ${type}`;
+    el.style.display = 'block';
+    setTimeout(() => {
+      el.style.display = 'none';
+    }, 5000);
+  }
 
-    function showNotif(title, msg, type = 'info') {
-      const n = document.getElementById('notificationPopup');
-      document.getElementById('notificationTitle').innerText = title;
-      document.getElementById('notificationMessage').innerHTML = msg;
-      n.className = `notification ${type}`;
-      n.style.display = 'block';
-      setTimeout(() => n.style.display = 'none', 4000);
-    }
+  function showProgress(percent) {
+    const container = document.getElementById('progressContainer');
+    const bar = document.getElementById('progressBar');
+    container.style.display = 'block';
+    bar.style.width = percent + '%';
+  }
 
-    function showStatus(msg, type) {
-      const el = document.getElementById('statusMessage');
-      el.innerText = msg;
-      el.className = `status-message status-${type}`;
-      el.style.display = 'block';
-      if (type === 'success') setTimeout(() => el.style.display = 'none', 5000);
-    }
+  function hideProgress() {
+    const container = document.getElementById('progressContainer');
+    container.style.display = 'none';
+    document.getElementById('progressBar').style.width = '0%';
+  }
 
-    function showProgress(percent) {
-      document.getElementById('progressContainer').style.display = 'block';
-      document.getElementById('progressBar').style.width = percent + '%';
-    }
-    function hideProgress() {
-      document.getElementById('progressContainer').style.display = 'none';
-    }
+  async function initFirebase() {
+    if (typeof firebase === 'undefined') throw new Error('Firebase SDK not loaded');
+    if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
+    firebaseAuth = firebase.auth();
+    firebaseDatabase = firebase.database();
+  }
 
-    async function initFirebase() {
-      if (typeof firebase === 'undefined') throw new Error('Firebase SDK not loaded');
-      if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
-      firebaseAuth = firebase.auth();
-      firebaseDatabase = firebase.database();
-    }
+  async function getUserDataFromDB(uid) {
+    const snapshot = await firebaseDatabase.ref(`users/${uid}`).once('value');
+    return snapshot.val();
+  }
 
-    // Fungsi mengambil data user dari database
-    async function getUserDataFromDB(uid) {
-      const snapshot = await firebaseDatabase.ref(`users/${uid}`).once('value');
-      return snapshot.val();
-    }
+  document.getElementById('loginForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const email = document.getElementById('emailInput').value.trim();
+    const password = document.getElementById('passwordInput').value;
 
-    // Handle login
-    document.getElementById('loginForm').addEventListener('submit', async (e) => {
-      e.preventDefault();
+    if (!email) return showStatus('Email harus diisi', 'error');
+    if (!password) return showStatus('Password harus diisi', 'error');
 
-      const email = document.getElementById('emailInput').value.trim();
-      const password = document.getElementById('passwordInput').value;
+    const btn = document.getElementById('loginBtn');
+    btn.disabled = true;
+    btn.innerText = 'Login...';
+    showProgress(20);
 
-      if (!email) return showStatus('Email harus diisi', 'error');
-      if (!password) return showStatus('Password harus diisi', 'error');
+    try {
+      await initFirebase();
 
-      const btn = document.getElementById('loginBtn');
-      btn.disabled = true;
-      btn.innerText = 'Login...';
-      showProgress(30);
+      // 🔥 TAMBAHKAN PERSISTENCE AGAR SESI TETAP SETELAH APLIKASI DITUTUP
+      await firebaseAuth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
 
-      try {
-        // Login ke Firebase Auth
-        const userCredential = await firebaseAuth.signInWithEmailAndPassword(email, password);
-        const user = userCredential.user;
-        const uid = user.uid;
-        showProgress(70);
+      showProgress(50);
+      const userCredential = await firebaseAuth.signInWithEmailAndPassword(email, password);
+      const user = userCredential.user;
+      const uid = user.uid;
 
-        // Ambil data user dari Realtime Database
-        const userData = await getUserDataFromDB(uid);
-        if (!userData) {
-          throw new Error('Data user tidak ditemukan di database');
-        }
-
-        // Siapkan session untuk halaman lain
-        const session = {
-          userId: uid,
-          uid: uid,
-          name: userData.name || '',
-          phone: userData.phone || '',
-          email: userData.email || email,
-          address: userData.address || '',
-          gender: userData.gender || '',
-          status: userData.status || 'active',
-          photoURL: userData.photoURL || '',
-          rating: userData.rating || 5,
-          perjalanan: userData.perjalanan || 0
-        };
-        localStorage.setItem('jego_logged_in_user', JSON.stringify(session));
-
-        showProgress(100);
-        showStatus('Login berhasil! Mengalihkan...', 'success');
-        setTimeout(() => {
-          window.location.href = 'jenis_kenderaan.html';
-        }, 1500);
-      } catch (error) {
-        console.error('Login error:', error);
-        let pesanError = 'Login gagal. ';
-        switch (error.code) {
-          case 'auth/user-not-found':
-            pesanError += 'Email tidak terdaftar.';
-            break;
-          case 'auth/wrong-password':
-            pesanError += 'Password salah.';
-            break;
-          case 'auth/invalid-email':
-            pesanError += 'Format email tidak valid.';
-            break;
-          case 'auth/too-many-requests':
-            pesanError += 'Terlalu banyak percobaan. Coba lagi nanti.';
-            break;
-          default:
-            pesanError += error.message;
-        }
-        showStatus(pesanError, 'error');
-      } finally {
-        btn.disabled = false;
-        btn.innerText = 'Login';
-        hideProgress();
+      showProgress(70);
+      const userData = await getUserDataFromDB(uid);
+      if (!userData) {
+        throw new Error('Data user tidak ditemukan di database');
       }
-    });
 
-    // Toggle password visibility
-    const togglePwdBtn = document.getElementById('togglePassword');
-    const pwdInput = document.getElementById('passwordInput');
-    togglePwdBtn.addEventListener('click', () => {
-      const type = pwdInput.getAttribute('type') === 'password' ? 'text' : 'password';
-      pwdInput.setAttribute('type', type);
-      togglePwdBtn.textContent = type === 'password' ? '👁️' : '🙈';
-    });
+      const session = {
+        userId: uid,
+        uid: uid,
+        name: userData.name || '',
+        phone: userData.phone || '',
+        email: userData.email || email,
+        address: userData.address || '',
+        gender: userData.gender || '',
+        status: userData.status || 'active',
+        photoURL: userData.photoURL || '',
+        rating: userData.rating || 5,
+        perjalanan: userData.perjalanan || 0
+      };
+      localStorage.setItem('jego_logged_in_user', JSON.stringify(session));
 
-    // Inisialisasi
-    window.onload = async () => {
-      // Hapus session lama untuk menghindari bentrok
-      localStorage.removeItem('jego_logged_in_user');
-      try {
-        await initFirebase();
-        // Jika sudah login (misal karena cookie), kita signOut dulu (opsional)
-        if (firebaseAuth.currentUser) {
-          await firebaseAuth.signOut();
-        }
-      } catch (e) {
-        showNotif('Error', 'Gagal inisialisasi Firebase', 'error');
+      showProgress(100);
+      showStatus('Login berhasil! Mengalihkan...', 'success');
+      setTimeout(() => {
+        window.location.href = 'jenis_kenderaan.html';
+      }, 1500);
+    } catch (error) {
+      console.error('Login error:', error);
+      let pesanError = 'Login gagal. ';
+      switch (error.code) {
+        case 'auth/user-not-found':
+          pesanError += 'Email tidak terdaftar.';
+          break;
+        case 'auth/wrong-password':
+          pesanError += 'Password salah.';
+          break;
+        case 'auth/invalid-email':
+          pesanError += 'Format email tidak valid.';
+          break;
+        case 'auth/too-many-requests':
+          pesanError += 'Terlalu banyak percobaan. Coba lagi nanti.';
+          break;
+        default:
+          pesanError += error.message;
       }
-    };
-  </script>
+      showStatus(pesanError, 'error');
+      btn.disabled = false;
+      btn.innerText = 'Login';
+      hideProgress();
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  // Toggle password visibility
+  const togglePwdBtn = document.getElementById('togglePassword');
+  const pwdInput = document.getElementById('passwordInput');
+  togglePwdBtn.addEventListener('click', () => {
+    const type = pwdInput.getAttribute('type') === 'password' ? 'text' : 'password';
+    pwdInput.setAttribute('type', type);
+    togglePwdBtn.textContent = type === 'password' ? '👁️' : '🙈';
+  });
+
+  // Inisialisasi awal
+  window.onload = () => {
+    localStorage.removeItem('jego_logged_in_user');
+  };
+</script>
 </body>
 </html>
