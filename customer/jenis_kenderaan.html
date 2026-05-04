@@ -2,15 +2,21 @@
 <html lang="id">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
     <title>Pilih Transportasi - JeGo</title>
 
-    <!-- Firebase SDK hanya untuk Realtime Database -->
+    <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
 
     <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
         :root {
             --primary: #FF9800;
             --secondary: #FF5722;
@@ -24,82 +30,65 @@
             --gray: #9E9E9E;
         }
 
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        }
-
         body {
-            background-color: #f5f5f5;
-            color: var(--dark);
-            line-height: 1.6;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
             min-height: 100vh;
             display: flex;
             flex-direction: column;
         }
 
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 20px;
-            flex: 1;
-            padding-bottom: 80px;
-        }
-
-        /* HEADER */
-        header {
-            background: linear-gradient(135deg, var(--primary), var(--secondary));
-            color: white;
-            padding: 8px 0;
-            border-radius: 0 0 20px 20px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-            min-height: 56px;
-            display: flex;
-            align-items: center;
+        /* Header */
+        .header {
+            background: white;
+            padding: 15px 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            position: sticky;
+            top: 0;
+            z-index: 100;
         }
 
         .header-content {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            width: 100%;
+            max-width: 1200px;
+            margin: 0 auto;
         }
 
         .logo-container {
             display: flex;
             align-items: center;
+            gap: 12px;
         }
 
         .logo {
-            width: 40px;
-            height: 40px;
-            background-color: var(--accent);
+            width: 45px;
+            height: 45px;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            margin-right: 12px;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-            overflow: hidden;
         }
 
         .logo img {
-            width: 25px;
-            height: 25px;
-            object-fit: contain;
+            width: 28px;
+            height: 28px;
         }
 
-        h1 {
+        .logo-container h1 {
             font-size: 1.5rem;
-            margin-bottom: 0;
+            color: var(--dark);
         }
 
         .user-info {
+            color: var(--dark);
             font-size: 0.9rem;
-            opacity: 0.9;
-            margin-right: 10px;
+        }
+
+        .user-info strong {
+            color: var(--primary);
         }
 
         .header-actions {
@@ -108,51 +97,57 @@
         }
 
         .header-btn {
-            background: rgba(255, 255, 255, 0.2);
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
             color: white;
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            border-radius: 6px;
-            padding: 6px 12px;
+            border: none;
+            border-radius: 8px;
+            padding: 8px 16px;
             cursor: pointer;
             font-weight: 600;
             text-decoration: none;
-            transition: all 0.3s;
-            display: inline-block;
-            text-align: center;
             font-size: 0.85rem;
+            transition: transform 0.2s;
         }
 
         .header-btn:hover {
-            background: rgba(255, 255, 255, 0.3);
             transform: translateY(-2px);
         }
 
-        .content {
-            background: white;
-            border-radius: 15px;
-            padding: 25px;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
-            margin-top: 30px;
+        /* Container Utama */
+        .container {
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 0 20px;
+            flex: 1;
+            padding-bottom: 80px;
         }
 
-        h2 {
+        /* Content Card */
+        .content-card {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+        }
+
+        .content-card h2 {
             color: var(--primary);
-            margin-bottom: 20px;
-            padding-bottom: 10px;
-            border-bottom: 2px solid var(--accent);
             text-align: center;
+            margin-bottom: 10px;
+            font-size: 1.8rem;
         }
 
         .welcome-message {
             text-align: center;
-            margin-bottom: 25px;
-            color: #666;
-            font-size: 1.1rem;
+            color: var(--gray);
+            margin-bottom: 30px;
+            font-size: 1rem;
         }
 
-        .transport-options {
+        /* Grid Transportasi */
+        .transport-grid {
             display: grid;
-            grid-template-columns: repeat(2, 1fr);
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
             gap: 20px;
             margin-top: 20px;
         }
@@ -160,39 +155,35 @@
         .transport-card {
             background: white;
             border: 2px solid #e9ecef;
-            border-radius: 12px;
+            border-radius: 16px;
             padding: 20px;
             text-align: center;
             cursor: pointer;
             transition: all 0.3s ease;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
             position: relative;
-            min-height: 240px;
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
+            overflow: hidden;
         }
 
         .transport-card:hover {
             transform: translateY(-5px);
-            border-color: var(--secondary);
-            box-shadow: 0 8px 15px rgba(0, 0, 0, 0.1);
+            border-color: var(--primary);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
         }
 
         .transport-card.selected {
             border-color: var(--primary);
-            background-color: rgba(30, 111, 92, 0.05);
+            background: linear-gradient(135deg, rgba(255,152,0,0.05), rgba(255,87,34,0.05));
         }
 
         .transport-icon {
-            width: 70px;
-            height: 70px;
+            width: 80px;
+            height: 80px;
             margin: 0 auto 15px;
+            background: rgba(255,152,0,0.1);
+            border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            background: rgba(30, 111, 92, 0.1);
-            border-radius: 50%;
             padding: 15px;
         }
 
@@ -203,116 +194,108 @@
         }
 
         .transport-name {
-            font-size: 1.2rem;
-            font-weight: 600;
-            margin-bottom: 8px;
+            font-size: 1.3rem;
+            font-weight: 700;
             color: var(--dark);
+            margin-bottom: 8px;
         }
 
         .transport-capacity {
-            font-size: 0.9rem;
+            font-size: 0.85rem;
             color: var(--secondary);
+            font-weight: 600;
             margin-bottom: 10px;
-            font-weight: 500;
         }
 
         .transport-description {
             font-size: 0.85rem;
-            color: #666;
-            margin-bottom: 15px;
-            flex-grow: 1;
+            color: var(--gray);
             line-height: 1.5;
         }
 
-        .btn {
-            display: block;
-            width: 100%;
-            padding: 14px;
-            background: linear-gradient(to right, var(--primary), var(--secondary));
-            color: white;
-            border: none;
-            border-radius: 8px;
-            font-size: 1.1rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s;
-            margin-top: 15px;
-            text-decoration: none;
-            text-align: center;
-        }
-
-        .btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
-        }
-
-        .btn:disabled {
-            background: #cccccc;
-            cursor: not-allowed;
-            transform: none;
-            box-shadow: none;
-        }
-
-        footer {
-            text-align: center;
-            padding: 20px;
-            color: var(--dark);
-            font-size: 0.9rem;
-            background-color: white;
-            margin-top: 40px;
-            border-top: 1px solid #eee;
-        }
-
-        .local-badge {
-            display: inline-block;
-            background-color: var(--accent);
-            color: var(--dark);
-            padding: 5px 15px;
-            border-radius: 20px;
-            font-weight: bold;
-            margin-top: 10px;
-            font-size: 0.8rem;
-        }
-
-        .alert {
-            padding: 15px;
-            border-radius: 8px;
-            margin: 20px 0;
-            display: none;
-        }
-
-        .alert-success {
-            background-color: rgba(40, 167, 69, 0.1);
-            border: 1px solid var(--success);
-            color: var(--success);
-        }
-
-        .alert-danger {
-            background-color: rgba(220, 53, 69, 0.1);
-            border: 1px solid var(--danger);
-            color: var(--danger);
-        }
-
         /* Loading Spinner */
-        .loading-spinner {
+        .loading-container {
             display: flex;
             justify-content: center;
             align-items: center;
-            padding: 40px;
+            padding: 60px;
         }
 
         .spinner {
-            width: 40px;
-            height: 40px;
-            border: 4px solid rgba(30, 111, 92, 0.2);
-            border-left: 4px solid var(--primary);
+            width: 50px;
+            height: 50px;
+            border: 4px solid rgba(255,152,0,0.2);
+            border-top-color: var(--primary);
             border-radius: 50%;
             animation: spin 1s linear infinite;
         }
 
         @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        /* Login Required */
+        .login-required {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+        }
+
+        .login-required h2 {
+            color: var(--primary);
+            margin-bottom: 15px;
+        }
+
+        .login-required p {
+            color: var(--gray);
+            margin-bottom: 20px;
+        }
+
+        .login-required .btn {
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            color: white;
+            padding: 12px 30px;
+            border: none;
+            border-radius: 30px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        /* Alert */
+        .alert {
+            padding: 12px 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            display: none;
+            animation: slideDown 0.3s ease;
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .alert-success {
+            background: #d4edda;
+            color: #155724;
+            border-left: 4px solid var(--success);
+        }
+
+        .alert-danger {
+            background: #f8d7da;
+            color: #721c24;
+            border-left: 4px solid var(--danger);
         }
 
         /* Global Loading Overlay */
@@ -322,7 +305,7 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background-color: rgba(255, 255, 255, 0.9);
+            background: rgba(0,0,0,0.7);
             display: none;
             justify-content: center;
             align-items: center;
@@ -333,18 +316,16 @@
         .global-loading .spinner {
             width: 60px;
             height: 60px;
-            border: 6px solid rgba(30, 111, 92, 0.2);
-            border-left: 6px solid var(--primary);
+            border-width: 5px;
         }
 
         .global-loading p {
+            color: white;
             margin-top: 20px;
-            font-size: 1.1rem;
-            color: var(--dark);
-            font-weight: 600;
+            font-size: 1rem;
         }
 
-        /* Modal Styles */
+        /* Modal */
         .modal {
             display: none;
             position: fixed;
@@ -352,7 +333,7 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background-color: rgba(0, 0, 0, 0.5);
+            background: rgba(0,0,0,0.5);
             z-index: 1000;
             align-items: center;
             justify-content: center;
@@ -361,22 +342,22 @@
 
         .modal-content {
             background: white;
-            border-radius: 15px;
-            width: 100%;
+            border-radius: 20px;
             max-width: 500px;
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
-            overflow: hidden;
-            animation: modalAppear 0.3s ease-out;
+            width: 100%;
+            max-height: 90vh;
+            overflow-y: auto;
+            animation: modalAppear 0.3s ease;
         }
 
         @keyframes modalAppear {
             from {
                 opacity: 0;
-                transform: translateY(-20px);
+                transform: scale(0.9);
             }
             to {
                 opacity: 1;
-                transform: translateY(0);
+                transform: scale(1);
             }
         }
 
@@ -385,13 +366,12 @@
             color: white;
             padding: 20px;
             text-align: center;
+            border-radius: 20px 20px 0 0;
         }
 
         .modal-header h2 {
             color: white;
-            border-bottom: none;
             margin: 0;
-            padding: 0;
         }
 
         .modal-body {
@@ -404,8 +384,8 @@
 
         .form-group label {
             display: block;
-            margin-bottom: 8px;
             font-weight: 600;
+            margin-bottom: 8px;
             color: var(--dark);
         }
 
@@ -417,15 +397,13 @@
             width: 100%;
             padding: 12px 50px 12px 15px;
             border: 1px solid #ddd;
-            border-radius: 8px;
+            border-radius: 10px;
             font-size: 1rem;
-            transition: border-color 0.3s;
         }
 
         .input-with-icon input:focus {
             border-color: var(--primary);
             outline: none;
-            box-shadow: 0 0 0 2px rgba(30, 111, 92, 0.2);
         }
 
         .contact-icon {
@@ -435,65 +413,43 @@
             transform: translateY(-50%);
             background: var(--primary);
             color: white;
-            width: 30px;
-            height: 30px;
+            width: 32px;
+            height: 32px;
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
             cursor: pointer;
-            transition: all 0.3s;
-        }
-
-        .contact-icon:hover {
-            background: var(--secondary);
-            transform: translateY(-50%) scale(1.1);
         }
 
         .category-buttons {
             display: flex;
             flex-wrap: wrap;
             gap: 10px;
-            margin-top: 5px;
         }
 
         .category-btn {
-            padding: 8px 15px;
-            background: white;
-            border: 1px solid #ddd;
+            padding: 8px 16px;
+            background: #f0f0f0;
+            border: none;
             border-radius: 20px;
             cursor: pointer;
-            transition: all 0.3s;
-            font-size: 0.9rem;
+            transition: all 0.2s;
         }
 
         .category-btn.selected {
             background: var(--primary);
             color: white;
-            border-color: var(--primary);
-        }
-
-        .category-btn:hover:not(.selected) {
-            border-color: var(--primary);
-            color: var(--primary);
         }
 
         textarea {
             width: 100%;
-            padding: 12px 15px;
+            padding: 12px;
             border: 1px solid #ddd;
-            border-radius: 8px;
-            font-size: 1rem;
+            border-radius: 10px;
             font-family: inherit;
             resize: vertical;
             min-height: 100px;
-            transition: border-color 0.3s;
-        }
-
-        textarea:focus {
-            border-color: var(--primary);
-            outline: none;
-            box-shadow: 0 0 0 2px rgba(30, 111, 92, 0.2);
         }
 
         .modal-footer {
@@ -507,348 +463,156 @@
             flex: 1;
             padding: 12px;
             border: none;
-            border-radius: 8px;
-            font-size: 1rem;
+            border-radius: 10px;
             font-weight: 600;
             cursor: pointer;
-            transition: all 0.3s;
         }
 
         .btn-primary {
-            background: linear-gradient(to right, var(--primary), var(--secondary));
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
             color: white;
         }
 
         .btn-secondary {
-            background: #f8f9fa;
+            background: #f0f0f0;
             color: var(--dark);
-            border: 1px solid #ddd;
         }
 
-        .btn-primary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
-        }
-
-        .btn-secondary:hover {
-            background: #e9ecef;
-        }
-
-        /* Login Required Message */
-        .login-required {
+        /* Footer */
+        footer {
             text-align: center;
-            padding: 40px;
+            padding: 20px;
             background: white;
-            border-radius: 15px;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
-            margin-top: 30px;
+            margin-top: 40px;
         }
 
-        .login-required h2 {
-            color: var(--primary);
-            margin-bottom: 15px;
-        }
-
-        .login-required p {
-            color: #666;
-            margin-bottom: 20px;
-        }
-
-        /* Bottom Navigation Styles */
-        .bottom-nav {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            background-color: white;
-            display: flex;
-            justify-content: space-around;
-            align-items: center;
-            padding: 10px 0;
-            box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
-            z-index: 100;
-        }
-
-        .nav-item {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            flex: 1;
-            padding: 8px 0;
-            cursor: pointer;
-            transition: all 0.3s;
-            text-decoration: none;
-            color: #666;
-        }
-
-        .nav-item.active {
-            color: var(--primary);
-        }
-
-        .nav-icon {
-            width: 24px;
-            height: 24px;
-            margin-bottom: 4px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .nav-icon svg {
-            width: 100%;
-            height: 100%;
-            fill: currentColor;
-        }
-
-        .nav-label {
+        .local-badge {
+            display: inline-block;
+            background: var(--accent);
+            color: var(--dark);
+            padding: 5px 15px;
+            border-radius: 20px;
             font-size: 0.75rem;
-            font-weight: 500;
+            margin-top: 10px;
         }
 
-        .nav-item:hover {
-            color: var(--primary);
-        }
-
+        /* Responsive */
         @media (max-width: 768px) {
-            .transport-options {
+            .transport-grid {
                 grid-template-columns: 1fr;
             }
-
-            h1 {
-                font-size: 1.4rem;
-            }
-
-            .modal {
-                padding: 10px;
-            }
-
-            .category-buttons {
-                gap: 8px;
-            }
-
-            .category-btn {
-                padding: 6px 12px;
-                font-size: 0.85rem;
-            }
-
-            .transport-card {
-                min-height: 220px;
-                padding: 15px;
-            }
-
-            .header-actions {
+            .header-content {
                 flex-direction: column;
-                gap: 8px;
+                gap: 10px;
             }
-
-            .header-btn {
-                width: 100%;
-                padding: 5px 10px;
-                font-size: 0.8rem;
-            }
-
-            header {
-                padding: 6px 0;
-            }
-
-            .logo {
-                width: 35px;
-                height: 35px;
-            }
-
-            .logo img {
-                width: 20px;
-                height: 20px;
-            }
-
-            .user-info {
-                font-size: 0.8rem;
-            }
-        }
-
-        @media (max-width: 480px) {
-            .container {
-                padding: 15px;
-            }
-
-            .content {
+            .content-card {
                 padding: 20px;
             }
-
-            .transport-options {
-                gap: 15px;
-            }
-
-            h1 {
-                font-size: 1.3rem;
+            .content-card h2 {
+                font-size: 1.5rem;
             }
         }
     </style>
 </head>
 <body>
-    <!-- Global Loading Overlay -->
-    <div class="global-loading" id="globalLoading">
-        <div class="spinner"></div>
-        <p>Memproses pilihan...</p>
+
+<div class="global-loading" id="globalLoading">
+    <div class="spinner"></div>
+    <p>Memproses...</p>
+</div>
+
+<header class="header">
+    <div class="header-content">
+        <div class="logo-container">
+            <div class="logo">
+                <img src="https://cdn-icons-png.flaticon.com/128/7890/7890227.png" alt="JeGo">
+            </div>
+            <h1>JeGo</h1>
+        </div>
+        <div class="user-info" id="userInfo"></div>
+        <div class="header-actions">
+            <a href="registrasi_jego.html" class="header-btn" id="headerRegisterBtn">Daftar</a>
+            <a href="loginUser.html" class="header-btn" id="headerLoginBtn">Login</a>
+        </div>
     </div>
+</header>
 
-    <header>
-        <div class="container">
-            <div class="header-content">
-                <div class="logo-container">
-                    <div class="logo">
-                        <img src="https://cdn-icons-png.flaticon.com/128/7890/7890227.png" alt="JeGo Logo">
-                    </div>
-                    <h1>JeGo</h1>
-                </div>
+<div class="container">
+    <div id="successAlert" class="alert alert-success"></div>
+    <div id="errorAlert" class="alert alert-danger"></div>
 
-                <div class="user-info" id="userInfo">
-                    <!-- Informasi user akan diisi oleh JavaScript -->
-                </div>
-
-                <div class="header-actions">
-                    <a href="registrasi_jego.html" class="header-btn" id="headerRegisterBtn">Daftar</a>
-                    <a href="loginUser.html" class="header-btn" id="headerLoginBtn">Login</a>
-                </div>
+    <div id="mainContent" style="display: none;">
+        <div class="content-card">
+            <h2>🚗 Pilih Kendaraan</h2>
+            <div class="welcome-message" id="welcomeMessage"></div>
+            <div id="loadingSpinner" class="loading-container" style="display: none;">
+                <div class="spinner"></div>
             </div>
-        </div>
-    </header>
-
-    <div class="container">
-        <div class="alert alert-success" id="successAlert">
-            ✅ Transportasi berhasil dipilih! Data telah disimpan dan dikirim ke aplikasi JeGo.
-        </div>
-
-        <div class="alert alert-danger" id="errorAlert">
-            ❌ Terjadi kesalahan. Silakan coba lagi.
-        </div>
-
-        <!-- Konten untuk user yang sudah login -->
-        <div id="mainContent" style="display: none;">
-            <div class="content">
-                <h2>Pilih Jenis Transportasi</h2>
-                <div class="welcome-message">
-                    Selamat datang di JeGo! Klik salah satu transportasi untuk melanjutkan.
-                </div>
-
-                <!-- Loading Spinner -->
-                <div class="loading-spinner" id="loadingSpinner">
-                    <div class="spinner"></div>
-                </div>
-
-                <!-- Transport options akan diisi secara dinamis -->
-                <div class="transport-options" id="transportOptions"></div>
-            </div>
-        </div>
-
-        <!-- Konten untuk user yang belum login -->
-        <div id="loginRequiredContent" style="display: none;">
-            <div class="login-required">
-                <h2>Login Diperlukan</h2>
-                <p>Silakan login terlebih dahulu untuk memilih jenis transportasi.</p>
-                <a href="loginUser.html" class="btn">Login Sekarang</a>
-                <p style="margin-top: 15px; font-size: 0.9rem;">
-                    Belum punya akun? <a href="registrasi_jego.html">Daftar di sini</a>
-                </p>
-            </div>
+            <div id="transportGrid" class="transport-grid"></div>
         </div>
     </div>
 
-    <!-- Bottom Navigation -->
-    <div class="bottom-nav">
-        <a href="jenis_kenderaan.html" class="nav-item active">
-            <div class="nav-icon">
-                <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M19,7H18V6a3,3,0,0,0-3-3H5A3,3,0,0,0,2,6V17a3,3,0,0,0,3,3H6a3,3,0,0,0,3-3V14h6v3a3,3,0,0,0,3,3h1a3,3,0,0,0,3-3V10A3,3,0,0,0,19,7ZM5,5H15a1,1,0,0,1,1,1V7H5A1,1,0,0,1,5,5ZM9,17a1,1,0,0,1-1,1H5a1,1,0,0,1-1-1V14.83A3,3,0,0,0,5,15H8a2.93,2.93,0,0,0,1-.18ZM17,19a1,1,0,0,1-1,1H15a1,1,0,0,1-1-1V16H8v-4h9a1,1,0,0,1,1,1Zm3-3a1,1,0,0,1-2,0V10a1,1,0,0,1,2,0Z"/>
-                </svg>
-            </div>
-            <span class="nav-label">Transportasi</span>
-        </a>
-        <a href="dukungan.html" class="nav-item">
-            <div class="nav-icon">
-                <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M12,2A10,10,0,1,0,22,12,10,10,0,0,0,12,2Zm0,18a8,8,0,1,1,8-8A8,8,0,0,1,12,20Zm1-6.5a1,1,0,0,0-2,0V15a1,1,0,0,0,2,0Zm-1-5a1.25,1.25,0,1,0,1.25,1.25A1.25,1.25,0,0,0,12,8.5Z"/>
-                </svg>
-            </div>
-            <span class="nav-label">Dukungan</span>
-        </a>
-        <a href="userAccount.html" class="nav-item">
-            <div class="nav-icon">
-                <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M12,12A5,5,0,1,0,7,7,5,5,0,0,0,12,12ZM12,4A3,3,0,1,1,9,7,3,3,0,0,1,12,4ZM20.5,20.5a1,1,0,0,0,0-1.42A10,10,0,0,0,4.93,4.93a1,1,0,0,0-1.42,1.42a8,8,0,0,1,11.32,11.32A8,8,0,0,1,12,20a7.94,7.94,0,0,0-5.3-2,1,1,0,0,0-1.42,1.42A10,10,0,0,0,12,22,9.94,9.94,0,0,0,20.5,20.5Z"/>
-                </svg>
-            </div>
-            <span class="nav-label">Akun</span>
-        </a>
-    </div>
-
-    <!-- Modal untuk data pengiriman kurir -->
-    <div class="modal" id="kurirModal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>Data Pengiriman</h2>
-            </div>
-            <div class="modal-body">
-                <div class="form-group">
-                    <label for="senderPhone">Nomor Pengirim</label>
-                    <div class="input-with-icon">
-                        <input type="tel" id="senderPhone" placeholder="Masukkan nomor pengirim">
-                        <div class="contact-icon" onclick="pickContact('sender')">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                <path d="M22 16.92V19.92C22 20.52 21.53 21 20.94 21C11.44 21 3 12.56 3 3.06C3 2.47 3.48 2 4.08 2H7.08C7.63 2 8.08 2.45 8.08 3C8.08 3.04 8.07 3.08 8.07 3.12C8.16 4.19 8.4 5.23 8.78 6.22C8.88 6.48 8.82 6.78 8.62 6.98L6.55 9.05C8.06 12.63 11.37 15.94 14.95 17.45L17.02 15.38C17.22 15.18 17.52 15.12 17.78 15.22C18.77 15.6 19.81 15.84 20.88 15.93C20.92 15.93 20.96 15.92 21 15.92C21.55 15.92 22 16.37 22 16.92Z" fill="white"/>
-                            </svg>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="form-group">
-                    <label for="receiverPhone">Nomor Penerima</label>
-                    <div class="input-with-icon">
-                        <input type="tel" id="receiverPhone" placeholder="Masukkan nomor penerima">
-                        <div class="contact-icon" onclick="pickContact('receiver')">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                <path d="M22 16.92V19.92C22 20.52 21.53 21 20.94 21C11.44 21 3 12.56 3 3.06C3 2.47 3.48 2 4.08 2H7.08C7.63 2 8.08 2.45 8.08 3C8.08 3.04 8.07 3.08 8.07 3.12C8.16 4.19 8.4 5.23 8.78 6.22C8.88 6.48 8.82 6.78 8.62 6.98L6.55 9.05C8.06 12.63 11.37 15.94 14.95 17.45L17.02 15.38C17.22 15.18 17.52 15.12 17.78 15.22C18.77 15.6 19.81 15.84 20.88 15.93C20.92 15.93 20.96 15.92 21 15.92C21.55 15.92 22 16.37 22 16.92Z" fill="white"/>
-                            </svg>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="form-group">
-                    <label>Jenis Barang</label>
-                    <div class="category-buttons">
-                        <button class="category-btn" data-category="Makanan">Makanan</button>
-                        <button class="category-btn" data-category="Pakaian">Pakaian</button>
-                        <button class="category-btn" data-category="Paket">Paket</button>
-                        <button class="category-btn" data-category="Elektronik">Elektronik</button>
-                        <button class="category-btn" data-category="Dokumen">Dokumen</button>
-                        <button class="category-btn" data-category="Obat-obatan">Obat-obatan</button>
-                    </div>
-                </div>
-
-                <div class="form-group">
-                    <label for="description">Deskripsi Barang</label>
-                    <textarea id="description" placeholder="Deskripsi barang yang akan dikirim..."></textarea>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button class="modal-btn btn-secondary" onclick="closeModal()">Batal</button>
-                <button class="modal-btn btn-primary" onclick="saveDeliveryData()">Simpan & Lanjutkan</button>
-            </div>
+    <div id="loginRequiredContent" style="display: none;">
+        <div class="login-required">
+            <h2>🔐 Login Diperlukan</h2>
+            <p>Silakan login terlebih dahulu untuk memilih transportasi.</p>
+            <a href="loginUser.html" class="btn">Login Sekarang</a>
+            <p style="margin-top: 15px;">Belum punya akun? <a href="registrasi_jego.html">Daftar</a></p>
         </div>
     </div>
+</div>
 
-    <footer>
-        <div class="container">
-            <p>&copy; 2025 JeGo - Jasa Ekspedisi Gorontalo. Aplikasi Lokal Buatan Anak Gorontalo.</p>
-            <div class="local-badge">BUATAN ANAK GORONTALO</div>
+<!-- Modal Kurir -->
+<div id="kurirModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>📦 Data Pengiriman</h2>
         </div>
-    </footer>
+        <div class="modal-body">
+            <div class="form-group">
+                <label>Nomor Pengirim</label>
+                <div class="input-with-icon">
+                    <input type="tel" id="senderPhone" placeholder="Masukkan nomor pengirim">
+                    <div class="contact-icon" onclick="pickContact('sender')">📞</div>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Nomor Penerima</label>
+                <div class="input-with-icon">
+                    <input type="tel" id="receiverPhone" placeholder="Masukkan nomor penerima">
+                    <div class="contact-icon" onclick="pickContact('receiver')">📞</div>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Jenis Barang</label>
+                <div class="category-buttons" id="categoryButtons">
+                    <button class="category-btn" data-category="Makanan">🍔 Makanan</button>
+                    <button class="category-btn" data-category="Pakaian">👕 Pakaian</button>
+                    <button class="category-btn" data-category="Paket">📦 Paket</button>
+                    <button class="category-btn" data-category="Elektronik">📱 Elektronik</button>
+                    <button class="category-btn" data-category="Dokumen">📄 Dokumen</button>
+                    <button class="category-btn" data-category="Obat-obatan">💊 Obat</button>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Deskripsi Barang</label>
+                <textarea id="description" placeholder="Deskripsi barang..."></textarea>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="modal-btn btn-secondary" onclick="closeModal()">Batal</button>
+            <button class="modal-btn btn-primary" onclick="saveDeliveryData()">Simpan</button>
+        </div>
+    </div>
+</div>
 
-    <script>
-    // ================================================
-    // KONFIGURASI FIREBASE
-    // ================================================
+<footer>
+    <p>&copy; 2025 JeGo - Jasa Ekspedisi Gorontalo</p>
+    <div class="local-badge">🇮🇩 BUATAN ANAK GORONTALO</div>
+</footer>
+
+<script>
+    // ==================== KONFIGURASI FIREBASE ====================
     const FIREBASE_CONFIG = {
         apiKey: "AIzaSyCD0pgeZio-LdKqYDtWxcdXcZwyL4ngYQI",
         authDomain: "jego-35a2b.firebaseapp.com",
@@ -861,7 +625,47 @@
 
     let firebaseDatabase = null;
     let firebaseAuth = null;
+    let currentUser = null;
+    let transportData = {};
+    let tariffRates = {};
+    let selectedTransport = null;
+    let selectedCategory = null;
+    let isProcessing = false;
 
+    const transportNameMapping = {
+        'Motor': 'motor',
+        'Bentor': 'bentor',
+        'Mobil': 'mobil',
+        'Kurir Motor': 'kurir_motor',
+        'Kurir Bentor': 'kurir_bentor'
+    };
+
+    // ==================== FUNGSI CEK ORDER AKTIF ====================
+    async function cekOrderAktifDanRedirect() {
+        const orderId = localStorage.getItem('current_order_id');
+        if (!orderId) return false;
+        try {
+            const snap = await firebaseDatabase.ref(`orders/${orderId}`).once('value');
+            const order = snap.val();
+            if (!order) {
+                localStorage.removeItem('current_order_id');
+                return false;
+            }
+            const statusAktif = ['waiting', 'accepted', 'on_the_way', 'arrived', 'on_trip'];
+            if (statusAktif.includes(order.status)) {
+                window.location.href = 'tracking_customer.html';
+                return true;
+            } else {
+                localStorage.removeItem('current_order_id');
+                return false;
+            }
+        } catch (err) {
+            console.error('Gagal cek order aktif:', err);
+            return false;
+        }
+    }
+
+    // ==================== INISIALISASI FIREBASE ====================
     async function initializeFirebase() {
         try {
             if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
@@ -887,81 +691,43 @@
         });
     }
 
-    // ================================================
-    // VARIABEL GLOBAL
-    // ================================================
-    let transportData = {};
-    let tariffRates = {};
-    let currentUser = null;
-    let transportCards = [];
-    
-    const transportOptions = document.getElementById('transportOptions');
-    const successAlert = document.getElementById('successAlert');
-    const errorAlert = document.getElementById('errorAlert');
-    const kurirModal = document.getElementById('kurirModal');
-    const categoryButtons = document.querySelectorAll('.category-btn');
-    const loadingSpinner = document.getElementById('loadingSpinner');
-    const mainContent = document.getElementById('mainContent');
-    const loginRequiredContent = document.getElementById('loginRequiredContent');
-    const userInfo = document.getElementById('userInfo');
-    const headerRegisterBtn = document.getElementById('headerRegisterBtn');
-    const headerLoginBtn = document.getElementById('headerLoginBtn');
-    const globalLoading = document.getElementById('globalLoading');
-
-    const transportNameMapping = {
-        'Motor': 'motor',
-        'Bentor': 'bentor',
-        'Mobil': 'mobil',
-        'Kurir Motor': 'kurir_motor',
-        'Kurir Bentor': 'kurir_bentor'
-    };
-
-    let selectedTransport = null;
-    let selectedCategory = null;
-    let currentContactField = null;
-    let isProcessing = false;
-
-    // ================================================
-    // FUNGSI UTAMA
-    // ================================================
-
+    // ==================== CEK LOGIN ====================
     async function checkLogin() {
         const loggedInUser = localStorage.getItem('jego_logged_in_user');
         if (loggedInUser) {
             try {
                 currentUser = JSON.parse(loggedInUser);
-                mainContent.style.display = 'block';
-                loginRequiredContent.style.display = 'none';
-                headerRegisterBtn.style.display = 'none';
-                headerLoginBtn.style.display = 'none';
-                userInfo.innerHTML = `Halo, <strong>${currentUser.name}</strong>`;
-                console.log('✅ User login:', currentUser.name);
-                
+                document.getElementById('mainContent').style.display = 'block';
+                document.getElementById('loginRequiredContent').style.display = 'none';
+                document.getElementById('headerRegisterBtn').style.display = 'none';
+                document.getElementById('headerLoginBtn').style.display = 'none';
+                document.getElementById('userInfo').innerHTML = `👋 Halo, <strong>${currentUser.name}</strong>`;
+                document.getElementById('welcomeMessage').innerHTML = `Selamat datang kembali, ${currentUser.name}! Pilih kendaraan untuk melanjutkan perjalanan.`;
+
                 const firebaseReady = await initializeFirebase();
                 if (!firebaseReady) {
-                    showLoading(false);
-                    loadFallbackData();
-                    showAlert(errorAlert, 'Gagal koneksi Firebase');
+                    showAlert('❌ Gagal koneksi Firebase', 'error');
                     return false;
                 }
-                
+
                 const firebaseUser = await waitForFirebaseAuth();
                 if (!firebaseUser) {
-                    console.warn('Firebase Auth tidak mendeteksi user, gunakan fallback');
-                    showLoading(false);
-                    loadFallbackData();
-                    showAlert(errorAlert, 'Sesi tidak valid, menggunakan data lokal');
+                    showAlert('⚠️ Sesi tidak valid, silakan login ulang', 'error');
+                    setTimeout(() => window.location.href = 'loginUser.html', 2000);
                     return false;
                 }
-                
+
                 if (firebaseUser.uid !== currentUser.uid) {
-                    console.warn('UID mismatch, gunakan fallback');
                     await firebaseAuth.signOut();
                     localStorage.removeItem('jego_logged_in_user');
                     showLoginRequired();
                     return false;
                 }
-                
+
+                // 🔥 CEK ORDER AKTIF SEBELUM MELANJUTKAN
+                const orderAktif = await cekOrderAktifDanRedirect();
+                if (orderAktif) return true; // redirect ke tracking
+
                 await fetchTransportData();
                 return true;
             } catch (error) {
@@ -976,27 +742,25 @@
     }
 
     function showLoginRequired() {
-        mainContent.style.display = 'none';
-        loginRequiredContent.style.display = 'block';
-        userInfo.innerHTML = '';
-        headerRegisterBtn.style.display = 'inline-block';
-        headerLoginBtn.style.display = 'inline-block';
+        document.getElementById('mainContent').style.display = 'none';
+        document.getElementById('loginRequiredContent').style.display = 'block';
+        document.getElementById('userInfo').innerHTML = '';
+        document.getElementById('headerRegisterBtn').style.display = 'inline-block';
+        document.getElementById('headerLoginBtn').style.display = 'inline-block';
     }
 
+    // ==================== AMBIL DATA TRANSPORTASI ====================
     async function fetchTransportData() {
         try {
             if (!firebaseDatabase) throw new Error('FirebaseDatabase null');
             showLoading(true);
-            console.log('📡 Mengambil data dari path: data-jego/tarif');
             const snapshot = await firebaseDatabase.ref('data-jego/tarif').once('value');
             const firebaseData = snapshot.val();
-            
             if (!firebaseData) throw new Error('Data tarif kosong');
-            
+
             transportData = {};
             tariffRates = {};
-            let count = 0;
-            
+
             snapshot.forEach((child) => {
                 const data = child.val();
                 const transportName = data.nama;
@@ -1011,28 +775,20 @@
                         minimalPrice: data.minimal_price || 10000
                     };
                     tariffRates[internalName] = data.price_per_km || 2000;
-                    count++;
-                    console.log(`✅ Loaded: ${data.nama}`);
-                } else {
-                    console.warn(`⚠️ Nama tidak dikenali: ${transportName}`);
                 }
             });
-            
-            console.log(`Total data dari Firebase: ${count}`);
-            if (count === 0) throw new Error('Tidak ada transportasi valid');
-            
+
             renderTransportCards();
             showLoading(false);
         } catch (error) {
-            console.error('❌ Error fetchTransportData:', error.message);
+            console.error('Error fetch:', error);
             showLoading(false);
             loadFallbackData();
-            showAlert(errorAlert, 'Gagal ambil data, menggunakan data lokal');
+            showAlert('Gagal ambil data, menggunakan data lokal', 'error');
         }
     }
 
     function loadFallbackData() {
-        console.log('🔄 Menggunakan data fallback lokal');
         transportData = {
             motor: { name: "Motor", capacity: "1 Penumpang", description: "Cepat dan ekonomis", icon: "https://cdn-icons-png.flaticon.com/128/5811/5811823.png", minimalDistance: 4, minimalPrice: 10000 },
             bentor: { name: "Bentor", capacity: "2 Penumpang", description: "Nyaman dalam kota", icon: "https://cdn-icons-png.flaticon.com/128/7890/7890227.png", minimalDistance: 4, minimalPrice: 11000 },
@@ -1044,108 +800,80 @@
         renderTransportCards();
     }
 
-    function showLoading(show) {
-        loadingSpinner.style.display = show ? 'flex' : 'none';
-        transportOptions.style.display = show ? 'none' : 'grid';
-    }
-
-    function showGlobalLoading(show) {
-        globalLoading.style.display = show ? 'flex' : 'none';
-    }
-
     function renderTransportCards() {
-        console.log('Rendering kartu transportasi. Data:', transportData);
-        transportOptions.innerHTML = '';
-        transportCards = [];
+        const grid = document.getElementById('transportGrid');
+        grid.innerHTML = '';
         const order = ['motor', 'bentor', 'mobil', 'kurir_motor', 'kurir_bentor'];
-        let renderedCount = 0;
-        
+
         order.forEach(type => {
             const t = transportData[type];
             if (t) {
                 const card = document.createElement('div');
                 card.className = 'transport-card';
-                card.setAttribute('data-type', type);
-                card.setAttribute('data-capacity', t.capacity);
                 card.innerHTML = `
                     <div class="transport-icon"><img src="${t.icon}" alt="${t.name}"></div>
                     <div class="transport-name">${t.name}</div>
                     <div class="transport-capacity">${t.capacity}</div>
                     <div class="transport-description">${t.description}</div>
                 `;
-                card.addEventListener('click', () => {
-                    if (isProcessing) return;
-                    showGlobalLoading(true);
-                    isProcessing = true;
-                    transportCards.forEach(c => c.classList.remove('selected'));
-                    card.classList.add('selected');
-                    selectedTransport = {
-                        type: type,
-                        name: t.name,
-                        capacity: t.capacity,
-                        icon: t.icon,
-                        description: t.description,
-                        tariff: tariffRates[type],
-                        minimalDistance: t.minimalDistance,
-                        minimalPrice: t.minimalPrice
-                    };
-                    console.log(`✅ Dipilih: ${selectedTransport.name}`);
-                    if (type.includes('kurir')) {
-                        showGlobalLoading(false);
-                        isProcessing = false;
-                        showKurirModal();
-                    } else {
-                        setTimeout(() => processTransportSelection(selectedTransport), 800);
-                    }
-                });
-                transportOptions.appendChild(card);
-                transportCards.push(card);
-                renderedCount++;
+                card.addEventListener('click', () => selectTransport(type, t, card));
+                grid.appendChild(card);
             }
         });
-        
-        console.log(`Jumlah kartu yang dirender: ${renderedCount}`);
-        if (renderedCount === 0) {
-            transportOptions.innerHTML = '<div style="text-align:center; padding:20px;">Tidak ada pilihan transportasi</div>';
+    }
+
+    function selectTransport(type, t, card) {
+        if (isProcessing) return;
+        showGlobalLoading(true);
+        isProcessing = true;
+
+        document.querySelectorAll('.transport-card').forEach(c => c.classList.remove('selected'));
+        card.classList.add('selected');
+
+        selectedTransport = {
+            type: type,
+            name: t.name,
+            capacity: t.capacity,
+            icon: t.icon,
+            description: t.description,
+            tariff: tariffRates[type],
+            minimalDistance: t.minimalDistance,
+            minimalPrice: t.minimalPrice
+        };
+
+        if (type.includes('kurir')) {
+            showGlobalLoading(false);
+            isProcessing = false;
+            showKurirModal();
+        } else {
+            setTimeout(() => processTransportSelection(selectedTransport), 800);
         }
     }
 
     function showKurirModal() {
-        kurirModal.style.display = 'flex';
+        document.getElementById('kurirModal').style.display = 'flex';
     }
 
     function closeModal() {
-        kurirModal.style.display = 'none';
+        document.getElementById('kurirModal').style.display = 'none';
         document.getElementById('senderPhone').value = '';
         document.getElementById('receiverPhone').value = '';
         document.getElementById('description').value = '';
-        categoryButtons.forEach(btn => btn.classList.remove('selected'));
+        document.querySelectorAll('.category-btn').forEach(btn => btn.classList.remove('selected'));
         selectedCategory = null;
         isProcessing = false;
     }
 
     function pickContact(field) {
-        currentContactField = field;
-        console.log('Pilih kontak untuk field:', field);
-        if (typeof window.AppInventor !== 'undefined' && window.AppInventor.setWebViewString) {
-            window.AppInventor.setWebViewString(JSON.stringify({ action: 'open_contact_picker', field: field }));
-        } else {
-            alert('Fitur kontak hanya tersedia di dalam aplikasi JeGo.');
-        }
+        alert('Fitur kontak tersedia di aplikasi JeGo.');
     }
-
-    window.setContactNumber = function(phoneNumber, field) {
-        if (field === 'sender') document.getElementById('senderPhone').value = phoneNumber;
-        else if (field === 'receiver') document.getElementById('receiverPhone').value = phoneNumber;
-        showAlert(successAlert, `Nomor ${field === 'sender' ? 'pengirim' : 'penerima'} terisi`);
-    };
 
     function saveDeliveryData() {
         const senderPhone = document.getElementById('senderPhone').value;
         const receiverPhone = document.getElementById('receiverPhone').value;
         const description = document.getElementById('description').value;
         if (!senderPhone || !receiverPhone || !selectedCategory) {
-            showAlert(errorAlert, 'Harap isi semua data pengiriman');
+            showAlert('Harap isi semua data pengiriman', 'error');
             return;
         }
         showGlobalLoading(true);
@@ -1158,41 +886,42 @@
     }
 
     function processTransportSelection(transport) {
-        console.log('🚀 Memproses:', transport.name);
-        saveToLocalStorage(transport);
-        showAlert(successAlert, `${transport.name} berhasil dipilih!`);
+        localStorage.setItem('jego_last_transport', JSON.stringify(transport));
+        showAlert(`${transport.name} berhasil dipilih!`, 'success');
         setTimeout(() => {
             showGlobalLoading(true);
             window.location.href = "rute.html";
         }, 1200);
     }
 
-    function saveToLocalStorage(transport) {
-        const history = JSON.parse(localStorage.getItem('jego_transport_history')) || [];
-        const record = { ...transport, userId: currentUser?.uid || 'anonymous', timestamp: new Date().toISOString() };
-        history.unshift(record);
-        localStorage.setItem('jego_transport_history', JSON.stringify(history));
-        localStorage.setItem('jego_last_transport', JSON.stringify(transport));
+    function showLoading(show) {
+        document.getElementById('loadingSpinner').style.display = show ? 'flex' : 'none';
+        document.getElementById('transportGrid').style.display = show ? 'none' : 'grid';
     }
 
-    function showAlert(alertElement, message) {
-        alertElement.textContent = message;
-        alertElement.style.display = 'block';
-        setTimeout(() => alertElement.style.display = 'none', 3000);
+    function showGlobalLoading(show) {
+        document.getElementById('globalLoading').style.display = show ? 'flex' : 'none';
     }
 
-    categoryButtons.forEach(btn => {
+    function showAlert(message, type) {
+        const alertDiv = type === 'error' ? document.getElementById('errorAlert') : document.getElementById('successAlert');
+        alertDiv.textContent = message;
+        alertDiv.style.display = 'block';
+        setTimeout(() => alertDiv.style.display = 'none', 3000);
+    }
+
+    // Event listener kategori
+    document.querySelectorAll('.category-btn').forEach(btn => {
         btn.addEventListener('click', function() {
-            categoryButtons.forEach(b => b.classList.remove('selected'));
+            document.querySelectorAll('.category-btn').forEach(b => b.classList.remove('selected'));
             this.classList.add('selected');
             selectedCategory = this.getAttribute('data-category');
         });
     });
 
-    document.addEventListener('DOMContentLoaded', () => {
-        console.log('🚀 Halaman jenis_kenderaan siap');
+    window.onload = () => {
         checkLogin();
-    });
+    };
 </script>
 </body>
 </html>
