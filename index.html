@@ -348,17 +348,6 @@
   text-align: center;
 }
   
-  /* POPUP */
-  .popup-overlay {
-    display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-    background: rgba(0,0,0,0.7); z-index: 2000; align-items: center; justify-content: center;
-  }
-  .popup { background: white; border-radius: 12px; width: 90%; max-width: 320px; overflow: hidden; }
-  .popup-header { padding: 15px 20px; background: linear-gradient(135deg, var(--primary), var(--secondary)); color: white; text-align: center; }
-  .popup-body { padding: 20px; text-align: center; }
-  .popup-footer { padding: 15px 20px; border-top: 1px solid #eee; display: flex; justify-content: center; }
-  .popup-button { background: linear-gradient(to right, var(--primary), var(--secondary)); color: white; border: none; border-radius: 8px; padding: 10px 30px; cursor: pointer; }
-  
   /* MODAL PROMPT NOTIFIKASI */
   .notif-prompt-modal {
     display: none;
@@ -544,6 +533,7 @@
   </div>
 </div>
 
+<!-- POPUP UNTUK AKUN DITOLAK / DIBLOKIR -->
 <div class="popup-overlay" id="popupOverlay">
   <div class="popup">
     <div class="popup-header"><span id="popupIcon">ℹ️</span><h3 id="popupTitle">Pemberitahuan</h3></div>
@@ -860,7 +850,7 @@ async function showOrderDetail(orderObj, fromAuto = false) {
   const snapshot = await database.ref(`orders/${orderId}`).once('value');
   const currentOrder = snapshot.val();
   if (!currentOrder || currentOrder.status !== 'waiting') {
-    showPopup('Info', 'Order ini sudah tidak tersedia.', 'warning');
+    showToast('Order ini sudah tidak tersedia.', 'warning');
     loadOrders();
     return;
   }
@@ -1018,13 +1008,13 @@ async function sendDriverOffer(isAuto = false) {
   
   // Cek kecukupan saldo dengan data terbaru
   if (driverBalance < totalPotongan) {
-    console.log(`Saldo tidak cukup: ${driverBalance} < ${totalPotongan}`);
-    // Tampilkan popup tanpa delay yang berarti
-    showPopup('Saldo Tidak Cukup', 
-      `Saldo Anda Rp ${driverBalance.toLocaleString('id-ID')} tidak mencukupi untuk membayar potongan (fee ${feePersen}% + pajak ${pajakPersen}%) sebesar Rp ${totalPotongan.toLocaleString('id-ID')}.`, 
-      'warning');
-    return;
-  }
+  console.log(`Saldo tidak cukup: ${driverBalance} < ${totalPotongan}`);
+  showToast(
+    `Saldo Anda Rp ${driverBalance.toLocaleString('id-ID')} tidak mencukupi. Silakan isi saldo terlebih dahulu.`,
+    'warning'
+  );
+  return;
+}
   
   const ambilBtn = document.getElementById('ambilBtn');
   ambilBtn.disabled = true;
@@ -1034,7 +1024,7 @@ async function sendDriverOffer(isAuto = false) {
   const snapshot = await database.ref(`orders/${orderId}`).once('value');
   const currentOrder = snapshot.val();
   if (!currentOrder || currentOrder.status !== 'waiting') {
-    showPopup('Info', 'Order ini sudah diambil oleh driver lain.', 'warning');
+    showToast('Order ini sudah diambil oleh driver lain.', 'warning');
     closeModal();
     return;
   }
@@ -1068,7 +1058,7 @@ async function sendDriverOffer(isAuto = false) {
     startCountdown(orderId, globalCurrentUid);
   } catch (err) {
     console.error(err);
-    showPopup('Error', 'Gagal mengirim penawaran.', 'error');
+    showToast('Gagal mengirim penawaran.', 'error');
     ambilBtn.disabled = false;
     ambilBtn.textContent = 'Kirim Penawaran';
   }
@@ -1139,7 +1129,7 @@ function startCountdown(orderId, driverId) {
         }
       } else {
         stopCountdown();
-        showPopup('Info', 'Order sudah diambil driver lain.', 'warning');
+        showToast('Order sudah diambil driver lain.', 'warning');
         closeModal();
       }
     } else if (order.status !== 'waiting') {
@@ -1304,7 +1294,8 @@ function refreshData() { loadOrders(); }
 function showPopup(title, message, type = 'info', options = {}) {
   document.getElementById('popupTitle').textContent = title;
   document.getElementById('popupMessage').textContent = message;
-  document.getElementById('popupIcon').innerHTML = { success: '✅', error: '❌', warning: '⚠️', info: 'ℹ️' }[type] || 'ℹ️';
+  const iconMap = { success: '✅', error: '❌', warning: '⚠️', info: 'ℹ️' };
+  document.getElementById('popupIcon').innerHTML = iconMap[type] || 'ℹ️';
   
   const confirmBtn = document.getElementById('popupButton');
   confirmBtn.onclick = () => {
@@ -1314,14 +1305,7 @@ function showPopup(title, message, type = 'info', options = {}) {
     }
   };
   
-  setTimeout(() => {
-  const overlay = document.getElementById('popupOverlay');
-  if (overlay) {
-    overlay.style.display = 'flex';
-  } else {
-    console.warn('Elemen popupOverlay tidak ditemukan');
-  }
-}, 50);
+  document.getElementById('popupOverlay').style.display = 'flex';
 }
 
 function hidePopup() { 
@@ -1415,7 +1399,7 @@ async function showDebugInfo() {
 async function initOneSignal() {
   if (typeof median === 'undefined' || !median.onesignal) {
     console.warn("⚠️ Median OneSignal tidak tersedia (mungkin bukan di app Median)");
-    showPopup("Info", "OneSignal tidak tersedia. Pastikan aplikasi berjalan di lingkungan Median.", "warning");
+    showToast("OneSignal tidak tersedia. Pastikan aplikasi berjalan di lingkungan Median.", "warning");
     return false;
   }
 
@@ -1498,19 +1482,19 @@ async function initOneSignal() {
         showToast("Notifikasi Aktif - Perangkat siap menerima notifikasi", "success");
       } else {
         addLog("❌ UID driver tidak tersedia, tidak bisa simpan playerId");
-        showPopup("Perhatian", "UID driver tidak ditemukan. Coba login ulang.", "warning");
+        showToast("UID driver tidak ditemukan. Coba login ulang.", "warning");
       }
       return true;
     } else {
       addLog("❌ Gagal mendapatkan playerId setelah beberapa percobaan");
-      showPopup("Gagal", "Tidak dapat mengaktifkan notifikasi. Coba lagi atau periksa koneksi.", "error");
+      showToast("Tidak dapat mengaktifkan notifikasi. Coba lagi atau periksa koneksi.", "error");
       return false;
     }
   } catch (err) {
     const debugDiv = document.getElementById('debugLog');
     if (debugDiv) debugDiv.innerHTML += `❌ Error: ${err.message}\n`;
     console.error("OneSignal error:", err);
-    showPopup("Error", `Gagal mengaktifkan notifikasi: ${err.message}`, "error");
+    showToast(`Gagal mengaktifkan notifikasi: ${err.message}`, "error");
     return false;
   }
 }
@@ -1577,14 +1561,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         const title = (status === 'rejected') ? 'Akun Ditolak' : 'Akun Diblokir';
         // Tampilkan popup alasan, lalu logout setelah klik OK
         showPopup(title, `Alasan: ${ketGagal}`, 'error', {
-          confirmText: 'OK',
-          onConfirm: async () => {
-  await auth.signOut();
-  localStorage.removeItem('jego_logged_in_driver');
-  localStorage.removeItem('autobid_offered_orders');
-  window.location.href = 'loginDriver.html';
-}
-        });
+  onConfirm: async () => {
+    await auth.signOut();
+    localStorage.removeItem('jego_logged_in_driver');
+    localStorage.removeItem('autobid_offered_orders');
+    window.location.href = 'loginDriver.html';
+  }
+});
         return; // Hentikan eksekusi lebih lanjut
       }
     }
@@ -1637,7 +1620,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('ambilBtn').addEventListener('click', sendDriverOffer);
   document.getElementById('autobidBtn').addEventListener('click', toggleAutobid);
   document.getElementById('orderModal').addEventListener('click', e => { if (e.target === document.getElementById('orderModal') && !countdownInterval) closeModal(); });
-  document.getElementById('popupButton').addEventListener('click', hidePopup);
+
   document.getElementById('acceptKurirToggle').addEventListener('change', updateAcceptKurirSetting);
   // Tombol debug OneSignal
   document.getElementById('debugOneSignalBtn')?.addEventListener('click', showDebugInfo);
