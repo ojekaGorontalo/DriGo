@@ -524,13 +524,29 @@
     });
   }
 
-  function completeTrip() {
+  async function completeTrip() {
     if (currentOrderStatus !== 'on_trip') { showToast('Perjalanan belum dimulai'); return; }
-    showConfirmationModal('Konfirmasi', 'Selesaikan perjalanan ini?', () => {
-      database.ref('orders/' + orderId).update({ status: 'completed', completed_at: new Date().toISOString() })
-        .then(() => showToast('Perjalanan selesai'));
+    showConfirmationModal('Konfirmasi', 'Selesaikan perjalanan ini?', async () => {
+        try {
+            // Ambil fee & pajak terkini
+            const potonganSnap = await database.ref('data-jego/potongan').once('value');
+            const pajakSnap = await database.ref('data-jego/pajak').once('value');
+            const feePercent = potonganSnap.exists() ? parseFloat(potonganSnap.val()) : 20;
+            const taxPercent = pajakSnap.exists() ? parseFloat(pajakSnap.val()) : 11;
+            
+            // Update order: status completed + simpan persentase potongan
+            await database.ref('orders/' + orderId).update({
+                status: 'completed',
+                completed_at: new Date().toISOString(),
+                fee_percent: feePercent,
+                tax_percent: taxPercent
+            });
+            showToast('Perjalanan selesai');
+        } catch(err) {
+            showToast('Gagal menyelesaikan: ' + err.message);
+        }
     });
-  }
+}
 
   function cancelTrip() {
     if (currentOrderStatus === 'on_trip') {
