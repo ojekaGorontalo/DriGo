@@ -286,6 +286,24 @@
       transform: translateX(100%);
       transition: transform 0.3s cubic-bezier(0.2, 0.9, 0.4, 1.1);
     }
+    /* Peringatan pembatalan */
+.warning-message {
+  background: #fff3cd;
+  border-left: 4px solid #ffc107;
+  padding: 12px;
+  border-radius: 12px;
+  margin-bottom: 16px;
+  font-size: 0.85rem;
+  color: #856404;
+}
+.warning-message strong {
+  display: block;
+  margin-bottom: 4px;
+}
+.action-btn.disabled {
+  opacity: 0.6;
+  pointer-events: none;
+}
     .chat-overlay.open { transform: translateX(0); }
     .chat-header {
       background: linear-gradient(135deg, var(--primary), var(--secondary));
@@ -508,6 +526,28 @@
     if (p) p.innerText = msg;
     console.error(msg);
   }
+  function showCancelledWarning() {
+  if (document.querySelector('.warning-message')) return;
+  const contentWrapper = document.querySelector('.content-wrapper');
+  const warningDiv = document.createElement('div');
+  warningDiv.className = 'warning-message';
+  warningDiv.innerHTML = `
+    <strong>⚠️ Perjalanan Dibatalkan</strong>
+    Anda telah membatalkan pesanan ini. Mohon jangan sering membatalkan perjalanan yang sedang aktif,
+    karena dapat mempengaruhi reputasi akun Anda dan menyulitkan driver. Terima kasih.
+  `;
+  const statusCard = document.querySelector('.status-card');
+  if (statusCard && statusCard.parentNode === contentWrapper) {
+    contentWrapper.insertBefore(warningDiv, statusCard);
+  } else {
+    contentWrapper.prepend(warningDiv);
+  }
+  // Nonaktifkan tombol chat dan batalkan
+  const chatBtn = document.getElementById('chatBtn');
+  const cancelBtn = document.getElementById('cancelBtn');
+  if (chatBtn) chatBtn.classList.add('disabled');
+  if (cancelBtn) cancelBtn.classList.add('disabled');
+}
 
   function extractDriverFromOrder(order, driverId) {
     if (!driverId) return null;
@@ -621,8 +661,11 @@
     const info = statusMap[status] || statusMap.waiting;
     badge.innerText = info.text;
     msgDiv.innerText = info.msg;
-    if (status === 'completed') document.getElementById('cancelBtn').style.display = 'none';
-    else document.getElementById('cancelBtn').style.display = 'block';
+    if (status === 'completed' || status === 'cancelled') {
+  document.getElementById('cancelBtn').style.display = 'none';
+} else {
+  document.getElementById('cancelBtn').style.display = 'block';
+}
     document.getElementById('orderStatus').innerText = info.text;
     if (status === 'arrived' && !isArrivedAlertShowing) showArrivedAlert();
   }
@@ -736,25 +779,16 @@
 
   async function cancelOrder() {
   if (!confirm('Batalkan perjalanan ini?')) return;
-
   try {
-    await database.ref(`orders/${orderId}`).update({
-      status: 'cancelled',
-      cancelled_by: 'customer',
-      cancelled_at: new Date().toISOString()
+    await database.ref(`orders/${orderId}`).update({ 
+      status: 'cancelled', 
+      cancelled_by: 'customer', 
+      cancelled_at: new Date().toISOString() 
     });
-
-    // hapus order aktif dulu
-    localStorage.removeItem('current_order_id');
-
-    // matikan listener
-    if (orderRef) orderRef.off();
-    if (driverLocationRef) driverLocationRef.off();
-    if (chatRef) chatRef.off();
-
-    // baru kembali
-    window.history.go(-1);
-
+    // Update UI status menjadi "Dibatalkan"
+    updateStatusUI('cancelled');
+    // Tampilkan pesan peringatan di halaman
+    showCancelledWarning();
   } catch (err) {
     console.error('Gagal batalkan order:', err);
     alert('Gagal membatalkan perjalanan. Silakan coba lagi.');
