@@ -736,16 +736,25 @@
 
   async function cancelOrder() {
   if (!confirm('Batalkan perjalanan ini?')) return;
+
   try {
-    await database.ref(`orders/${orderId}`).update({ 
-      status: 'cancelled', 
-      cancelled_by: 'customer', 
-      cancelled_at: new Date().toISOString() 
+    await database.ref(`orders/${orderId}`).update({
+      status: 'cancelled',
+      cancelled_by: 'customer',
+      cancelled_at: new Date().toISOString()
     });
-    alert('Perjalanan dibatalkan.');
+
+    // hapus order aktif dulu
     localStorage.removeItem('current_order_id');
-    // Kembali ke halaman sebelumnya (rute.html)
-    window.history.back();
+
+    // matikan listener
+    if (orderRef) orderRef.off();
+    if (driverLocationRef) driverLocationRef.off();
+    if (chatRef) chatRef.off();
+
+    // baru kembali
+    window.history.go(-1);
+
   } catch (err) {
     console.error('Gagal batalkan order:', err);
     alert('Gagal membatalkan perjalanan. Silakan coba lagi.');
