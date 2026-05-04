@@ -972,41 +972,65 @@ function showRouteOnMapbox(order) {
 }
 
 async function sendDriverOffer(isAuto = false) {
-  if (!currentSelectedOrder || !globalCurrentUid || !checkDriverData()) return;
+  if (!currentSelectedOrder || !globalCurrentUid) return;
+  // Pastikan data driver dasar tersedia
+  if (!checkDriverData()) return;
+  
   const { orderId, orderData } = currentSelectedOrder;
   
-  // CEK: Jika ini autobid dan order sudah pernah ditawarkan sebelumnya, BATALKAN
+  // CEK: Jika autobid dan order sudah pernah ditawarkan, BATALKAN
   if (isAuto && autobidOfferedOrders.has(orderId)) {
     console.log(`Autobid: Order ${orderId} sudah pernah ditawarkan, lewat.`);
     return;
   }
   
+  // ========== AMBIL SALDO TERBARU DARI DATABASE ==========
+  let freshBalance = 0;
+  try {
+    const driverSnap = await database.ref(`drivers/${globalCurrentUid}/balance`).once('value');
+    freshBalance = driverSnap.val() || 0;
+    // Update currentDriverData agar konsisten untuk penggunaan lain
+    if (currentDriverData) currentDriverData.balance = freshBalance;
+    console.log(`Saldo terbaru dari Firebase: Rp ${freshBalance.toLocaleString('id-ID')}`);
+  } catch(e) {
+    console.warn("Gagal ambil saldo terbaru dari Firebase:", e);
+    // Fallback ke data yang sudah ada
+    freshBalance = currentDriverData?.balance || 0;
+  }
+  
   const hargaTotal = orderData.price || 0;
-const driverBalance = currentDriverData.balance || 0;
-
-// Ambil fee dan pajak dari database
-let feePersen = 0, pajakPersen = 0;
-try {
-  const potonganSnap = await database.ref('data-jego/potongan').once('value');
-  const pajakSnap = await database.ref('data-jego/pajak').once('value');
-  feePersen = parseFloat(potonganSnap.val()) || 0;
-  pajakPersen = parseFloat(pajakSnap.val()) || 0;
-} catch(e) {
-  console.warn("Gagal ambil fee/pajak:", e);
-}
-
-const potonganRupiah = hargaTotal * (feePersen / 100);
-const pajakRupiah = potonganRupiah * (pajakPersen / 100);
-const totalPotongan = potonganRupiah + pajakRupiah;
-
-if (driverBalance < totalPotongan) {
-  showPopup('Saldo Tidak Cukup', 
-    `Saldo Anda Rp ${driverBalance.toLocaleString('id-ID')} tidak mencukupi untuk membayar potongan (fee ${feePersen}% + pajak ${pajakPersen}%) sebesar Rp ${totalPotongan.toLocaleString('id-ID')}.`, 
-    'warning');
-  return;
-}
+  const driverBalance = freshBalance;  // Gunakan saldo terbaru
+  
+  // Ambil fee dan pajak dari database
+  let feePersen = 0, pajakPersen = 0;
+  try {
+    const potonganSnap = await database.ref('data-jego/potongan').once('value');
+    const pajakSnap = await database.ref('data-jego/pajak').once('value');
+    feePersen = parseFloat(potonganSnap.val()) || 0;
+    pajakPersen = parseFloat(pajakSnap.val()) || 0;
+  } catch(e) {
+    console.warn("Gagal ambil fee/pajak:", e);
+  }
+  
+  const potonganRupiah = hargaTotal * (feePersen / 100);
+  const pajakRupiah = potonganRupiah * (pajakPersen / 100);
+  const totalPotongan = potonganRupiah + pajakRupiah;
+  
+  // Cek kecukupan saldo dengan data terbaru
+  if (driverBalance < totalPotongan) {
+    console.log(`Saldo tidak cukup: ${driverBalance} < ${totalPotongan}`);
+    // Tampilkan popup tanpa delay yang berarti
+    showPopup('Saldo Tidak Cukup', 
+      `Saldo Anda Rp ${driverBalance.toLocaleString('id-ID')} tidak mencukupi untuk membayar potongan (fee ${feePersen}% + pajak ${pajakPersen}%) sebesar Rp ${totalPotongan.toLocaleString('id-ID')}.`, 
+      'warning');
+    return;
+  }
+  
   const ambilBtn = document.getElementById('ambilBtn');
-  ambilBtn.disabled = true; ambilBtn.textContent = 'Mengirim...';
+  ambilBtn.disabled = true;
+  ambilBtn.textContent = 'Mengirim...';
+  
+  // Pastikan order masih dalam status waiting
   const snapshot = await database.ref(`orders/${orderId}`).once('value');
   const currentOrder = snapshot.val();
   if (!currentOrder || currentOrder.status !== 'waiting') {
@@ -1014,6 +1038,7 @@ if (driverBalance < totalPotongan) {
     closeModal();
     return;
   }
+  
   const driverDataForOffer = {
     driver_id: globalCurrentUid,
     driver_name: currentDriverData.fullName,
@@ -1025,23 +1050,24 @@ if (driverBalance < totalPotongan) {
     offered_at: new Date().toISOString(),
     status: 'offered'
   };
+  
   try {
     await database.ref(`orders/${orderId}/driver_offers/${globalCurrentUid}`).set(driverDataForOffer);
     
-    // Jika ini autobid, catat orderId agar tidak dikirim lagi
-if (isAuto) {
-  autobidOfferedOrders.add(orderId);
-  // Simpan ke localStorage
-  let storedOffers = JSON.parse(localStorage.getItem('autobid_offered_orders') || '[]');
-  if (!storedOffers.includes(orderId)) {
-    storedOffers.push(orderId);
-    localStorage.setItem('autobid_offered_orders', JSON.stringify(storedOffers));
-  }
-}
+    // Jika autobid, catat orderId agar tidak dikirim lagi
+    if (isAuto) {
+      autobidOfferedOrders.add(orderId);
+      let storedOffers = JSON.parse(localStorage.getItem('autobid_offered_orders') || '[]');
+      if (!storedOffers.includes(orderId)) {
+        storedOffers.push(orderId);
+        localStorage.setItem('autobid_offered_orders', JSON.stringify(storedOffers));
+      }
+    }
     
     ambilBtn.textContent = 'Menunggu Konfirmasi';
     startCountdown(orderId, globalCurrentUid);
   } catch (err) {
+    console.error(err);
     showPopup('Error', 'Gagal mengirim penawaran.', 'error');
     ambilBtn.disabled = false;
     ambilBtn.textContent = 'Kirim Penawaran';
@@ -1288,7 +1314,14 @@ function showPopup(title, message, type = 'info', options = {}) {
     }
   };
   
-  document.getElementById('popupOverlay').style.display = 'flex';
+  setTimeout(() => {
+  const overlay = document.getElementById('popupOverlay');
+  if (overlay) {
+    overlay.style.display = 'flex';
+  } else {
+    console.warn('Elemen popupOverlay tidak ditemukan');
+  }
+}, 50);
 }
 
 function hidePopup() { 
