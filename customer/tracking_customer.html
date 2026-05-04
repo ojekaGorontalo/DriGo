@@ -1,270 +1,524 @@
 <!DOCTYPE html>
-<html lang="id">
+<html lang="id" class="dark-mode">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
   <title>Lacak Perjalanan - JeGo Customer</title>
+  <!-- Firebase SDK -->
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+  <!-- Leaflet & Mapbox (for rotation) -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <!-- Leaflet.rotatedMarker plugin -->
+  <script src="https://unpkg.com/leaflet-rotatedmarker@0.2.0/leaflet.rotatedMarker.js"></script>
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
+    * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+    }
+
     :root {
-      --primary: #FF9800;
-      --secondary: #FF5722;
-      --accent: #FFC107;
-      --success: #4CAF50;
-      --danger: #f44336;
-      --dark: #343a40;
-      --gray: #9E9E9E;
-      --light: #f8f9fa;
+        --primary: #FF9800;
+        --primary-dark: #F57C00;
+        --secondary: #FF5722;
+        --accent: #FFC107;
+        --success: #4CAF50;
+        --danger: #f44336;
+        --light-bg: #f8f9fa;
+        --dark-text: #343a40;
+        --gray-text: #6c757d;
+        --card-border: rgba(0,0,0,0.05);
     }
+
     body {
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      background: linear-gradient(135deg, var(--primary), var(--secondary));
-      height: 100vh;
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        background: linear-gradient(135deg, var(--primary), var(--secondary));
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
     }
+
     .container {
-      background: white;
-      height: 100vh;
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-      position: relative;
+        background: white;
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        position: relative;
+        box-shadow: 0 0 20px rgba(0,0,0,0.1);
     }
+
+    /* Header Modern */
     .header {
-      background: linear-gradient(135deg, var(--primary), var(--secondary));
-      color: white;
-      padding: 15px;
-      text-align: center;
-      flex-shrink: 0;
-      position: relative;
+        background: white;
+        padding: 15px 20px;
+        text-align: center;
+        flex-shrink: 0;
+        position: relative;
+        border-bottom: 1px solid #eee;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
     }
-    .back-btn {
-      background: rgba(255,255,255,0.2);
-      border: none;
-      border-radius: 20px;
-      padding: 6px 12px;
-      color: white;
-      position: absolute;
-      left: 15px;
-      top: 12px;
-      cursor: pointer;
-      font-size: 14px;
+
+    .header h2 {
+        font-size: 1.2rem;
+        font-weight: 600;
+        color: var(--dark-text);
+        flex: 1;
+        text-align: center;
     }
+
+    /* Kosongkan space agar judul tetap center */
+    .header .placeholder {
+        width: 40px;
+        visibility: hidden;
+    }
+
     .map-section {
-      height: 38vh;
-      min-height: 200px;
-      width: 100%;
-      background: #e2e8f0;
-      flex-shrink: 0;
+        height: 45vh;
+        min-height: 250px;
+        width: 100%;
+        background: #e2e8f0;
+        flex-shrink: 0;
+        position: relative;
     }
-    #orderMap { height: 100%; width: 100%; }
+
+    #orderMap {
+        height: 100%;
+        width: 100%;
+    }
+
+    /* Map Overlay Label */
+    .map-overlay-label {
+        position: absolute;
+        bottom: 10px;
+        right: 10px;
+        background: rgba(0, 0, 0, 0.5);
+        backdrop-filter: blur(8px);
+        padding: 6px 12px;
+        border-radius: 20px;
+        font-size: 11px;
+        font-weight: 500;
+        color: white;
+        letter-spacing: 0.5px;
+        z-index: 10;
+        pointer-events: none;
+        white-space: nowrap;
+        font-family: monospace;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    }
+
     .content-wrapper {
-      flex: 1;
-      overflow-y: auto;
-      padding: 16px;
-      padding-bottom: 80px; /* ruang untuk tombol fixed */
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
+        flex: 1;
+        overflow-y: auto;
+        padding: 16px;
+        padding-bottom: 80px;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
     }
-    .status-card, .driver-card, .route-card, .info-card {
-      background: white;
-      border-radius: 16px;
-      padding: 16px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-      border: 1px solid #edf2f7;
+
+    /* Card Styles */
+    .status-card,
+    .driver-card,
+    .route-card,
+    .info-card {
+        background: white;
+        border-radius: 20px;
+        padding: 16px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+        border: 1px solid var(--card-border);
+        transition: transform 0.2s;
     }
-    .driver-profile { display: flex; gap: 16px; align-items: center; }
-    .driver-photo { width: 70px; height: 70px; border-radius: 50%; object-fit: cover; border: 3px solid var(--primary); }
-    .driver-info h3 { font-size: 1.1rem; }
-    .rating { font-size: 0.9rem; margin: 4px 0; }
-    .driver-plate { background: var(--accent); padding: 2px 8px; border-radius: 12px; display: inline-block; font-size: 0.7rem; font-weight: bold; }
-    .route-point { display: flex; gap: 12px; margin-bottom: 12px; align-items: flex-start; }
-    .route-icon { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; color: white; flex-shrink: 0; font-size: 14px; }
-    .pickup-icon { background: var(--success); }
-    .dest-icon { background: var(--primary); }
+
+    .driver-card {
+        padding: 12px 16px;
+    }
+
+    .driver-profile {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+    }
+
+    .driver-profile-left {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex: 2;
+    }
+
+    .driver-info h3 {
+        font-size: 1rem;
+        font-weight: 700;
+        margin-bottom: 2px;
+        color: var(--dark-text);
+    }
+
+    .rating {
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: #f1c40f;
+        display: flex;
+        align-items: center;
+        gap: 2px;
+    }
+
+    .driver-plate {
+        background: #f0f0f0;
+        padding: 2px 6px;
+        border-radius: 8px;
+        font-size: 0.7rem;
+        font-weight: 600;
+        color: #555;
+    }
+
+    .driver-price {
+        text-align: right;
+        font-weight: 800;
+        font-size: 1.2rem;
+        color: var(--success);
+        background: #e8f5e9;
+        padding: 4px 10px;
+        border-radius: 30px;
+        min-width: 100px;
+        letter-spacing: -0.5px;
+    }
+
+    .driver-price small {
+        font-size: 0.7rem;
+        font-weight: normal;
+        color: #2e7d32;
+    }
+
+    .route-point {
+        display: flex;
+        gap: 12px;
+        margin-bottom: 12px;
+        align-items: flex-start;
+    }
+
+    .route-icon {
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+        color: white;
+        flex-shrink: 0;
+        font-size: 14px;
+    }
+
+    .pickup-icon {
+        background: var(--success);
+    }
+
+    .dest-icon {
+        background: var(--primary);
+    }
+
     .route-address {
-      flex: 1;
-      word-break: break-word;
+        flex: 1;
+        word-break: break-word;
     }
+
     .route-address small {
-      font-size: 0.7rem;
-      color: var(--gray);
+        font-size: 0.7rem;
+        color: var(--gray-text);
     }
-    .route-address strong {
-      font-size: 0.9rem;
-      line-height: 1.4;
+
+    .info-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+        margin-top: 8px;
     }
-    .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 8px; }
-    .info-item { text-align: center; }
-    .info-label { font-size: 0.7rem; color: var(--gray); }
-    .info-value { font-weight: bold; font-size: 0.9rem; }
-    .price { color: var(--success); font-size: 1.1rem; }
+
+    .info-item {
+        text-align: center;
+    }
+
+    .info-label {
+        font-size: 0.7rem;
+        color: var(--gray-text);
+    }
+
+    .info-value {
+        font-weight: bold;
+        font-size: 0.9rem;
+    }
+
+    .status-badge {
+        display: inline-block;
+        background: var(--primary);
+        color: white;
+        padding: 6px 16px;
+        border-radius: 30px;
+        font-weight: bold;
+        font-size: 0.85rem;
+    }
+
     .actions-section {
-      position: fixed;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      padding: 12px 16px;
-      background: white;
-      border-top: 1px solid #eee;
-      display: flex;
-      gap: 12px;
-      z-index: 100;
-      box-shadow: 0 -2px 10px rgba(0,0,0,0.05);
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        padding: 12px 16px;
+        background: white;
+        border-top: 1px solid #eee;
+        display: flex;
+        gap: 12px;
+        z-index: 100;
+        box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.05);
     }
+
     .action-btn {
-      flex: 1;
-      padding: 12px;
-      border: none;
-      border-radius: 30px;
-      font-weight: bold;
-      cursor: pointer;
-      transition: 0.2s;
-      font-size: 1rem;
+        flex: 1;
+        padding: 12px;
+        border: none;
+        border-radius: 30px;
+        font-weight: bold;
+        cursor: pointer;
+        transition: 0.2s;
+        font-size: 1rem;
     }
-    .chat-btn { background: linear-gradient(135deg, var(--primary), var(--secondary)); color: white; }
-    .cancel-btn { background: var(--danger); color: white; }
-    .loading, .error-state {
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      height: 100%;
-      text-align: center;
-      padding: 20px;
+
+    .chat-btn {
+        background: linear-gradient(135deg, var(--primary), var(--secondary));
+        color: white;
     }
+
+    .cancel-btn {
+        background: var(--danger);
+        color: white;
+    }
+
+    .loading,
+    .error-state {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        height: 100%;
+        text-align: center;
+        padding: 20px;
+    }
+
     .spinner {
-      width: 40px;
-      height: 40px;
-      border: 4px solid rgba(0,0,0,0.1);
-      border-top-color: var(--primary);
-      border-radius: 50%;
-      animation: spin 1s linear infinite;
-      margin-bottom: 16px;
+        width: 40px;
+        height: 40px;
+        border: 4px solid rgba(0, 0, 0, 0.1);
+        border-top-color: var(--primary);
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin-bottom: 16px;
     }
-    @keyframes spin { to { transform: rotate(360deg); } }
-    /* Chat Overlay */
+
+    @keyframes spin {
+        to {
+            transform: rotate(360deg);
+        }
+    }
+
+    /* Chat Overlay (Single Page App style) */
     .chat-overlay {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: white;
-      z-index: 1000;
-      display: flex;
-      flex-direction: column;
-      transform: translateX(100%);
-      transition: transform 0.3s ease;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: white;
+        z-index: 1000;
+        display: flex;
+        flex-direction: column;
+        transform: translateX(100%);
+        transition: transform 0.3s cubic-bezier(0.2, 0.9, 0.4, 1.1);
+        box-shadow: -2px 0 10px rgba(0,0,0,0.1);
     }
-    .chat-overlay.open { transform: translateX(0); }
+
+    .chat-overlay.open {
+        transform: translateX(0);
+    }
+
     .chat-header {
-      background: linear-gradient(135deg, var(--primary), var(--secondary));
-      color: white;
-      padding: 15px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      font-weight: bold;
+        background: linear-gradient(135deg, var(--primary), var(--secondary));
+        color: white;
+        padding: 15px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-weight: bold;
     }
+
     .chat-messages {
-      flex: 1;
-      overflow-y: auto;
-      padding: 15px;
-      background: #ECE5DD;
-      display: flex;
-      flex-direction: column;
+        flex: 1;
+        overflow-y: auto;
+        padding: 15px;
+        background: #ECE5DD;
+        display: flex;
+        flex-direction: column;
     }
+
     .message {
-      max-width: 80%;
-      padding: 8px 12px;
-      border-radius: 18px;
-      margin-bottom: 8px;
-      font-size: 14px;
-      word-wrap: break-word;
+        max-width: 80%;
+        padding: 8px 12px;
+        border-radius: 18px;
+        margin-bottom: 8px;
+        font-size: 14px;
+        word-wrap: break-word;
     }
+
     .message.customer {
-      background: #DCF8C6;
-      align-self: flex-end;
+        background: #DCF8C6;
+        align-self: flex-end;
     }
+
     .message.driver {
-      background: white;
-      align-self: flex-start;
+        background: white;
+        align-self: flex-start;
     }
+
     .message small {
-      font-size: 10px;
-      color: #888;
-      display: block;
-      text-align: right;
-      margin-top: 4px;
+        font-size: 10px;
+        color: #888;
+        display: block;
+        text-align: right;
+        margin-top: 4px;
     }
+
     .chat-input-area {
-      display: flex;
-      padding: 10px;
-      background: white;
-      border-top: 1px solid #ddd;
-      gap: 8px;
+        display: flex;
+        padding: 10px;
+        background: white;
+        border-top: 1px solid #ddd;
+        gap: 8px;
     }
+
     .chat-input {
-      flex: 1;
-      padding: 12px;
-      border: 1px solid #ddd;
-      border-radius: 25px;
-      font-size: 14px;
-      outline: none;
+        flex: 1;
+        padding: 12px;
+        border: 1px solid #ddd;
+        border-radius: 25px;
+        font-size: 14px;
+        outline: none;
     }
+
     .chat-input:focus {
-      border-color: var(--primary);
+        border-color: var(--primary);
     }
+
     .chat-send {
-      background: var(--primary);
-      color: white;
-      border: none;
-      border-radius: 25px;
-      padding: 0 20px;
-      font-weight: bold;
-      cursor: pointer;
+        background: var(--primary);
+        color: white;
+        border: none;
+        border-radius: 25px;
+        padding: 0 20px;
+        font-weight: bold;
+        cursor: pointer;
+    }
+
+    /* Audio Alert Modal */
+    .custom-alert {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 2000;
+        backdrop-filter: blur(4px);
+    }
+
+    .custom-alert-content {
+        background: white;
+        border-radius: 28px;
+        padding: 20px;
+        width: 280px;
+        text-align: center;
+        box-shadow: 0 20px 35px rgba(0,0,0,0.2);
+        animation: popIn 0.2s ease-out;
+    }
+
+    @keyframes popIn {
+        from {
+            opacity: 0;
+            transform: scale(0.9);
+        }
+        to {
+            opacity: 1;
+            transform: scale(1);
+        }
+    }
+
+    .custom-alert-content p {
+        margin: 15px 0;
+        font-size: 16px;
+        font-weight: 500;
+    }
+
+    .custom-alert-button {
+        background: var(--primary);
+        color: white;
+        border: none;
+        width: 100%;
+        padding: 10px;
+        border-radius: 40px;
+        font-weight: bold;
+        font-size: 16px;
+        cursor: pointer;
     }
   </style>
 </head>
 <body>
 <div class="container">
   <div class="header">
-    <button class="back-btn" id="backBtn">← Kembali</button>
-    <h2 style="font-size: 1.2rem;">Lacak Perjalanan</h2>
+    <div class="placeholder"></div> <!-- Spacer untuk centering -->
+    <h2>Lacak Perjalanan</h2>
+    <div class="placeholder"></div>
   </div>
+
   <div id="loadingScreen" class="loading">
     <div class="spinner"></div>
     <p>Memuat data perjalanan...</p>
   </div>
   <div id="errorScreen" class="error-state" style="display: none;">
     <p>⚠️ Gagal memuat data.</p>
-    <button id="retryBtn">Coba Lagi</button>
+    <button id="retryBtn" style="margin-top: 16px; background: var(--primary); border: none; padding: 8px 20px; border-radius: 20px; color: white;">Coba Lagi</button>
   </div>
   <div id="mainContent" style="display: none;">
-    <div class="map-section"><div id="orderMap"></div></div>
+    <div class="map-section">
+      <div id="orderMap"></div>
+      <div class="map-overlay-label">
+        🚖 Gunakan perlengkapan keselamatan dalam perjalanan
+      </div>
+    </div>
     <div class="content-wrapper">
       <div class="status-card">
         <div class="status-badge" id="statusBadge">Menunggu Driver</div>
-        <p id="statusMessage">Driver sedang menuju lokasi Anda</p>
+        <p id="statusMessage" style="margin-top: 8px;">Driver sedang menuju lokasi Anda</p>
       </div>
       <div class="driver-card">
         <div class="driver-profile">
-          <img id="driverPhoto" class="driver-photo" src="https://cdn-icons-png.flaticon.com/512/3135/3135715.png">
-          <div class="driver-info">
-            <h3 id="driverName">-</h3>
-            <div class="rating" id="driverRating">⭐ 0.0</div>
-            <div><span id="driverPlate" class="driver-plate">-</span></div>
-            <div><small id="driverVehicle">-</small></div>
+          <div class="driver-profile-left">
+            <img id="driverPhoto" class="driver-photo" src="https://cdn-icons-png.flaticon.com/512/3135/3135715.png" style="width: 55px; height: 55px; border-radius: 50%; object-fit: cover; border: 2px solid var(--primary);">
+            <div class="driver-info">
+              <h3 id="driverName">-</h3>
+              <div class="rating" id="driverRating">⭐ 0.0</div>
+              <div style="margin-top: 4px;"><span id="driverPlate" class="driver-plate">-</span> • <span id="driverVehicle">-</span></div>
+            </div>
           </div>
+          <div class="driver-price" id="priceDisplay">Rp 0</div>
         </div>
       </div>
       <div class="route-card">
@@ -285,10 +539,22 @@
       </div>
       <div class="info-card">
         <div class="info-grid">
-          <div class="info-item"><div class="info-label">Jarak</div><div class="info-value" id="distance">-</div></div>
-          <div class="info-item"><div class="info-label">Durasi</div><div class="info-value" id="duration">-</div></div>
-          <div class="info-item"><div class="info-label">Biaya</div><div class="info-value price" id="price">-</div></div>
-          <div class="info-item"><div class="info-label">Status</div><div class="info-value" id="orderStatus">-</div></div>
+          <div class="info-item">
+            <div class="info-label">Jarak</div>
+            <div class="info-value" id="distance">-</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">Durasi</div>
+            <div class="info-value" id="duration">-</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">Biaya</div>
+            <div class="info-value price" id="price">-</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">Status</div>
+            <div class="info-value" id="orderStatus">-</div>
+          </div>
         </div>
       </div>
     </div>
@@ -299,7 +565,7 @@
   </div>
 </div>
 
-<!-- Chat Overlay -->
+<!-- Chat Overlay (SPA style) -->
 <div id="chatOverlay" class="chat-overlay">
   <div class="chat-header">
     <span>💬 Chat dengan Driver</span>
@@ -327,10 +593,17 @@
   const database = firebase.database();
   const auth = firebase.auth();
 
+  // DOM Elements
   let orderId = null, orderRef = null, driverLocationRef = null, chatRef = null;
   let orderData = null, map = null, driverMarker = null, pickupMarker = null, destMarker = null, routeLine = null;
+  let arrivedAudio = null;
+  let isArrivedAlertShowing = false;
 
-  function formatRupiah(num) { return 'Rp ' + (num || 0).toLocaleString('id-ID'); }
+  // Helper: Format Rupiah
+  function formatRupiah(num) {
+    return 'Rp ' + (num || 0).toLocaleString('id-ID');
+  }
+
   function showErrorUI(msg) {
     document.getElementById('loadingScreen').style.display = 'none';
     document.getElementById('errorScreen').style.display = 'flex';
@@ -339,12 +612,80 @@
     console.error(msg);
   }
 
+  // Fungsi untuk menampilkan alert Tiba dengan audio loop
+  function showArrivedAlert() {
+    if (isArrivedAlertShowing) return;
+    isArrivedAlertShowing = true;
+    
+    // Play audio (loop)
+    if (arrivedAudio) {
+      arrivedAudio.pause();
+      arrivedAudio.currentTime = 0;
+    }
+    arrivedAudio = new Audio('https://jegoapp-gorontalo.netlify.app/audio/beep-warning-6387.mp3');
+    arrivedAudio.loop = true;
+    arrivedAudio.play().catch(e => console.warn("Audio play error:", e));
+
+    // Buat custom alert
+    const alertDiv = document.createElement('div');
+    alertDiv.className = 'custom-alert';
+    alertDiv.innerHTML = `
+      <div class="custom-alert-content">
+        <div style="font-size: 48px;">🚕</div>
+        <p style="font-weight: bold; font-size: 18px;">Driver telah tiba!</p>
+        <p>Driver sudah sampai di lokasi penjemputan Anda.</p>
+        <button class="custom-alert-button" id="arrivedAlertOkBtn">OK, Saya Tahu</button>
+      </div>
+    `;
+    document.body.appendChild(alertDiv);
+    
+    const stopAlert = () => {
+      if (arrivedAudio) {
+        arrivedAudio.pause();
+        arrivedAudio.currentTime = 0;
+        arrivedAudio = null;
+      }
+      if (alertDiv && alertDiv.parentNode) alertDiv.remove();
+      isArrivedAlertShowing = false;
+    };
+    
+    document.getElementById('arrivedAlertOkBtn').onclick = stopAlert;
+    // Jika user klik backdrop (jika ada, tapi custom alert mungkin tidak punya backdrop click)
+  }
+
+  // Extract driver info from order
   function extractDriverFromOrder(order, driverId) {
     if (!driverId) return null;
     if (order.driver_offers && order.driver_offers[driverId]) {
       return order.driver_offers[driverId];
     }
     return null;
+  }
+
+  // Map & Driver Rotation
+  function updateDriverLocation(lat, lng, bearing = 0) {
+    if (!map) return;
+    const iconUrl = 'https://cdn-icons-png.flaticon.com/128/5811/5811823.png'; // motor icon
+    const icon = L.icon({
+      iconUrl: iconUrl,
+      iconSize: [35, 35],
+      iconAnchor: [17, 35],
+      popupAnchor: [0, -35]
+    });
+    
+    if (driverMarker) {
+      driverMarker.setLatLng([lat, lng]);
+      if (driverMarker.setRotationAngle) {
+        driverMarker.setRotationAngle(bearing);
+      }
+    } else {
+      driverMarker = L.marker([lat, lng], {
+        icon: icon,
+        rotationAngle: bearing,
+        rotationOrigin: "center center"
+      }).addTo(map);
+      driverMarker.bindPopup('🚗 Posisi Driver').openPopup();
+    }
   }
 
   async function loadOrderData() {
@@ -358,6 +699,12 @@
       const order = orderSnap.val();
       if (!order) throw new Error(`Order ${orderId} tidak ditemukan.`);
       orderData = order;
+      
+      // Display Price in driver card & info card
+      const tripPrice = order.price || 0;
+      document.getElementById('priceDisplay').innerHTML = `${formatRupiah(tripPrice)} <small>total</small>`;
+      document.getElementById('price').innerHTML = formatRupiah(tripPrice);
+      
       let driverId = order.driver_id;
       if (!driverId && order.driver_offers) {
         for (let did in order.driver_offers) {
@@ -369,7 +716,8 @@
       }
       let driverInfo = null;
       if (driverId) driverInfo = extractDriverFromOrder(order, driverId);
-      // Tampilkan UI
+      
+      // UI Render
       document.getElementById('loadingScreen').style.display = 'none';
       document.getElementById('mainContent').style.display = 'block';
       document.getElementById('pickupAddr').innerText = order.pickup_address || '-';
@@ -378,7 +726,7 @@
       const duration = order.duration_seconds ? Math.round(order.duration_seconds / 60) + ' menit' : '-';
       document.getElementById('distance').innerText = distance;
       document.getElementById('duration').innerText = duration;
-      document.getElementById('price').innerHTML = formatRupiah(order.price);
+      
       if (driverInfo) {
         document.getElementById('driverName').innerText = driverInfo.driver_name || 'Driver';
         document.getElementById('driverRating').innerHTML = `⭐ ${(driverInfo.driver_rating || 5).toFixed(1)}`;
@@ -386,10 +734,16 @@
         document.getElementById('driverVehicle').innerText = driverInfo.driver_type || '-';
         if (driverInfo.driver_photo) document.getElementById('driverPhoto').src = driverInfo.driver_photo;
       }
+      
       updateStatusUI(order.status);
       initMap(order);
       startRealtimeUpdates(orderId);
       initChat(orderId);
+      
+      // Check initial status for ARRIVED
+      if (order.status === 'arrived') {
+        showArrivedAlert();
+      }
     } catch (err) {
       console.error(err);
       showErrorUI(`Gagal memuat data: ${err.message}`);
@@ -414,6 +768,11 @@
     if (status === 'completed') document.getElementById('cancelBtn').style.display = 'none';
     else document.getElementById('cancelBtn').style.display = 'block';
     document.getElementById('orderStatus').innerText = info.text;
+    
+    // jika status arrived dan alert belum muncul
+    if (status === 'arrived' && !isArrivedAlertShowing) {
+      showArrivedAlert();
+    }
   }
 
   function initMap(order) {
@@ -421,13 +780,18 @@
     const centerLat = (order.pickup_lat + order.dest_lat) / 2;
     const centerLng = (order.pickup_lng + order.dest_lng) / 2;
     map = L.map('orderMap').setView([centerLat, centerLng], 13);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>'
+    }).addTo(map);
+    
     pickupMarker = L.marker([order.pickup_lat, order.pickup_lng], {
       icon: L.divIcon({ html: '<div style="background:#28a745; width:30px; height:30px; border-radius:50%; text-align:center; line-height:30px; color:white; font-weight:bold;">A</div>' })
     }).addTo(map).bindPopup('Penjemputan');
+    
     destMarker = L.marker([order.dest_lat, order.dest_lng], {
       icon: L.divIcon({ html: '<div style="background:#dc3545; width:30px; height:30px; border-radius:50%; text-align:center; line-height:30px; color:white; font-weight:bold;">B</div>' })
     }).addTo(map).bindPopup('Tujuan');
+    
     drawRoute(order.pickup_lat, order.pickup_lng, order.dest_lat, order.dest_lng);
   }
 
@@ -440,21 +804,13 @@
         const coords = data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
         if (routeLine) map.removeLayer(routeLine);
         routeLine = L.polyline(coords, { color: '#FF9800', weight: 5 }).addTo(map);
-        map.fitBounds(routeLine.getBounds(), { padding: [40,40] });
+        map.fitBounds(routeLine.getBounds(), { padding: [40, 40] });
       }
-    } catch(e) { console.warn(e); }
-  }
-
-  function updateDriverLocation(lat, lng) {
-    if (!map) return;
-    const iconUrl = 'https://cdn-icons-png.flaticon.com/128/5811/5811823.png';
-    const icon = L.icon({ iconUrl, iconSize: [35,35], iconAnchor: [17,35] });
-    if (driverMarker) driverMarker.setLatLng([lat, lng]);
-    else driverMarker = L.marker([lat, lng], { icon }).addTo(map);
-    driverMarker.bindPopup('🚗 Posisi Driver').openPopup();
+    } catch (e) { console.warn(e); }
   }
 
   function startRealtimeUpdates(orderId) {
+    // Realtime Order Status
     orderRef = database.ref(`orders/${orderId}`);
     orderRef.on('value', (snap) => {
       const newOrder = snap.val();
@@ -478,21 +834,43 @@
           document.getElementById('driverVehicle').innerText = d.driver_type || '-';
           if (d.driver_photo) document.getElementById('driverPhoto').src = d.driver_photo;
         }
+        // Update Price if changed (optional)
+        if (newOrder.price) {
+          document.getElementById('priceDisplay').innerHTML = `${formatRupiah(newOrder.price)} <small>total</small>`;
+          document.getElementById('price').innerHTML = formatRupiah(newOrder.price);
+        }
       }
     });
+    
     const driverId = orderData?.driver_id;
     if (driverId) {
       driverLocationRef = database.ref(`driver_locations/${driverId}`);
       driverLocationRef.on('value', (snap) => {
         const loc = snap.val();
-        if (loc && loc.latitude && loc.longitude) updateDriverLocation(loc.latitude, loc.longitude);
+        if (loc && typeof loc.latitude === 'number' && typeof loc.longitude === 'number') {
+          let bearing = 0;
+          if (typeof loc.heading === 'number') {
+            bearing = loc.heading;
+          } else if (driverMarker && driverMarker.getLatLng) {
+            // Fallback heading from movement (simplified)
+            const prev = driverMarker.getLatLng();
+            if (prev) {
+              const dx = loc.longitude - prev.lng;
+              const dy = loc.latitude - prev.lat;
+              if (Math.abs(dx) > 0.00001 || Math.abs(dy) > 0.00001) {
+                bearing = Math.atan2(dy, dx) * 180 / Math.PI;
+              }
+            }
+          }
+          updateDriverLocation(loc.latitude, loc.longitude, bearing);
+        }
       });
     }
   }
 
   function initChat(orderId) {
     chatRef = database.ref(`chat/${orderId}`);
-    chatRef.off(); // hapus listener lama jika ada
+    chatRef.off();
     chatRef.on('child_added', (snap) => displayChatMessage(snap.val()));
     chatRef.once('value').then(snap => {
       const msgs = snap.val();
@@ -545,11 +923,36 @@
     if (!confirm('Batalkan perjalanan ini?')) return;
     await database.ref(`orders/${orderId}`).update({ status: 'cancelled', cancelled_by: 'customer', cancelled_at: new Date().toISOString() });
     alert('Perjalanan dibatalkan.');
+    localStorage.removeItem('current_order_id');
     window.location.href = 'index.html';
   }
 
-  function openChat() { document.getElementById('chatOverlay').classList.add('open'); }
-  function closeChat() { document.getElementById('chatOverlay').classList.remove('open'); }
+  function openChat() {
+    document.getElementById('chatOverlay').classList.add('open');
+  }
+  function closeChat() {
+    document.getElementById('chatOverlay').classList.remove('open');
+  }
+
+  // ========== SPA Back Handling (Don't close app, just go back if chat is open) ==========
+  window.addEventListener('popstate', function(event) {
+    // If chat is open, close it instead of navigating away
+    if (document.getElementById('chatOverlay').classList.contains('open')) {
+      closeChat();
+      // Push dummy state to prevent exiting
+      history.pushState(null, null, location.href);
+      event.preventDefault();
+    } else {
+      // If not in chat, we are on main tracking. Do nothing (or navigate to previous page? but user expects to stay)
+      // By default, going back while on main tracking might exit the app.
+      // To prevent accidental exit, we might re-push state.
+      history.pushState(null, null, location.href);
+      event.preventDefault();
+    }
+  });
+  
+  // Initialize history state so popstate works
+  history.pushState(null, null, location.href);
 
   document.addEventListener('DOMContentLoaded', () => {
     auth.onAuthStateChanged(async (user) => {
@@ -560,7 +963,8 @@
         setTimeout(() => window.location.href = 'loginUser.html', 2000);
       }
     });
-    document.getElementById('backBtn').onclick = () => window.history.back();
+    
+    // No back button, so we don't attach back listener
     document.getElementById('chatBtn').onclick = openChat;
     document.getElementById('closeChatBtn').onclick = closeChat;
     document.getElementById('sendChatBtn').onclick = sendChatMessage;
