@@ -474,6 +474,11 @@
   let priceOfferTimer = null;
   let priceOfferShown = false;
   let currentZoomAnimation = null;
+  
+  // Untuk menyimpan marker driver yang aktif
+  let driverMarkers = [];
+  let driversRef = null;
+  let driversListener = null;
 
   // ==================== UTILITY ====================
   function showPopup(title, message, onClose = null) {
@@ -507,7 +512,86 @@
 
   function escapeHtml(str) { if (!str) return ''; return str.replace(/[&<>]/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[m])); }
 
-  // ==================== CEK ORDER AKTIF (TAMBAHAN) ====================
+  // ==================== FUNGSI UNTUK MENAMPILKAN DRIVER AKTIF DI PETA ====================
+  function getDriverIconUrl(vehicleType) {
+    // Pilih ikon sesuai tipe kendaraan driver (jika ada data vehicleType dari driver)
+    // Atau gunakan ikon default sesuai pilihan transport user
+    if (vehicleType === 'motor') return 'https://cdn-icons-png.flaticon.com/128/5811/5811823.png';
+    if (vehicleType === 'bentor') return 'https://cdn-icons-png.flaticon.com/128/7890/7890227.png';
+    if (vehicleType === 'mobil') return 'https://cdn-icons-png.flaticon.com/128/12689/12689302.png';
+    if (vehicleType === 'kurir_motor') return 'https://cdn-icons-png.flaticon.com/128/9561/9561688.png';
+    if (vehicleType === 'kurir_bentor') return 'https://cdn-icons-png.flaticon.com/128/7890/7890227.png';
+    // Default sesuai pilihan user
+    return transportIconUrl || 'https://cdn-icons-png.flaticon.com/128/5811/5811823.png';
+  }
+
+  function addDriverMarker(driverId, location, vehicleType = null) {
+    if (!map || !location.latitude || !location.longitude) return;
+    
+    const iconUrl = getDriverIconUrl(vehicleType);
+    const el = document.createElement('div');
+    el.style.backgroundImage = `url(${iconUrl})`;
+    el.style.backgroundSize = 'cover';
+    el.style.width = '35px';
+    el.style.height = '35px';
+    el.style.borderRadius = '50%';
+    el.style.border = '2px solid var(--primary)';
+    el.style.boxShadow = '0 2px 6px rgba(0,0,0,0.2)';
+    el.title = `Driver ${driverId}`;
+    
+    const marker = new mapboxgl.Marker({ element: el })
+      .setLngLat([location.longitude, location.latitude])
+      .addTo(map);
+    
+    driverMarkers.push({ id: driverId, marker });
+  }
+
+  function removeAllDriverMarkers() {
+    driverMarkers.forEach(item => {
+      if (item.marker && item.marker.remove) item.marker.remove();
+    });
+    driverMarkers = [];
+  }
+
+  function startDriversListener() {
+    if (!database) return;
+    // Hentikan listener lama jika ada
+    if (driversListener && driversRef) driversRef.off('value', driversListener);
+    
+    driversRef = database.ref('driver_locations');
+    driversListener = driversRef.on('value', (snapshot) => {
+      // Hapus semua marker sebelumnya
+      removeAllDriverMarkers();
+      
+      const locations = snapshot.val();
+      if (!locations) return;
+      
+      // Loop semua driver
+      Object.keys(locations).forEach(driverId => {
+        const driverData = locations[driverId];
+        // Hanya tampilkan driver yang tracking_enabled = true
+        if (driverData && driverData.tracking_enabled === true && 
+            driverData.latitude && driverData.longitude) {
+          // Ambil tipe kendaraan dari node drivers (bisa juga dari localStorage atau fallback)
+          // Karena di driver_locations tidak ada vehicleType, kita coba ambil dari database drivers
+          database.ref(`drivers/${driverId}/vehicleType`).once('value').then(snap => {
+            const vehicleType = snap.val();
+            addDriverMarker(driverId, {
+              latitude: driverData.latitude,
+              longitude: driverData.longitude
+            }, vehicleType);
+          }).catch(() => {
+            addDriverMarker(driverId, {
+              latitude: driverData.latitude,
+              longitude: driverData.longitude
+            });
+          });
+        }
+      });
+    });
+  }
+
+  // ==================== CEK ORDER AKTIF ====================
   async function cekOrderAktifDanRedirect() {
     const orderId = localStorage.getItem('current_order_id');
     if (!orderId) return false;
@@ -746,6 +830,9 @@
       const f = e.detail.features[0];
       if (f) { destCoord = f.geometry.coordinates; destAddress = getFullAddress(f); updateRoute(); }
     });
+    
+    // Setelah map siap, mulai listener driver aktif
+    startDriversListener();
   }
 
   function updateMarkers() {
@@ -802,11 +889,10 @@
 
   // ==================== RADAR ====================
   function startSlowZoomOut() {
-  if (!map || !pickupCoord) return;
-  if (currentZoomAnimation) { map.stop(); currentZoomAnimation = null; }
-  // Zoom out sangat lambat: durasi 180 detik, target zoom 11
-  currentZoomAnimation = map.flyTo({ center: pickupCoord, zoom: 11, duration: 180000 });
-}
+    if (!map || !pickupCoord) return;
+    if (currentZoomAnimation) { map.stop(); currentZoomAnimation = null; }
+    currentZoomAnimation = map.flyTo({ center: pickupCoord, zoom: 11, duration: 180000 });
+  }
   function stopSlowZoomOut() {
     if (currentZoomAnimation) { map.stop(); currentZoomAnimation = null; }
   }
@@ -890,26 +976,26 @@
     setTimeout(() => document.getElementById('radar').classList.add('expanding'), 100);
     activateRadarOnPickup();
 
-// Langsung fokus ke marker dengan zoom tinggi (2 detik)
-if (map && pickupCoord) {
-  map.flyTo({
-    center: [pickupCoord[0], pickupCoord[1]],
-    zoom: 15,
-    duration: 2000,
-    essential: true
-  });
-  // Setelah 2 detik, mulai zoom out lambat selama sisa waktu
-  setTimeout(() => {
-    map.flyTo({
-      center: [pickupCoord[0], pickupCoord[1]],
-      zoom: 11,
-      duration: 178000, // 2 menit 58 detik
-      easing: function(t) { return t; }
-    });
-  }, 2000);
-}
+    // Langsung fokus ke marker dengan zoom tinggi (2 detik)
+    if (map && pickupCoord) {
+      map.flyTo({
+        center: [pickupCoord[0], pickupCoord[1]],
+        zoom: 15,
+        duration: 2000,
+        essential: true
+      });
+      // Setelah 2 detik, mulai zoom out lambat selama sisa waktu
+      setTimeout(() => {
+        map.flyTo({
+          center: [pickupCoord[0], pickupCoord[1]],
+          zoom: 11,
+          duration: 178000,
+          easing: function(t) { return t; }
+        });
+      }, 2000);
+    }
 
-const newOrderRef = database.ref('orders').push();
+    const newOrderRef = database.ref('orders').push();
     currentOrderId = newOrderRef.key;
     const orderData = {
       user_id: currentUser.id,
