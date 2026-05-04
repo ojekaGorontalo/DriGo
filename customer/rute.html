@@ -18,7 +18,6 @@
   <script id="search-js" defer src="https://api.mapbox.com/search-js/v1.5.0/web.js"></script>
 
   <style>
-    /* ===== STYLE SAMA ===== */
     :root { --primary: #FF9800; --secondary: #FF5722; --accent: #FFC107; --light: #f8f9fa; --dark: #343a40; --success: #4CAF50; --danger: #f44336; --warning: #FFC107; --info: #2196F3; --gray: #9E9E9E; --confirm-bottom: 80px; --confirm-height: 54px; --confirm-gap: 10px; }
     html, body, #map { height: 100%; margin: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
     .panel { position: absolute; top: 10px; left: 10px; right: 10px; background: rgba(255,255,255,0.98); padding: 15px; z-index: 5; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.15); box-sizing: border-box; }
@@ -40,11 +39,7 @@
     .stat-value { font-weight: 600; color: var(--primary); font-size: 1rem; }
     .stat-label { font-size: 0.75rem; color: #666; }
     .price-highlight { font-weight: 700; color: var(--success); font-size: 1.1rem; }
-    .confirm-btn, .cancel-btn {
-      position: fixed; bottom: 20px; left: 20px; right: 20px; color: white; border: none; border-radius: 10px; padding: 16px;
-      font-size: 16px; font-weight: 600; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.2); z-index: 10000;
-      transition: all 0.3s; transform: translateZ(0);
-    }
+    .confirm-btn, .cancel-btn { position: fixed; bottom: 20px; left: 20px; right: 20px; color: white; border: none; border-radius: 10px; padding: 16px; font-size: 16px; font-weight: 600; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.2); z-index: 10000; transition: all 0.3s; transform: translateZ(0); }
     .confirm-btn { background: linear-gradient(to right, var(--primary), var(--secondary)); }
     .cancel-btn { background: linear-gradient(to right, var(--danger), #e74c3c); display: none; }
     .confirm-btn:hover, .cancel-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 15px rgba(0,0,0,0.25); }
@@ -146,7 +141,6 @@
       messagingSenderId: "600037007040",
       appId: "1:600037007040:web:ac3243ad9b472647ffd725"
     };
-
     if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
     const auth = firebase.auth();
     const database = firebase.database();
@@ -498,7 +492,7 @@
       if (pickupMarker && pickupMarker.getElement()) pickupMarker.getElement().classList.remove('radar-marker-effect');
     }
 
-    // ==================== ORDER & DRIVER OFFERS (FLAT STRUCTURE) ====================
+    // ==================== ORDER & DRIVER OFFERS ====================
     function renderOffers(offers) {
       const container = document.getElementById('driverOfferList');
       if (!container) return;
@@ -531,32 +525,24 @@
     }
 
     async function acceptOffer(driverId) {
-  // 1. Pastikan currentOrderId tidak kosong sebelum melanjutkan
-  if (!currentOrderId) {
-    console.error('❌ Gagal: currentOrderId kosong!');
-    showPopup('Gagal', 'ID order tidak valid. Silakan coba lagi.', '⚠️');
-    return;
-  }
-
-  const savedOrderId = currentOrderId;
-  console.log('✅ Menyetujui driver untuk order:', savedOrderId);
-  
-  // 2. Tandai penerimaan driver dan update status order
-  await database.ref(`orders/${savedOrderId}/driver_offers/${driverId}/status`).set('accepted');
-  await database.ref(`orders/${savedOrderId}`).update({
-    status: 'accepted',
-    driver_id: driverId,
-    accepted_at: new Date().toISOString()
-  });
-  
-  // 3. Simpan ID order ke localStorage untuk antisipasi fallback
-  localStorage.setItem('current_order_id', savedOrderId);
-  
-  // 4. Redirect halaman, pastikan ID order dikirim di URL
-  showPopup('Berhasil', 'Driver telah dipilih. Menuju halaman pelacakan...', '✅', () => {
-    window.location.href = `tracking_customer.html?order_id=${savedOrderId}`;
-  });
-}
+      if (!currentOrderId) {
+        console.error('❌ Gagal: currentOrderId kosong!');
+        showPopup('Gagal', 'ID order tidak valid. Silakan coba lagi.', '⚠️');
+        return;
+      }
+      const savedOrderId = currentOrderId;
+      console.log('✅ Menyetujui driver untuk order:', savedOrderId);
+      await database.ref(`orders/${savedOrderId}/driver_offers/${driverId}/status`).set('accepted');
+      await database.ref(`orders/${savedOrderId}`).update({
+        status: 'accepted',
+        driver_id: driverId,
+        accepted_at: new Date().toISOString()
+      });
+      localStorage.setItem('current_order_id', savedOrderId);
+      showPopup('Berhasil', 'Driver telah dipilih. Menuju halaman pelacakan...', '✅', () => {
+        window.location.href = 'tracking_customer.html';
+      });
+    }
 
     async function rejectOffer(driverId) {
       if (!currentOrderId) return;
@@ -582,7 +568,6 @@
       activateRadarOnPickup();
       startSlowZoomOut();
 
-      // Simpan order di root orders (flat) menggunakan push()
       const newOrderRef = database.ref('orders').push();
       currentOrderId = newOrderRef.key;
       const orderData = {
@@ -611,15 +596,11 @@
         orderData.item_description = deliveryData.description;
       }
       await newOrderRef.set(orderData);
-
-      // Simpan juga ke userOrders untuk riwayat customer (opsional)
       await database.ref(`userOrders/${currentUser.id}/${currentOrderId}`).set(true);
-
       localStorage.setItem('current_order_id', currentOrderId);
       isSearching = true;
       document.getElementById('driverOffers').style.display = 'block';
 
-      // Listener status order di root orders
       orderRef = database.ref(`orders/${currentOrderId}/status`);
       orderStatusCallback = (snapshot) => {
         const status = snapshot.val();
@@ -632,7 +613,6 @@
       };
       orderRef.on('value', orderStatusCallback);
 
-      // Listener penawaran driver
       offersRef = database.ref(`orders/${currentOrderId}/driver_offers`);
       offersCallback = (snapshot) => renderOffers(snapshot.val());
       offersRef.on('value', offersCallback);
@@ -642,9 +622,7 @@
       }, 30000);
     }
 
-    async function cancelSearchHandler() {
-      await cancelSearch();
-    }
+    async function cancelSearchHandler() { await cancelSearch(); }
 
     function showPriceOfferPopup() {
       if (priceOfferShown) return;
@@ -721,10 +699,8 @@
       if (!transportLoaded) return;
       await initMap();
       await autoFillPickupLocation();
-
       document.getElementById('confirmBtn').addEventListener('click', confirmRoute);
       document.getElementById('closeDriverOffers').addEventListener('click', () => document.getElementById('driverOffers').style.display = 'none');
-
       let nightMode = false;
       document.getElementById('mapModeBtn').addEventListener('click', () => {
         nightMode = !nightMode;
