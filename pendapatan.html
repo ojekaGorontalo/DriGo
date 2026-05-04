@@ -7,20 +7,24 @@
   <!-- Firebase SDK -->
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
-  <!-- Leaflet CSS -->
+  <!-- Leaflet CSS & JS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <style>
     :root {
       --primary: #FF9800;
+      --primary-dark: #F57C00;
       --secondary: #FF5722;
       --accent: #FFC107;
       --light: #f8f9fa;
-      --dark: #343a40;
-      --success: #4CAF50;
-      --danger: #f44336;
-      --warning: #FFC107;
-      --info: #2196F3;
-      --gray: #9E9E9E;
+      --dark: #1e2a3e;
+      --success: #10b981;
+      --danger: #ef4444;
+      --warning: #f59e0b;
+      --info: #3b82f6;
+      --gray: #64748b;
+      --gray-light: #e2e8f0;
+      --bg: #f1f5f9;
     }
 
     * {
@@ -30,20 +34,20 @@
     }
 
     body {
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      background-color: #f5f5f5;
-      color: #333;
-      line-height: 1.4;
-      font-size: 0.85rem;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      background-color: var(--bg);
+      color: var(--dark);
+      line-height: 1.5;
+      font-size: 0.875rem;
       padding-bottom: 20px;
     }
 
     /* Header */
     .header {
-      background: linear-gradient(135deg, var(--primary), var(--secondary));
+      background: linear-gradient(135deg, var(--primary), var(--primary-dark));
       color: white;
-      padding: 15px 20px;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+      padding: 18px 20px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.08);
       display: flex;
       align-items: center;
       justify-content: center;
@@ -52,79 +56,83 @@
       z-index: 100;
     }
     .header-title {
-      font-size: 1.2rem;
+      font-size: 1.4rem;
       font-weight: 700;
-      letter-spacing: 0.5px;
+      letter-spacing: -0.3px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
     }
 
     /* Container */
     .container {
-      max-width: 100%;
-      padding: 15px;
+      max-width: 640px;
+      margin: 0 auto;
+      padding: 16px;
     }
 
     /* Filter */
     .filter-container {
       background: white;
-      border-radius: 12px;
-      padding: 12px;
-      margin-bottom: 15px;
+      border-radius: 48px;
+      padding: 6px 12px;
+      margin-bottom: 20px;
       display: flex;
       gap: 8px;
       overflow-x: auto;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+      scrollbar-width: thin;
     }
     .filter-option {
-      background: #f8f9fa;
-      border: 1px solid #e9ecef;
-      border-radius: 20px;
-      padding: 6px 14px;
+      background: #f1f5f9;
+      border: none;
+      border-radius: 40px;
+      padding: 8px 18px;
       font-size: 0.75rem;
-      font-weight: 500;
+      font-weight: 600;
       cursor: pointer;
       white-space: nowrap;
       transition: all 0.2s;
+      color: var(--dark);
     }
     .filter-option.active {
       background: var(--primary);
       color: white;
-      border-color: var(--primary);
+      box-shadow: 0 4px 10px rgba(255,152,0,0.3);
     }
 
     /* Summary Cards */
     .summary-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-      gap: 10px;
-      margin-bottom: 20px;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 12px;
+      margin-bottom: 24px;
     }
     .summary-card {
       background: white;
-      border-radius: 12px;
-      padding: 12px;
+      border-radius: 24px;
+      padding: 16px 8px;
       text-align: center;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.08);
-      border: 1px solid rgba(255,152,0,0.2);
-      transition: transform 0.2s;
-    }
-    .summary-card:hover {
-      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+      transition: all 0.2s;
+      border: 1px solid rgba(0,0,0,0.03);
     }
     .summary-icon {
-      font-size: 24px;
-      margin-bottom: 5px;
+      font-size: 28px;
+      margin-bottom: 6px;
     }
     .summary-label {
       font-size: 11px;
-      color: #666;
+      color: var(--gray);
       text-transform: uppercase;
+      font-weight: 600;
       letter-spacing: 0.5px;
     }
     .summary-value {
       font-size: 18px;
-      font-weight: 700;
+      font-weight: 800;
       color: var(--primary);
-      margin-top: 4px;
+      margin-top: 6px;
     }
     .summary-value.earnings { color: var(--success); }
     .summary-value.distance { color: var(--secondary); }
@@ -134,81 +142,85 @@
     .orders-list {
       display: flex;
       flex-direction: column;
-      gap: 10px;
+      gap: 12px;
     }
     .date-header {
-      font-size: 0.9rem;
-      font-weight: 600;
-      color: var(--primary);
-      margin: 10px 0 8px;
-      padding-bottom: 5px;
-      border-bottom: 2px solid rgba(255,152,0,0.3);
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: var(--primary-dark);
+      margin: 8px 0 6px;
+      padding-bottom: 8px;
+      border-bottom: 2px solid rgba(255,152,0,0.2);
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
     }
     .order-item {
       background: white;
-      border-radius: 14px;
-      padding: 14px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+      border-radius: 24px;
+      padding: 16px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
       cursor: pointer;
       transition: all 0.2s;
-      border: 1px solid #f0f0f0;
+      border: 1px solid #eef2f6;
     }
     .order-item:hover {
       transform: translateY(-2px);
-      box-shadow: 0 6px 16px rgba(0,0,0,0.1);
+      box-shadow: 0 12px 24px rgba(0,0,0,0.08);
       border-color: var(--primary);
     }
     .order-header {
       display: flex;
       justify-content: space-between;
-      margin-bottom: 8px;
+      align-items: center;
+      margin-bottom: 12px;
     }
     .customer-name {
       font-weight: 700;
-      color: var(--primary);
-      font-size: 0.9rem;
+      color: var(--primary-dark);
+      font-size: 0.95rem;
       display: flex;
       align-items: center;
-      gap: 5px;
+      gap: 8px;
     }
     .kurir-badge {
       background: var(--accent);
-      color: #333;
-      padding: 2px 8px;
-      border-radius: 20px;
-      font-size: 0.7rem;
-      font-weight: 600;
+      color: #2c3e50;
+      padding: 2px 10px;
+      border-radius: 30px;
+      font-size: 0.65rem;
+      font-weight: 700;
     }
     .status-badge {
-      padding: 4px 10px;
-      border-radius: 20px;
+      padding: 4px 12px;
+      border-radius: 30px;
       font-size: 0.7rem;
-      font-weight: 600;
+      font-weight: 700;
     }
-    .status-completed { background: #d4edda; color: #155724; }
-    .status-cancelled { background: #f8d7da; color: #721c24; }
+    .status-completed { background: #d1fae5; color: #065f46; }
+    .status-cancelled { background: #fee2e2; color: #991b1b; }
+
     .route-info {
       display: flex;
       flex-direction: column;
-      gap: 6px;
-      font-size: 0.8rem;
-      margin-bottom: 8px;
+      gap: 8px;
+      margin-bottom: 12px;
     }
     .route-point {
       display: flex;
       align-items: flex-start;
+      gap: 10px;
     }
     .point-marker {
-      width: 18px;
-      height: 18px;
+      width: 22px;
+      height: 22px;
       border-radius: 50%;
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      margin-right: 8px;
       font-size: 0.7rem;
-      color: white;
       font-weight: bold;
+      color: white;
       flex-shrink: 0;
     }
     .point-marker-a { background: var(--primary); }
@@ -216,21 +228,25 @@
     .point-address {
       flex: 1;
       word-break: break-word;
+      font-size: 0.8rem;
+      color: #334155;
     }
+
     .order-details {
       display: flex;
       justify-content: space-between;
-      border-top: 1px solid #eee;
-      padding-top: 8px;
-      margin-bottom: 5px;
+      border-top: 1px solid var(--gray-light);
+      padding-top: 12px;
+      margin-bottom: 8px;
     }
     .detail-item {
       flex: 1;
       text-align: center;
     }
     .detail-value {
-      font-weight: 600;
+      font-weight: 700;
       color: var(--primary);
+      font-size: 0.85rem;
     }
     .price-highlight {
       color: var(--success);
@@ -239,16 +255,16 @@
       display: flex;
       justify-content: space-between;
       font-size: 0.7rem;
-      color: #666;
-      border-top: 1px solid #f0f0f0;
-      padding-top: 6px;
+      color: var(--gray);
+      border-top: 1px solid #f0f2f5;
+      padding-top: 8px;
     }
     .empty-state, .loading, .login-required {
       background: white;
-      border-radius: 16px;
-      padding: 40px 20px;
+      border-radius: 28px;
+      padding: 48px 20px;
       text-align: center;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.04);
     }
     .spinner {
       width: 40px;
@@ -261,7 +277,7 @@
     }
     @keyframes spin { to { transform: rotate(360deg); } }
 
-    /* Detail Panel (Slide In) */
+    /* ========== DETAIL PANEL PROFESSIONAL ========== */
     .detail-overlay {
       position: fixed;
       top: 0;
@@ -269,6 +285,7 @@
       width: 100%;
       height: 100%;
       background: rgba(0,0,0,0.5);
+      backdrop-filter: blur(4px);
       z-index: 1000;
       visibility: hidden;
       opacity: 0;
@@ -283,13 +300,13 @@
       top: 0;
       right: 0;
       width: 100%;
-      max-width: 480px;
+      max-width: 500px;
       height: 100%;
-      background: #f8f9fa;
-      box-shadow: -4px 0 20px rgba(0,0,0,0.2);
+      background: white;
+      box-shadow: -8px 0 40px rgba(0,0,0,0.15);
       z-index: 1001;
       transform: translateX(100%);
-      transition: transform 0.3s ease;
+      transition: transform 0.3s cubic-bezier(0.2, 0.9, 0.4, 1.1);
       overflow-y: auto;
       display: flex;
       flex-direction: column;
@@ -298,8 +315,8 @@
       transform: translateX(0);
     }
     .detail-header {
-      background: linear-gradient(135deg, var(--primary), var(--secondary));
-      color: white;
+      background: white;
+      border-bottom: 1px solid var(--gray-light);
       padding: 16px 20px;
       display: flex;
       align-items: center;
@@ -307,40 +324,56 @@
       position: sticky;
       top: 0;
       z-index: 10;
+      background: white;
     }
     .close-detail {
-      background: rgba(255,255,255,0.2);
+      background: #f1f5f9;
       border: none;
-      border-radius: 30px;
-      padding: 8px 16px;
-      color: white;
+      border-radius: 40px;
+      padding: 8px 18px;
+      color: var(--dark);
       font-weight: 600;
       cursor: pointer;
       display: flex;
       align-items: center;
-      gap: 5px;
+      gap: 6px;
+      font-size: 0.8rem;
+      transition: 0.2s;
+    }
+    .close-detail:hover {
+      background: #e2e8f0;
     }
     .detail-title {
-      font-size: 1rem;
-      font-weight: 600;
+      font-size: 1.1rem;
+      font-weight: 700;
       flex: 1;
+      color: var(--dark);
     }
     .detail-body {
-      padding: 16px;
+      padding: 20px;
       flex: 1;
+      background: #f8fafc;
     }
     .detail-card {
       background: white;
+      border-radius: 28px;
+      padding: 20px;
+      margin-bottom: 20px;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.05);
+      border: 1px solid #edf2f7;
+    }
+    .map-detail {
+      height: 240px;
       border-radius: 20px;
-      padding: 18px;
-      margin-bottom: 16px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+      overflow: hidden;
+      margin-bottom: 0;
+      border: 1px solid var(--gray-light);
     }
     .customer-profile-detail {
       display: flex;
       align-items: center;
-      gap: 14px;
-      margin-bottom: 16px;
+      gap: 16px;
+      margin-bottom: 20px;
     }
     .customer-avatar {
       width: 56px;
@@ -348,75 +381,110 @@
       border-radius: 50%;
       object-fit: cover;
       border: 2px solid var(--primary);
+      background: #fff;
     }
     .customer-name-detail {
-      font-weight: 700;
-      font-size: 1rem;
-      color: var(--primary);
+      font-weight: 800;
+      font-size: 1.1rem;
+      color: var(--dark);
     }
-    .driver-rating {
-      font-size: 0.8rem;
-      color: #666;
-      margin-top: 4px;
+    .stars {
+      color: #fbbf24;
+      letter-spacing: 2px;
+      font-size: 0.85rem;
     }
-    .stars { color: #FFD700; letter-spacing: 2px; }
     .route-detail {
-      margin-bottom: 16px;
+      margin-bottom: 20px;
     }
     .route-detail .point {
       display: flex;
-      gap: 10px;
-      margin-bottom: 12px;
+      gap: 14px;
+      margin-bottom: 14px;
+      align-items: flex-start;
     }
     .marker {
-      width: 24px;
-      height: 24px;
+      width: 28px;
+      height: 28px;
       border-radius: 50%;
       background: var(--primary);
       color: white;
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      font-size: 0.7rem;
+      font-size: 0.75rem;
       font-weight: bold;
       flex-shrink: 0;
     }
-    .marker.b { background: var(--secondary); }
-    .breakdown-box {
-      background: #e9ecef;
-      border-radius: 16px;
-      padding: 14px;
+    .marker.b {
+      background: var(--secondary);
+    }
+    .info-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      background: #f8fafc;
+      border-radius: 20px;
+      padding: 16px;
       margin: 16px 0;
+    }
+    .info-item {
+      text-align: center;
+    }
+    .info-label {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      color: var(--gray);
+      font-weight: 600;
+    }
+    .info-value {
+      font-weight: 800;
+      font-size: 1rem;
+      margin-top: 4px;
+      color: var(--dark);
+    }
+    .breakdown-box {
+      background: #fefce8;
+      border-radius: 24px;
+      padding: 18px;
+      margin: 16px 0;
+      border: 1px solid #fde68a;
     }
     .break-row {
       display: flex;
       justify-content: space-between;
-      margin-bottom: 8px;
+      margin-bottom: 12px;
       font-size: 0.85rem;
+      align-items: center;
     }
     .timeline-detail {
-      margin-top: 12px;
+      margin-top: 20px;
+      background: #f1f5f9;
+      border-radius: 20px;
+      padding: 12px;
     }
     .timeline-item {
       display: flex;
-      gap: 12px;
-      margin-bottom: 10px;
+      gap: 16px;
+      margin-bottom: 14px;
       font-size: 0.8rem;
+      align-items: baseline;
+      padding-bottom: 8px;
+      border-bottom: 1px dashed #e2e8f0;
     }
     .timeline-time {
-      width: 80px;
-      color: #666;
+      width: 110px;
+      color: var(--gray);
+      font-size: 0.7rem;
+      font-weight: 500;
     }
-    .map-detail {
-      height: 180px;
-      border-radius: 16px;
-      overflow: hidden;
-      margin-top: 12px;
+    .timeline-desc {
+      flex: 1;
+      color: var(--dark);
     }
-    @media (max-width: 480px) {
+    @media (max-width: 500px) {
       .detail-panel { max-width: 100%; }
-      .summary-value { font-size: 14px; }
-      .summary-icon { font-size: 20px; }
+      .timeline-time { width: 90px; }
+      .info-grid { gap: 8px; }
     }
   </style>
 </head>
@@ -445,13 +513,13 @@
   </div>
 </div>
 
-<!-- Detail Panel (Slide In) -->
+<!-- Detail Panel Professional -->
 <div class="detail-overlay" id="detailOverlay">
   <div class="detail-panel">
     <div class="detail-header">
       <button class="close-detail" id="closeDetailBtn">← Kembali</button>
       <div class="detail-title">Detail Perjalanan</div>
-      <div style="width: 40px;"></div>
+      <div style="width: 30px;"></div>
     </div>
     <div class="detail-body" id="detailBody">
       <div class="loading"><div class="spinner"></div><p>Memuat detail...</p></div>
@@ -459,7 +527,6 @@
   </div>
 </div>
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
   // ========== FIREBASE ==========
   const firebaseConfig = {
@@ -479,39 +546,35 @@
   let currentFilter = 'all';
   let feePersen = 0, pajakPersen = 0;
   let currentDetailMap = null;
+  let isHandlingPopState = false; // Flag untuk mencegah loop history
 
-  // ========== LOAD FEE & PAJAK ==========
+  function formatRupiah(num) {
+    if (num === undefined || num === null) return 'Rp 0';
+    return 'Rp ' + num.toLocaleString('id-ID', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+  }
+
   async function loadFeeSettings() {
     try {
       const potonganSnap = await database.ref('data-jego/potongan').once('value');
       const pajakSnap = await database.ref('data-jego/pajak').once('value');
-      feePersen = potonganSnap.exists() ? parseFloat(potonganSnap.val()) : 20;
+      feePersen = potonganSnap.exists() ? parseFloat(potonganSnap.val()) : 7;
       pajakPersen = pajakSnap.exists() ? parseFloat(pajakSnap.val()) : 11;
     } catch(e) {
-      feePersen = 20;
+      feePersen = 7;
       pajakPersen = 11;
     }
   }
 
   function calculateEarningsDetails(price, orderFee = null, orderTax = null) {
-    // Gunakan nilai historis dari order jika ada, jika tidak pakai nilai global
     const fee = (orderFee !== null && orderFee !== undefined) ? orderFee : feePersen;
     const tax = (orderTax !== null && orderTax !== undefined) ? orderTax : pajakPersen;
     const potonganRupiah = price * (fee / 100);
     const pajakRupiah = potonganRupiah * (tax / 100);
     const totalPotongan = potonganRupiah + pajakRupiah;
     const netEarnings = price - totalPotongan;
-    return {
-        net: netEarnings,
-        fee: potonganRupiah,
-        tax: pajakRupiah,
-        totalPotongan: totalPotongan,
-        feePercent: fee,
-        taxPercent: tax
-    };
-}
+    return { net: netEarnings, fee: potonganRupiah, tax: pajakRupiah, totalPotongan, feePercent: fee, taxPercent: tax };
+  }
 
-  // ========== STATISTIK ==========
   function computeStats(orders) {
     let totalOrders = 0, totalDistance = 0, grossEarnings = 0, netEarningsSum = 0;
     orders.forEach(order => {
@@ -521,7 +584,6 @@
         totalDistance += distance;
         const price = order.price || 0;
         grossEarnings += price;
-        // Gunakan fee_percent dan tax_percent historis jika ada
         const fee = (order.fee_percent != null) ? order.fee_percent : feePersen;
         const tax = (order.tax_percent != null) ? order.tax_percent : pajakPersen;
         const potonganRupiah = price * (fee / 100);
@@ -531,38 +593,25 @@
     });
     const totalFees = grossEarnings - netEarningsSum;
     const avgPerKm = totalDistance > 0 ? netEarningsSum / totalDistance : 0;
-    return {
-        totalOrders,
-        totalDistance: totalDistance.toFixed(1),
-        grossEarnings,
-        totalFees,
-        netEarnings: netEarningsSum,
-        avgPerKm,
-        feePercent: feePersen,   // tetap pakai persentase global untuk tampilan label
-        taxPercent: pajakPersen
-    };
-}
+    return { totalOrders, totalDistance: totalDistance.toFixed(1), grossEarnings, totalFees, netEarnings: netEarningsSum, avgPerKm, feePercent: feePersen, taxPercent: pajakPersen };
+  }
 
   function renderSummary(orders) {
     const container = document.getElementById('summaryContainer');
     if (!container) return;
     const stats = computeStats(orders);
-    if (stats.totalOrders === 0) {
-      container.style.display = 'none';
-      return;
-    }
+    if (stats.totalOrders === 0) { container.style.display = 'none'; return; }
     container.style.display = 'grid';
     container.innerHTML = `
       <div class="summary-card"><div class="summary-icon">📦</div><div class="summary-label">Order Selesai</div><div class="summary-value">${stats.totalOrders}</div></div>
       <div class="summary-card"><div class="summary-icon">📏</div><div class="summary-label">Total Jarak</div><div class="summary-value distance">${stats.totalDistance} km</div></div>
-      <div class="summary-card"><div class="summary-icon">💰</div><div class="summary-label">Pendapatan</div><div class="summary-value">Rp ${stats.grossEarnings.toLocaleString('id-ID')}</div></div>
-      <div class="summary-card"><div class="summary-icon">📉</div><div class="summary-label">Potongan (${stats.feePercent}%+${stats.taxPercent}%)</div><div class="summary-value fees">Rp ${stats.totalFees.toLocaleString('id-ID')}</div></div>
-      <div class="summary-card"><div class="summary-icon">💵</div><div class="summary-label">Pendapatan Bersih</div><div class="summary-value earnings">Rp ${stats.netEarnings.toLocaleString('id-ID')}</div></div>
-      <div class="summary-card"><div class="summary-icon">⭐</div><div class="summary-label">Rata-rata per km</div><div class="summary-value">Rp ${Math.round(stats.avgPerKm).toLocaleString('id-ID')}</div></div>
+      <div class="summary-card"><div class="summary-icon">💰</div><div class="summary-label">Pendapatan Kotor</div><div class="summary-value">${formatRupiah(stats.grossEarnings)}</div></div>
+      <div class="summary-card"><div class="summary-icon">📉</div><div class="summary-label">Potongan (${stats.feePercent}%+${stats.taxPercent}%)</div><div class="summary-value fees">${formatRupiah(stats.totalFees)}</div></div>
+      <div class="summary-card"><div class="summary-icon">💵</div><div class="summary-label">Pendapatan Bersih</div><div class="summary-value earnings">${formatRupiah(stats.netEarnings)}</div></div>
+      <div class="summary-card"><div class="summary-icon">⭐</div><div class="summary-label">Rata-rata per km</div><div class="summary-value">${formatRupiah(stats.avgPerKm)}</div></div>
     `;
   }
 
-  // ========== CEK DRIVER ==========
   function checkDriverData() {
     const data = localStorage.getItem('jego_logged_in_driver');
     if (!data) return false;
@@ -576,7 +625,6 @@
     } catch { return false; }
   }
 
-  // ========== FORMAT ==========
   function formatDateKey(dateStr) {
     if (!dateStr) return '';
     const d = new Date(dateStr);
@@ -604,13 +652,12 @@
   }
   function escapeHtml(str) { if(!str) return ''; return str.replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'})[m]); }
 
-  // ========== RENDER ORDER CARD ==========
   function createOrderCard(order) {
     const div = document.createElement('div');
     div.className = 'order-item';
     const isKurir = (order.transport_type || '').includes('kurir');
     const distanceKm = order.distance_meters ? (order.distance_meters/1000).toFixed(1) : '-';
-    const durasi = order.duration_seconds ? `${Math.round(order.duration_seconds/60)} menit` : '-';
+    const durasi = order.duration_seconds ? `${Math.round(order.duration_seconds/60)} mnt` : '-';
     const statusText = order.status === 'completed' ? 'Selesai' : 'Dibatalkan';
     const statusClass = order.status === 'completed' ? 'status-completed' : 'status-cancelled';
     div.innerHTML = `
@@ -625,7 +672,7 @@
       <div class="order-details">
         <div class="detail-item"><span class="detail-value">${durasi}</span><div class="detail-label">Durasi</div></div>
         <div class="detail-item"><span class="detail-value">${distanceKm} km</span><div class="detail-label">Jarak</div></div>
-        <div class="detail-item"><span class="detail-value price-highlight">Rp ${(order.price || 0).toLocaleString('id-ID')}</span><div class="detail-label">Harga</div></div>
+        <div class="detail-item"><span class="detail-value price-highlight">${formatRupiah(order.price || 0)}</span><div class="detail-label">Harga</div></div>
       </div>
       <div class="order-meta"><span>${formatTime(order.completed_at || order.created_at)}</span><span>${order.transport_type || '-'}</span></div>
     `;
@@ -633,9 +680,39 @@
     return div;
   }
 
-  // ========== SHOW DETAIL PANEL ==========
-  async function showOrderDetail(orderId) {
+  // ========== FUNGSI TUTUP DETAIL (dengan history back) ==========
+  function closeDetail() {
     const overlay = document.getElementById('detailOverlay');
+    if (!overlay.classList.contains('active')) return; // Sudah tertutup
+
+    // Hapus map jika ada
+    if (currentDetailMap) {
+      currentDetailMap.remove();
+      currentDetailMap = null;
+    }
+    // Tutup overlay
+    overlay.classList.remove('active');
+    
+    // Gunakan history.back jika memungkinkan, tapi hindari loop dengan flag
+    if (!isHandlingPopState && window.history.state && window.history.state.isDetailOpen === true) {
+      isHandlingPopState = true;
+      history.back();
+      // Reset flag setelah timeout
+      setTimeout(() => { isHandlingPopState = false; }, 100);
+    }
+  }
+
+  // ========== BUKA DETAIL (push state) ==========
+  async function showOrderDetail(orderId) {
+    // Jika overlay sudah aktif, jangan buka lagi
+    const overlay = document.getElementById('detailOverlay');
+    if (overlay.classList.contains('active')) return;
+    
+    // Push state ke history
+    const state = { isDetailOpen: true, orderId: orderId };
+    history.pushState(state, '', window.location.href);
+    
+    // Tampilkan loading
     const body = document.getElementById('detailBody');
     overlay.classList.add('active');
     body.innerHTML = '<div class="loading"><div class="spinner"></div><p>Memuat detail...</p></div>';
@@ -650,24 +727,29 @@
       const durasi = order.duration_seconds ? `${Math.round(order.duration_seconds/60)} menit` : '-';
       const jarak = order.distance_meters ? (order.distance_meters/1000).toFixed(1) + ' km' : '-';
 
-      // Ambil rating driver ke customer
-      let ratingHtml = '<span>⭐ Belum menilai</span>';
+      let ratingHtml = '<span>⭐ Belum dinilai</span>';
       try {
         const ratingSnap = await database.ref(`ratings/${orderId}/customer_rating`).once('value');
         const ratingData = ratingSnap.val();
         if (ratingData && ratingData.rating) {
           const stars = '★'.repeat(ratingData.rating) + '☆'.repeat(5 - ratingData.rating);
-          ratingHtml = `<span class="stars">${stars}</span> Anda menilai: ${ratingData.rating} bintang`;
+          ratingHtml = `<span class="stars">${stars}</span> ${ratingData.rating} bintang`;
         }
       } catch(e) {}
 
       body.innerHTML = `
+        <!-- MAP CARD -->
+        <div class="detail-card" style="padding:0; overflow:hidden;">
+          <div id="detailMap" class="map-detail" style="height:220px; width:100%;"></div>
+        </div>
+
+        <!-- Info Customer & Rute -->
         <div class="detail-card">
           <div class="customer-profile-detail">
             <img class="customer-avatar" src="${order.photoURL || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png'}">
             <div>
               <div class="customer-name-detail">${escapeHtml(order.customer_name || 'Customer')}</div>
-              <div class="driver-rating">${ratingHtml}</div>
+              <div class="driver-rating" style="margin-top:4px;">${ratingHtml}</div>
             </div>
           </div>
 
@@ -676,66 +758,83 @@
             <div class="point"><div class="marker b">B</div><div>${escapeHtml(order.destination_address || '-')}</div></div>
           </div>
 
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
-            <div style="text-align:center"><small>Durasi</small><br><strong>${durasi}</strong></div>
-            <div style="text-align:center"><small>Jarak</small><br><strong>${jarak}</strong></div>
-            <div style="text-align:center"><small>Harga</small><br><strong class="price-highlight">${formatRupiah(price)}</strong></div>
-            <div style="text-align:center"><small>Status</small><br><strong>${order.status === 'completed' ? '✅ Selesai' : '❌ Dibatalkan'}</strong></div>
+          <div class="info-grid">
+            <div class="info-item"><div class="info-label">Durasi</div><div class="info-value">${durasi}</div></div>
+            <div class="info-item"><div class="info-label">Jarak</div><div class="info-value">${jarak}</div></div>
+            <div class="info-item"><div class="info-label">Harga</div><div class="info-value" style="color:var(--success);">${formatRupiah(price)}</div></div>
+            <div class="info-item"><div class="info-label">Status</div><div class="info-value">${order.status === 'completed' ? '✅ Selesai' : '❌ Dibatalkan'}</div></div>
           </div>
 
           <div class="breakdown-box">
-            <div class="break-row"><span>💰 Pendapatan Bersih Driver</span><strong>${formatRupiah(details.net)}</strong></div>
-            <div class="break-row"><span>📉 Fee Aplikasi (${feePersen}%)</span><span>${formatRupiah(details.fee)}</span></div>
-            <div class="break-row"><span>📊 Pajak (${pajakPersen}% dari fee)</span><span>${formatRupiah(details.tax)}</span></div>
-            <div class="break-row"><span>💵 Total Dibayar Customer</span><strong>${formatRupiah(price)}</strong></div>
+            <div class="break-row"><span><strong>💰 Pendapatan Bersih Driver</strong></span><strong>${formatRupiah(details.net)}</strong></div>
+            <div class="break-row"><span>📉 Fee aplikasi (${details.feePercent}%)</span><span>${formatRupiah(details.fee)}</span></div>
+            <div class="break-row"><span>📊 PPN ${details.taxPercent}% dari fee</span><span>${formatRupiah(details.tax)}</span></div>
+            <div class="break-row"><span>📋 Total potongan</span><span>${formatRupiah(details.totalPotongan)}</span></div>
+            <div class="break-row" style="border-top:1px solid #e2e8f0; margin-top:8px; padding-top:8px;"><span>💵 Total dibayar customer</span><strong>${formatRupiah(price)}</strong></div>
           </div>
 
           <div class="timeline-detail">
-            <div class="timeline-item"><div class="timeline-time">${formatDateTime(order.created_at)}</div><div>Order dibuat</div></div>
-            <div class="timeline-item"><div class="timeline-time">${formatDateTime(order.driver_offers?.[driverId]?.offered_at)}</div><div>Penawaran diterima</div></div>
-            <div class="timeline-item"><div class="timeline-time">${formatDateTime(order.trip_started_at)}</div><div>Perjalanan dimulai</div></div>
-            <div class="timeline-item"><div class="timeline-time">${formatDateTime(order.arrived_at)}</div><div>Tiba di tujuan</div></div>
-            <div class="timeline-item"><div class="timeline-time">${formatDateTime(order.completed_at || order.updated_at)}</div><div>Selesai</div></div>
+            <div class="timeline-item"><div class="timeline-time">${formatDateTime(order.created_at)}</div><div class="timeline-desc">Order dibuat</div></div>
+            <div class="timeline-item"><div class="timeline-time">${formatDateTime(order.driver_offers?.[driverId]?.offered_at)}</div><div class="timeline-desc">Penawaran diterima</div></div>
+            <div class="timeline-item"><div class="timeline-time">${formatDateTime(order.trip_started_at)}</div><div class="timeline-desc">Perjalanan dimulai</div></div>
+            <div class="timeline-item"><div class="timeline-time">${formatDateTime(order.arrived_at)}</div><div class="timeline-desc">Tiba di tujuan</div></div>
+            <div class="timeline-item"><div class="timeline-time">${formatDateTime(order.completed_at || order.updated_at)}</div><div class="timeline-desc">Selesai</div></div>
           </div>
-        </div>
-
-        <div class="detail-card">
-          <div id="detailMap" class="map-detail"></div>
         </div>
       `;
 
-      // Render peta jika koordinat ada
-      if (order.pickup_lat && order.pickup_lng && order.dest_lat && order.dest_lng) {
-        setTimeout(() => {
-          if (currentDetailMap) currentDetailMap.remove();
-          currentDetailMap = L.map('detailMap').setView([order.pickup_lat, order.pickup_lng], 13);
-          L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y.png', {
-            attribution: '© OpenStreetMap'
+      setTimeout(() => {
+        if (currentDetailMap) currentDetailMap.remove();
+        const mapContainer = document.getElementById('detailMap');
+        if (mapContainer && order.pickup_lat && order.pickup_lng && order.dest_lat && order.dest_lng) {
+          currentDetailMap = L.map(mapContainer).setView([order.pickup_lat, order.pickup_lng], 13);
+          L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>',
+            maxZoom: 19
           }).addTo(currentDetailMap);
-          L.marker([order.pickup_lat, order.pickup_lng]).bindPopup('Penjemputan').addTo(currentDetailMap);
-          L.marker([order.dest_lat, order.dest_lng]).bindPopup('Tujuan').addTo(currentDetailMap);
+          L.marker([order.pickup_lat, order.pickup_lng]).bindPopup('📍 Penjemputan').addTo(currentDetailMap);
+          L.marker([order.dest_lat, order.dest_lng]).bindPopup('🏁 Tujuan').addTo(currentDetailMap);
           const bounds = L.latLngBounds([[order.pickup_lat, order.pickup_lng], [order.dest_lat, order.dest_lng]]);
-          currentDetailMap.fitBounds(bounds, { padding: [30,30] });
-        }, 100);
-      }
+          currentDetailMap.fitBounds(bounds, { padding: [50,50] });
+        } else if (mapContainer) {
+          mapContainer.innerHTML = '<div style="padding:20px;text-align:center;color:gray;">🗺️ Lokasi tidak tersedia</div>';
+        }
+      }, 150);
     } catch(err) {
       body.innerHTML = `<div class="empty-state">⚠️ Gagal memuat detail: ${err.message}</div>`;
     }
   }
 
-  function formatRupiah(num) {
-    return 'Rp ' + (num || 0).toLocaleString('id-ID');
-  }
-
-  function closeDetail() {
-    document.getElementById('detailOverlay').classList.remove('active');
-    if (currentDetailMap) { currentDetailMap.remove(); currentDetailMap = null; }
+  // ========== HANDLE TOMBOL BACK BROWSER ==========
+  function handlePopState(event) {
+    if (isHandlingPopState) return;
+    
+    const overlay = document.getElementById('detailOverlay');
+    const isOpen = overlay.classList.contains('active');
+    
+    if (isOpen) {
+      // Jika overlay aktif, tutup tanpa push state lagi
+      isHandlingPopState = true;
+      
+      // Hapus map
+      if (currentDetailMap) {
+        currentDetailMap.remove();
+        currentDetailMap = null;
+      }
+      overlay.classList.remove('active');
+      
+      // State saat ini sudah di-pop, kita tidak perlu push lagi
+      setTimeout(() => { isHandlingPopState = false; }, 100);
+    } else {
+      // Jika tidak ada overlay, biarkan browser kembali ke halaman sebelumnya
+      // Tidak perlu melakukan apa-apa
+    }
   }
 
   // ========== LOAD RIWAYAT ==========
   async function loadHistoryData() {
     if (!checkDriverData()) {
-      document.getElementById('ordersList').innerHTML = `<div class="login-required"><h3>Login Diperlukan</h3><button class="login-btn" onclick="window.location.href='loginDriver.html'">Login Driver</button></div>`;
+      document.getElementById('ordersList').innerHTML = `<div class="login-required"><h3>🔐 Login Diperlukan</h3><button class="login-btn" style="background:var(--primary);border:none;padding:12px 24px;border-radius:40px;color:white;font-weight:bold;margin-top:12px;cursor:pointer;" onclick="window.location.href='loginDriver.html'">Login Driver</button></div>`;
       return;
     }
     await loadFeeSettings();
@@ -760,7 +859,6 @@
       else if (currentFilter === 'this_month') filtered = filtered.filter(o => isThisMonth(new Date(o.completed_at || o.created_at)));
 
       filtered.sort((a,b) => new Date(b.completed_at || b.created_at) - new Date(a.completed_at || a.created_at));
-
       renderSummary(filtered);
 
       if (filtered.length === 0) {
@@ -783,7 +881,7 @@
       sortedDates.forEach(date => {
         const header = document.createElement('div');
         header.className = 'date-header';
-        header.textContent = `${date} • ${grouped[date].length} order`;
+        header.innerHTML = `<span>📅 ${date}</span><span>${grouped[date].length} order</span>`;
         ordersListDiv.appendChild(header);
         grouped[date].forEach(order => ordersListDiv.appendChild(createOrderCard(order)));
       });
@@ -804,13 +902,29 @@
 
   // ========== INIT ==========
   document.addEventListener('DOMContentLoaded', () => {
-    document.getElementById('closeDetailBtn').addEventListener('click', closeDetail);
-    document.getElementById('detailOverlay').addEventListener('click', (e) => {
-      if (e.target === document.getElementById('detailOverlay')) closeDetail();
+    // Event listener untuk tombol close
+    const closeBtn = document.getElementById('closeDetailBtn');
+    if (closeBtn) {
+      closeBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        closeDetail();
+      });
+    }
+    
+    // Tutup overlay jika klik di luar panel
+    const overlay = document.getElementById('detailOverlay');
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) closeDetail();
     });
+    
+    // Pasang event listener popstate untuk tombol back
+    window.addEventListener('popstate', handlePopState);
+    
+    // Filter click
     document.querySelectorAll('.filter-option').forEach(opt => {
       opt.addEventListener('click', () => changeFilter(opt.dataset.filter));
     });
+    
     loadHistoryData();
   });
 </script>
