@@ -802,10 +802,11 @@
 
   // ==================== RADAR ====================
   function startSlowZoomOut() {
-    if (!map || !pickupCoord) return;
-    if (currentZoomAnimation) { map.stop(); currentZoomAnimation = null; }
-    currentZoomAnimation = map.flyTo({ center: pickupCoord, zoom: 9, duration: 30000, easing: t => t });
-  }
+  if (!map || !pickupCoord) return;
+  if (currentZoomAnimation) { map.stop(); currentZoomAnimation = null; }
+  // Zoom out sangat lambat: durasi 180 detik, target zoom 11
+  currentZoomAnimation = map.flyTo({ center: pickupCoord, zoom: 11, duration: 180000 });
+}
   function stopSlowZoomOut() {
     if (currentZoomAnimation) { map.stop(); currentZoomAnimation = null; }
   }
@@ -888,9 +889,27 @@
     document.getElementById('radar').style.display = 'block';
     setTimeout(() => document.getElementById('radar').classList.add('expanding'), 100);
     activateRadarOnPickup();
-    startSlowZoomOut();
 
-    const newOrderRef = database.ref('orders').push();
+// Langsung fokus ke marker dengan zoom tinggi (2 detik)
+if (map && pickupCoord) {
+  map.flyTo({
+    center: [pickupCoord[0], pickupCoord[1]],
+    zoom: 15,
+    duration: 2000,
+    essential: true
+  });
+  // Setelah 2 detik, mulai zoom out lambat selama sisa waktu
+  setTimeout(() => {
+    map.flyTo({
+      center: [pickupCoord[0], pickupCoord[1]],
+      zoom: 11,
+      duration: 178000, // 2 menit 58 detik
+      easing: function(t) { return t; }
+    });
+  }, 2000);
+}
+
+const newOrderRef = database.ref('orders').push();
     currentOrderId = newOrderRef.key;
     const orderData = {
       user_id: currentUser.id,
