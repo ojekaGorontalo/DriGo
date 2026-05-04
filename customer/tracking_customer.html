@@ -75,7 +75,7 @@
       height: 100%;
       width: 100%;
     }
-    /* Map Overlay Label - lebih jelas dan aman */
+    /* Map Overlay Label */
     .map-overlay-label {
       position: absolute;
       bottom: 15px;
@@ -287,23 +287,23 @@
       transition: transform 0.3s cubic-bezier(0.2, 0.9, 0.4, 1.1);
     }
     /* Peringatan pembatalan */
-.warning-message {
-  background: #fff3cd;
-  border-left: 4px solid #ffc107;
-  padding: 12px;
-  border-radius: 12px;
-  margin-bottom: 16px;
-  font-size: 0.85rem;
-  color: #856404;
-}
-.warning-message strong {
-  display: block;
-  margin-bottom: 4px;
-}
-.action-btn.disabled {
-  opacity: 0.6;
-  pointer-events: none;
-}
+    .warning-message {
+      background: #fff3cd;
+      border-left: 4px solid #ffc107;
+      padding: 12px;
+      border-radius: 12px;
+      margin-bottom: 16px;
+      font-size: 0.85rem;
+      color: #856404;
+    }
+    .warning-message strong {
+      display: block;
+      margin-bottom: 4px;
+    }
+    .action-btn.disabled {
+      opacity: 0.6;
+      pointer-events: none;
+    }
     .chat-overlay.open { transform: translateX(0); }
     .chat-header {
       background: linear-gradient(135deg, var(--primary), var(--secondary));
@@ -440,6 +440,7 @@
       <div class="status-card">
         <div class="status-badge" id="statusBadge">Menunggu Driver</div>
         <p id="statusMessage" style="margin-top: 8px;">Driver sedang menuju lokasi Anda</p>
+        <div id="cancelledByMessage" style="margin-top: 12px; font-weight: bold; color: #f44336; display: none;"></div>
       </div>
       <div class="driver-card">
         <div class="driver-profile">
@@ -526,28 +527,40 @@
     if (p) p.innerText = msg;
     console.error(msg);
   }
-  function showCancelledWarning() {
-  if (document.querySelector('.warning-message')) return;
-  const contentWrapper = document.querySelector('.content-wrapper');
-  const warningDiv = document.createElement('div');
-  warningDiv.className = 'warning-message';
-  warningDiv.innerHTML = `
-    <strong>⚠️ Perjalanan Dibatalkan</strong>
-    Anda telah membatalkan pesanan ini. Mohon jangan sering membatalkan perjalanan yang sedang aktif,
-    karena dapat mempengaruhi reputasi akun Anda dan menyulitkan driver. Terima kasih.
-  `;
-  const statusCard = document.querySelector('.status-card');
-  if (statusCard && statusCard.parentNode === contentWrapper) {
-    contentWrapper.insertBefore(warningDiv, statusCard);
-  } else {
-    contentWrapper.prepend(warningDiv);
+
+  // Helper untuk menentukan pesan notifikasi cancelled_by
+  function getCancelledMessage(cancelledBy) {
+    if (cancelledBy === 'customer') {
+      return "⚠️ Anda telah membatalkan perjalanan ini.";
+    } else if (cancelledBy === 'driver') {
+      return "⚠️ Driver telah membatalkan perjalanan ini.";
+    } else {
+      return "⚠️ Perjalanan telah dibatalkan oleh sistem.";
+    }
   }
-  // Nonaktifkan tombol chat dan batalkan
-  const chatBtn = document.getElementById('chatBtn');
-  const cancelBtn = document.getElementById('cancelBtn');
-  if (chatBtn) chatBtn.classList.add('disabled');
-  if (cancelBtn) cancelBtn.classList.add('disabled');
-}
+
+  function showCancelledWarning() {
+    if (document.querySelector('.warning-message')) return;
+    const contentWrapper = document.querySelector('.content-wrapper');
+    const warningDiv = document.createElement('div');
+    warningDiv.className = 'warning-message';
+    warningDiv.innerHTML = `
+      <strong>⚠️ Perjalanan Dibatalkan</strong>
+      Anda telah membatalkan pesanan ini. Mohon jangan sering membatalkan perjalanan yang sedang aktif,
+      karena dapat mempengaruhi reputasi akun Anda dan menyulitkan driver. Terima kasih.
+    `;
+    const statusCard = document.querySelector('.status-card');
+    if (statusCard && statusCard.parentNode === contentWrapper) {
+      contentWrapper.insertBefore(warningDiv, statusCard);
+    } else {
+      contentWrapper.prepend(warningDiv);
+    }
+    // Nonaktifkan tombol chat dan batalkan
+    const chatBtn = document.getElementById('chatBtn');
+    const cancelBtn = document.getElementById('cancelBtn');
+    if (chatBtn) chatBtn.classList.add('disabled');
+    if (cancelBtn) cancelBtn.classList.add('disabled');
+  }
 
   function extractDriverFromOrder(order, driverId) {
     if (!driverId) return null;
@@ -635,7 +648,7 @@
         document.getElementById('driverVehicle').innerText = driverInfo.driver_type || '-';
         if (driverInfo.driver_photo) document.getElementById('driverPhoto').src = driverInfo.driver_photo;
       }
-      updateStatusUI(order.status);
+      updateStatusUI(order.status, order.cancelled_by);
       initMap(order);
       startRealtimeUpdates(orderId);
       initChat(orderId);
@@ -646,9 +659,10 @@
     }
   }
 
-  function updateStatusUI(status) {
+  function updateStatusUI(status, cancelledBy = null) {
     const badge = document.getElementById('statusBadge');
     const msgDiv = document.getElementById('statusMessage');
+    const cancelledDiv = document.getElementById('cancelledByMessage');
     const statusMap = {
       'accepted': { text: 'Driver Diterima', msg: 'Driver sedang menuju lokasi Anda' },
       'on_the_way': { text: 'Menuju Lokasi', msg: 'Driver dalam perjalanan ke titik jemput' },
@@ -661,11 +675,21 @@
     const info = statusMap[status] || statusMap.waiting;
     badge.innerText = info.text;
     msgDiv.innerText = info.msg;
+
+    // Tampilkan pesan pembatalan spesifik
+    if (status === 'cancelled') {
+      const cancelMessage = getCancelledMessage(cancelledBy);
+      cancelledDiv.innerText = cancelMessage;
+      cancelledDiv.style.display = 'block';
+    } else {
+      cancelledDiv.style.display = 'none';
+    }
+
     if (status === 'completed' || status === 'cancelled') {
-  document.getElementById('cancelBtn').style.display = 'none';
-} else {
-  document.getElementById('cancelBtn').style.display = 'block';
-}
+      document.getElementById('cancelBtn').style.display = 'none';
+    } else {
+      document.getElementById('cancelBtn').style.display = 'block';
+    }
     document.getElementById('orderStatus').innerText = info.text;
     if (status === 'arrived' && !isArrivedAlertShowing) showArrivedAlert();
   }
@@ -705,7 +729,7 @@
       const newOrder = snap.val();
       if (newOrder) {
         orderData = newOrder;
-        updateStatusUI(newOrder.status);
+        updateStatusUI(newOrder.status, newOrder.cancelled_by);
         let driverId = newOrder.driver_id;
         if (!driverId && newOrder.driver_offers) {
           for (let did in newOrder.driver_offers) {
@@ -778,22 +802,22 @@
   }
 
   async function cancelOrder() {
-  if (!confirm('Batalkan perjalanan ini?')) return;
-  try {
-    await database.ref(`orders/${orderId}`).update({ 
-      status: 'cancelled', 
-      cancelled_by: 'customer', 
-      cancelled_at: new Date().toISOString() 
-    });
-    // Update UI status menjadi "Dibatalkan"
-    updateStatusUI('cancelled');
-    // Tampilkan pesan peringatan di halaman
-    showCancelledWarning();
-  } catch (err) {
-    console.error('Gagal batalkan order:', err);
-    alert('Gagal membatalkan perjalanan. Silakan coba lagi.');
+    if (!confirm('Batalkan perjalanan ini?')) return;
+    try {
+      await database.ref(`orders/${orderId}`).update({ 
+        status: 'cancelled', 
+        cancelled_by: 'customer', 
+        cancelled_at: new Date().toISOString() 
+      });
+      // Update UI status menjadi "Dibatalkan"
+      updateStatusUI('cancelled', 'customer');
+      // Tampilkan pesan peringatan di halaman
+      showCancelledWarning();
+    } catch (err) {
+      console.error('Gagal batalkan order:', err);
+      alert('Gagal membatalkan perjalanan. Silakan coba lagi.');
+    }
   }
-}
 
   function openChat() { document.getElementById('chatOverlay').classList.add('open'); }
   function closeChat() { document.getElementById('chatOverlay').classList.remove('open'); }
