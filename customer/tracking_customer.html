@@ -318,70 +318,58 @@
     return 'Rp ' + (num || 0).toLocaleString('id-ID');
   }
 
-  function getOrderIdFromURL() {
-  const params = new URLSearchParams(window.location.search);
-  let id = params.get('order_id');
-  // Jika order_id null/undefined atau berisi 'null', coba ambil dari localStorage
-  if (!id || id === 'null' || id === 'undefined') {
-    id = localStorage.getItem('current_order_id');
+  function showError(msg) {
+    document.getElementById('loadingScreen').style.display = 'none';
+    document.getElementById('errorScreen').style.display = 'flex';
+    const errorMsg = document.getElementById('errorScreen').querySelector('p');
+    if (errorMsg) errorMsg.innerText = msg;
+    else document.getElementById('errorScreen').innerHTML = `<p>⚠️ ${msg}</p><button id="retryBtn" style="margin-top:16px; background:var(--primary); border:none; padding:8px 20px; border-radius:20px; color:white;">Kembali</button>`;
+    const retryBtn = document.getElementById('retryBtn');
+    if (retryBtn) retryBtn.onclick = () => window.history.back();
   }
-  return id;
-}
 
   // ========== LOAD DATA FROM FIREBASE ==========
   async function loadOrderData() {
-    orderId = getOrderIdFromURL();
+    // Ambil orderId dari localStorage
+    orderId = localStorage.getItem('current_order_id');
     if (!orderId) {
-      // fallback: cek localStorage (jika ada data aktif)
-      const saved = localStorage.getItem('jego_active_order');
-      if (saved) {
-        try {
-          const parsed = JSON.parse(saved);
-          orderId = parsed.order_id;
-        } catch(e) {}
-      }
-    }
-    if (!orderId) {
-      showError('Tidak ada ID order. Silakan pesan kembali.');
+      showError('Tidak ada ID pesanan. Silakan mulai dari awal.');
       return;
     }
-
-    // Ambil data order dari Firebase
-    const orderSnap = await database.ref('orders/' + orderId).once('value');
-    const order = orderSnap.val();
-    if (!order) {
-      showError('Data order tidak ditemukan.');
-      return;
-    }
-    orderData = order;
-
-    // Ambil data driver (dari driver_id di order)
-    const driverId = order.driver_id;
-    if (driverId) {
-      const driverSnap = await database.ref('drivers/' + driverId).once('value');
-      driverData = driverSnap.val();
-      if (driverData) driverData.id = driverId;
-    } else if (order.driver_offers) {
-      // fallback: ambil driver pertama yang statusnya accepted
-      const offers = order.driver_offers;
-      for (let did in offers) {
-        if (offers[did].status === 'accepted') {
-          const ds = await database.ref('drivers/' + did).once('value');
-          driverData = ds.val();
-          if (driverData) driverData.id = did;
-          break;
+    console.log('🆔 Mengambil order dari localStorage:', orderId);
+    try {
+      const orderSnap = await database.ref('orders/' + orderId).once('value');
+      const order = orderSnap.val();
+      if (!order) throw new Error('Data order tidak ditemukan.');
+      orderData = order;
+      // Ambil data driver jika ada
+      const driverId = order.driver_id;
+      if (driverId) {
+        const driverSnap = await database.ref('drivers/' + driverId).once('value');
+        driverData = driverSnap.val();
+        if (driverData) driverData.id = driverId;
+      } else if (order.driver_offers) {
+        for (let did in order.driver_offers) {
+          if (order.driver_offers[did].status === 'accepted') {
+            const ds = await database.ref('drivers/' + did).once('value');
+            driverData = ds.val();
+            if (driverData) driverData.id = did;
+            break;
+          }
         }
       }
+      // Tampilkan UI
+      document.getElementById('loadingScreen').style.display = 'none';
+      document.getElementById('mainContent').style.display = 'block';
+      renderOrderDetails(order);
+      if (driverData) renderDriverDetails(driverData);
+      initMap(order);
+      startRealtimeUpdates(orderId);
+      initChat(orderId);
+    } catch (error) {
+      console.error('Gagal load order:', error);
+      showError('Gagal memuat data pesanan.');
     }
-
-    // Tampilkan UI
-    document.getElementById('loadingScreen').style.display = 'none';
-    document.getElementById('mainContent').style.display = 'block';
-    renderOrderDetails(order);
-    if (driverData) renderDriverDetails(driverData);
-    initMap(order);
-    startRealtimeUpdates(orderId);
-    initChat(orderId);
   }
 
   function renderOrderDetails(order) {
@@ -434,15 +422,12 @@
     const centerLng = (order.pickup_lng + order.dest_lng) / 2;
     map = L.map('orderMap').setView([centerLat, centerLng], 13);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-    // Marker pickup
     pickupMarker = L.marker([order.pickup_lat, order.pickup_lng], {
       icon: L.divIcon({ html: '<div style="background:#28a745; width:30px; height:30px; border-radius:50%; text-align:center; line-height:30px; color:white; font-weight:bold;">A</div>' })
     }).addTo(map).bindPopup('Penjemputan');
-    // Marker destination
     destMarker = L.marker([order.dest_lat, order.dest_lng], {
       icon: L.divIcon({ html: '<div style="background:#dc3545; width:30px; height:30px; border-radius:50%; text-align:center; line-height:30px; color:white; font-weight:bold;">B</div>' })
     }).addTo(map).bindPopup('Tujuan');
-    // Draw route
     drawRoute(order.pickup_lat, order.pickup_lng, order.dest_lat, order.dest_lng);
   }
 
@@ -462,7 +447,7 @@
 
   function updateDriverLocation(lat, lng, vehicleType) {
     if (!map) return;
-    const iconUrl = 'https://cdn-icons-png.flaticon.com/128/5811/5811823.png'; // default motor
+    const iconUrl = 'https://cdn-icons-png.flaticon.com/128/5811/5811823.png';
     const icon = L.icon({ iconUrl, iconSize: [35,35], iconAnchor: [17,35] });
     if (driverMarker) driverMarker.setLatLng([lat, lng]);
     else driverMarker = L.marker([lat, lng], { icon }).addTo(map);
@@ -471,21 +456,15 @@
 
   // ========== REALTIME UPDATES ==========
   function startRealtimeUpdates(orderId) {
-    // Update order status
     orderRef = database.ref('orders/' + orderId);
     orderRef.on('value', (snap) => {
       const newOrder = snap.val();
       if (newOrder) {
         orderData = newOrder;
         updateStatusUI(newOrder.status);
-        // Jika status completed, matikan listener lokasi
-        if (newOrder.status === 'completed') {
-          if (driverLocationRef) driverLocationRef.off();
-        }
+        if (newOrder.status === 'completed' && driverLocationRef) driverLocationRef.off();
       }
     });
-
-    // Update driver location (jika ada di node driver_locations atau drivers)
     const driverId = orderData?.driver_id;
     if (driverId) {
       driverLocationRef = database.ref('driver_locations/' + driverId);
@@ -501,15 +480,12 @@
   // ========== CHAT ==========
   function initChat(orderId) {
     chatRef = database.ref('chat/' + orderId);
-    const messagesDiv = document.getElementById('chatMessages');
-    // Load existing messages
     chatRef.once('value').then(snap => {
       const msgs = snap.val();
       if (msgs) {
         Object.values(msgs).forEach(msg => displayChatMessage(msg));
       }
     });
-    // Listen for new messages
     chatRef.on('child_added', (snap) => {
       const msg = snap.val();
       displayChatMessage(msg);
@@ -550,7 +526,7 @@
       cancelled_at: new Date().toISOString()
     });
     alert('Perjalanan dibatalkan.');
-    window.location.href = 'index.html'; // redirect ke halaman utama customer
+    window.location.href = 'index.html';
   }
 
   // ========== CHAT UI ==========
@@ -561,26 +537,17 @@
     document.getElementById('chatOverlay').classList.remove('open');
   }
 
-  // ========== ERROR HANDLING ==========
-  function showError(msg) {
-    document.getElementById('loadingScreen').style.display = 'none';
-    document.getElementById('errorScreen').style.display = 'flex';
-    document.getElementById('errorScreen').innerHTML = `<p>⚠️ ${msg}</p><button id="retryBtn" style="margin-top:16px; background:var(--primary); border:none; padding:8px 20px; border-radius:20px; color:white;">Kembali</button>`;
-    document.getElementById('retryBtn').onclick = () => window.history.back();
-  }
-
   // ========== INIT ==========
-document.addEventListener('DOMContentLoaded', () => {
-    // Tunggu Firebase Auth mendeteksi user (sesi dari login sebelumnya)
+  document.addEventListener('DOMContentLoaded', () => {
     auth.onAuthStateChanged(async (user) => {
-        if (user) {
-            console.log('✅ User login di Firebase:', user.uid);
-            await loadOrderData();
-        } else {
-            console.warn('❌ User belum login, arahkan ke halaman login');
-            showError('Anda harus login terlebih dahulu.');
-            setTimeout(() => window.location.href = 'loginUser.html', 2000);
-        }
+      if (user) {
+        console.log('✅ User login di Firebase:', user.uid);
+        await loadOrderData();
+      } else {
+        console.warn('❌ User belum login, arahkan ke halaman login');
+        showError('Anda harus login terlebih dahulu.');
+        setTimeout(() => window.location.href = 'loginUser.html', 2000);
+      }
     });
 
     document.getElementById('backBtn').onclick = () => window.history.back();
@@ -588,7 +555,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('closeChatBtn').onclick = closeChat;
     document.getElementById('sendChatBtn').onclick = sendChatMessage;
     document.getElementById('cancelBtn').onclick = cancelOrder;
-});
+  });
 </script>
 </body>
 </html>
