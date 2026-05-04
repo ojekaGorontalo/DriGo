@@ -531,19 +531,31 @@
     }
 
     async function acceptOffer(driverId) {
-  if (!currentOrderId) return;
-  await database.ref(`orders/${currentOrderId}/driver_offers/${driverId}/status`).set('accepted');
-  await database.ref(`orders/${currentOrderId}`).update({ 
-    status: 'accepted', 
-    driver_id: driverId, 
-    accepted_at: new Date().toISOString() 
+  // 1. Pastikan currentOrderId tidak kosong sebelum melanjutkan
+  if (!currentOrderId) {
+    console.error('❌ Gagal: currentOrderId kosong!');
+    showPopup('Gagal', 'ID order tidak valid. Silakan coba lagi.', '⚠️');
+    return;
+  }
+
+  const savedOrderId = currentOrderId;
+  console.log('✅ Menyetujui driver untuk order:', savedOrderId);
+  
+  // 2. Tandai penerimaan driver dan update status order
+  await database.ref(`orders/${savedOrderId}/driver_offers/${driverId}/status`).set('accepted');
+  await database.ref(`orders/${savedOrderId}`).update({
+    status: 'accepted',
+    driver_id: driverId,
+    accepted_at: new Date().toISOString()
   });
-  const savedOrderId = currentOrderId;  // ✅ Simpan nilai sebelum diubah
-  showPopup('Berhasil', 'Driver telah dipilih. Menunggu driver menuju lokasi.', '✅', () => {
-    window.location.href = 'tracking_customer.html?order_id=' + savedOrderId;
-    cleanupSearch();  // ✅ Baru dijalankan setelah redirect
+  
+  // 3. Simpan ID order ke localStorage untuk antisipasi fallback
+  localStorage.setItem('current_order_id', savedOrderId);
+  
+  // 4. Redirect halaman, pastikan ID order dikirim di URL
+  showPopup('Berhasil', 'Driver telah dipilih. Menuju halaman pelacakan...', '✅', () => {
+    window.location.href = `tracking_customer.html?order_id=${savedOrderId}`;
   });
-  // ❌ Hapus cleanupSearch() dari sini
 }
 
     async function rejectOffer(driverId) {
