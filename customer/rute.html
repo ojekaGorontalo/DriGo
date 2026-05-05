@@ -1,967 +1,2030 @@
 <!DOCTYPE html>
+
 <html lang="id">
+
 <head>
+
   <meta charset="utf-8" />
+
   <title>Rute - JeGo (Mapbox)</title>
+
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
 
+
+
   <!-- Firebase SDKs: Auth + Database (compat) -->
+
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
 
+
+
   <!-- Mapbox CSS & JS -->
+
   <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet" />
+
   <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
 
+
+
   <!-- Mapbox Search JS -->
+
   <script id="search-js" defer src="https://api.mapbox.com/search-js/v1.5.0/web.js"></script>
 
+
+
   <style>
+
     :root {
+
       --primary: #FF9800;
+
       --secondary: #FF5722;
+
       --accent: #FFC107;
+
       --light: #f8f9fa;
+
       --dark: #343a40;
+
       --success: #4CAF50;
+
       --danger: #f44336;
+
       --warning: #FFC107;
+
       --info: #2196F3;
+
       --gray: #9E9E9E;
+
     }
+
     * {
+
       box-sizing: border-box;
+
     }
+
     html, body, #map {
+
       height: 100%;
+
       margin: 0;
+
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+
     }
+
     /* Panel atas */
+
     .panel {
+
       position: absolute;
+
       top: 10px;
+
       left: 50%;
+
       transform: translateX(-50%);
+
       width: 90%;
+
       max-width: 500px;
+
       background: rgba(255,255,255,0.98);
+
       padding: 15px;
+
       z-index: 5;
+
       border-radius: 16px;
+
       box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+
       backdrop-filter: blur(4px);
+
     }
+
     .input-container {
+
       margin-bottom: 12px;
+
     }
+
     .mapbox-search-input {
+
       width: 100%;
+
       padding: 12px 40px 12px 15px;
+
       font-size: 14px;
+
       border: 2px solid #e9ecef;
+
       border-radius: 30px;
+
       background: white;
+
       transition: all 0.3s;
+
     }
+
     .mapbox-search-input:focus {
+
       border-color: var(--primary);
+
       outline: none;
+
       box-shadow: 0 0 0 3px rgba(255,152,0,0.1);
+
     }
+
     .map-mode-btn {
+
       position: absolute;
+
       bottom: 130px;
+
       right: 20px;
+
       background: var(--primary);
+
       color: white;
+
       border: none;
+
       border-radius: 40px;
+
       padding: 10px 18px;
+
       cursor: pointer;
+
       z-index: 5;
+
       box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+
       font-weight: 600;
+
       font-size: 14px;
+
     }
+
     .route-details {
+
       position: fixed;
+
       bottom: 100px;
+
       left: 50%;
+
       transform: translateX(-50%);
+
       width: 90%;
+
       max-width: 500px;
+
       background: white;
+
       border-radius: 20px;
+
       padding: 16px;
+
       box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+
       z-index: 8;
+
       display: none;
+
       transition: all 0.3s ease;
+
     }
+
     .route-address {
+
       display: flex;
+
       align-items: flex-start;
+
       margin-bottom: 8px;
+
       font-size: 0.85rem;
+
       word-break: break-word;
+
     }
+
     .route-address .label {
+
       min-width: 70px;
+
       color: var(--primary);
+
       font-weight: 600;
+
     }
+
     .route-address .value {
+
       flex: 1;
+
       color: var(--dark);
+
     }
+
     .route-stats {
+
       display: flex;
+
       justify-content: space-between;
+
       margin-top: 12px;
+
       padding-top: 12px;
+
       border-top: 1px solid #eee;
+
     }
+
     .route-stat {
+
       text-align: center;
+
       flex: 1;
+
     }
+
     .stat-value {
+
       font-weight: 700;
+
       color: var(--primary);
+
       font-size: 1rem;
+
     }
+
     .price-highlight {
+
       color: var(--success);
+
       font-weight: 700;
+
     }
+
     .confirm-btn, .cancel-btn {
+
       position: fixed;
+
       bottom: 20px;
+
       left: 50%;
+
       transform: translateX(-50%);
+
       width: 90%;
+
       max-width: 500px;
+
       color: white;
+
       border: none;
+
       border-radius: 50px;
+
       padding: 16px;
+
       font-size: 16px;
+
       font-weight: 600;
+
       cursor: pointer;
+
       box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+
       z-index: 10000;
+
       transition: all 0.2s;
+
       text-align: center;
+
     }
+
     .confirm-btn {
+
       background: linear-gradient(135deg, var(--primary), var(--secondary));
+
     }
+
     .cancel-btn {
+
       background: linear-gradient(135deg, var(--danger), #e74c3c);
+
       display: none;
+
     }
+
     .confirm-btn:disabled, .cancel-btn:disabled {
+
       opacity: 0.6;
+
       cursor: not-allowed;
+
     }
+
     /* Radar */
+
     .radar {
+
       position: absolute;
+
       top: 50%;
+
       left: 50%;
+
       width: 100px;
+
       height: 100px;
+
       transform: translate(-50%, -50%);
+
       z-index: 999;
+
       display: none;
+
     }
+
     .radar.expanding {
+
       width: 300px;
+
       height: 300px;
+
     }
+
     .radar::before, .radar::after {
+
       content: "";
+
       position: absolute;
+
       width: 100%;
+
       height: 100%;
+
       border: 2px solid var(--secondary);
+
       border-radius: 50%;
+
       animation: radarPulse 3s infinite ease-out;
+
     }
+
     .radar::after {
+
       animation-delay: 1.5s;
+
     }
+
     .radar span {
+
       position: absolute;
+
       top: 50%;
+
       left: 50%;
+
       transform: translate(-50%, -50%);
+
       background: rgba(255,255,255,0.95);
+
       padding: 8px 16px;
+
       border-radius: 30px;
+
       font-weight: bold;
+
       white-space: nowrap;
+
     }
+
     @keyframes radarPulse {
+
       0% { transform: scale(0.4); opacity: 1; }
+
       100% { transform: scale(1.5); opacity: 0; }
+
     }
+
     /* Driver offers panel */
+
     #driverOffers {
+
       position: fixed;
+
       top: 20px;
+
       left: 50%;
+
       transform: translateX(-50%);
+
       width: 90%;
+
       max-width: 450px;
+
       z-index: 9999;
+
       display: none;
+
     }
+
     #driverOffers > div {
+
       background: white;
+
       border-radius: 20px;
+
       overflow: hidden;
+
       box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+
     }
+
     #driverOffers > div > div:first-child {
+
       background: linear-gradient(135deg, var(--primary), var(--secondary));
+
       color: white;
+
       padding: 14px 16px;
+
       display: flex;
+
       justify-content: space-between;
+
     }
+
     #closeDriverOffers {
+
       background: none;
+
       border: none;
+
       font-size: 20px;
+
       color: white;
+
       cursor: pointer;
+
     }
+
     #driverOfferList {
+
       max-height: 60vh;
+
       overflow-y: auto;
+
       padding: 12px;
+
     }
+
     .driver-offer-card {
+
       background: #fff;
+
       border-radius: 16px;
+
       padding: 12px;
+
       margin-bottom: 12px;
+
       box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+
       border-left: 4px solid var(--primary);
+
     }
+
     .driver-info {
+
       display: flex;
+
       gap: 12px;
+
       align-items: center;
+
     }
+
     .driver-photo {
+
       width: 55px;
+
       height: 55px;
+
       border-radius: 50%;
+
       object-fit: cover;
+
       border: 2px solid var(--primary);
+
     }
+
     .driver-details {
+
       flex: 1;
+
     }
+
     .driver-name {
+
       font-weight: 700;
+
       font-size: 1rem;
+
     }
+
     .driver-vehicle {
+
       font-size: 0.75rem;
+
       color: #555;
+
     }
+
     .driver-action-buttons {
+
       display: flex;
+
       gap: 10px;
+
       margin-top: 12px;
+
     }
+
     .accept-btn, .reject-btn {
+
       flex: 1;
+
       padding: 10px;
+
       border: none;
+
       border-radius: 40px;
+
       font-weight: 600;
+
       cursor: pointer;
+
     }
+
     .accept-btn {
+
       background: var(--success);
+
       color: white;
+
     }
+
     .reject-btn {
+
       background: var(--danger);
+
       color: white;
+
     }
+
     /* Popup */
+
     .popup-overlay {
+
       position: fixed;
+
       top: 0;
+
       left: 0;
+
       width: 100%;
+
       height: 100%;
+
       background: rgba(0,0,0,0.6);
+
       display: flex;
+
       align-items: center;
+
       justify-content: center;
+
       z-index: 100000;
+
       opacity: 0;
+
       visibility: hidden;
+
       transition: 0.2s;
+
     }
+
     .popup-overlay.active {
+
       opacity: 1;
+
       visibility: visible;
+
     }
+
     .popup {
+
       background: white;
+
       border-radius: 28px;
+
       width: 85%;
+
       max-width: 360px;
+
       overflow: hidden;
+
     }
+
     .popup-header {
+
       padding: 18px;
+
       text-align: center;
+
       border-bottom: 1px solid #eee;
+
     }
+
     .popup-content {
+
       padding: 20px;
+
       text-align: center;
+
     }
+
     .popup-buttons {
+
       display: flex;
+
       gap: 10px;
+
       justify-content: center;
+
       margin-top: 16px;
+
     }
+
     .popup-button {
+
       padding: 10px 20px;
+
       border-radius: 40px;
+
       border: none;
+
       font-weight: 600;
+
       cursor: pointer;
+
     }
+
     .popup-button-primary {
+
       background: var(--primary);
+
       color: white;
+
     }
+
     .delivery-info-panel {
+
       margin-top: 12px;
+
       padding-top: 12px;
+
       border-top: 1px solid #ddd;
+
       display: none;
+
     }
+
     .delivery-item {
+
       display: flex;
+
       font-size: 0.8rem;
+
       margin-bottom: 6px;
+
     }
+
     .delivery-label {
+
       width: 90px;
+
       font-weight: 600;
+
       color: var(--primary);
+
     }
+
     @media (max-width: 640px) {
+
       .panel, .route-details, .confirm-btn, .cancel-btn, #driverOffers {
+
         width: 95%;
+
       }
+
     }
+
   </style>
+
 </head>
+
 <body>
 
+
+
 <div class="panel">
+
   <div id="from-container" class="input-container"></div>
+
   <div id="to-container" class="input-container"></div>
+
   <div class="delivery-info-panel" id="deliveryInfoPanel">
+
     <div class="delivery-item"><span class="delivery-label">Jenis Barang:</span><span id="deliveryItemCategory">-</span></div>
+
     <div class="delivery-item"><span class="delivery-label">Deskripsi:</span><span id="deliveryDescription">-</span></div>
+
     <div class="delivery-item"><span class="delivery-label">Pengirim:</span><span id="deliverySender">-</span></div>
+
     <div class="delivery-item"><span class="delivery-label">Penerima:</span><span id="deliveryReceiver">-</span></div>
+
   </div>
+
 </div>
+
+
 
 <div id="driverOffers">
+
   <div>
+
     <div><strong>🏆 Penawaran Driver</strong><button id="closeDriverOffers">✕</button></div>
+
     <div id="driverOfferList"></div>
+
   </div>
+
 </div>
+
+
 
 <div id="map"></div>
+
 <button id="mapModeBtn" class="map-mode-btn">🌓 Mode Malam</button>
 
+
+
 <div class="route-details" id="routeDetails">
+
   <div class="route-address"><span class="label">Penjemputan:</span><span class="value" id="routeFrom">-</span></div>
+
   <div class="route-address"><span class="label">Tujuan:</span><span class="value" id="routeTo">-</span></div>
+
   <div class="route-stats">
+
     <div class="route-stat"><div class="stat-value" id="routeDuration">-</div><div>Durasi</div></div>
+
     <div class="route-stat"><div class="stat-value price-highlight" id="routePrice">-</div><div>Biaya</div></div>
+
   </div>
+
 </div>
+
+
 
 <button class="confirm-btn" id="confirmBtn" disabled>📍 Konfirmasi Rute</button>
+
 <button class="cancel-btn" id="cancelBtn">❌ Batalkan</button>
+
 <div class="radar" id="radar"><span>🔍 Mencari driver...</span></div>
 
+
+
 <div class="popup-overlay" id="popupOverlay">
+
   <div class="popup">
+
     <div class="popup-header"><h3 id="popupTitle">Pemberitahuan</h3></div>
+
     <div class="popup-content">
+
       <div id="popupMessage">Pesan</div>
+
       <div class="popup-buttons"><button class="popup-button popup-button-primary" id="popupButton">OK</button></div>
+
     </div>
+
   </div>
+
 </div>
+
+
 
 <div class="popup-overlay" id="priceOfferPopup">
+
   <div class="popup">
+
     <div class="popup-header"><h3>💡 Naikkan Tarif</h3></div>
+
     <div class="popup-content">
+
       <p>Belum ada driver. Naikkan tarif?</p>
+
       <div style="margin:10px 0;font-size:1.2rem;font-weight:700" id="currentPriceDisplay">Rp0</div>
+
       <div class="popup-buttons" style="flex-direction:column">
+
   <button class="popup-button popup-button-primary" id="priceUp1Btn">Rp 0</button>
+
   <button class="popup-button popup-button-primary" id="priceUp2Btn">Rp 0</button>
+
   <button class="popup-button popup-button-primary" id="priceUp3Btn">Rp 0</button>
+
   <button class="popup-button popup-button-secondary" id="continueWaitingBtn">Tunggu</button>
+
 </div>
+
     </div>
+
   </div>
+
 </div>
+
+
 
 <script>
+
   // ==================== KONFIGURASI FIREBASE ====================
+
   const FIREBASE_CONFIG = {
+
     apiKey: "AIzaSyCD0pgeZio-LdKqYDtWxcdXcZwyL4ngYQI",
+
     authDomain: "jego-35a2b.firebaseapp.com",
+
     databaseURL: "https://jego-35a2b-default-rtdb.asia-southeast1.firebasedatabase.app",
+
     projectId: "jego-35a2b",
+
     storageBucket: "jego-35a2b.firebasestorage.app",
+
     messagingSenderId: "600037007040",
+
     appId: "1:600037007040:web:ac3243ad9b472647ffd725"
+
   };
+
   if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
+
   const auth = firebase.auth();
+
   const database = firebase.database();
 
+
+
   // ==================== GLOBAL VARIABLES ====================
+
   let map;
+
   let currentUser = null;
+
   let currentRoute = null;
+
   let pickupCoord = null, destCoord = null;
+
   let pickupAddress = '', destAddress = '';
+
   let routeLayer = null;
+
   let pickupMarker = null, destMarker = null;
+
   let selectedTransport = null;
+
   let transportType = null;
+
   let transportIconUrl = '';
+
   let deliveryData = null;
+
   let isCourier = false;
+
   let mapboxAccessToken = null;
+
   let transportRate = { minimal_distance: 4, minimal_price: 10000, price_per_km: 2200 };
+
   let currentPrice = 0;
+
   let currentOrderId = null;
+
   let orderRef = null;
+
   let offersRef = null;
+
   let orderStatusCallback = null;
+
   let offersCallback = null;
+
   let isSearching = false;
+
   let priceOfferTimer = null;
+
   let priceOfferShown = false;
+
   let currentZoomAnimation = null;
+
   
+
   // Untuk menyimpan marker driver yang aktif
+
   let driverMarkers = [];
+
   let driversRef = null;
+
   let driversListener = null;
 
+
+
   // ==================== UTILITY ====================
+
   function showPopup(title, message, onClose = null) {
+
     document.getElementById('popupTitle').innerText = title;
+
     document.getElementById('popupMessage').innerHTML = message;
+
     const overlay = document.getElementById('popupOverlay');
+
     overlay.classList.add('active');
+
     const close = () => {
+
       overlay.classList.remove('active');
+
       if (onClose) onClose();
+
       document.getElementById('popupButton').removeEventListener('click', close);
+
     };
+
     document.getElementById('popupButton').addEventListener('click', close);
+
   }
+
+
 
   function formatRupiah(amount) {
+
     return 'Rp ' + amount.toLocaleString('id-ID');
+
   }
 
+
+
   function calculatePrice(distanceMeters) {
+
     const distanceKm = distanceMeters / 1000;
+
     let price = 0;
+
     if (distanceKm <= transportRate.minimal_distance) {
+
       price = transportRate.minimal_price;
+
     } else {
+
       const extraKm = distanceKm - transportRate.minimal_distance;
+
       price = transportRate.minimal_price + (extraKm * transportRate.price_per_km);
+
     }
+
     return Math.round(price / 1000) * 1000;
+
   }
+
+
 
   function escapeHtml(str) { if (!str) return ''; return str.replace(/[&<>]/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[m])); }
 
+
+
   // ==================== FUNGSI UNTUK MENAMPILKAN DRIVER AKTIF DI PETA ====================
+
   function getDriverIconUrl(vehicleType) {
+
     // Pilih ikon sesuai tipe kendaraan driver (jika ada data vehicleType dari driver)
+
     // Atau gunakan ikon default sesuai pilihan transport user
+
     if (vehicleType === 'motor') return 'https://cdn-icons-png.flaticon.com/128/5811/5811823.png';
+
     if (vehicleType === 'bentor') return 'https://cdn-icons-png.flaticon.com/128/7890/7890227.png';
+
     if (vehicleType === 'mobil') return 'https://cdn-icons-png.flaticon.com/128/12689/12689302.png';
+
     if (vehicleType === 'kurir_motor') return 'https://cdn-icons-png.flaticon.com/128/9561/9561688.png';
+
     if (vehicleType === 'kurir_bentor') return 'https://cdn-icons-png.flaticon.com/128/7890/7890227.png';
+
     // Default sesuai pilihan user
+
     return transportIconUrl || 'https://cdn-icons-png.flaticon.com/128/5811/5811823.png';
+
   }
+
+
 
   function addDriverMarker(driverId, location, vehicleType = null) {
+
     if (!map || !location.latitude || !location.longitude) return;
+
     
+
     const iconUrl = getDriverIconUrl(vehicleType);
+
     const el = document.createElement('div');
+
     el.style.backgroundImage = `url(${iconUrl})`;
+
     el.style.backgroundSize = 'cover';
+
     el.style.width = '35px';
+
     el.style.height = '35px';
+
     el.style.borderRadius = '50%';
+
     el.style.border = '2px solid var(--primary)';
+
     el.style.boxShadow = '0 2px 6px rgba(0,0,0,0.2)';
+
     el.title = `Driver ${driverId}`;
+
     
+
     const marker = new mapboxgl.Marker({ element: el })
+
       .setLngLat([location.longitude, location.latitude])
+
       .addTo(map);
+
     
+
     driverMarkers.push({ id: driverId, marker });
+
   }
+
+
 
   function removeAllDriverMarkers() {
+
     driverMarkers.forEach(item => {
+
       if (item.marker && item.marker.remove) item.marker.remove();
+
     });
+
     driverMarkers = [];
+
   }
+
+
 
   function startDriversListener() {
+
     if (!database) return;
+
     // Hentikan listener lama jika ada
+
     if (driversListener && driversRef) driversRef.off('value', driversListener);
+
     
+
     driversRef = database.ref('driver_locations');
+
     driversListener = driversRef.on('value', (snapshot) => {
+
       // Hapus semua marker sebelumnya
+
       removeAllDriverMarkers();
+
       
+
       const locations = snapshot.val();
+
       if (!locations) return;
+
       
+
       // Loop semua driver
+
       Object.keys(locations).forEach(driverId => {
+
         const driverData = locations[driverId];
+
         // Hanya tampilkan driver yang tracking_enabled = true
+
         if (driverData && driverData.tracking_enabled === true && 
+
             driverData.latitude && driverData.longitude) {
+
           // Ambil tipe kendaraan dari node drivers (bisa juga dari localStorage atau fallback)
+
           // Karena di driver_locations tidak ada vehicleType, kita coba ambil dari database drivers
+
           database.ref(`drivers/${driverId}/vehicleType`).once('value').then(snap => {
+
             const vehicleType = snap.val();
+
             addDriverMarker(driverId, {
+
               latitude: driverData.latitude,
+
               longitude: driverData.longitude
+
             }, vehicleType);
+
           }).catch(() => {
+
             addDriverMarker(driverId, {
+
               latitude: driverData.latitude,
+
               longitude: driverData.longitude
+
             });
+
           });
+
         }
+
       });
+
     });
+
   }
 
+
+
   // ==================== CEK ORDER AKTIF ====================
+
   async function cekOrderAktifDanRedirect() {
     const orderId = localStorage.getItem('current_order_id');
     if (!orderId) return false;
     try {
-      const snap = await database.ref(`orders/${orderId}`).once('value');
-      const order = snap.val();
-      if (!order) {
-        localStorage.removeItem('current_order_id');
-        return false;
-      }
-      const statusAktif = ['waiting', 'accepted', 'on_the_way', 'arrived', 'on_trip'];
-      if (statusAktif.includes(order.status)) {
-        window.location.href = 'tracking_customer.html';
-        return true;
-      } else {
-        localStorage.removeItem('current_order_id');
-        return false;
-      }
+        const snap = await database.ref(`orders/${orderId}`).once('value');
+        const order = snap.val();
+        if (!order) {
+            localStorage.removeItem('current_order_id');
+            return false;
+        }
+        // Status waiting -> TIDAK redirect (biar tetap di rute.html)
+        if (order.status === 'waiting') {
+            return true; // Memberi tahu bahwa ada order aktif, tapi tidak redirect
+        }
+        // Status lainnya yang sudah dalam perjalanan -> redirect ke tracking
+        const statusRedirect = ['accepted', 'on_the_way', 'arrived', 'on_trip'];
+        if (statusRedirect.includes(order.status)) {
+            window.location.href = 'tracking_customer.html';
+            return true;
+        } else {
+            localStorage.removeItem('current_order_id');
+            return false;
+        }
     } catch (err) {
-      console.error('Gagal cek order aktif', err);
-      return false;
+        console.error('Gagal cek order aktif', err);
+        return false;
     }
-  }
+}
+// ==================== LOAD ORDER WAITING (SAAT CUSTOMER KEMBALI KE RUTE) ====================
+async function loadWaitingOrderData() {
+    const orderId = localStorage.getItem('current_order_id');
+    if (!orderId) return false;
+    
+    try {
+        const snap = await database.ref(`orders/${orderId}`).once('value');
+        const order = snap.val();
+        if (!order || order.status !== 'waiting') return false;
+        
+        // Isi data dari order yang waiting
+        pickupCoord = [order.pickup_lng, order.pickup_lat];
+        destCoord = [order.dest_lng, order.dest_lat];
+        pickupAddress = order.pickup_address;
+        destAddress = order.destination_address;
+        currentPrice = order.price;
+        transportType = order.transport_type;
+        
+        // Set ikon berdasarkan transportType
+        if (transportType === 'motor') transportIconUrl = 'https://cdn-icons-png.flaticon.com/128/5811/5811823.png';
+        else if (transportType === 'bentor') transportIconUrl = 'https://cdn-icons-png.flaticon.com/128/7890/7890227.png';
+        else if (transportType === 'mobil') transportIconUrl = 'https://cdn-icons-png.flaticon.com/128/12689/12689302.png';
+        else if (transportType === 'kurir_motor') transportIconUrl = 'https://cdn-icons-png.flaticon.com/128/9561/9561688.png';
+        else if (transportType === 'kurir_bentor') transportIconUrl = 'https://cdn-icons-png.flaticon.com/128/7890/7890227.png';
+        else transportIconUrl = 'https://cdn-icons-png.flaticon.com/128/5811/5811823.png';
+        
+        // Tampilkan rute details
+        document.getElementById('routeFrom').innerText = pickupAddress;
+        document.getElementById('routeTo').innerText = destAddress;
+        document.getElementById('routeDuration').innerText = order.duration_seconds ? Math.round(order.duration_seconds / 60) + ' menit' : '-';
+        document.getElementById('routePrice').innerHTML = formatRupiah(order.price);
+        document.getElementById('routeDetails').style.display = 'block';
+        
+        // Tampilkan tombol batalkan (cancelBtn)
+        const cancelBtn = document.getElementById('cancelBtn');
+        cancelBtn.style.display = 'block';
+        cancelBtn.innerHTML = '❌ Batalkan Perjalanan';
+        
+        // Ubah tombol confirm menjadi "LANJUTKAN CARI DRIVER"
+        const confirmBtn = document.getElementById('confirmBtn');
+        confirmBtn.disabled = false;
+        confirmBtn.innerHTML = `🚀 LANJUTKAN CARI DRIVER | ${formatRupiah(order.price)}`;
+        
+        // Set currentOrderId agar bisa dibatalkan / dilanjutkan
+        currentOrderId = orderId;
+        currentRoute = {
+            distance: order.distance_meters,
+            duration: order.duration_seconds,
+            price: order.price
+        };
+        
+        // Update markers di map
+        updateMarkers();
+        
+        // Gambar rute di map (jika map sudah siap)
+        if (map && mapboxAccessToken) {
+            if (routeLayer) {
+                try { map.removeLayer(routeLayer); } catch(e) {}
+                try { map.removeSource('route'); } catch(e) {}
+            }
+            const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${pickupCoord[0]},${pickupCoord[1]};${destCoord[0]},${destCoord[1]}?geometries=geojson&access_token=${mapboxAccessToken}`;
+            try {
+                const resp = await fetch(url);
+                const data = await resp.json();
+                if (data.routes && data.routes.length) {
+                    const route = data.routes[0];
+                    map.addSource('route', { type: 'geojson', data: { type: 'Feature', geometry: route.geometry } });
+                    map.addLayer({ id: 'route', type: 'line', source: 'route', layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: { 'line-color': '#FF9800', 'line-width': 5 } });
+                    routeLayer = 'route';
+                    const bounds = new mapboxgl.LngLatBounds().extend(pickupCoord).extend(destCoord);
+                    map.fitBounds(bounds, { padding: 50 });
+                }
+            } catch(e) { console.warn(e); }
+        }
+        
+        // Set isSearching false agar tidak langsung mencari driver
+        isSearching = false;
+        
+        return true;
+    } catch (err) {
+        console.error('Gagal load waiting order:', err);
+        return false;
+    }
+}
+
 
   // ==================== AMBIL DATA DARI DATABASE ====================
+
   async function fetchMapboxToken() {
+
     try {
+
       const snapshot = await database.ref('data-jego/mapbox_acces_token').once('value');
+
       const token = snapshot.val();
+
       if (token && token.trim()) {
+
         mapboxAccessToken = token;
+
         return true;
+
       }
+
       throw new Error('Token tidak ditemukan');
+
     } catch (err) {
+
       showPopup('Error', 'Gagal memuat token Mapbox.');
+
       return false;
+
     }
+
   }
+
+
 
   async function loadTransportRateFromDB(transportName) {
+
     try {
+
       const snapshot = await database.ref('tarif').once('value');
+
       const tarifData = snapshot.val();
+
       if (tarifData) {
+
         const matchedKey = Object.keys(tarifData).find(key => key.toLowerCase() === transportName.toLowerCase());
+
         if (matchedKey && tarifData[matchedKey]) {
+
           const data = tarifData[matchedKey];
+
           transportRate = {
+
             minimal_distance: data.MinimalDistance || 4,
+
             minimal_price: data.MinimalPrice || 10000,
+
             price_per_km: data.PricePerKm || 2200
+
           };
+
           transportIconUrl = data.Icon || '';
+
           return true;
+
         }
+
       }
+
       fallbackRate(transportName);
+
       return false;
+
     } catch (err) {
+
       fallbackRate(transportName);
+
       return false;
+
     }
+
   }
+
+
 
   function fallbackRate(transportName) {
+
     const nameLower = transportName.toLowerCase();
+
     if (nameLower === 'motor') { transportRate = { minimal_distance: 4, minimal_price: 10000, price_per_km: 2200 }; transportIconUrl = 'https://cdn-icons-png.flaticon.com/128/5811/5811823.png'; }
+
     else if (nameLower === 'bentor') { transportRate = { minimal_distance: 4, minimal_price: 11000, price_per_km: 3000 }; transportIconUrl = 'https://cdn-icons-png.flaticon.com/128/7890/7890227.png'; }
+
     else if (nameLower === 'mobil') { transportRate = { minimal_distance: 4, minimal_price: 15000, price_per_km: 4000 }; transportIconUrl = 'https://cdn-icons-png.flaticon.com/128/12689/12689302.png'; }
+
     else if (nameLower === 'kurir motor') { transportRate = { minimal_distance: 4, minimal_price: 10000, price_per_km: 2100 }; transportIconUrl = 'https://cdn-icons-png.flaticon.com/128/9561/9561688.png'; }
+
     else if (nameLower === 'kurir bentor') { transportRate = { minimal_distance: 4, minimal_price: 10000, price_per_km: 2100 }; transportIconUrl = 'https://cdn-icons-png.flaticon.com/128/7890/7890227.png'; }
+
     else { transportRate = { minimal_distance: 4, minimal_price: 10000, price_per_km: 2200 }; transportIconUrl = 'https://cdn-icons-png.flaticon.com/128/5811/5811823.png'; }
+
   }
+
+
 
   // ==================== CEK SESSION & LOAD USER ====================
+
   async function checkUserSession() {
+
     return new Promise((resolve, reject) => {
+
       const unsubscribe = auth.onAuthStateChanged(async (user) => {
+
         unsubscribe();
+
         if (!user) {
+
           showPopup('Akses Ditolak', 'Anda belum login.', () => window.location.href = 'loginUser.html');
+
           reject(false);
+
           return;
+
         }
+
         try {
+
           const uid = user.uid;
+
           const snapshot = await database.ref(`users/${uid}`).once('value');
+
           const data = snapshot.val();
+
           if (!data) throw new Error('User data not found');
+
           currentUser = {
+
             id: uid,
+
             name: data.name,
+
             phone: data.phone,
+
             email: data.email,
+
             rating: data.rating || 5,
+
             perjalanan: data.perjalanan || 0,
+
             photoURL: data.photoURL || ''
+
           };
+
           resolve(true);
+
         } catch (err) {
+
           localStorage.removeItem('jego_logged_in_user');
+
           showPopup('Sesi Tidak Valid', 'Silakan login ulang.', () => window.location.href = 'loginUser.html');
+
           reject(false);
+
         }
+
       });
+
     });
+
   }
+
+
 
   async function loadSelectedTransport() {
+
     const lastTransport = localStorage.getItem('jego_last_transport');
+
     if (!lastTransport) {
+
       showPopup('Pilih Transportasi', 'Anda belum memilih jenis kendaraan.', () => window.location.href = 'jenis_kenderaan.html');
+
       return false;
+
     }
+
     try {
+
       selectedTransport = JSON.parse(lastTransport);
+
       transportType = selectedTransport.type;
+
       let typeForDB = transportType.replace(/_/g, ' ');
+
       typeForDB = typeForDB.charAt(0).toUpperCase() + typeForDB.slice(1);
+
       if (transportType === 'kurir_motor') typeForDB = 'Kurir Motor';
+
       if (transportType === 'kurir_bentor') typeForDB = 'Kurir Bentor';
+
       if (transportType === 'bentor') typeForDB = 'Bentor';
+
       if (transportType === 'mobil') typeForDB = 'Mobil';
+
       if (transportType === 'motor') typeForDB = 'Motor';
 
+
+
       isCourier = transportType && transportType.toLowerCase().includes('kurir');
+
       await loadTransportRateFromDB(typeForDB);
 
+
+
       if (isCourier && selectedTransport.deliveryData) {
+
         deliveryData = selectedTransport.deliveryData;
+
         document.getElementById('deliveryInfoPanel').style.display = 'block';
+
         document.getElementById('deliveryItemCategory').innerText = deliveryData.itemCategory || '-';
+
         document.getElementById('deliveryDescription').innerText = deliveryData.description || '-';
+
         document.getElementById('deliverySender').innerText = deliveryData.senderPhone || '-';
+
         document.getElementById('deliveryReceiver').innerText = deliveryData.receiverPhone || '-';
+
       } else if (isCourier && !selectedTransport.deliveryData) {
+
         showPopup('Data Kurir Tidak Lengkap', 'Silakan kembali ke halaman sebelumnya.', () => window.location.href = 'jenis_kenderaan.html');
+
         return false;
+
       }
+
       return true;
+
     } catch (e) {
+
       showPopup('Error', 'Gagal memuat data transportasi');
+
       return false;
+
     }
+
   }
+
+
 
   // ==================== FUNGSI PETA & RUTE ====================
+
   function getFullAddress(feature) {
+
     const name = feature.properties?.name;
+
     const fullAddress = feature.properties?.full_address || feature.properties?.address || '';
+
     if (name && name.trim()) {
+
       if (fullAddress.toLowerCase().includes(name.toLowerCase())) return fullAddress;
+
       return `${name}, ${fullAddress}`;
+
     }
+
     return fullAddress;
+
   }
+
+
 
   async function reverseGeocode(lng, lat) {
+
     try {
+
       const controller = new AbortController();
+
       const timeoutId = setTimeout(() => controller.abort(), 10000);
+
       const osmUrl = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1&accept-language=id`;
+
       const resp = await fetch(osmUrl, { signal: controller.signal, headers: { 'User-Agent': 'JeGo-App/1.0' } });
+
       clearTimeout(timeoutId);
+
       if (resp.ok) {
+
         const data = await resp.json();
+
         if (data.display_name) return data.display_name.replace(', Indonesia', '');
+
       }
+
     } catch (err) {}
+
     return null;
+
   }
+
+
 
   async function setPickupInputField(address) {
+
     const fromBox = document.querySelector('#from-container mapbox-search-box');
+
     if (fromBox && fromBox.shadowRoot) {
+
       const input = fromBox.shadowRoot.querySelector('input');
+
       if (input) {
+
         input.value = address;
+
         input.dispatchEvent(new Event('input', { bubbles: true }));
+
         input.dispatchEvent(new Event('change', { bubbles: true }));
+
       }
+
     } else {
+
       const fallbackInput = document.querySelector('#from-container input');
+
       if (fallbackInput) {
+
         fallbackInput.value = address;
+
         fallbackInput.dispatchEvent(new Event('input', { bubbles: true }));
+
       }
+
     }
+
   }
+
+
 
   async function autoFillPickupLocation() {
+
     return new Promise((resolve) => {
+
       if (!navigator.geolocation) { resolve(false); return; }
+
       navigator.geolocation.getCurrentPosition(async (position) => {
+
         const { latitude, longitude } = position.coords;
+
         let address = await reverseGeocode(longitude, latitude);
+
         if (!address || address.trim() === '') address = '(Jalan Tanpa Nama)';
+
         pickupCoord = [longitude, latitude];
+
         pickupAddress = address;
+
         updateMarkers();
+
         if (map) map.flyTo({ center: pickupCoord, zoom: 14, duration: 1500 });
+
         await setPickupInputField(pickupAddress);
+
         if (destCoord) await updateRoute();
+
         resolve(true);
+
       }, () => resolve(false), { enableHighAccuracy: true, timeout: 10000 });
+
     });
+
   }
+
+
 
   async function initMap() {
+
     mapboxgl.accessToken = mapboxAccessToken;
+
     map = new mapboxgl.Map({
+
       container: 'map',
+
       style: 'mapbox://styles/mapbox/streets-v12',
+
       center: [123.0580, 0.5435],
+
       zoom: 12
+
     });
+
     map.addControl(new mapboxgl.NavigationControl(), 'top-right');
 
+
+
     const fromContainer = document.getElementById('from-container');
+
     const toContainer = document.getElementById('to-container');
+
     const fromSearch = document.createElement('mapbox-search-box');
+
     const toSearch = document.createElement('mapbox-search-box');
+
     fromSearch.setAttribute('access-token', mapboxAccessToken);
+
     toSearch.setAttribute('access-token', mapboxAccessToken);
+
     fromSearch.setAttribute('placeholder', '📍 Lokasi penjemputan');
+
     toSearch.setAttribute('placeholder', '🏁 Lokasi tujuan');
+
     fromContainer.appendChild(fromSearch);
+
     toContainer.appendChild(toSearch);
 
+
+
     fromSearch.addEventListener('retrieve', (e) => {
+
       const f = e.detail.features[0];
+
       if (f) { pickupCoord = f.geometry.coordinates; pickupAddress = getFullAddress(f); updateRoute(); }
+
     });
+
     toSearch.addEventListener('retrieve', (e) => {
+
       const f = e.detail.features[0];
+
       if (f) { destCoord = f.geometry.coordinates; destAddress = getFullAddress(f); updateRoute(); }
+
     });
+
     
+
     // Setelah map siap, mulai listener driver aktif
+
     startDriversListener();
+
   }
+
+
 
   function updateMarkers() {
+
     if (pickupMarker) pickupMarker.remove();
+
     if (destMarker) destMarker.remove();
+
     if (pickupCoord) {
+
       const el = document.createElement('div');
+
       el.style.backgroundImage = `url(${transportIconUrl || 'https://cdn-icons-png.flaticon.com/128/5811/5811823.png'})`;
+
       el.style.backgroundSize = 'cover';
+
       el.style.width = '35px'; el.style.height = '35px'; el.style.borderRadius = '50%'; el.style.border = '2px solid white';
+
       pickupMarker = new mapboxgl.Marker({ element: el }).setLngLat(pickupCoord).addTo(map);
+
     }
+
     if (destCoord) {
+
       const el = document.createElement('div');
+
       el.style.backgroundImage = `url(${transportIconUrl || 'https://cdn-icons-png.flaticon.com/128/5811/5811823.png'})`;
+
       el.style.backgroundSize = 'cover';
+
       el.style.width = '35px'; el.style.height = '35px'; el.style.borderRadius = '50%'; el.style.border = '2px solid white';
+
       destMarker = new mapboxgl.Marker({ element: el }).setLngLat(destCoord).addTo(map);
+
     }
+
   }
+
+
 
   async function updateRoute() {
+
     if (!pickupCoord || !destCoord) return;
+
     if (routeLayer) { map.removeLayer(routeLayer); map.removeSource('route'); }
+
     const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${pickupCoord[0]},${pickupCoord[1]};${destCoord[0]},${destCoord[1]}?geometries=geojson&access_token=${mapboxAccessToken}`;
+
     try {
+
       const resp = await fetch(url);
+
       const data = await resp.json();
+
       if (data.code !== 'Ok' || !data.routes.length) throw new Error();
+
       const route = data.routes[0];
+
       const price = calculatePrice(route.distance);
+
       currentPrice = price;
+
       currentRoute = {
+
         geometry: route.geometry,
+
         distance: route.distance,
+
         duration: route.duration,
+
         price: price
+
       };
+
       document.getElementById('routeFrom').innerText = pickupAddress;
+
       document.getElementById('routeTo').innerText = destAddress;
+
       document.getElementById('routeDuration').innerText = Math.round(route.duration / 60) + ' menit';
+
       document.getElementById('routePrice').innerHTML = formatRupiah(price);
+
       document.getElementById('routeDetails').style.display = 'block';
+
       document.getElementById('confirmBtn').disabled = false;
+
       document.getElementById('confirmBtn').innerHTML = `🚀 CARI DRIVER | ${formatRupiah(price)}`;
+
       map.addSource('route', { type: 'geojson', data: { type: 'Feature', geometry: route.geometry } });
+
       map.addLayer({ id: 'route', type: 'line', source: 'route', layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: { 'line-color': '#FF9800', 'line-width': 5 } });
+
       routeLayer = 'route';
+
       updateMarkers();
+
       const bounds = new mapboxgl.LngLatBounds().extend(pickupCoord).extend(destCoord);
+
       map.fitBounds(bounds, { padding: 50 });
+
     } catch (err) { showPopup('Error', 'Gagal menghitung rute.'); }
+
   }
+
+
 
   // ==================== RADAR ====================
+
   function startSlowZoomOut() {
+
     if (!map || !pickupCoord) return;
+
     if (currentZoomAnimation) { map.stop(); currentZoomAnimation = null; }
+
     currentZoomAnimation = map.flyTo({ center: pickupCoord, zoom: 11, duration: 180000 });
+
   }
+
   function stopSlowZoomOut() {
+
     if (currentZoomAnimation) { map.stop(); currentZoomAnimation = null; }
+
   }
+
   function activateRadarOnPickup() {
+
     if (pickupMarker && pickupMarker.getElement()) pickupMarker.getElement().classList.add('radar-marker-effect');
+
   }
+
   function deactivateRadarOnPickup() {
+
     if (pickupMarker && pickupMarker.getElement()) pickupMarker.getElement().classList.remove('radar-marker-effect');
+
   }
+
+
 
   // ==================== ORDER & DRIVER OFFERS ====================
+
   function renderOffers(offers) {
+
     const container = document.getElementById('driverOfferList');
+
     if (!container) return;
+
     if (!offers || Object.keys(offers).length === 0) {
+
       container.innerHTML = '<div style="text-align:center; padding:16px;">⏳ Belum ada penawaran driver</div>';
+
       return;
+
     }
+
     container.innerHTML = '';
+
     Object.entries(offers).forEach(([driverId, offer]) => {
+
       const isProcessed = offer.status === 'accepted' || offer.status === 'rejected';
+
       const card = document.createElement('div');
+
       card.className = 'driver-offer-card';
+
       card.innerHTML = `
+
         <div class="driver-info">
+
           <img class="driver-photo" src="${offer.driver_photo || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png'}">
+
           <div class="driver-details">
+
             <div class="driver-name">${escapeHtml(offer.driver_name)}</div>
+
             <div class="driver-vehicle">${offer.driver_plate || '-'} • ${offer.driver_type || transportType}</div>
+
             <div>⭐ ${offer.driver_rating || 5} (${offer.driver_trips || 0} trip)</div>
+
           </div>
+
         </div>
+
         <div class="driver-action-buttons">
+
           ${!isProcessed ? `<button class="accept-btn" data-driver="${driverId}">✅ Terima</button><button class="reject-btn" data-driver="${driverId}">❌ Tolak</button>` : `<span>${offer.status === 'accepted' ? '✓ Diterima' : '✗ Ditolak'}</span>`}
+
         </div>
+
       `;
+
       container.appendChild(card);
+
     });
+
     document.querySelectorAll('.accept-btn').forEach(btn => btn.addEventListener('click', (e) => acceptOffer(btn.getAttribute('data-driver'))));
+
     document.querySelectorAll('.reject-btn').forEach(btn => btn.addEventListener('click', (e) => rejectOffer(btn.getAttribute('data-driver'))));
+
   }
+
+
 
   async function acceptOffer(driverId) {
+
     if (!currentOrderId) {
+
       showPopup('Gagal', 'ID order tidak valid.');
+
       return;
+
     }
+
     const savedOrderId = currentOrderId;
+
     await database.ref(`orders/${savedOrderId}/driver_offers/${driverId}/status`).set('accepted');
+
     await database.ref(`orders/${savedOrderId}`).update({
+
       status: 'accepted',
+
       driver_id: driverId,
+
       accepted_at: new Date().toISOString()
+
     });
+
     localStorage.setItem('current_order_id', savedOrderId);
+
     showPopup('Berhasil', 'Driver dipilih. Menuju halaman pelacakan...', () => {
+
       window.location.href = 'tracking_customer.html';
+
     });
+
   }
+
+
 
   async function rejectOffer(driverId) {
+
     if (!currentOrderId) return;
+
     await database.ref(`orders/${currentOrderId}/driver_offers/${driverId}/status`).set('rejected');
+
   }
 
+
+
   async function confirmRoute() {
+    // 🔥 TAMBAHKAN PENGECEKAN UNTUK ORDER WAITING (LANJUTKAN TANPA BUAT ORDER BARU)
+    if (currentOrderId) {
+        const snap = await database.ref(`orders/${currentOrderId}`).once('value');
+        const existingOrder = snap.val();
+        if (existingOrder && existingOrder.status === 'waiting') {
+            // Lanjutkan pencarian driver
+            isSearching = true;
+            document.getElementById('driverOffers').style.display = 'block';
+            
+            // Listener status order
+            orderRef = database.ref(`orders/${currentOrderId}/status`);
+            orderStatusCallback = (snapshot) => {
+                const status = snapshot.val();
+                if (status === 'cancelled' || status === 'cancelled_by_user') {
+                    cleanupSearch();
+                    showPopup('Order Dibatalkan', 'Order dibatalkan.');
+                } else if (status === 'accepted') {
+                    cleanupSearch();
+                }
+            };
+            orderRef.on('value', orderStatusCallback);
+            
+            // Listener penawaran driver
+            offersRef = database.ref(`orders/${currentOrderId}/driver_offers`);
+            offersCallback = (snapshot) => renderOffers(snapshot.val());
+            offersRef.on('value', offersCallback);
+            
+            // Timer popup naikkan tarif
+            priceOfferTimer = setTimeout(() => {
+                if (isSearching && currentOrderId) showPriceOfferPopup();
+            }, 30000);
+            
+            return;
+        }
+    }
+    
+    // ========== KODE ASLI DI BAWAH INI (TETAP SAMA) ==========
     if (!currentRoute || !currentUser) {
-      showPopup('Perhatian', 'Lengkapi asal dan tujuan.');
-      return;
+        showPopup('Perhatian', 'Lengkapi asal dan tujuan.');
+        return;
     }
     const btn = document.getElementById('confirmBtn');
     btn.disabled = true;
@@ -978,49 +2041,48 @@
 
     // Langsung fokus ke marker dengan zoom tinggi (2 detik)
     if (map && pickupCoord) {
-      map.flyTo({
-        center: [pickupCoord[0], pickupCoord[1]],
-        zoom: 15,
-        duration: 2000,
-        essential: true
-      });
-      // Setelah 2 detik, mulai zoom out lambat selama sisa waktu
-      setTimeout(() => {
         map.flyTo({
-          center: [pickupCoord[0], pickupCoord[1]],
-          zoom: 11,
-          duration: 178000,
-          easing: function(t) { return t; }
+            center: [pickupCoord[0], pickupCoord[1]],
+            zoom: 15,
+            duration: 2000,
+            essential: true
         });
-      }, 2000);
+        setTimeout(() => {
+            map.flyTo({
+                center: [pickupCoord[0], pickupCoord[1]],
+                zoom: 11,
+                duration: 178000,
+                easing: function(t) { return t; }
+            });
+        }, 2000);
     }
 
     const newOrderRef = database.ref('orders').push();
     currentOrderId = newOrderRef.key;
     const orderData = {
-      user_id: currentUser.id,
-      customer_name: currentUser.name,
-      transport_type: transportType,
-      pickup_address: pickupAddress,
-      pickup_lat: pickupCoord[1],
-      pickup_lng: pickupCoord[0],
-      destination_address: destAddress,
-      dest_lat: destCoord[1],
-      dest_lng: destCoord[0],
-      distance_meters: currentRoute.distance,
-      duration_seconds: currentRoute.duration,
-      price: currentPrice,
-      status: 'waiting',
-      created_at: new Date().toISOString(),
-      passenger_rating: currentUser.rating,
-      perjalanan: currentUser.perjalanan,
-      photoURL: currentUser.photoURL || ''
+        user_id: currentUser.id,
+        customer_name: currentUser.name,
+        transport_type: transportType,
+        pickup_address: pickupAddress,
+        pickup_lat: pickupCoord[1],
+        pickup_lng: pickupCoord[0],
+        destination_address: destAddress,
+        dest_lat: destCoord[1],
+        dest_lng: destCoord[0],
+        distance_meters: currentRoute.distance,
+        duration_seconds: currentRoute.duration,
+        price: currentPrice,
+        status: 'waiting',
+        created_at: new Date().toISOString(),
+        passenger_rating: currentUser.rating,
+        perjalanan: currentUser.perjalanan,
+        photoURL: currentUser.photoURL || ''
     };
     if (isCourier && deliveryData) {
-      orderData.sender_phone = deliveryData.senderPhone;
-      orderData.receiver_phone = deliveryData.receiverPhone;
-      orderData.item_category = deliveryData.itemCategory;
-      orderData.item_description = deliveryData.description;
+        orderData.sender_phone = deliveryData.senderPhone;
+        orderData.receiver_phone = deliveryData.receiverPhone;
+        orderData.item_category = deliveryData.itemCategory;
+        orderData.item_description = deliveryData.description;
     }
     await newOrderRef.set(orderData);
     await database.ref(`userOrders/${currentUser.id}/${currentOrderId}`).set(true);
@@ -1030,13 +2092,13 @@
 
     orderRef = database.ref(`orders/${currentOrderId}/status`);
     orderStatusCallback = (snapshot) => {
-      const status = snapshot.val();
-      if (status === 'cancelled' || status === 'cancelled_by_user') {
-        cleanupSearch();
-        showPopup('Order Dibatalkan', 'Order dibatalkan.');
-      } else if (status === 'accepted') {
-        cleanupSearch();
-      }
+        const status = snapshot.val();
+        if (status === 'cancelled' || status === 'cancelled_by_user') {
+            cleanupSearch();
+            showPopup('Order Dibatalkan', 'Order dibatalkan.');
+        } else if (status === 'accepted') {
+            cleanupSearch();
+        }
     };
     orderRef.on('value', orderStatusCallback);
 
@@ -1045,152 +2107,295 @@
     offersRef.on('value', offersCallback);
 
     priceOfferTimer = setTimeout(() => {
-      if (isSearching && currentOrderId) showPriceOfferPopup();
+        if (isSearching && currentOrderId) showPriceOfferPopup();
     }, 30000);
-  }
+}
+
+
 
   async function cancelSearchHandler() { await cancelSearch(); }
 
+
+
   function showPriceOfferPopup() {
+
   if (priceOfferShown) return;
+
   priceOfferShown = true;
+
   
+
   const currentPriceVal = currentPrice;
+
   document.getElementById('currentPriceDisplay').innerText = formatRupiah(currentPriceVal);
+
   
+
   // Hitung harga setelah kenaikan
+
   const price1 = Math.round(currentPriceVal * 1.1);
+
   const price2 = Math.round(currentPriceVal * 1.2);
+
   const price3 = Math.round(currentPriceVal * 1.3);
+
   
+
   // Tampilkan tombol harga
+
   document.getElementById('priceUp1Btn').innerHTML = formatRupiah(price1);
+
   document.getElementById('priceUp2Btn').innerHTML = formatRupiah(price2);
+
   document.getElementById('priceUp3Btn').innerHTML = formatRupiah(price3);
+
   
+
   // Tampilkan popup
+
   const popup = document.getElementById('priceOfferPopup');
+
   popup.classList.add('active');
+
   
+
   // Fungsi untuk menutup popup
+
   const closePopup = () => {
+
     popup.classList.remove('active');
+
   };
+
   
+
   // Tombol naik tarif manual
+
   document.getElementById('priceUp1Btn').onclick = () => {
+
     updateOrderPrice(price1);
+
     closePopup();
+
   };
+
   document.getElementById('priceUp2Btn').onclick = () => {
+
     updateOrderPrice(price2);
+
     closePopup();
+
   };
+
   document.getElementById('priceUp3Btn').onclick = () => {
+
     updateOrderPrice(price3);
+
     closePopup();
+
   };
+
   
+
   // Tombol "Tunggu" hanya menutup popup
+
   document.getElementById('continueWaitingBtn').onclick = closePopup;
+
   document.getElementById('closePriceOfferBtn')?.addEventListener('click', closePopup);
+
   
+
   // 🔥 OTOMATIS NAIKKAN TARIF SETIAP 30 DETIK (tetap berjalan)
+
   let autoIncreaseInterval = setInterval(async () => {
+
     if (!isSearching || !currentOrderId) {
+
       clearInterval(autoIncreaseInterval);
+
       return;
+
     }
+
     const newPrice = Math.round(currentPrice * 1.1);
+
     if (newPrice === currentPrice) return;
+
     await updateOrderPrice(newPrice);
+
     document.getElementById('currentPriceDisplay').innerText = formatRupiah(newPrice);
+
     
+
     // Update tombol harga juga
+
     document.getElementById('priceUp1Btn').innerHTML = formatRupiah(Math.round(newPrice * 1.1));
+
     document.getElementById('priceUp2Btn').innerHTML = formatRupiah(Math.round(newPrice * 1.2));
+
     document.getElementById('priceUp3Btn').innerHTML = formatRupiah(Math.round(newPrice * 1.3));
+
   }, 30000);
+
   
+
   // Hentikan interval saat popup ditutup
+
   const originalClosePopup = closePopup;
+
   window.closePopupAndStopInterval = () => {
+
     if (autoIncreaseInterval) clearInterval(autoIncreaseInterval);
+
     originalClosePopup();
+
   };
+
   document.getElementById('continueWaitingBtn').onclick = () => {
+
     if (autoIncreaseInterval) clearInterval(autoIncreaseInterval);
+
     closePopup();
+
   };
+
   
+
   // Jika popup ditutup secara manual, hentikan interval
+
   popup.addEventListener('click', (e) => {
+
     if (e.target === popup) {
+
       if (autoIncreaseInterval) clearInterval(autoIncreaseInterval);
+
       closePopup();
+
     }
+
   }, { once: true });
+
 }
 
+
+
   async function updateOrderPrice(newPrice) {
+
     if (!currentOrderId) return;
+
     currentPrice = newPrice;
+
     await database.ref(`orders/${currentOrderId}`).update({ price: newPrice, price_updated_at: new Date().toISOString() });
+
     showPopup('Tarif Dinaikkan', `Tarif baru: ${formatRupiah(newPrice)}. Menunggu driver...`);
+
   }
+
+
 
   async function cancelSearch() {
+
     if (!currentOrderId) {
+
       cleanupSearch();
+
       localStorage.removeItem('current_order_id');
+
       return;
+
     }
+
     try {
+
       await database.ref(`orders/${currentOrderId}`).update({ status: 'cancelled_by_user', cancelled_at: new Date().toISOString() });
+
       cleanupSearch();
+
       localStorage.removeItem('current_order_id');
+
       showPopup('Pencarian Dibatalkan', 'Order berhasil dibatalkan.');
+
     } catch (err) {
+
       showPopup('Error', 'Gagal membatalkan order.');
+
     }
+
   }
+
+
 
   function cleanupSearch() {
+
     if (orderRef && orderStatusCallback) orderRef.off('value', orderStatusCallback);
+
     if (offersRef && offersCallback) offersRef.off('value', offersCallback);
+
     isSearching = false;
+
     if (priceOfferTimer) clearTimeout(priceOfferTimer);
+
     priceOfferShown = false;
+
     document.getElementById('radar').style.display = 'none';
+
     document.getElementById('radar').classList.remove('expanding');
+
     document.getElementById('driverOffers').style.display = 'none';
+
     const btn = document.getElementById('confirmBtn');
+
     btn.removeEventListener('click', cancelSearchHandler);
+
     btn.addEventListener('click', confirmRoute);
+
     btn.innerHTML = currentPrice ? `🚀 CARI DRIVER | ${formatRupiah(currentPrice)}` : '📍 Konfirmasi Rute';
+
     btn.disabled = (currentPrice === 0);
+
     document.getElementById('cancelBtn').style.display = 'none';
+
     document.getElementById('routeDetails').style.display = 'block';
+
     currentOrderId = null;
+
     deactivateRadarOnPickup();
+
     stopSlowZoomOut();
+
   }
 
+
+
   // ==================== INISIALISASI ====================
+
   window.onload = async () => {
     const tokenOk = await fetchMapboxToken();
     if (!tokenOk) return;
     const loggedIn = await checkUserSession().catch(() => false);
     if (!loggedIn) return;
 
-    // 🔥 CEK ORDER AKTIF SEBELUM LOAD TRANSPORT
+    // Cek apakah ada order aktif (waiting atau lainnya)
     const orderActive = await cekOrderAktifDanRedirect();
-    if (orderActive) return;
-
-    const transportLoaded = await loadSelectedTransport();
-    if (!transportLoaded) return;
+    
+    // Inisialisasi map terlebih dahulu
     await initMap();
-    await autoFillPickupLocation();
+    
+    if (orderActive) {
+        // Jika ada order aktif (khusus waiting karena sudah dicek tidak redirect)
+        const loaded = await loadWaitingOrderData();
+        if (!loaded) {
+            // Jika gagal load (misal order sudah tidak waiting), lanjut ke pemilihan transport baru
+            const transportLoaded = await loadSelectedTransport();
+            if (!transportLoaded) return;
+            await autoFillPickupLocation();
+        }
+    } else {
+        // Tidak ada order aktif, lanjut seperti biasa
+        const transportLoaded = await loadSelectedTransport();
+        if (!transportLoaded) return;
+        await autoFillPickupLocation();
+    }
 
     document.getElementById('confirmBtn').addEventListener('click', confirmRoute);
     document.getElementById('closeDriverOffers').addEventListener('click', () => document.getElementById('driverOffers').style.display = 'none');
@@ -1198,11 +2403,14 @@
 
     let nightMode = false;
     document.getElementById('mapModeBtn').addEventListener('click', () => {
-      nightMode = !nightMode;
-      map.setStyle(nightMode ? 'mapbox://styles/mapbox/dark-v11' : 'mapbox://styles/mapbox/streets-v12');
-      document.getElementById('mapModeBtn').innerText = nightMode ? '☀️ Mode Siang' : '🌙 Mode Malam';
+        nightMode = !nightMode;
+        map.setStyle(nightMode ? 'mapbox://styles/mapbox/dark-v11' : 'mapbox://styles/mapbox/streets-v12');
+        document.getElementById('mapModeBtn').innerText = nightMode ? '☀️ Mode Siang' : '🌙 Mode Malam';
     });
-  };
+};
+
 </script>
+
 </body>
+
 </html>
