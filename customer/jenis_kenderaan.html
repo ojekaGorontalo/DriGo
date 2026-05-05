@@ -640,28 +640,34 @@
 
     // ==================== FUNGSI CEK ORDER AKTIF ====================
     async function cekOrderAktifDanRedirect() {
-        const orderId = localStorage.getItem('current_order_id');
-        if (!orderId) return false;
-        try {
-            const snap = await firebaseDatabase.ref(`orders/${orderId}`).once('value');
-            const order = snap.val();
-            if (!order) {
-                localStorage.removeItem('current_order_id');
-                return false;
-            }
-            const statusAktif = ['waiting', 'accepted', 'on_the_way', 'arrived', 'on_trip'];
-            if (statusAktif.includes(order.status)) {
-                window.location.href = 'tracking_customer.html';
-                return true;
-            } else {
-                localStorage.removeItem('current_order_id');
-                return false;
-            }
-        } catch (err) {
-            console.error('Gagal cek order aktif:', err);
+    const orderId = localStorage.getItem('current_order_id');
+    if (!orderId) return false;
+    try {
+        const snap = await firebaseDatabase.ref(`orders/${orderId}`).once('value');
+        const order = snap.val();
+        if (!order) {
+            localStorage.removeItem('current_order_id');
             return false;
         }
+        // Status waiting -> redirect ke rute.html (lanjutkan pesanan)
+        if (order.status === 'waiting') {
+            window.location.href = 'rute.html';
+            return true;
+        }
+        // Status lainnya yang masih aktif -> redirect ke tracking
+        const statusAktifLain = ['accepted', 'on_the_way', 'arrived', 'on_trip'];
+        if (statusAktifLain.includes(order.status)) {
+            window.location.href = 'tracking_customer.html';
+            return true;
+        } else {
+            localStorage.removeItem('current_order_id');
+            return false;
+        }
+    } catch (err) {
+        console.error('Gagal cek order aktif:', err);
+        return false;
     }
+}
 
     // ==================== INISIALISASI FIREBASE ====================
     async function initializeFirebase() {
