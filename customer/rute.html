@@ -16,7 +16,6 @@
   <script id="search-js" defer src="https://api.mapbox.com/search-js/v1.5.0/web.js"></script>
 
   <style>
-    /* (style sama seperti sebelumnya, tidak berubah) */
     :root { --primary: #FF9800; --secondary: #FF5722; --accent: #FFC107; --light: #f8f9fa; --dark: #343a40; --success: #4CAF50; --danger: #f44336; --warning: #FFC107; --info: #2196F3; --gray: #9E9E9E; }
     * { box-sizing: border-box; }
     html, body, #map { height: 100%; margin: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
@@ -42,6 +41,18 @@
     .radar::after { animation-delay: 1.5s; }
     .radar span { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(255,255,255,0.95); padding: 8px 16px; border-radius: 30px; font-weight: bold; white-space: nowrap; }
     @keyframes radarPulse { 0% { transform: scale(0.4); opacity: 1; } 100% { transform: scale(1.5); opacity: 0; } }
+
+    /* Animasi driver marker */
+    @keyframes driverShake {
+      0% { transform: translateX(0); }
+      25% { transform: translateX(2px); }
+      75% { transform: translateX(-2px); }
+      100% { transform: translateX(0); }
+    }
+    .driver-marker-animate {
+      animation: driverShake 1.5s infinite ease-in-out;
+    }
+
     #driverOffers { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); width: 90%; max-width: 450px; z-index: 9999; display: none; }
     #driverOffers > div { background: white; border-radius: 20px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
     #driverOffers > div > div:first-child { background: linear-gradient(135deg, var(--primary), var(--secondary)); color: white; padding: 14px 16px; display: flex; justify-content: space-between; }
@@ -212,15 +223,12 @@
   // Helper untuk mengisi nilai pada mapbox-search-box (karena Shadow DOM)
   function setMapboxSearchValue(searchBox, address) {
     if (!searchBox) return;
-    // Coba set property .value (jika didukung)
     if (typeof searchBox.value !== 'undefined') {
       searchBox.value = address;
     }
-    // Cari input di dalam Shadow DOM
     const shadowInput = searchBox.shadowRoot?.querySelector('input');
     if (shadowInput) {
       shadowInput.value = address;
-      // Trigger event agar komponen menyadari perubahan
       shadowInput.dispatchEvent(new Event('input', { bubbles: true }));
       shadowInput.dispatchEvent(new Event('change', { bubbles: true }));
     }
@@ -280,6 +288,7 @@
     el.style.border = '2px solid var(--primary)';
     el.style.boxShadow = '0 2px 6px rgba(0,0,0,0.2)';
     el.title = `Driver ${driverId}`;
+    el.classList.add('driver-marker-animate'); // Tambahkan class animasi
     const marker = new mapboxgl.Marker({ element: el })
       .setLngLat([location.longitude, location.latitude])
       .addTo(map);
@@ -291,25 +300,55 @@
     driverMarkers = [];
   }
 
-  function startDriversListener() {
+  // ==================== FUNGSI DRIVER NEAR PICKUP ====================
+  function getDistanceKm(lat1, lon1, lat2, lon2) {
+    const R = 6371; // Radius bumi dalam km
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+              Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
+  }
+
+  function startDriversNearPickup(centerLatLng, radiusKm = 3) {
     if (!database) return;
+    // Hentikan listener lama jika ada
     if (driversListener && driversRef) driversRef.off('value', driversListener);
+    // Hapus semua marker sebelumnya
+    removeAllDriverMarkers();
+
     driversRef = database.ref('driver_locations');
     driversListener = driversRef.on('value', (snapshot) => {
       removeAllDriverMarkers();
       const locations = snapshot.val();
       if (!locations) return;
+      const [pickupLng, pickupLat] = centerLatLng;
       Object.keys(locations).forEach(driverId => {
         const driverData = locations[driverId];
-        if (driverData && driverData.tracking_enabled === true && driverData.latitude && driverData.longitude) {
-          database.ref(`drivers/${driverId}/vehicleType`).once('value').then(snap => {
-            addDriverMarker(driverId, { latitude: driverData.latitude, longitude: driverData.longitude }, snap.val());
-          }).catch(() => {
-            addDriverMarker(driverId, { latitude: driverData.latitude, longitude: driverData.longitude });
-          });
+        if (driverData && driverData.tracking_enabled === true && 
+            driverData.latitude && driverData.longitude) {
+          const distance = getDistanceKm(pickupLat, pickupLng, driverData.latitude, driverData.longitude);
+          if (distance <= radiusKm) {
+            database.ref(`drivers/${driverId}/vehicleType`).once('value').then(snap => {
+              addDriverMarker(driverId, { latitude: driverData.latitude, longitude: driverData.longitude }, snap.val());
+            }).catch(() => {
+              addDriverMarker(driverId, { latitude: driverData.latitude, longitude: driverData.longitude });
+            });
+          }
         }
       });
     });
+  }
+
+  function stopDriversListener() {
+    if (driversListener && driversRef) {
+      driversRef.off('value', driversListener);
+      driversListener = null;
+      driversRef = null;
+    }
+    removeAllDriverMarkers();
   }
 
   // ==================== CEK ORDER AKTIF ====================
@@ -378,7 +417,6 @@
           map.fitBounds(bounds, { padding: 50 });
         }
       }
-      // Isi nilai ke komponen search
       setMapboxSearchValue(fromSearchElement, pickupAddress);
       setMapboxSearchValue(toSearchElement, destAddress);
       return true;
@@ -514,7 +552,6 @@
         pickupAddress = address;
         updateMarkers();
         if (map) map.flyTo({ center: pickupCoord, zoom: 14, duration: 1500 });
-        // Isi nilai ke komponen search penjemputan
         setMapboxSearchValue(fromSearchElement, pickupAddress);
         if (destCoord) await updateRoute();
         resolve(true);
@@ -566,7 +603,7 @@
       }
     });
 
-    startDriversListener();
+    // Tidak memanggil startDriversListener() di sini
   }
 
   function updateMarkers() {
@@ -670,6 +707,10 @@
       const snap = await database.ref(`orders/${currentOrderId}`).once('value');
       if (snap.val()?.status === 'waiting') {
         isSearching = true;
+        // Mulai tampilkan driver di sekitar pickup (radius 3 km)
+        if (pickupCoord) {
+          startDriversNearPickup(pickupCoord, 3);
+        }
         document.getElementById('driverOffers').style.display = 'block';
         orderRef = database.ref(`orders/${currentOrderId}/status`);
         orderStatusCallback = (snap) => {
@@ -722,6 +763,10 @@
     await database.ref(`userOrders/${currentUser.id}/${currentOrderId}`).set(true);
     localStorage.setItem('current_order_id', currentOrderId);
     isSearching = true;
+    // Mulai tampilkan driver di sekitar pickup (radius 3 km)
+    if (pickupCoord) {
+      startDriversNearPickup(pickupCoord, 3);
+    }
     document.getElementById('driverOffers').style.display = 'block';
     orderRef = database.ref(`orders/${currentOrderId}/status`);
     orderStatusCallback = (snap) => {
@@ -807,6 +852,8 @@
     currentOrderId = null;
     deactivateRadarOnPickup();
     stopSlowZoomOut();
+    // Hentikan listener driver dan hapus marker
+    stopDriversListener();
   }
 
   // ==================== INISIALISASI ====================
@@ -830,7 +877,6 @@
       await autoFillPickupLocation();
     }
     setTimeout(() => {
-      // fokus ke input tujuan jika pickup sudah terisi
       if (toSearchElement) {
         const input = toSearchElement.shadowRoot?.querySelector('input');
         if (input) input.focus();
