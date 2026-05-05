@@ -959,6 +959,7 @@
   let driversRef = null;
 
   let driversListener = null;
+  let toSearchElement = null; // referensi untuk mapbox-search-box tujuan
 
 
 
@@ -1019,6 +1020,25 @@
     return Math.round(price / 1000) * 1000;
 
   }
+
+function focusToInput() {
+    if (!toSearchElement) return;
+    const shadowInput = toSearchElement.shadowRoot?.querySelector('input');
+    if (shadowInput) {
+        shadowInput.focus();
+    }
+}
+
+function setAutoFocus() {
+    const fromInput = document.getElementById('fromInput');
+    if (!fromInput) return;
+    const pickupFilled = fromInput.value.trim() !== '';
+    if (!pickupFilled) {
+        fromInput.focus();
+    } else {
+        focusToInput();
+    }
+}
 
 function showToast(message, type = 'info') {
     const existingToast = document.querySelector('.custom-toast');
@@ -1737,6 +1757,7 @@ fromContainer.appendChild(fromInput);
 const toSearch = document.createElement('mapbox-search-box');
 toSearch.setAttribute('access-token', mapboxAccessToken);
 toSearch.setAttribute('placeholder', '🏁 Lokasi tujuan');
+toSearchElement = toSearch; // <-- tambahkan baris ini
 toContainer.appendChild(toSearch);
 
 // Event listener untuk tujuan
@@ -2385,6 +2406,10 @@ if (fromInput) fromInput.value = pickupAddress;
         if (!transportLoaded) return;
         await autoFillPickupLocation();
     }
+// Fokus otomatis setelah halaman siap
+setTimeout(() => {
+    setAutoFocus();
+}, 300);
 
     document.getElementById('confirmBtn').addEventListener('click', confirmRoute);
     document.getElementById('closeDriverOffers').addEventListener('click', () => document.getElementById('driverOffers').style.display = 'none');
