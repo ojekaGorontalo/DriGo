@@ -1020,6 +1020,49 @@
 
   }
 
+function showToast(message, type = 'info') {
+    const existingToast = document.querySelector('.custom-toast');
+    if (existingToast) existingToast.remove();
+
+    const toast = document.createElement('div');
+    toast.className = 'custom-toast';
+    toast.innerText = message;
+    toast.style.cssText = `
+        position: fixed;
+        bottom: 100px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: ${type === 'success' ? '#4CAF50' : type === 'error' ? '#f44336' : '#FF9800'};
+        color: white;
+        padding: 10px 20px;
+        border-radius: 30px;
+        font-size: 14px;
+        font-weight: 600;
+        z-index: 10001;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+        animation: fadeInOut 2.5s ease forwards;
+        white-space: nowrap;
+        max-width: 90%;
+        text-align: center;
+    `;
+
+    if (!document.querySelector('#toastKeyframes')) {
+        const style = document.createElement('style');
+        style.id = 'toastKeyframes';
+        style.textContent = `
+            @keyframes fadeInOut {
+                0% { opacity: 0; transform: translateX(-50%) translateY(20px); }
+                15% { opacity: 1; transform: translateX(-50%) translateY(0); }
+                85% { opacity: 1; transform: translateX(-50%) translateY(0); }
+                100% { opacity: 0; transform: translateX(-50%) translateY(-20px); }
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 2500);
+}
 
 
   function escapeHtml(str) { if (!str) return ''; return str.replace(/[&<>]/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[m])); }
@@ -1303,32 +1346,19 @@ async function loadWaitingOrderData() {
   // ==================== AMBIL DATA DARI DATABASE ====================
 
   async function fetchMapboxToken() {
-
     try {
-
-      const snapshot = await database.ref('data-jego/mapbox_acces_token').once('value');
-
-      const token = snapshot.val();
-
-      if (token && token.trim()) {
-
-        mapboxAccessToken = token;
-
-        return true;
-
-      }
-
-      throw new Error('Token tidak ditemukan');
-
+        const snapshot = await database.ref('data-jego/mapbox_acces_token').once('value');
+        const token = snapshot.val();
+        if (token && token.trim()) {
+            mapboxAccessToken = token;
+            return true;
+        }
+        throw new Error('Token tidak ditemukan');
     } catch (err) {
-
-      showPopup('Error', 'Gagal memuat token Mapbox.');
-
-      return false;
-
+        showPopup('Error', 'Gagal memuat peta. Periksa koneksi internet Anda.');
+        return false;
     }
-
-  }
+}
 
 
 
@@ -1656,7 +1686,8 @@ async function loadWaitingOrderData() {
 
         if (map) map.flyTo({ center: pickupCoord, zoom: 14, duration: 1500 });
 
-        await setPickupInputField(pickupAddress);
+        const fromInput = document.getElementById('fromInput');
+if (fromInput) fromInput.value = pickupAddress;
 
         if (destCoord) await updateRoute();
 
@@ -1694,42 +1725,26 @@ async function loadWaitingOrderData() {
 
     const toContainer = document.getElementById('to-container');
 
-    const fromSearch = document.createElement('mapbox-search-box');
+    // Input penjemputan (input biasa, tanpa dropdown)
+const fromInput = document.createElement('input');
+fromInput.type = 'text';
+fromInput.placeholder = '📍 Lokasi penjemputan';
+fromInput.className = 'mapbox-search-input';
+fromInput.id = 'fromInput';
+fromContainer.appendChild(fromInput);
 
-    const toSearch = document.createElement('mapbox-search-box');
+// Input tujuan (tetap pakai mapbox-search-box)
+const toSearch = document.createElement('mapbox-search-box');
+toSearch.setAttribute('access-token', mapboxAccessToken);
+toSearch.setAttribute('placeholder', '🏁 Lokasi tujuan');
+toContainer.appendChild(toSearch);
 
-    fromSearch.setAttribute('access-token', mapboxAccessToken);
-
-    toSearch.setAttribute('access-token', mapboxAccessToken);
-
-    fromSearch.setAttribute('placeholder', '📍 Lokasi penjemputan');
-
-    toSearch.setAttribute('placeholder', '🏁 Lokasi tujuan');
-
-    fromContainer.appendChild(fromSearch);
-
-    toContainer.appendChild(toSearch);
-
-
-
-    fromSearch.addEventListener('retrieve', (e) => {
-
-      const f = e.detail.features[0];
-
-      if (f) { pickupCoord = f.geometry.coordinates; pickupAddress = getFullAddress(f); updateRoute(); }
-
-    });
-
-    toSearch.addEventListener('retrieve', (e) => {
-
-      const f = e.detail.features[0];
-
-      if (f) { destCoord = f.geometry.coordinates; destAddress = getFullAddress(f); updateRoute(); }
-
-    });
-
+// Event listener untuk tujuan
+toSearch.addEventListener('retrieve', (e) => {
+    const f = e.detail.features[0];
+    if (f) { destCoord = f.geometry.coordinates; destAddress = getFullAddress(f); updateRoute(); }
+});
     
-
     // Setelah map siap, mulai listener driver aktif
 
     startDriversListener();
@@ -1811,6 +1826,9 @@ async function loadWaitingOrderData() {
       };
 
       document.getElementById('routeFrom').innerText = pickupAddress;
+      
+      const fromInput = document.getElementById('fromInput');
+if (fromInput) fromInput.value = pickupAddress;
 
       document.getElementById('routeTo').innerText = destAddress;
 
@@ -1939,38 +1957,23 @@ async function loadWaitingOrderData() {
 
 
   async function acceptOffer(driverId) {
-
     if (!currentOrderId) {
-
-      showPopup('Gagal', 'ID order tidak valid.');
-
-      return;
-
+        showToast('❌ ID order tidak valid', 'error');
+        return;
     }
-
     const savedOrderId = currentOrderId;
-
     await database.ref(`orders/${savedOrderId}/driver_offers/${driverId}/status`).set('accepted');
-
     await database.ref(`orders/${savedOrderId}`).update({
-
-      status: 'accepted',
-
-      driver_id: driverId,
-
-      accepted_at: new Date().toISOString()
-
+        status: 'accepted',
+        driver_id: driverId,
+        accepted_at: new Date().toISOString()
     });
-
     localStorage.setItem('current_order_id', savedOrderId);
-
-    showPopup('Berhasil', 'Driver dipilih. Menuju halaman pelacakan...', () => {
-
-      window.location.href = 'tracking_customer.html';
-
-    });
-
-  }
+    showToast('✅ Driver dipilih, mengalihkan...', 'success');
+    setTimeout(() => {
+        window.location.href = 'tracking_customer.html';
+    }, 1000);
+}
 
 
 
@@ -1997,14 +2000,14 @@ async function loadWaitingOrderData() {
             // Listener status order
             orderRef = database.ref(`orders/${currentOrderId}/status`);
             orderStatusCallback = (snapshot) => {
-                const status = snapshot.val();
-                if (status === 'cancelled' || status === 'cancelled_by_user') {
-                    cleanupSearch();
-                    showPopup('Order Dibatalkan', 'Order dibatalkan.');
-                } else if (status === 'accepted') {
-                    cleanupSearch();
-                }
-            };
+    const status = snapshot.val();
+    if (status === 'cancelled' || status === 'cancelled_by_user') {
+        cleanupSearch();
+        showToast('⚠️ Order telah dibatalkan', 'error');
+    } else if (status === 'accepted') {
+        cleanupSearch();
+    }
+};
             orderRef.on('value', orderStatusCallback);
             
             // Listener penawaran driver
@@ -2092,14 +2095,14 @@ async function loadWaitingOrderData() {
 
     orderRef = database.ref(`orders/${currentOrderId}/status`);
     orderStatusCallback = (snapshot) => {
-        const status = snapshot.val();
-        if (status === 'cancelled' || status === 'cancelled_by_user') {
-            cleanupSearch();
-            showPopup('Order Dibatalkan', 'Order dibatalkan.');
-        } else if (status === 'accepted') {
-            cleanupSearch();
-        }
-    };
+    const status = snapshot.val();
+    if (status === 'cancelled' || status === 'cancelled_by_user') {
+        cleanupSearch();
+        showToast('⚠️ Order telah dibatalkan', 'error');
+    } else if (status === 'accepted') {
+        cleanupSearch();
+    }
+};
     orderRef.on('value', orderStatusCallback);
 
     offersRef = database.ref(`orders/${currentOrderId}/driver_offers`);
@@ -2303,13 +2306,9 @@ async function loadWaitingOrderData() {
         await database.ref(`orders/${currentOrderId}`).update({ status: 'cancelled_by_user', cancelled_at: new Date().toISOString() });
         cleanupSearch();
         localStorage.removeItem('current_order_id');
-        
-        // 🔥 GANTI POPUP DENGAN ALERT/TOAST
-        alert('✅ Perjalanan berhasil dibatalkan');
-        // Atau jika ingin toast style, Anda bisa panggil fungsi showToast jika sudah ada
-        
+        showToast('✅ Perjalanan berhasil dibatalkan', 'success');
     } catch (err) {
-        alert('❌ Gagal membatalkan order: ' + err.message);
+        showToast('❌ Gagal membatalkan order', 'error');
     }
 }
 
