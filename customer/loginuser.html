@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-  <meta charset="utf-8" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
   <title>Login - JeGo</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
 
   <!-- Firebase SDK (Auth + Database) -->
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
@@ -22,7 +22,7 @@
       --primary-dark: #E65100;
       --secondary: #FF5722;
       --accent: #FFC107;
-      --dark: #2C3E50;
+      --dark: #1E2A3E;
       --light: #F8F9FA;
       --gray: #6C757D;
       --white: #FFFFFF;
@@ -30,32 +30,60 @@
       --success: #2ECC71;
     }
 
+    /* Status bar transparan untuk Android native */
     body {
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
       background: linear-gradient(135deg, #FFF3E0, #FFE0B2);
       min-height: 100vh;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      padding: 20px;
+      padding-top: env(safe-area-inset-top, 0px);
+      background-attachment: fixed;
     }
 
-    .auth-container {
+    /* Toolbar ala Android ActionBar */
+    .android-toolbar {
+      position: sticky;
+      top: 0;
       width: 100%;
+      background: linear-gradient(135deg, var(--primary), var(--secondary));
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      z-index: 100;
+    }
+
+    .toolbar-container {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 14px 20px;
+      position: relative;
+      min-height: 56px;
+    }
+
+    .toolbar-title {
+      font-size: 1.3rem;
+      font-weight: 700;
+      color: white;
+      letter-spacing: 0.5px;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.1);
+    }
+
+    /* Konten utama */
+    .auth-container {
       max-width: 450px;
+      margin: 24px auto;
+      padding: 0 20px;
     }
 
     .card {
       background: var(--white);
       border-radius: 32px;
-      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1), 0 4px 12px rgba(0, 0, 0, 0.05);
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.12), 0 4px 12px rgba(0, 0, 0, 0.05);
       overflow: hidden;
-      transition: transform 0.3s ease;
+      transition: transform 0.2s ease;
     }
 
     .card-header {
       background: linear-gradient(135deg, var(--primary), var(--secondary));
-      padding: 30px 20px;
+      padding: 28px 20px;
       text-align: center;
       color: white;
     }
@@ -69,14 +97,15 @@
     }
 
     .logo-icon {
-      width: 48px;
-      height: 48px;
+      width: 56px;
+      height: 56px;
       background: rgba(255, 255, 255, 0.2);
       border-radius: 50%;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 28px;
+      font-size: 32px;
+      backdrop-filter: blur(4px);
     }
 
     .card-header h1 {
@@ -118,7 +147,7 @@
       padding: 14px 16px;
       font-size: 1rem;
       border: 2px solid #EDF2F7;
-      border-radius: 24px;
+      border-radius: 28px;
       background: var(--light);
       transition: all 0.2s ease;
       font-family: inherit;
@@ -157,9 +186,8 @@
       box-shadow: 0 4px 10px rgba(255, 152, 0, 0.3);
     }
 
-    .btn-login:hover:not(:disabled) {
-      transform: translateY(-2px);
-      box-shadow: 0 6px 16px rgba(255, 152, 0, 0.4);
+    .btn-login:active {
+      transform: scale(0.98);
     }
 
     .btn-login:disabled {
@@ -180,13 +208,9 @@
       font-weight: 600;
     }
 
-    .register-link a:hover {
-      text-decoration: underline;
-    }
-
     .alert {
       padding: 12px 16px;
-      border-radius: 16px;
+      border-radius: 20px;
       margin-bottom: 20px;
       font-size: 0.85rem;
       display: none;
@@ -230,10 +254,21 @@
       .card-header {
         padding: 24px 20px;
       }
+      .toolbar-title {
+        font-size: 1.1rem;
+      }
     }
   </style>
 </head>
 <body>
+
+<!-- Toolbar ala Android -->
+<div class="android-toolbar">
+  <div class="toolbar-container">
+    <div class="toolbar-title">JeGo</div>
+  </div>
+</div>
+
 <div class="auth-container">
   <div class="card">
     <div class="card-header">
@@ -337,7 +372,7 @@
     try {
       await initFirebase();
 
-      // 🔥 TAMBAHKAN PERSISTENCE AGAR SESI TETAP SETELAH APLIKASI DITUTUP
+      // Persistensi LOCAL agar sesi tetap setelah aplikasi ditutup
       await firebaseAuth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
 
       showProgress(50);
@@ -395,6 +430,7 @@
       btn.innerText = 'Login';
       hideProgress();
     } finally {
+      // Jangan lupa reset disable jika sukses juga sudah di timeout
       btn.disabled = false;
     }
   });
@@ -408,9 +444,11 @@
     togglePwdBtn.textContent = type === 'password' ? '👁️' : '🙈';
   });
 
-  // Inisialisasi awal
+  // Inisialisasi awal: hapus session lama (opsional, karena login baru akan overwrite)
   window.onload = () => {
-    localStorage.removeItem('jego_logged_in_user');
+    // Tidak perlu hapus localStorage agar tidak logout paksa, tapi kita biarkan saja
+    // Untuk pengalaman native, kita tidak hapus otomatis
+    // localStorage.removeItem('jego_logged_in_user'); // Hapus jika ingin force login ulang setiap kali buka app
   };
 </script>
 </body>
