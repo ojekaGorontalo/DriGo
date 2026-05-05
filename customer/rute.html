@@ -425,6 +425,9 @@
       <p>Belum ada driver. Naikkan tarif?</p>
       <div style="margin:10px 0;font-size:1.2rem;font-weight:700" id="currentPriceDisplay">Rp0</div>
       <div class="popup-buttons" style="flex-direction:column">
+  <button class="popup-button popup-button-primary" id="priceUp1Btn">Rp 0</button>
+  <button class="popup-button popup-button-primary" id="priceUp2Btn">Rp 0</button>
+  <button class="popup-button popup-button-primary" id="priceUp3Btn">Rp 0</button>
   <button class="popup-button popup-button-secondary" id="continueWaitingBtn">Tunggu</button>
 </div>
     </div>
@@ -1052,19 +1055,18 @@
   if (priceOfferShown) return;
   priceOfferShown = true;
   
-  // DEKLARASIKAN DI SINI (sebelum closePopup)
-  let autoIncreaseInterval = null;
-  
   const currentPriceVal = currentPrice;
   document.getElementById('currentPriceDisplay').innerText = formatRupiah(currentPriceVal);
   
-  // Sembunyikan tombol persentase (tetap ada di DOM, tapi tidak terlihat)
-  const price10Btn = document.getElementById('price10Btn');
-  const price20Btn = document.getElementById('price20Btn');
-  const price30Btn = document.getElementById('price30Btn');
-  if (price10Btn) price10Btn.style.display = 'none';
-  if (price20Btn) price20Btn.style.display = 'none';
-  if (price30Btn) price30Btn.style.display = 'none';
+  // Hitung harga setelah kenaikan
+  const price1 = Math.round(currentPriceVal * 1.1);
+  const price2 = Math.round(currentPriceVal * 1.2);
+  const price3 = Math.round(currentPriceVal * 1.3);
+  
+  // Tampilkan tombol harga
+  document.getElementById('priceUp1Btn').innerHTML = formatRupiah(price1);
+  document.getElementById('priceUp2Btn').innerHTML = formatRupiah(price2);
+  document.getElementById('priceUp3Btn').innerHTML = formatRupiah(price3);
   
   // Tampilkan popup
   const popup = document.getElementById('priceOfferPopup');
@@ -1073,30 +1075,58 @@
   // Fungsi untuk menutup popup
   const closePopup = () => {
     popup.classList.remove('active');
-    if (autoIncreaseInterval) clearInterval(autoIncreaseInterval);
   };
   
-  // Tombol "Tunggu" hanya menutup popup tanpa menaikkan tarif
+  // Tombol naik tarif manual
+  document.getElementById('priceUp1Btn').onclick = () => {
+    updateOrderPrice(price1);
+    closePopup();
+  };
+  document.getElementById('priceUp2Btn').onclick = () => {
+    updateOrderPrice(price2);
+    closePopup();
+  };
+  document.getElementById('priceUp3Btn').onclick = () => {
+    updateOrderPrice(price3);
+    closePopup();
+  };
+  
+  // Tombol "Tunggu" hanya menutup popup
   document.getElementById('continueWaitingBtn').onclick = closePopup;
   document.getElementById('closePriceOfferBtn')?.addEventListener('click', closePopup);
   
-  // 🔥 OTOMATIS NAIKKAN TARIF SETIAP 30 DETIK
-  autoIncreaseInterval = setInterval(async () => {
+  // 🔥 OTOMATIS NAIKKAN TARIF SETIAP 30 DETIK (tetap berjalan)
+  let autoIncreaseInterval = setInterval(async () => {
     if (!isSearching || !currentOrderId) {
-      if (autoIncreaseInterval) clearInterval(autoIncreaseInterval);
+      clearInterval(autoIncreaseInterval);
       return;
     }
-    // Naikkan 10% dari harga saat ini
     const newPrice = Math.round(currentPrice * 1.1);
     if (newPrice === currentPrice) return;
     await updateOrderPrice(newPrice);
-    // Perbarui tampilan harga di popup
     document.getElementById('currentPriceDisplay').innerText = formatRupiah(newPrice);
+    
+    // Update tombol harga juga
+    document.getElementById('priceUp1Btn').innerHTML = formatRupiah(Math.round(newPrice * 1.1));
+    document.getElementById('priceUp2Btn').innerHTML = formatRupiah(Math.round(newPrice * 1.2));
+    document.getElementById('priceUp3Btn').innerHTML = formatRupiah(Math.round(newPrice * 1.3));
   }, 30000);
   
-  // Jika popup ditutup secara manual (misal klik overlay), hentikan interval
+  // Hentikan interval saat popup ditutup
+  const originalClosePopup = closePopup;
+  window.closePopupAndStopInterval = () => {
+    if (autoIncreaseInterval) clearInterval(autoIncreaseInterval);
+    originalClosePopup();
+  };
+  document.getElementById('continueWaitingBtn').onclick = () => {
+    if (autoIncreaseInterval) clearInterval(autoIncreaseInterval);
+    closePopup();
+  };
+  
+  // Jika popup ditutup secara manual, hentikan interval
   popup.addEventListener('click', (e) => {
     if (e.target === popup) {
+      if (autoIncreaseInterval) clearInterval(autoIncreaseInterval);
       closePopup();
     }
   }, { once: true });
