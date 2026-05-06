@@ -110,13 +110,32 @@
             border-radius: 12px;
             font-family: monospace;
             font-size: 11px;
-            max-height: 200px;
+            max-height: 150px;
             overflow-y: auto;
             margin-top: 15px;
         }
         .log-entry {
             border-bottom: 1px solid #444;
             padding: 4px 0;
+        }
+        .debug-box {
+            background: #2d2d44;
+            color: #eee;
+            padding: 12px;
+            border-radius: 12px;
+            font-family: monospace;
+            font-size: 11px;
+            margin-top: 15px;
+        }
+        .debug-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 6px 0;
+            border-bottom: 1px solid #444;
+        }
+        .debug-label {
+            font-weight: bold;
+            color: #FF9800;
         }
         .small-text {
             font-size: 12px;
@@ -162,6 +181,7 @@
 
         <button id="activateBtn" class="btn">🔔 Aktifkan Notifikasi</button>
         <button id="refreshBtn" class="btn btn-secondary">🔄 Refresh Status</button>
+        <button id="resetBtn" class="btn btn-secondary" style="margin-top: 8px;">🔁 Reset & Minta Izin Ulang</button>
     </div>
 
     <div id="medianWarning" class="warning-box" style="display:none;">
@@ -175,13 +195,23 @@
             <li>Pastikan Anda sudah menekan tombol <strong>"Aktifkan Notifikasi"</strong></li>
             <li>Pastikan browser mengizinkan notifikasi (cek pengaturan browser)</li>
             <li>Coba refresh halaman atau login ulang</li>
-            <li>Pastikan aplikasi berjalan di browser yang mendukung OneSignal</li>
+            <li>Klik tombol <strong>Reset & Minta Izin Ulang</strong> jika perlu</li>
         </ul>
     </div>
 
     <div class="log-box" id="logBox">
         <div class="log-entry">▶️ Menunggu pengecekan...</div>
     </div>
+
+    <div class="debug-box" id="debugBox">
+        <div style="font-weight:bold; margin-bottom:8px;">🔧 Debug Info</div>
+        <div class="debug-item"><span class="debug-label">OneSignal SDK:</span><span id="debugSdk">-</span></div>
+        <div class="debug-item"><span class="debug-label">Izin Notifikasi:</span><span id="debugPermission">-</span></div>
+        <div class="debug-item"><span class="debug-label">Consent:</span><span id="debugConsent">-</span></div>
+        <div class="debug-item"><span class="debug-label">Player ID (SDK):</span><span id="debugPlayerIdSdk">-</span></div>
+        <div class="debug-item"><span class="debug-label">Error Terakhir:</span><span id="debugError">-</span></div>
+    </div>
+
     <div class="small-text">
         Notifikasi digunakan untuk menerima order baru secara realtime.<br>
         Pastikan status <strong>SUBSCRIBED</strong> untuk mendapatkan notifikasi.
@@ -206,7 +236,31 @@
 
     let currentUid = null;
     let currentPlayerId = null;
-    let isOnesignalAvailable = false;  // flag untuk mengecek apakah median.onesignal tersedia
+    let isOnesignalAvailable = false;
+    let lastError = null;
+
+    function updateDebug(sdk, permission, consent, playerIdSdk, error) {
+        document.getElementById('debugSdk').innerHTML = sdk ? '✅ Tersedia' : '❌ Tidak tersedia';
+        document.getElementById('debugPermission').innerHTML = permission || '-';
+        document.getElementById('debugConsent').innerHTML = consent ? '✅ Diberikan' : (consent === false ? '❌ Tidak diberikan' : '-');
+        document.getElementById('debugPlayerIdSdk').innerHTML = playerIdSdk || '-';
+        document.getElementById('debugError').innerHTML = error || '-';
+    }
+
+    async function getPermissionStatus() {
+        if (!isOnesignalAvailable) return null;
+        try {
+            if (median.onesignal.getPermissionStatus) {
+                return await median.onesignal.getPermissionStatus();
+            } else if (median.onesignal.onesignalInfo) {
+                const info = await median.onesignal.onesignalInfo();
+                return info?.permissionStatus || null;
+            }
+        } catch(e) {
+            addLog(`Gagal ambil permission status: ${e.message}`, "warning");
+        }
+        return null;
+    }
 
     function addLog(msg, type = "info") {
         const logBox = document.getElementById('logBox');
@@ -247,23 +301,27 @@
             }
         } catch (err) {
             addLog(`❌ Gagal membaca Firebase: ${err.message}`, "error");
+            updateDebug(isOnesignalAvailable, null, null, null, err.message);
         }
     }
 
     async function getOnesignalStatus() {
         if (typeof median === 'undefined' || !median.onesignal) {
             if (isOnesignalAvailable !== false) {
-                addLog("⚠️ OneSignal SDK tidak terdeteksi. Hanya menampilkan data dari Firebase.", "warning");
-                document.getElementById('subscriptionStatus').innerHTML = '<span class="status-badge status-warning" style="padding:2px 8px; font-size:11px;">⚠️ Tidak dapat cek (bukan di Median)</span>';
+                addLog("⚠️ OneSignal SDK tidak terdeteksi.", "warning");
+                document.getElementById('subscriptionStatus').innerHTML = '<span class="status-badge status-warning" style="padding:2px 8px; font-size:11px;">⚠️ SDK Tidak Tersedia</span>';
                 document.getElementById('medianWarning').style.display = 'block';
                 document.getElementById('activateBtn').style.display = 'none';
+                document.getElementById('resetBtn').style.display = 'none';
                 isOnesignalAvailable = false;
+                updateDebug(false, null, null, null, 'SDK tidak tersedia');
             }
             return null;
         }
         isOnesignalAvailable = true;
         document.getElementById('medianWarning').style.display = 'none';
         document.getElementById('activateBtn').style.display = 'block';
+        document.getElementById('resetBtn').style.display = 'block';
         
         addLog("🔍 Mengecek status OneSignal...", "info");
         try {
@@ -272,6 +330,10 @@
             const info = await median.onesignal.onesignalInfo();
             const isSubscribed = info?.isSubscribed || info?.subscription?.enabled;
             const playerId = info?.userId || info?.oneSignalUserId || info?.subscription?.id;
+            const permissionStatus = await getPermissionStatus();
+            
+            updateDebug(true, permissionStatus, consent, playerId, lastError);
+            
             if (playerId && !currentPlayerId && currentUid) {
                 addLog(`🎉 PlayerId dari SDK: ${playerId} - menyimpan ke Firebase...`, "success");
                 await database.ref(`drivers/${currentUid}`).update({ playerId, last_playerid_update: new Date().toISOString() });
@@ -292,7 +354,9 @@
             return { isSubscribed, playerId };
         } catch (err) {
             addLog(`❌ Error cek OneSignal: ${err.message}`, "error");
+            lastError = err.message;
             document.getElementById('subscriptionStatus').innerHTML = '<span class="status-badge status-error" style="padding:2px 8px; font-size:11px;">❌ Gagal Cek</span>';
+            updateDebug(isOnesignalAvailable, null, null, null, err.message);
             return null;
         }
     }
@@ -306,9 +370,11 @@
         try {
             if (median.onesignal.setConsentGiven) await median.onesignal.setConsentGiven(true);
             await median.onesignal.register();
+            // Prompt notifikasi
             if (median.onesignal.promptForPushNotificationsWithUserResponse) {
                 addLog("🔔 Meminta izin notifikasi...", "info");
-                await median.onesignal.promptForPushNotificationsWithUserResponse();
+                const result = await median.onesignal.promptForPushNotificationsWithUserResponse();
+                addLog(`📌 Hasil prompt: ${result}`, "info");
             }
             await new Promise(r => setTimeout(r, 5000));
             const info = await median.onesignal.onesignalInfo();
@@ -320,7 +386,6 @@
                 currentPlayerId = playerId;
                 await updateUI();
             }
-            // Setelah aktivasi, refresh status subscription
             const status = await getOnesignalStatus();
             if (status && status.isSubscribed) {
                 document.getElementById('activateBtn').innerHTML = "✅ Notifikasi Aktif";
@@ -334,8 +399,22 @@
             return true;
         } catch (err) {
             addLog(`❌ Gagal aktivasi: ${err.message}`, "error");
+            lastError = err.message;
+            updateDebug(isOnesignalAvailable, null, null, null, err.message);
             return false;
         }
+    }
+
+    async function resetAndRequest() {
+        addLog("🔁 Mereset OneSignal...", "warning");
+        if (median.onesignal.reset) {
+            await median.onesignal.reset();
+            addLog("✅ OneSignal di-reset.", "success");
+        } else {
+            addLog("⚠️ Fungsi reset tidak tersedia, coba reload halaman.", "warning");
+        }
+        await new Promise(r => setTimeout(r, 2000));
+        await initOneSignalAndSubscribe();
     }
 
     async function refreshAll() {
@@ -350,11 +429,7 @@
             } else {
                 document.getElementById('activateBtn').innerHTML = "🔔 Aktifkan Notifikasi";
                 document.getElementById('activateBtn').disabled = false;
-                if (status === null) {
-                    document.getElementById('helpCard').style.display = 'block';
-                } else {
-                    document.getElementById('helpCard').style.display = 'block';
-                }
+                document.getElementById('helpCard').style.display = 'block';
             }
         } else {
             document.getElementById('activateBtn').style.display = 'none';
@@ -393,6 +468,7 @@
 
     document.getElementById('activateBtn').addEventListener('click', initOneSignalAndSubscribe);
     document.getElementById('refreshBtn').addEventListener('click', refreshAll);
+    document.getElementById('resetBtn').addEventListener('click', resetAndRequest);
 </script>
 </body>
 </html>
