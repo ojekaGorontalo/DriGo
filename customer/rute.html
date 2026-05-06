@@ -189,6 +189,7 @@
   let driversListener = null;
   let fromSearchElement = null;
   let toSearchElement = null;
+  let autoDriverSearchEnabled = false; // Flag untuk kontrol auto search driver
 
   // ==================== UTILITY ====================
   function showPopup(title, message, onClose = null) {
@@ -220,12 +221,9 @@
     return Math.round(price / 1000) * 1000;
   }
 
-  // Helper untuk mengisi nilai pada mapbox-search-box (karena Shadow DOM)
   function setMapboxSearchValue(searchBox, address) {
     if (!searchBox) return;
-    if (typeof searchBox.value !== 'undefined') {
-      searchBox.value = address;
-    }
+    if (typeof searchBox.value !== 'undefined') searchBox.value = address;
     const shadowInput = searchBox.shadowRoot?.querySelector('input');
     if (shadowInput) {
       shadowInput.value = address;
@@ -266,18 +264,39 @@
 
   function escapeHtml(str) { if (!str) return ''; return str.replace(/[&<>]/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[m])); }
 
-  // ==================== DRIVER MARKERS ====================
+  // ==================== DRIVER MARKERS DENGAN ICON KENDARAAN ====================
+  function isValidCoordinate(lat, lng) {
+    if (typeof lat !== 'number' || typeof lng !== 'number') return false;
+    if (lat === 0 && lng === 0) return false;
+    if (isNaN(lat) || isNaN(lng)) return false;
+    if (lat < -90 || lat > 90) return false;
+    if (lng < -180 || lng > 180) return false;
+    return true;
+  }
+
+  // Fungsi untuk mendapatkan icon berdasarkan tipe kendaraan driver
   function getDriverIconUrl(vehicleType) {
-    if (vehicleType === 'motor') return 'https://cdn-icons-png.flaticon.com/128/5811/5811823.png';
-    if (vehicleType === 'bentor') return 'https://cdn-icons-png.flaticon.com/128/7890/7890227.png';
-    if (vehicleType === 'mobil') return 'https://cdn-icons-png.flaticon.com/128/12689/12689302.png';
-    if (vehicleType === 'kurir_motor') return 'https://cdn-icons-png.flaticon.com/128/9561/9561688.png';
-    if (vehicleType === 'kurir_bentor') return 'https://cdn-icons-png.flaticon.com/128/7890/7890227.png';
-    return transportIconUrl || 'https://cdn-icons-png.flaticon.com/128/5811/5811823.png';
+    if (!vehicleType) return 'https://cdn-icons-png.flaticon.com/128/5811/5811823.png';
+    const type = vehicleType.toLowerCase();
+    if (type === 'motor') return 'https://cdn-icons-png.flaticon.com/128/5811/5811823.png';
+    if (type === 'bentor') return 'https://cdn-icons-png.flaticon.com/128/7890/7890227.png';
+    if (type === 'mobil') return 'https://cdn-icons-png.flaticon.com/128/12689/12689302.png';
+    if (type === 'kurir_motor') return 'https://cdn-icons-png.flaticon.com/128/9561/9561688.png';
+    if (type === 'kurir_bentor') return 'https://cdn-icons-png.flaticon.com/128/7890/7890227.png';
+    return 'https://cdn-icons-png.flaticon.com/128/5811/5811823.png';
   }
 
   function addDriverMarker(driverId, location, vehicleType = null) {
-    if (!map || !location.latitude || !location.longitude) return;
+    if (!map) return;
+    const lat = location.latitude;
+    const lng = location.longitude;
+    
+    if (!isValidCoordinate(lat, lng)) {
+      console.warn(`⚠️ Koordinat tidak valid untuk driver ${driverId}: (${lat}, ${lng})`);
+      return;
+    }
+    
+    console.log(`✅ Menambahkan marker driver ${driverId} di (${lat}, ${lng}) dengan tipe ${vehicleType}`);
     const iconUrl = getDriverIconUrl(vehicleType);
     const el = document.createElement('div');
     el.style.backgroundImage = `url(${iconUrl})`;
@@ -287,22 +306,26 @@
     el.style.borderRadius = '50%';
     el.style.border = '2px solid var(--primary)';
     el.style.boxShadow = '0 2px 6px rgba(0,0,0,0.2)';
-    el.title = `Driver ${driverId}`;
-    el.classList.add('driver-marker-animate'); // Tambahkan class animasi
+    el.style.cursor = 'pointer';
+    el.title = `Driver ${driverId} - ${vehicleType || 'kendaraan'}`;
+    el.classList.add('driver-marker-animate');
+    
     const marker = new mapboxgl.Marker({ element: el })
-      .setLngLat([location.longitude, location.latitude])
+      .setLngLat([lng, lat])
       .addTo(map);
     driverMarkers.push({ id: driverId, marker });
+    console.log(`📌 Marker driver ${driverId} ditambahkan, total: ${driverMarkers.length}`);
   }
 
   function removeAllDriverMarkers() {
     driverMarkers.forEach(item => { if (item.marker && item.marker.remove) item.marker.remove(); });
     driverMarkers = [];
+    console.log('🗑️ Semua marker driver dihapus');
   }
 
-  // ==================== FUNGSI DRIVER NEAR PICKUP ====================
+  // ==================== FUNGSI DRIVER NEAR PICKUP (AUTO START) ====================
   function getDistanceKm(lat1, lon1, lat2, lon2) {
-    const R = 6371; // Radius bumi dalam km
+    const R = 6371;
     const dLat = (lat2 - lat1) * Math.PI / 180;
     const dLon = (lon2 - lon1) * Math.PI / 180;
     const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
@@ -312,43 +335,67 @@
     return R * c;
   }
 
-  function startDriversNearPickup(centerLatLng, radiusKm = 3) {
-    if (!database) return;
-    // Hentikan listener lama jika ada
+  // Fungsi untuk menampilkan driver di sekitar pickup (tanpa mempengaruhi proses order)
+  function startAutoShowDrivers(centerLatLng, radiusKm = 3) {
+    if (!autoDriverSearchEnabled) return;
+    console.log('🔍 Auto show drivers dipanggil dengan center:', centerLatLng);
+    if (!database || !centerLatLng || !centerLatLng[0] || !centerLatLng[1]) return;
+    
     if (driversListener && driversRef) driversRef.off('value', driversListener);
-    // Hapus semua marker sebelumnya
     removeAllDriverMarkers();
 
     driversRef = database.ref('driver_locations');
-    driversListener = driversRef.on('value', (snapshot) => {
+    driversListener = driversRef.on('value', async (snapshot) => {
+      // Jangan hapus marker saat update, tapi kita hapus dulu agar refresh
       removeAllDriverMarkers();
       const locations = snapshot.val();
-      if (!locations) return;
+      if (!locations) {
+        console.log('📭 Tidak ada data driver_locations');
+        return;
+      }
       const [pickupLng, pickupLat] = centerLatLng;
+      const promises = [];
+      let countInRadius = 0;
+
       Object.keys(locations).forEach(driverId => {
         const driverData = locations[driverId];
-        if (driverData && driverData.tracking_enabled === true && 
-            driverData.latitude && driverData.longitude) {
+        if (driverData && driverData.tracking_enabled === true && driverData.latitude && driverData.longitude) {
+          // Validasi koordinat driver
+          if (!isValidCoordinate(driverData.latitude, driverData.longitude)) {
+            console.warn(`⚠️ Driver ${driverId} koordinat tidak valid: (${driverData.latitude}, ${driverData.longitude})`);
+            return;
+          }
           const distance = getDistanceKm(pickupLat, pickupLng, driverData.latitude, driverData.longitude);
           if (distance <= radiusKm) {
-            database.ref(`drivers/${driverId}/vehicleType`).once('value').then(snap => {
-              addDriverMarker(driverId, { latitude: driverData.latitude, longitude: driverData.longitude }, snap.val());
-            }).catch(() => {
-              addDriverMarker(driverId, { latitude: driverData.latitude, longitude: driverData.longitude });
-            });
+            countInRadius++;
+            const promise = database.ref(`drivers/${driverId}/vehicleType`).once('value')
+              .then(snap => {
+                addDriverMarker(driverId, { latitude: driverData.latitude, longitude: driverData.longitude }, snap.val());
+              })
+              .catch(() => {
+                addDriverMarker(driverId, { latitude: driverData.latitude, longitude: driverData.longitude }, null);
+              });
+            promises.push(promise);
           }
         }
       });
+      console.log(`✅ Auto show: ${countInRadius} driver dalam radius ${radiusKm} km`);
+      await Promise.all(promises);
+      // Fokus peta ke titik penjemputan setelah marker ditampilkan
+      if (map && centerLatLng) {
+        map.flyTo({ center: [centerLatLng[0], centerLatLng[1]], zoom: 15, essential: true });
+      }
     });
   }
 
-  function stopDriversListener() {
+  function stopAutoShowDrivers() {
     if (driversListener && driversRef) {
       driversRef.off('value', driversListener);
       driversListener = null;
       driversRef = null;
     }
     removeAllDriverMarkers();
+    console.log('🛑 Auto show drivers dihentikan');
   }
 
   // ==================== CEK ORDER AKTIF ====================
@@ -362,7 +409,7 @@
       if (order.status === 'waiting') return true;
       const statusRedirect = ['accepted', 'on_the_way', 'arrived', 'on_trip'];
       if (statusRedirect.includes(order.status)) {
-        window.location.href = 'tracking_customer.html';
+        window.location.href = `tracking_customer.html?order_id=${orderId}`;
         return true;
       } else {
         localStorage.removeItem('current_order_id');
@@ -384,12 +431,7 @@
       destAddress = order.destination_address;
       currentPrice = order.price;
       transportType = order.transport_type;
-      if (transportType === 'motor') transportIconUrl = 'https://cdn-icons-png.flaticon.com/128/5811/5811823.png';
-      else if (transportType === 'bentor') transportIconUrl = 'https://cdn-icons-png.flaticon.com/128/7890/7890227.png';
-      else if (transportType === 'mobil') transportIconUrl = 'https://cdn-icons-png.flaticon.com/128/12689/12689302.png';
-      else if (transportType === 'kurir_motor') transportIconUrl = 'https://cdn-icons-png.flaticon.com/128/9561/9561688.png';
-      else if (transportType === 'kurir_bentor') transportIconUrl = 'https://cdn-icons-png.flaticon.com/128/7890/7890227.png';
-      else transportIconUrl = 'https://cdn-icons-png.flaticon.com/128/5811/5811823.png';
+      transportIconUrl = getDriverIconUrl(transportType);
 
       document.getElementById('routeFrom').innerText = pickupAddress;
       document.getElementById('routeTo').innerText = destAddress;
@@ -445,7 +487,7 @@
         if (matchedKey && tarifData[matchedKey]) {
           const data = tarifData[matchedKey];
           transportRate = { minimal_distance: data.MinimalDistance || 4, minimal_price: data.MinimalPrice || 10000, price_per_km: data.PricePerKm || 2200 };
-          transportIconUrl = data.Icon || '';
+          transportIconUrl = data.Icon || getDriverIconUrl(transportName);
           return true;
         }
       }
@@ -554,6 +596,10 @@
         if (map) map.flyTo({ center: pickupCoord, zoom: 14, duration: 1500 });
         setMapboxSearchValue(fromSearchElement, pickupAddress);
         if (destCoord) await updateRoute();
+        // Setelah pickup lokasi diketahui, aktifkan auto show driver (jika belum dalam proses order)
+        if (autoDriverSearchEnabled && pickupCoord) {
+          startAutoShowDrivers(pickupCoord, 3);
+        }
         resolve(true);
       }, () => resolve(false), { enableHighAccuracy: true, timeout: 10000 });
     });
@@ -591,6 +637,10 @@
         updateMarkers();
         if (destCoord) updateRoute();
         else if (map && pickupCoord) map.flyTo({ center: pickupCoord, zoom: 14, duration: 1000 });
+        // Update auto show drivers ketika pickup berubah
+        if (autoDriverSearchEnabled && pickupCoord) {
+          startAutoShowDrivers(pickupCoord, 3);
+        }
       }
     });
 
@@ -602,8 +652,6 @@
         updateRoute();
       }
     });
-
-    // Tidak memanggil startDriversListener() di sini
   }
 
   function updateMarkers() {
@@ -659,7 +707,7 @@
   function activateRadarOnPickup() { if (pickupMarker && pickupMarker.getElement()) pickupMarker.getElement().classList.add('radar-marker-effect'); }
   function deactivateRadarOnPickup() { if (pickupMarker && pickupMarker.getElement()) pickupMarker.getElement().classList.remove('radar-marker-effect'); }
 
-  // ==================== ORDER & OFFERS ====================
+  // ==================== ORDER & OFFERS (untuk pencarian setelah confirm) ====================
   function renderOffers(offers) {
     const container = document.getElementById('driverOfferList');
     if (!container) return;
@@ -694,7 +742,7 @@
     await database.ref(`orders/${currentOrderId}`).update({ status: 'accepted', driver_id: driverId, accepted_at: new Date().toISOString() });
     localStorage.setItem('current_order_id', currentOrderId);
     showToast('✅ Driver dipilih, mengalihkan...', 'success');
-    setTimeout(() => { window.location.href = 'tracking_customer.html'; }, 1000);
+    setTimeout(() => { window.location.href = `tracking_customer.html?order_id=${currentOrderId}`; }, 1000);
   }
 
   async function rejectOffer(driverId) {
@@ -703,13 +751,18 @@
   }
 
   async function confirmRoute() {
+    console.log('🚀 confirmRoute dipanggil, pickupCoord:', pickupCoord);
     if (currentOrderId) {
       const snap = await database.ref(`orders/${currentOrderId}`).once('value');
       if (snap.val()?.status === 'waiting') {
         isSearching = true;
-        // Mulai tampilkan driver di sekitar pickup (radius 3 km)
+        // Hentikan auto show driver karena sekarang proses pencarian order
+        if (autoDriverSearchEnabled) stopAutoShowDrivers();
         if (pickupCoord) {
-          startDriversNearPickup(pickupCoord, 3);
+          // Gunakan fungsi khusus untuk pencarian order (dengan menampilkan penawaran)
+          startSearchDriversForOrder(pickupCoord, 3);
+        } else {
+          console.warn('pickupCoord kosong saat melanjutkan order waiting');
         }
         document.getElementById('driverOffers').style.display = 'block';
         orderRef = database.ref(`orders/${currentOrderId}/status`);
@@ -763,9 +816,12 @@
     await database.ref(`userOrders/${currentUser.id}/${currentOrderId}`).set(true);
     localStorage.setItem('current_order_id', currentOrderId);
     isSearching = true;
-    // Mulai tampilkan driver di sekitar pickup (radius 3 km)
+    // Hentikan auto show driver dan mulai pencarian untuk order
+    if (autoDriverSearchEnabled) stopAutoShowDrivers();
     if (pickupCoord) {
-      startDriversNearPickup(pickupCoord, 3);
+      startSearchDriversForOrder(pickupCoord, 3);
+    } else {
+      console.warn('pickupCoord kosong saat membuat order baru');
     }
     document.getElementById('driverOffers').style.display = 'block';
     orderRef = database.ref(`orders/${currentOrderId}/status`);
@@ -779,6 +835,34 @@
     offersCallback = (snap) => renderOffers(snap.val());
     offersRef.on('value', offersCallback);
     priceOfferTimer = setTimeout(() => { if (isSearching && currentOrderId) showPriceOfferPopup(); }, 30000);
+  }
+
+  // Fungsi khusus untuk pencarian driver setelah order dibuat (dengan menampilkan penawaran)
+  function startSearchDriversForOrder(centerLatLng, radiusKm = 3) {
+    console.log('🔍 Start search drivers for order, center:', centerLatLng);
+    if (!database || !centerLatLng) return;
+    if (driversListener && driversRef) driversRef.off('value', driversListener);
+    // Jangan hapus marker di sini, karena akan dikelola oleh listener order
+    driversRef = database.ref('driver_locations');
+    driversListener = driversRef.on('value', async (snapshot) => {
+      const locations = snapshot.val();
+      if (!locations) return;
+      const [pickupLng, pickupLat] = centerLatLng;
+      const driversInRadius = [];
+      Object.keys(locations).forEach(driverId => {
+        const driverData = locations[driverId];
+        if (driverData && driverData.tracking_enabled === true && driverData.latitude && driverData.longitude) {
+          if (!isValidCoordinate(driverData.latitude, driverData.longitude)) return;
+          const distance = getDistanceKm(pickupLat, pickupLng, driverData.latitude, driverData.longitude);
+          if (distance <= radiusKm) {
+            driversInRadius.push(driverId);
+          }
+        }
+      });
+      console.log(`📍 Driver dalam radius untuk order: ${driversInRadius.length}`);
+      // Di sini nanti bisa ditambahkan logika untuk mengirim notifikasi ke driver
+      // Tapi untuk saat ini hanya menampilkan marker (opsional)
+    });
   }
 
   async function cancelSearch() {
@@ -852,8 +936,16 @@
     currentOrderId = null;
     deactivateRadarOnPickup();
     stopSlowZoomOut();
-    // Hentikan listener driver dan hapus marker
-    stopDriversListener();
+    // Matikan listener driver yang untuk order, dan restart auto show jika diperlukan
+    if (driversListener && driversRef) {
+      driversRef.off('value', driversListener);
+      driversListener = null;
+      driversRef = null;
+    }
+    // Kembalikan auto show driver jika pickupCoord masih ada
+    if (autoDriverSearchEnabled && pickupCoord) {
+      startAutoShowDrivers(pickupCoord, 3);
+    }
   }
 
   // ==================== INISIALISASI ====================
@@ -871,10 +963,15 @@
         if (!transportLoaded) return;
         await autoFillPickupLocation();
       }
+      // Jika ada order waiting, jangan aktifkan auto driver (karena sudah dalam proses)
+      autoDriverSearchEnabled = false;
     } else {
       const transportLoaded = await loadSelectedTransport();
       if (!transportLoaded) return;
       await autoFillPickupLocation();
+      // Aktifkan auto menampilkan driver di sekitar pickup
+      autoDriverSearchEnabled = true;
+      // Setelah pickup location didapat, auto show akan dipanggil di autoFillPickupLocation
     }
     setTimeout(() => {
       if (toSearchElement) {
