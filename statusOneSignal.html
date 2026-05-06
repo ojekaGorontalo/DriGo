@@ -141,13 +141,38 @@ async function activateNotif(){
             }
         }
 
-        await median.onesignal.setConsentGiven(true);
-        await median.onesignal.register();
+        async function activateNotif(){
+    try{
+        log("Memulai aktivasi...");
 
-        log("Register berhasil...");
+        if(typeof Notification !== "undefined"){
+            if(Notification.permission !== "granted"){
+                const permission = await Notification.requestPermission();
+                log("Permission: " + permission);
 
-        setTimeout(()=>{
-            checkStatus();
+                if(permission !== "granted"){
+                    log("Permission ditolak");
+                    return;
+                }
+            }
+        }
+
+        // cek apakah register tersedia
+        if(median.onesignal.register){
+            await median.onesignal.register();
+            log("Register OneSignal berhasil");
+        } else {
+            log("Method register tidak tersedia");
+        }
+
+        // fallback prompt jika tersedia
+        if(median.onesignal.promptForPushNotificationsWithUserResponse){
+            await median.onesignal.promptForPushNotificationsWithUserResponse();
+            log("Prompt notifikasi dijalankan");
+        }
+
+        setTimeout(async ()=>{
+            await checkStatus();
         },5000);
 
     }catch(e){
