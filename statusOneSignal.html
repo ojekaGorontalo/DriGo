@@ -109,105 +109,97 @@
 
     // OneSignal SDK v5 - Get user and subscription data
     // Median.co menyediakan median.onesignal yang merupakan wrapper dari OneSignal SDK v5
-    async function getOnesignalV5Data() {
-        if (typeof median === 'undefined' || !median.onesignal) {
-            document.getElementById('medianWarning').style.display = 'block';
-            return { hasSdk: false };
+   async function getOnesignalV5Data() {
+    if (typeof median === 'undefined' || !median.onesignal) {
+        document.getElementById('medianWarning').style.display = 'block';
+        return { hasSdk: false };
+    }
+    document.getElementById('medianWarning').style.display = 'none';
+
+    try {
+        let userId = null;
+        let subscriptionId = null;
+        let isSubscribed = false;
+        let externalId = null;
+
+        // === Cara 1: Gunakan OneSignal SDK langsung jika tersedia ===
+        if (window.OneSignal) {
+            try {
+                // Cek izin notifikasi
+                const permission = await OneSignal.Notifications.getPermissionAsync();
+                isSubscribed = (permission === 'granted');
+                console.log("Permission:", permission, "isSubscribed:", isSubscribed);
+                
+                // Dapatkan subscription ID (perangkat)
+                if (OneSignal.User && OneSignal.User.getSubscriptionId) {
+                    subscriptionId = await OneSignal.User.getSubscriptionId();
+                }
+                // Dapatkan OneSignal User ID
+                if (OneSignal.User && OneSignal.User.getOnesignalId) {
+                    userId = await OneSignal.User.getOnesignalId();
+                }
+                // Dapatkan external ID jika ada
+                if (OneSignal.User && OneSignal.User.getExternalId) {
+                    externalId = await OneSignal.User.getExternalId();
+                }
+            } catch (e) {
+                console.warn("OneSignal SDK error:", e);
+            }
         }
-        document.getElementById('medianWarning').style.display = 'none';
-        
-        try {
-            // OneSignal SDK v5 user-centric model
-            // User ID adalah ID utama, Subscription adalah perangkat individual
-            let userId = null;
-            let subscriptionId = null;
-            let isSubscribed = false;
-            let externalId = null;
-            
-            // Coba ambil data dari onesignalInfo() - ini biasanya mengembalikan data subscription saat ini
+
+        // === Cara 2: Fallback ke median.onesignal ===
+        if (!subscriptionId || !userId) {
             let info = null;
             try {
                 info = await median.onesignal.onesignalInfo();
-                console.log("onesignalInfo:", JSON.stringify(info));
-            } catch(e) {
-                console.warn("onesignalInfo error:", e);
-            }
-            
+            } catch(e) {}
             if (info) {
-                // Versi Median mungkin mengembalikan struktur berbeda
-                // Subscription ID biasanya di info.subscription.id atau info.userId
-                if (info.subscription && info.subscription.id) {
-                    subscriptionId = info.subscription.id;
-                } else if (info.userId) {
-                    subscriptionId = info.userId;
-                } else if (info.onesignalId) {
-                    subscriptionId = info.onesignalId;
-                }
-                isSubscribed = info.isSubscribed === true || info.subscription?.enabled === true;
-                userId = info.userId || info.user_id || null;
-                externalId = info.externalId || info.external_id || null;
+                if (!subscriptionId && info.subscription?.id) subscriptionId = info.subscription.id;
+                if (!userId && (info.userId || info.user_id)) userId = info.userId || info.user_id;
+                if (info.isSubscribed === true) isSubscribed = true;
+                if (!externalId && info.externalId) externalId = info.externalId;
             }
-            
-            // Tambahan: coba getExternalUserId jika tersedia
-            if (median.onesignal.getExternalUserId) {
-                try {
-                    const extId = await median.onesignal.getExternalUserId();
-                    if (extId) externalId = extId;
-                } catch(e) {}
-            }
-            
-            // Untuk mendapatkan User ID utama (OneSignal user), coba melalui getTags atau method lain
-            // Median mungkin menyediakan getHashedIds atau getDeviceState
-            if (median.onesignal.getDeviceState) {
-                try {
-                    const deviceState = await median.onesignal.getDeviceState();
-                    if (deviceState) {
-                        if (deviceState.userId) userId = deviceState.userId;
-                        if (deviceState.subscriptionId) subscriptionId = deviceState.subscriptionId;
-                        if (deviceState.isSubscribed !== undefined) isSubscribed = deviceState.isSubscribed;
-                    }
-                } catch(e) {}
-            }
-            
-            // Fallback: bisa juga cek OneSignal.User
-            if (window.OneSignal) {
-                try {
-                    if (OneSignal.User && OneSignal.User.getConsent) {
-                        const consent = await OneSignal.User.getConsent();
-                        console.log("OneSignal.User consent:", consent);
-                    }
-                    if (OneSignal.User && OneSignal.User.getOnesignalId) {
-                        const onesignalId = await OneSignal.User.getOnesignalId();
-                        if (onesignalId) userId = onesignalId;
-                    }
-                    if (OneSignal.Notifications && OneSignal.Notifications.getPermission) {
-                        const perm = await OneSignal.Notifications.getPermission();
-                        isSubscribed = (perm === 'granted');
-                    }
-                } catch(e) {}
-            }
-            
-            // Update UI debug
-            document.getElementById('debugSdk').innerHTML = '✅ Tersedia';
-            document.getElementById('debugUserId').innerHTML = userId ? userId.substring(0, 20)+'...' : '-';
-            document.getElementById('debugSubsId').innerHTML = subscriptionId ? subscriptionId.substring(0, 20)+'...' : '-';
-            document.getElementById('debugSubscribed').innerHTML = isSubscribed ? '✅ SUBSCRIBED' : '❌ NOT SUBSCRIBED';
-            document.getElementById('debugExternalId').innerHTML = externalId || '-';
-            
-            return {
-                hasSdk: true,
-                userId: userId,
-                subscriptionId: subscriptionId,
-                isSubscribed: isSubscribed,
-                externalId: externalId,
-                rawInfo: info
-            };
-        } catch (err) {
-            addLog(`❌ Error membaca data OneSignal: ${err.message}`, "error");
-            console.error(err);
-            return { hasSdk: true, error: err.message };
         }
+
+        // === Cara 3: Coba getDeviceState ===
+        if (!subscriptionId && median.onesignal.getDeviceState) {
+            try {
+                const deviceState = await median.onesignal.getDeviceState();
+                if (deviceState) {
+                    if (deviceState.subscriptionId) subscriptionId = deviceState.subscriptionId;
+                    if (deviceState.userId) userId = deviceState.userId;
+                    if (deviceState.isSubscribed !== undefined) isSubscribed = deviceState.isSubscribed;
+                }
+            } catch(e) {}
+        }
+
+        // Update debug UI
+        document.getElementById('debugSdk').innerHTML = '✅ Tersedia';
+        document.getElementById('debugUserId').innerHTML = userId ? userId.substring(0,20)+'...' : '-';
+        document.getElementById('debugSubsId').innerHTML = subscriptionId ? subscriptionId.substring(0,20)+'...' : '-';
+        document.getElementById('debugSubscribed').innerHTML = isSubscribed ? '✅ SUBSCRIBED' : '❌ NOT SUBSCRIBED';
+        document.getElementById('debugExternalId').innerHTML = externalId || '-';
+
+        // Tambahan: Jika subscriptionId ada tapi isSubscribed masih false, override jadi true
+        // Karena subscriptionId sudah ada berarti pasti sudah subscribe
+        if (subscriptionId && !isSubscribed) {
+            console.log("Override isSubscribed = true karena subscriptionId ada");
+            isSubscribed = true;
+        }
+
+        return {
+            hasSdk: true,
+            userId: userId,
+            subscriptionId: subscriptionId,
+            isSubscribed: isSubscribed,
+            externalId: externalId,
+            rawInfo: info
+        };
+    } catch (err) {
+        addLog(`❌ Error membaca data OneSignal: ${err.message}`, "error");
+        return { hasSdk: true, error: err.message };
     }
+}
 
     async function saveSubscriptionToFirebase(subscriptionId, userId) {
         if (!currentUid) return;
