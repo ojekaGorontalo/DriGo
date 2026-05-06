@@ -396,7 +396,51 @@ async function hitungTotalPotongan(hargaOrder) {
 
     async function autoDeductOnTrip(orderId, orderData) { /* sama */ if (processedDeductionOrders.has(orderId)) return; if (orderData.status !== 'on_trip') return; if (orderData.balance_deducted === true) return; const driverId = orderData.driver_id; const hargaOrder = orderData.price; if (!driverId || !hargaOrder) return; try { const potonganSnap = await database.ref('data-jego/potongan').once('value'); const pajakSnap = await database.ref('data-jego/pajak').once('value'); let feePersen = parseFloat(potonganSnap.val()) || 0; let pajakPersen = parseFloat(pajakSnap.val()) || 0; const potonganRupiah = hargaOrder * (feePersen / 100); const pajakRupiah = potonganRupiah * (pajakPersen / 100); let totalPotongan = potonganRupiah + pajakRupiah; const totalPotonganInt10 = Math.round(totalPotongan * 10); const balanceSnap = await database.ref(`drivers/${driverId}/balance`).once('value'); let currentBalance = balanceSnap.val() || 0; let currentBalanceInt10 = Math.round(currentBalance * 10); if (currentBalanceInt10 < totalPotonganInt10) { addLog(`⚠️ Auto deduct: Saldo driver ${driverId} tidak cukup`, "warning"); return; } await database.ref(`drivers/${driverId}/balance`).transaction(cur => { let curInt10 = Math.round((cur || 0) * 10); return (curInt10 - totalPotonganInt10) / 10; }); await database.ref(`orders/${orderId}`).update({ balance_deducted: true, deducted_at: new Date().toISOString() }); await database.ref(`driver_deductions/${driverId}/${orderId}`).set({ amount: totalPotongan, order_price: hargaOrder, fee_percentage: feePersen, tax_percentage: pajakPersen, timestamp: firebase.database.ServerValue.TIMESTAMP }); addLog(`💰 OTOMATIS: Potong saldo driver ${driverId} sebesar Rp ${totalPotongan.toFixed(1)}`, "success"); processedDeductionOrders.add(orderId); } catch(err) { addLog(`❌ Auto deduct error: ${err.message}`, "error"); } }
 
-    async function updateDriverStats(driverId) { /* sama */ if (!driverId) return; try { const ordersSnap = await database.ref('orders').orderByChild('driver_id').equalTo(driverId).once('value'); const orders = ordersSnap.val(); let completed = 0; if (orders) for (let o of Object.values(orders)) if (o.status === 'completed') completed++; const ratingsSnap = await database.ref('ratings').once('value'); let totalRating = 0, ratingCount = 0; for (let [rid, r] of Object.entries(ratingsSnap.val() || {})) { let cr = r.customer_rating; if (cr && cr.driver_id === driverId && cr.rating) { totalRating += cr.rating; ratingCount++; } } let avg = ratingCount ? totalRating / ratingCount : 0; await database.ref(`drivers/${driverId}`).update({ perjalanan: completed, rating: avg, ratingCount: ratingCount, last_stats_update: new Date().toISOString() }); addLog(`📊 Update statistik driver ${driverId}: perjalanan=${completed}, rating=${avg.toFixed(1)} (${ratingCount} ulasan)`, "success"); } catch(e) { addLog(`❌ Gagal update statistik: ${e.message}`, "error"); } }
+    async function updateDriverStats(driverId) {
+    if (!driverId) return;
+    try {
+        // Hitung jumlah perjalanan selesai
+        const ordersSnap = await database.ref('orders').orderByChild('driver_id').equalTo(driverId).once('value');
+        const orders = ordersSnap.val();
+        let completed = 0;
+        if (orders) {
+            for (let o of Object.values(orders)) {
+                if (o.status === 'completed') completed++;
+            }
+        }
+
+        // Hitung rating dari customer (field driver_rating)
+        const ratingsSnap = await database.ref('ratings').once('value');
+        let totalRating = 0, ratingCount = 0;
+        for (let [rid, r] of Object.entries(ratingsSnap.val() || {})) {
+            let dr = r.driver_rating; // perbaikan: ambil driver_rating
+            if (dr && dr.driver_id === driverId && dr.rating) {
+                totalRating += dr.rating;
+                ratingCount++;
+            }
+        }
+        let avg = ratingCount ? totalRating / ratingCount : 0;
+
+        // ========== OPTIMASI: Cek apakah nilai berubah ==========
+        const currentData = (await database.ref(`drivers/${driverId}`).once('value')).val();
+        if (currentData && currentData.rating === avg && currentData.ratingCount === ratingCount) {
+            // Tidak ada perubahan, skip update
+            return;
+        }
+        // =======================================================
+
+        // Update data driver
+        await database.ref(`drivers/${driverId}`).update({
+            perjalanan: completed,
+            rating: avg,
+            ratingCount: ratingCount,
+            last_stats_update: new Date().toISOString()
+        });
+        addLog(`📊 Update statistik driver ${driverId}: perjalanan=${completed}, rating=${avg.toFixed(1)} (${ratingCount} ulasan)`, "success");
+    } catch(e) {
+        addLog(`❌ Gagal update statistik: ${e.message}`, "error");
+    }
+}
 
     function startListeningOrders() { if (ordersListener) return; database.ref("orders").on("child_added", async (snap) => await processNewOrder(snap.key, snap.val())); ordersListener = true; addLog("👂 Listener order aktif (auto fallback, notifikasi awal)", "success"); }
 
@@ -413,15 +457,20 @@ async function hitungTotalPotongan(hargaOrder) {
             if (currentView === 'dashboard') refreshDashboardOrders();
         });
         database.ref('ratings').on('child_added', async (snap) => {
-            let cr = snap.val()?.customer_rating;
-            if (cr?.driver_id) { addLog(`⭐ Rating baru untuk driver ${cr.driver_id}`, "info"); await updateDriverStats(cr.driver_id); }
-        });
-        database.ref('ratings').on('child_changed', async (snap) => {
-            let cr = snap.val()?.customer_rating;
-            if (cr?.driver_id) { addLog(`🔄 Rating berubah untuk driver ${cr.driver_id}`, "info"); await updateDriverStats(cr.driver_id); }
-        });
-        addLog("👂 Listener perubahan order & rating aktif", "success");
+    const ratingData = snap.val();
+    // Cek rating dari customer ke driver
+    if (ratingData?.driver_rating?.driver_id) {
+        addLog(`⭐ Rating baru untuk driver ${ratingData.driver_rating.driver_id}`, "info");
+        await updateDriverStats(ratingData.driver_rating.driver_id);
     }
+});
+database.ref('ratings').on('child_changed', async (snap) => {
+    const ratingData = snap.val();
+    if (ratingData?.driver_rating?.driver_id) {
+        addLog(`🔄 Rating berubah untuk driver ${ratingData.driver_rating.driver_id}`, "info");
+        await updateDriverStats(ratingData.driver_rating.driver_id);
+    }
+});
 
     // ========== FUNGSI KHUSUS DASHBOARD ==========
     async function loadAllOrders() {
