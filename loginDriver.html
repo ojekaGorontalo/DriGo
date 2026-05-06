@@ -11,7 +11,7 @@
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
 
   <style>
-    /* ==================== GAYA (SAMA SEPERTI SEBELUMNYA) ==================== */
+    /* ==================== GAYA ==================== */
     :root {
       --primary: #FF9800;
       --secondary: #FF5722;
@@ -167,6 +167,20 @@
 
     .secondary-btn:hover {
       background: rgba(255,152,0,0.05);
+    }
+
+    /* Link lupa password */
+    .forgot-password-link {
+      text-align: right;
+      margin: 8px 0 12px;
+    }
+    .forgot-password-link a {
+      color: var(--primary);
+      text-decoration: none;
+      font-size: 0.85rem;
+    }
+    .forgot-password-link a:hover {
+      text-decoration: underline;
     }
 
     /* Modal */
@@ -357,6 +371,12 @@
           <input type="password" class="form-input" id="password" placeholder="********" required>
         </div>
         <button type="submit" class="submit-btn" id="loginBtn">Login</button>
+
+        <!-- TAMBAHAN LINK LUPA PASSWORD -->
+        <div class="forgot-password-link">
+          <a href="#" id="forgotPasswordLink">Lupa password?</a>
+        </div>
+
         <button type="button" class="secondary-btn" id="registerBtn">Belum punya akun driver? Daftar</button>
       </form>
     </div>
@@ -457,7 +477,7 @@
     function showError(msg) { showPopup('Error', msg, 'error'); }
     function showSuccess(msg, autoHide = true) { showPopup('Sukses', msg, 'success', { autoHide, autoHideDelay: 2000 }); }
 
-    // ================= HANDLE STATUS DRIVER (PERBAIKAN MAPPING) =================
+    // ================= HANDLE STATUS DRIVER =================
     function handleDriverStatus(driverData, driverId) {
       const status = driverData.status || 'pending';
       const ketGagal = driverData.ketGagal || driverData.rejectionReason || driverData.blockReason || 'Tidak ada keterangan.';
@@ -466,7 +486,6 @@
         case 'accepted':
         case 'approved':
         case 'active':
-          // ✅ PERBAIKAN: Mapping field dari database ke localStorage (sesuai dengan yang diharapkan index.html)
           const sessionDriver = {
             uid: driverId,
             name: driverData.name || driverData.fullName || '',
@@ -482,17 +501,14 @@
             idCardNumber: driverData.ktp_url || '',
             rating: driverData.rating || 5,
             perjalanan: driverData.perjalanan || 0,
-            Balance: driverData.balance || 0,        // huruf B besar seperti di index.html
+            Balance: driverData.balance || 0,
             Potongan: driverData.potongan || 0,
             createdAt: driverData.registered_at || new Date().toISOString()
           };
           localStorage.setItem('jego_logged_in_driver', JSON.stringify(sessionDriver));
           sendToKodular('login_success', { driver: sessionDriver });
           showSuccess('Login berhasil! Mengalihkan...', true);
-          // ✅ Redirect ke halaman utama driver
-          setTimeout(() => {
-            window.location.href = 'index.html';
-          }, 1500);
+          setTimeout(() => { window.location.href = 'index.html'; }, 1500);
           break;
 
         case 'rejected':
@@ -557,33 +573,64 @@
       showLoading('Memverifikasi kredensial...');
 
       try {
-        // 1. Login ke Firebase Auth
         const userCredential = await auth.signInWithEmailAndPassword(email, password);
         const user = userCredential.user;
         const uid = user.uid;
 
-        // 2. Ambil data driver dari database
         const driverSnap = await database.ref(`drivers/${uid}`).once('value');
         if (!driverSnap.exists()) {
           throw new Error('Data driver tidak ditemukan. Pastikan Anda terdaftar sebagai driver.');
         }
         const driverData = driverSnap.val();
-
-        // 3. Handle status driver
         handleDriverStatus(driverData, uid);
       } catch (error) {
-  console.error(error);
-  // Tampilkan pesan umum untuk semua kegagalan login
-  showError('Login Gagal, Silakan periksa email atau password');
-} finally {
-  hideLoading();
-  loginBtn.disabled = false;
-  loginBtn.textContent = 'Login';
-}
+        console.error(error);
+        showError('Login Gagal, Silakan periksa email atau password');
+      } finally {
+        hideLoading();
+        loginBtn.disabled = false;
+        loginBtn.textContent = 'Login';
+      }
     });
 
+    // ================= REGISTER =================
     document.getElementById('registerBtn').addEventListener('click', () => {
       window.location.href = 'pendaftaranDriver.html';
+    });
+
+    // ================= FITUR LUPA PASSWORD =================
+    document.getElementById('forgotPasswordLink').addEventListener('click', async (e) => {
+      e.preventDefault();
+      const email = document.getElementById('email').value.trim();
+
+      if (!email) {
+        showError('Masukkan alamat email Anda terlebih dahulu.');
+        return;
+      }
+
+      showLoading('Mengirim email reset password...');
+      try {
+        await auth.sendPasswordResetEmail(email);
+        hideLoading();
+        showPopup(
+          'Cek Email Anda',
+          `Link reset password telah dikirim ke <strong>${email}</strong>.<br><br>Ikuti instruksi di email untuk membuat password baru.`,
+          'success',
+          { autoHide: false, confirmText: 'OK' }
+        );
+      } catch (error) {
+        hideLoading();
+        console.error(error);
+        let pesan = 'Gagal mengirim email reset. ';
+        if (error.code === 'auth/user-not-found') {
+          pesan += 'Email tidak terdaftar sebagai driver.';
+        } else if (error.code === 'auth/invalid-email') {
+          pesan += 'Format email tidak valid.';
+        } else {
+          pesan += 'Coba lagi nanti.';
+        }
+        showError(pesan);
+      }
     });
 
     // Tutup modal jika klik overlay
@@ -599,7 +646,6 @@
           const driver = JSON.parse(loggedInDriver);
           if (driver.status === 'active') {
             sendToKodular('already_logged_in', { driver: driver });
-            // Jika sudah login dan di halaman login, redirect ke index.html
             window.location.href = 'index.html';
           } else {
             localStorage.removeItem('jego_logged_in_driver');
