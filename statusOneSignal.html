@@ -83,6 +83,10 @@
         .btn-secondary:hover {
             background: #5a6268;
         }
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
         .info-row {
             display: flex;
             justify-content: space-between;
@@ -114,18 +118,19 @@
             border-bottom: 1px solid #444;
             padding: 4px 0;
         }
-        hr {
-            margin: 15px 0;
-        }
         .small-text {
             font-size: 12px;
             color: #888;
             text-align: center;
             margin-top: 15px;
         }
-        button:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
+        .warning-box {
+            background: #fff3cd;
+            color: #856404;
+            padding: 12px;
+            border-radius: 12px;
+            margin-bottom: 15px;
+            font-size: 13px;
         }
     </style>
 </head>
@@ -159,6 +164,11 @@
         <button id="refreshBtn" class="btn btn-secondary">🔄 Refresh Status</button>
     </div>
 
+    <div id="medianWarning" class="warning-box" style="display:none;">
+        ⚠️ OneSignal SDK tidak terdeteksi. Halaman ini harus dijalankan di <strong>aplikasi Median.co</strong> agar notifikasi bekerja. 
+        <br>Di browser biasa, Anda tetap bisa melihat Player ID yang tersimpan di Firebase.
+    </div>
+
     <div class="card" id="helpCard" style="display: none;">
         <h3>⚠️ Mengapa Notifikasi Tidak Aktif?</h3>
         <ul style="padding-left: 20px; margin-top: 10px;">
@@ -190,13 +200,13 @@
         appId: "1:600037007040:web:ac3243ad9b472647ffd725"
     };
     
-    // Inisialisasi Firebase
     if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
     const database = firebase.database();
     const auth = firebase.auth();
 
     let currentUid = null;
     let currentPlayerId = null;
+    let isOnesignalAvailable = false;  // flag untuk mengecek apakah median.onesignal tersedia
 
     function addLog(msg, type = "info") {
         const logBox = document.getElementById('logBox');
@@ -229,7 +239,7 @@
             currentPlayerId = savedPlayerId;
 
             if (savedPlayerId) {
-                document.getElementById('playerIdValue').innerHTML = `<span style="font-family:monospace;">${savedPlayerId.substring(0, 20)}...</span>`;
+                document.getElementById('playerIdValue').innerHTML = `<span style="font-family:monospace;">${savedPlayerId.substring(0, 25)}...</span>`;
                 document.getElementById('firebaseStatus').innerHTML = '<span class="status-badge status-success" style="padding:2px 8px; font-size:11px;">✅ Tersimpan</span>';
             } else {
                 document.getElementById('playerIdValue').innerHTML = '<span style="color:#f44336;">❌ Tidak ada</span>';
@@ -242,10 +252,19 @@
 
     async function getOnesignalStatus() {
         if (typeof median === 'undefined' || !median.onesignal) {
-            addLog("⚠️ OneSignal SDK tidak terdeteksi (median.onesignal tidak tersedia)", "warning");
-            document.getElementById('subscriptionStatus').innerHTML = '<span class="status-badge status-warning" style="padding:2px 8px; font-size:11px;">⚠️ SDK Tidak Tersedia</span>';
+            if (isOnesignalAvailable !== false) {
+                addLog("⚠️ OneSignal SDK tidak terdeteksi. Hanya menampilkan data dari Firebase.", "warning");
+                document.getElementById('subscriptionStatus').innerHTML = '<span class="status-badge status-warning" style="padding:2px 8px; font-size:11px;">⚠️ Tidak dapat cek (bukan di Median)</span>';
+                document.getElementById('medianWarning').style.display = 'block';
+                document.getElementById('activateBtn').style.display = 'none';
+                isOnesignalAvailable = false;
+            }
             return null;
         }
+        isOnesignalAvailable = true;
+        document.getElementById('medianWarning').style.display = 'none';
+        document.getElementById('activateBtn').style.display = 'block';
+        
         addLog("🔍 Mengecek status OneSignal...", "info");
         try {
             let consent = null;
@@ -279,8 +298,8 @@
     }
 
     async function initOneSignalAndSubscribe() {
-        if (typeof median === 'undefined' || !median.onesignal) {
-            addLog("❌ OneSignal SDK tidak tersedia. Pastikan aplikasi berjalan di lingkungan yang tepat.", "error");
+        if (!isOnesignalAvailable) {
+            addLog("❌ OneSignal SDK tidak tersedia. Halaman harus dijalankan di Median.co", "error");
             return false;
         }
         addLog("🚀 Inisialisasi OneSignal...", "info");
@@ -301,7 +320,17 @@
                 currentPlayerId = playerId;
                 await updateUI();
             }
-            await getOnesignalStatus();
+            // Setelah aktivasi, refresh status subscription
+            const status = await getOnesignalStatus();
+            if (status && status.isSubscribed) {
+                document.getElementById('activateBtn').innerHTML = "✅ Notifikasi Aktif";
+                document.getElementById('activateBtn').disabled = true;
+                document.getElementById('helpCard').style.display = 'none';
+            } else {
+                document.getElementById('activateBtn').innerHTML = "🔔 Aktifkan Notifikasi";
+                document.getElementById('activateBtn').disabled = false;
+                document.getElementById('helpCard').style.display = 'block';
+            }
             return true;
         } catch (err) {
             addLog(`❌ Gagal aktivasi: ${err.message}`, "error");
@@ -312,13 +341,23 @@
     async function refreshAll() {
         addLog("🔄 Menyegarkan status...", "info");
         await updateUI();
-        await getOnesignalStatus();
-        if (currentPlayerId) {
-            document.getElementById('activateBtn').innerHTML = "✅ Notifikasi Aktif";
-            document.getElementById('activateBtn').disabled = true;
+        const status = await getOnesignalStatus();
+        if (isOnesignalAvailable) {
+            if (status && status.isSubscribed) {
+                document.getElementById('activateBtn').innerHTML = "✅ Notifikasi Aktif";
+                document.getElementById('activateBtn').disabled = true;
+                document.getElementById('helpCard').style.display = 'none';
+            } else {
+                document.getElementById('activateBtn').innerHTML = "🔔 Aktifkan Notifikasi";
+                document.getElementById('activateBtn').disabled = false;
+                if (status === null) {
+                    document.getElementById('helpCard').style.display = 'block';
+                } else {
+                    document.getElementById('helpCard').style.display = 'block';
+                }
+            }
         } else {
-            document.getElementById('activateBtn').innerHTML = "🔔 Aktifkan Notifikasi";
-            document.getElementById('activateBtn').disabled = false;
+            document.getElementById('activateBtn').style.display = 'none';
         }
     }
 
@@ -328,17 +367,23 @@
             currentUid = user.uid;
             addLog(`🔐 Driver terdeteksi: ${user.uid}`, "success");
             await updateUI();
-            await getOnesignalStatus();
-            if (currentPlayerId) {
-                document.getElementById('activateBtn').innerHTML = "✅ Notifikasi Aktif";
-                document.getElementById('activateBtn').disabled = true;
+            const status = await getOnesignalStatus();
+            if (isOnesignalAvailable) {
+                if (status && status.isSubscribed) {
+                    document.getElementById('activateBtn').innerHTML = "✅ Notifikasi Aktif";
+                    document.getElementById('activateBtn').disabled = true;
+                    document.getElementById('helpCard').style.display = 'none';
+                } else {
+                    document.getElementById('activateBtn').innerHTML = "🔔 Aktifkan Notifikasi";
+                    document.getElementById('activateBtn').disabled = false;
+                    document.getElementById('helpCard').style.display = 'block';
+                }
             } else {
-                document.getElementById('activateBtn').innerHTML = "🔔 Aktifkan Notifikasi";
-                document.getElementById('activateBtn').disabled = false;
+                document.getElementById('activateBtn').style.display = 'none';
                 document.getElementById('helpCard').style.display = 'block';
             }
         } else {
-            addLog("❌ Driver belum login. Silakan login terlebih dahulu.", "error");
+            addLog("❌ Driver belum login.", "error");
             document.getElementById('driverName').innerText = '(Tidak login)';
             const btn = document.getElementById('activateBtn');
             btn.innerHTML = "🔐 Login Dulu";
