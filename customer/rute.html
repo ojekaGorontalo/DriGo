@@ -408,10 +408,10 @@
       if (!order) { localStorage.removeItem('current_order_id'); return false; }
       if (order.status === 'waiting') return true;
       const statusRedirect = ['accepted', 'on_the_way', 'arrived', 'on_trip'];
-      if (statusRedirect.includes(order.status)) {
-        window.location.href = `tracking_customer.html?order_id=${orderId}`;
-        return true;
-      } else {
+      if (statusRedirect.includes(order.status) && orderId && orderId !== 'null') {
+  window.location.href = `tracking_customer.html?order_id=${orderId}`;
+  return true;
+} else {
         localStorage.removeItem('current_order_id');
         return false;
       }
@@ -420,9 +420,13 @@
 
   async function loadWaitingOrderData() {
     const orderId = localStorage.getItem('current_order_id');
-    if (!orderId) return false;
+    console.log("📦 [DEBUG] loadWaitingOrderData - orderId dari localStorage:", orderId);
+    if (!orderId) {
+        console.log("ℹ️ [DEBUG] Tidak ada orderId di localStorage.");
+        return false;
+    }
     try {
-      const snap = await database.ref(`orders/${orderId}`).once('value');
+        const snap = await database.ref(`orders/${orderId}`).once('value');
       const order = snap.val();
       if (!order || order.status !== 'waiting') return false;
       pickupCoord = [order.pickup_lng, order.pickup_lat];
@@ -737,13 +741,45 @@
   }
 
   async function acceptOffer(driverId) {
-    if (!currentOrderId) { showToast('❌ ID order tidak valid', 'error'); return; }
-    await database.ref(`orders/${currentOrderId}/driver_offers/${driverId}/status`).set('accepted');
-    await database.ref(`orders/${currentOrderId}`).update({ status: 'accepted', driver_id: driverId, accepted_at: new Date().toISOString() });
-    localStorage.setItem('current_order_id', currentOrderId);
+    console.log("🔍 [DEBUG] acceptOffer dipanggil, driverId:", driverId);
+    
+    // Ambil orderId dari variabel global, jika null coba dari localStorage
+    let orderIdToUse = currentOrderId;
+    if (!orderIdToUse || orderIdToUse === 'null') {
+        orderIdToUse = localStorage.getItem('current_order_id');
+        console.log("🔍 [DEBUG] Fallback ke localStorage:", orderIdToUse);
+    }
+    console.log("🔍 [DEBUG] orderIdToUse yang akan dipakai:", orderIdToUse);
+    
+    if (!orderIdToUse || orderIdToUse === 'null') {
+        console.error("❌ [DEBUG] Tidak ada orderId valid!");
+        showToast('❌ ID order tidak valid', 'error');
+        return;
+    }
+    
+    // Update status offer dan order
+    await database.ref(`orders/${orderIdToUse}/driver_offers/${driverId}/status`).set('accepted');
+    await database.ref(`orders/${orderIdToUse}`).update({
+        status: 'accepted',
+        driver_id: driverId,
+        accepted_at: new Date().toISOString()
+    });
+    
+    // Simpan kembali ke localStorage (pastikan tidak null)
+    localStorage.setItem('current_order_id', orderIdToUse);
+    console.log("✅ [DEBUG] Order accepted, localStorage current_order_id =", orderIdToUse);
     showToast('✅ Driver dipilih, mengalihkan...', 'success');
-    setTimeout(() => { window.location.href = `tracking_customer.html?order_id=${currentOrderId}`; }, 1000);
-  }
+    
+    // Redirect ke tracking
+    if (orderIdToUse && orderIdToUse !== 'null') {
+        const targetUrl = `tracking_customer.html?order_id=${orderIdToUse}`;
+        console.log("🚀 [DEBUG] Redirecting ke:", targetUrl);
+        setTimeout(() => { window.location.href = targetUrl; }, 1000);
+    } else {
+        console.error("❌ [DEBUG] orderIdToUse tidak valid untuk redirect:", orderIdToUse);
+        showToast('❌ ID order tidak valid, tidak bisa redirect ke tracking', 'error');
+    }
+}
 
   async function rejectOffer(driverId) {
     if (!currentOrderId) return;
@@ -813,9 +849,14 @@
       orderData.item_description = deliveryData.description;
     }
     await newOrderRef.set(orderData);
-    await database.ref(`userOrders/${currentUser.id}/${currentOrderId}`).set(true);
-    localStorage.setItem('current_order_id', currentOrderId);
-    isSearching = true;
+const newOrderId = newOrderRef.key;
+console.log("✅ [DEBUG] Order baru dibuat dengan ID:", newOrderId);
+console.log("✅ [DEBUG] Data order:", orderData);
+currentOrderId = newOrderId;
+await database.ref(`userOrders/${currentUser.id}/${currentOrderId}`).set(true);
+localStorage.setItem('current_order_id', currentOrderId);
+console.log("✅ [DEBUG] localStorage current_order_id disimpan:", currentOrderId);
+isSearching = true;
     // Hentikan auto show driver dan mulai pencarian untuk order
     if (autoDriverSearchEnabled) stopAutoShowDrivers();
     if (pickupCoord) {
