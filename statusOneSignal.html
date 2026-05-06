@@ -65,7 +65,7 @@
         <div class="debug-item"><span class="debug-label">SDK Tersedia:</span><span id="debugSdk">-</span></div>
         <div class="debug-item"><span class="debug-label">User ID:</span><span id="debugUserId">-</span></div>
         <div class="debug-item"><span class="debug-label">Subscription ID:</span><span id="debugSubsId">-</span></div>
-        <div class="debug-item"><span class="debug-label">isSubscribed:</span><span id="debugSubscribed">-</span></div>
+        <div class="debug-item"><span class="debug-label">isSubscribed (SDK):</span><span id="debugSubscribed">-</span></div>
         <div class="debug-item"><span class="debug-label">External ID:</span><span id="debugExternalId">-</span></div>
     </div>
     <div class="small-text">
@@ -107,99 +107,91 @@
         while (logBox.children.length > 50) logBox.removeChild(logBox.firstChild);
     }
 
-    // OneSignal SDK v5 - Get user and subscription data
-    // Median.co menyediakan median.onesignal yang merupakan wrapper dari OneSignal SDK v5
-   async function getOnesignalV5Data() {
-    if (typeof median === 'undefined' || !median.onesignal) {
-        document.getElementById('medianWarning').style.display = 'block';
-        return { hasSdk: false };
-    }
-    document.getElementById('medianWarning').style.display = 'none';
+    // ========== Perbaikan: mengambil data dari OneSignal SDK dengan fallback ke Firebase ==========
+    async function getOnesignalV5Data() {
+        if (typeof median === 'undefined' || !median.onesignal) {
+            document.getElementById('medianWarning').style.display = 'block';
+            return { hasSdk: false };
+        }
+        document.getElementById('medianWarning').style.display = 'none';
 
-    try {
-        let userId = null;
-        let subscriptionId = null;
-        let isSubscribed = false;
-        let externalId = null;
+        try {
+            let userId = null;
+            let subscriptionId = null;
+            let isSubscribed = false;
+            let externalId = null;
 
-        // === Cara 1: Gunakan OneSignal SDK langsung jika tersedia ===
-        if (window.OneSignal) {
-            try {
-                // Cek izin notifikasi
-                const permission = await OneSignal.Notifications.getPermissionAsync();
-                isSubscribed = (permission === 'granted');
-                console.log("Permission:", permission, "isSubscribed:", isSubscribed);
-                
-                // Dapatkan subscription ID (perangkat)
-                if (OneSignal.User && OneSignal.User.getSubscriptionId) {
-                    subscriptionId = await OneSignal.User.getSubscriptionId();
+            // === Cara 1: Gunakan OneSignal SDK langsung jika tersedia ===
+            if (window.OneSignal) {
+                try {
+                    // Cek izin notifikasi (metode standar v5)
+                    const permission = await OneSignal.Notifications.getPermissionAsync();
+                    isSubscribed = (permission === 'granted');
+                    console.log("Permission:", permission, "isSubscribed:", isSubscribed);
+                    
+                    // Dapatkan subscription ID (perangkat)
+                    if (OneSignal.User && OneSignal.User.getSubscriptionId) {
+                        subscriptionId = await OneSignal.User.getSubscriptionId();
+                    }
+                    // Dapatkan OneSignal User ID
+                    if (OneSignal.User && OneSignal.User.getOnesignalId) {
+                        userId = await OneSignal.User.getOnesignalId();
+                    }
+                    // Dapatkan external ID jika ada
+                    if (OneSignal.User && OneSignal.User.getExternalId) {
+                        externalId = await OneSignal.User.getExternalId();
+                    }
+                } catch (e) {
+                    console.warn("OneSignal SDK error:", e);
                 }
-                // Dapatkan OneSignal User ID
-                if (OneSignal.User && OneSignal.User.getOnesignalId) {
-                    userId = await OneSignal.User.getOnesignalId();
-                }
-                // Dapatkan external ID jika ada
-                if (OneSignal.User && OneSignal.User.getExternalId) {
-                    externalId = await OneSignal.User.getExternalId();
-                }
-            } catch (e) {
-                console.warn("OneSignal SDK error:", e);
             }
-        }
 
-        // === Cara 2: Fallback ke median.onesignal ===
-        if (!subscriptionId || !userId) {
-            let info = null;
-            try {
-                info = await median.onesignal.onesignalInfo();
-            } catch(e) {}
-            if (info) {
-                if (!subscriptionId && info.subscription?.id) subscriptionId = info.subscription.id;
-                if (!userId && (info.userId || info.user_id)) userId = info.userId || info.user_id;
-                if (info.isSubscribed === true) isSubscribed = true;
-                if (!externalId && info.externalId) externalId = info.externalId;
-            }
-        }
-
-        // === Cara 3: Coba getDeviceState ===
-        if (!subscriptionId && median.onesignal.getDeviceState) {
-            try {
-                const deviceState = await median.onesignal.getDeviceState();
-                if (deviceState) {
-                    if (deviceState.subscriptionId) subscriptionId = deviceState.subscriptionId;
-                    if (deviceState.userId) userId = deviceState.userId;
-                    if (deviceState.isSubscribed !== undefined) isSubscribed = deviceState.isSubscribed;
+            // === Cara 2: Fallback ke median.onesignal ===
+            if (!subscriptionId || !userId) {
+                let info = null;
+                try {
+                    info = await median.onesignal.onesignalInfo();
+                } catch(e) {}
+                if (info) {
+                    if (!subscriptionId && info.subscription?.id) subscriptionId = info.subscription.id;
+                    if (!userId && (info.userId || info.user_id)) userId = info.userId || info.user_id;
+                    if (info.isSubscribed === true) isSubscribed = true;
+                    if (!externalId && info.externalId) externalId = info.externalId;
                 }
-            } catch(e) {}
+            }
+
+            // === Cara 3: Coba getDeviceState ===
+            if (!subscriptionId && median.onesignal.getDeviceState) {
+                try {
+                    const deviceState = await median.onesignal.getDeviceState();
+                    if (deviceState) {
+                        if (deviceState.subscriptionId) subscriptionId = deviceState.subscriptionId;
+                        if (deviceState.userId) userId = deviceState.userId;
+                        if (deviceState.isSubscribed !== undefined) isSubscribed = deviceState.isSubscribed;
+                    }
+                } catch(e) {}
+            }
+
+            // Update debug UI
+            document.getElementById('debugSdk').innerHTML = '✅ Tersedia';
+            document.getElementById('debugUserId').innerHTML = userId ? userId.substring(0,20)+'...' : '-';
+            document.getElementById('debugSubsId').innerHTML = subscriptionId ? subscriptionId.substring(0,20)+'...' : '-';
+            document.getElementById('debugSubscribed').innerHTML = isSubscribed ? '✅ SUBSCRIBED' : '❌ NOT SUBSCRIBED';
+            document.getElementById('debugExternalId').innerHTML = externalId || '-';
+
+            return {
+                hasSdk: true,
+                userId: userId,
+                subscriptionId: subscriptionId,
+                isSubscribed: isSubscribed,
+                externalId: externalId,
+                rawInfo: info
+            };
+        } catch (err) {
+            addLog(`❌ Error membaca data OneSignal: ${err.message}`, "error");
+            return { hasSdk: true, error: err.message };
         }
-
-        // Update debug UI
-        document.getElementById('debugSdk').innerHTML = '✅ Tersedia';
-        document.getElementById('debugUserId').innerHTML = userId ? userId.substring(0,20)+'...' : '-';
-        document.getElementById('debugSubsId').innerHTML = subscriptionId ? subscriptionId.substring(0,20)+'...' : '-';
-        document.getElementById('debugSubscribed').innerHTML = isSubscribed ? '✅ SUBSCRIBED' : '❌ NOT SUBSCRIBED';
-        document.getElementById('debugExternalId').innerHTML = externalId || '-';
-
-        // Tambahan: Jika subscriptionId ada tapi isSubscribed masih false, override jadi true
-        // Karena subscriptionId sudah ada berarti pasti sudah subscribe
-        if (subscriptionId && !isSubscribed) {
-            console.log("Override isSubscribed = true karena subscriptionId ada");
-            isSubscribed = true;
-        }
-
-        return {
-            hasSdk: true,
-            userId: userId,
-            subscriptionId: subscriptionId,
-            isSubscribed: isSubscribed,
-            externalId: externalId,
-            rawInfo: info
-        };
-    } catch (err) {
-        addLog(`❌ Error membaca data OneSignal: ${err.message}`, "error");
-        return { hasSdk: true, error: err.message };
     }
-}
 
     async function saveSubscriptionToFirebase(subscriptionId, userId) {
         if (!currentUid) return;
@@ -268,25 +260,59 @@
         } catch (err) { addLog(`❌ Firebase error: ${err.message}`, "error"); }
     }
 
+    // ========== PERBAIKAN UTAMA: refreshStatus dengan prioritas Firebase ==========
     async function refreshStatus() {
         addLog("🔄 Menyegarkan status...", "info");
-        await updateUI();
         
+        // 1. Ambil data dari Firebase terlebih dahulu
+        let hasSubscriptionInFirebase = false;
+        let firebaseSubscriptionId = null;
+        if (currentUid) {
+            const driverSnap = await database.ref(`drivers/${currentUid}`).once('value');
+            const driverData = driverSnap.val();
+            firebaseSubscriptionId = driverData?.subscriptionId || driverData?.playerId || null;
+            hasSubscriptionInFirebase = !!firebaseSubscriptionId;
+            
+            // Update UI dengan data Firebase
+            if (firebaseSubscriptionId) {
+                document.getElementById('subsIdValue').innerHTML = firebaseSubscriptionId.substring(0, 25)+'...';
+                document.getElementById('firebaseStatus').innerHTML = '✅ Tersimpan';
+            } else {
+                document.getElementById('subsIdValue').innerHTML = '❌ Tidak ada';
+                document.getElementById('firebaseStatus').innerHTML = '⚠️ Belum tersimpan';
+            }
+            document.getElementById('driverName').innerText = driverData?.name || '-';
+            if (driverData?.oneSignalUserId) {
+                document.getElementById('userIdValue').innerHTML = driverData.oneSignalUserId.substring(0, 25)+'...';
+            } else {
+                document.getElementById('userIdValue').innerHTML = '❌ Tidak ada';
+            }
+        }
+
+        // 2. Cek ke OneSignal SDK (sebagai konfirmasi)
         const data = await getOnesignalV5Data();
-        if (!data.hasSdk) return;
+        const sdkSubscribed = data.isSubscribed === true;
+        const sdkSubscriptionId = data.subscriptionId;
         
-        const isSubscribed = data.isSubscribed === true;
-        const subscriptionId = data.subscriptionId;
-        const userId = data.userId;
+        // 3. SAMAKAN: Jika di Firebase ada subscriptionId, override status jadi SUBSCRIBED
+        const isActuallySubscribed = hasSubscriptionInFirebase || sdkSubscribed;
         
-        // Update tampilan UI
-        if (isSubscribed) {
+        // Update tampilan berdasarkan status sebenarnya
+        if (isActuallySubscribed) {
             document.getElementById('statusEmoji').innerHTML = "🔔✅";
             document.getElementById('statusBadge').innerHTML = "Notifikasi Aktif";
             document.getElementById('statusBadge').className = "status-badge status-success";
             document.getElementById('subscriptionStatus').innerHTML = "✅ SUBSCRIBED (Aktif)";
             document.getElementById('activateBtn').innerHTML = "✅ Notifikasi Aktif";
             document.getElementById('activateBtn').disabled = true;
+            
+            // Jika Firebase belum punya subscriptionId tapi SDK punya, simpan
+            if (!hasSubscriptionInFirebase && sdkSubscriptionId) {
+                await saveSubscriptionToFirebase(sdkSubscriptionId, data.userId);
+                addLog("✅ Subscription ID dari SDK disimpan ke Firebase", "success");
+                // Refresh UI lagi setelah simpan
+                await updateUI();
+            }
         } else {
             document.getElementById('statusEmoji').innerHTML = "🔕❌";
             document.getElementById('statusBadge').innerHTML = "Notifikasi Tidak Aktif";
@@ -296,16 +322,13 @@
             document.getElementById('activateBtn').disabled = false;
         }
         
-        // Simpan ke Firebase jika ada subscriptionId atau userId
-        if (subscriptionId || userId) {
-            await saveSubscriptionToFirebase(subscriptionId, userId);
-            await updateUI(); // refresh UI setelah simpan
+        // Update debug info
+        document.getElementById('debugSubscribed').innerHTML = isActuallySubscribed ? '✅ SUBSCRIBED (berdasarkan Firebase)' : '❌ NOT SUBSCRIBED';
+        if (firebaseSubscriptionId) {
+            document.getElementById('debugSubsId').innerHTML = firebaseSubscriptionId.substring(0,25)+'...';
+        } else if (sdkSubscriptionId) {
+            document.getElementById('debugSubsId').innerHTML = sdkSubscriptionId.substring(0,25)+'...';
         }
-        
-        // Update debug dengan data terbaru
-        document.getElementById('debugSubscribed').innerHTML = isSubscribed ? '✅ SUBSCRIBED' : '❌ NOT SUBSCRIBED';
-        if (subscriptionId) document.getElementById('debugSubsId').innerHTML = subscriptionId.substring(0,25)+'...';
-        if (userId) document.getElementById('debugUserId').innerHTML = userId.substring(0,25)+'...';
     }
 
     async function setExternalUserId() {
@@ -315,7 +338,6 @@
                 await median.onesignal.setExternalUserId(currentUid);
                 addLog(`🔗 External ID diset: ${currentUid}`, "success");
             } else if (window.OneSignal && OneSignal.User && OneSignal.User.addAlias) {
-                // Alternatif untuk OneSignal SDK v5
                 await OneSignal.User.addAlias("externalId", currentUid);
                 addLog(`🔗 External ID diset via alias: ${currentUid}`, "success");
             }
@@ -337,20 +359,16 @@
                 throw new Error("OneSignal SDK tidak tersedia. Pastikan aplikasi berjalan di Median.co.");
             }
 
-            // Set consent (GDPR)
             if (median.onesignal.setConsentGiven) {
                 await median.onesignal.setConsentGiven(true);
                 addLog("✅ GDPR consent diberikan.", "success");
             }
             
-            // Register perangkat
             await median.onesignal.register();
             addLog("✅ OneSignal register berhasil.", "success");
             
-            // Set external ID (UID driver)
             await setExternalUserId();
             
-            // Minta izin notifikasi
             let data = await getOnesignalV5Data();
             let isSubscribed = data.isSubscribed;
             
@@ -363,13 +381,9 @@
                 isSubscribed = data.isSubscribed;
             }
             
-            if (isSubscribed) {
-                if (data.subscriptionId) {
-                    await saveSubscriptionToFirebase(data.subscriptionId, data.userId);
-                    addLog("🎉 Notifikasi berhasil diaktifkan!", "success");
-                } else {
-                    addLog("⚠️ Subscription ID tidak ditemukan meskipun status subscribed.", "warning");
-                }
+            if (isSubscribed && data.subscriptionId) {
+                await saveSubscriptionToFirebase(data.subscriptionId, data.userId);
+                addLog("🎉 Notifikasi berhasil diaktifkan!", "success");
             } else {
                 addLog("⚠️ Izin belum diberikan atau OneSignal belum subscribed.", "warning");
                 addLog("💡 Jika popup tidak muncul, coba buka aplikasi di Google Chrome.", "info");
