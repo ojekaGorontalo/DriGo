@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Status Notifikasi - JeGo Driver</title>
-    <!-- Firebase SDKs -->
     <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-database-compat.js"></script>
@@ -33,6 +32,7 @@
         .debug-label { font-weight: bold; color: #FF9800; }
         .warning-box { background: #fff3cd; color: #856404; padding: 12px; border-radius: 12px; margin-bottom: 15px; font-size: 13px; }
         .small-text { font-size: 12px; color: #888; text-align: center; margin-top: 15px; }
+        .settings-btn { background: #17a2b8; margin-top: 8px; }
     </style>
 </head>
 <body>
@@ -49,6 +49,7 @@
         <div class="info-row"><span class="info-label">👤 Nama Driver</span><span class="info-value" id="driverName">-</span></div>
 
         <button id="activateBtn" class="btn">🔔 Aktifkan Notifikasi</button>
+        <button id="settingsBtn" class="btn settings-btn">⚙️ Buka Pengaturan Notifikasi</button>
         <button id="refreshBtn" class="btn btn-secondary">🔄 Refresh Status</button>
         <button id="resetBtn" class="btn btn-secondary" style="margin-top: 8px;">🗑️ Reset & Hapus PlayerId</button>
     </div>
@@ -62,7 +63,10 @@
         <div class="debug-item"><span class="debug-label">Player ID (SDK):</span><span id="debugPlayerId">-</span></div>
         <div class="debug-item"><span class="debug-label">Subscribe Status:</span><span id="debugSubscribe">-</span></div>
     </div>
-    <div class="small-text">Pastikan status = SUBSCRIBED</div>
+    <div class="small-text">
+        Jika notifikasi tidak muncul, buka <strong>⚙️ Buka Pengaturan Notifikasi</strong> dan izinkan notifikasi untuk aplikasi JeGo.
+        Setelah itu, klik <strong>Refresh Status</strong>.
+    </div>
 </div>
 
 <script>
@@ -217,7 +221,9 @@
                 addLog("🎉 Notifikasi berhasil diaktifkan!", "success");
             } else {
                 addLog("⚠️ Izin belum diberikan atau OneSignal belum subscribed.", "warning");
-                addLog("💡 Pastikan: 1) Tekan 'Izinkan' saat popup muncul. 2) Cek pengaturan browser/HP.", "info");
+                addLog("💡 Silakan buka pengaturan notifikasi sistem dan izinkan untuk aplikasi ini.", "info");
+                // Tampilkan tombol pengaturan
+                document.getElementById('settingsBtn').style.display = 'block';
             }
             await refreshStatus();
         } catch (err) {
@@ -238,6 +244,18 @@
         addLog("✅ Data direset. Silakan klik 'Aktifkan Notifikasi'", "success");
     }
 
+    function openSystemNotificationSettings() {
+        // Coba buka pengaturan notifikasi Android (intent)
+        if (window.chrome && window.chrome.webview) {
+            // Jika di WebView, mungkin bisa menggunakan intent
+            window.location.href = "intent://settings#Intent;scheme=android;package=com.android.settings;end";
+        } else {
+            alert("Buka Pengaturan HP → Aplikasi → JeGo/MEDI25_JA_HELP → Izin → Notifikasi → Izinkan");
+        }
+        // Fallback: buka halaman bantuan
+        window.open("https://support.google.com/android/answer/9079659?hl=id", "_blank");
+    }
+
     auth.onAuthStateChanged(async (user) => {
         if (user) {
             currentUid = user.uid;
@@ -253,6 +271,7 @@
     document.getElementById('activateBtn').addEventListener('click', activateNotifications);
     document.getElementById('refreshBtn').addEventListener('click', refreshStatus);
     document.getElementById('resetBtn').addEventListener('click', resetAndClear);
+    document.getElementById('settingsBtn').addEventListener('click', openSystemNotificationSettings);
 </script>
 </body>
 </html>
