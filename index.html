@@ -1535,16 +1535,39 @@ window.showPhotoModal = function(photoUrl, name) {
   modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
 };
 
+// ==== REPLACE fungsi checkDriverActiveOrder yang lama di index.html ====
 async function checkDriverActiveOrder() {
-  const activeOrderId = localStorage.getItem('jego_driver_active_order');
-  if (!activeOrderId) return false;
-  const snap = await database.ref(`orders/${activeOrderId}`).once('value');
-  const order = snap.val();
-  if (order && ['accepted', 'on_the_way', 'arrived', 'on_trip'].includes(order.status)) {
-    window.location.href = 'orderAccepted.html?id=' + activeOrderId;
-    return true;
-  } else {
-    localStorage.removeItem('jego_driver_active_order');
+  // 1. Cek dari localStorage dulu (untuk performa)
+  let activeOrderId = localStorage.getItem('jego_driver_active_order');
+  if (activeOrderId) {
+    const snap = await database.ref(`orders/${activeOrderId}`).once('value');
+    const order = snap.val();
+    if (order && ['accepted', 'on_the_way', 'arrived', 'on_trip'].includes(order.status)) {
+      // Masih valid
+      window.location.href = 'orderAccepted.html?id=' + activeOrderId;
+      return true;
+    } else {
+      // Tidak valid, hapus dari localStorage
+      localStorage.removeItem('jego_driver_active_order');
+    }
+  }
+
+  // 2. Jika tidak ada di localStorage, cek dari database berdasarkan driver_id
+  if (!globalCurrentUid) return false;
+  const ordersSnap = await database.ref('orders')
+    .orderByChild('driver_id')
+    .equalTo(globalCurrentUid)
+    .once('value');
+  const orders = ordersSnap.val();
+  if (orders) {
+    for (const [orderId, order] of Object.entries(orders)) {
+      if (['accepted', 'on_the_way', 'arrived', 'on_trip'].includes(order.status)) {
+        // Temukan order aktif milik driver ini
+        localStorage.setItem('jego_driver_active_order', orderId);
+        window.location.href = 'orderAccepted.html?id=' + orderId;
+        return true;
+      }
+    }
   }
   return false;
 }
