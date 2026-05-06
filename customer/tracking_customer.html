@@ -75,7 +75,6 @@
       height: 100%;
       width: 100%;
     }
-    /* Map Overlay Label */
     .map-overlay-label {
       position: absolute;
       bottom: 15px;
@@ -286,7 +285,6 @@
       transform: translateX(100%);
       transition: transform 0.3s cubic-bezier(0.2, 0.9, 0.4, 1.1);
     }
-    /* Peringatan pembatalan */
     .warning-message {
       background: #fff3cd;
       border-left: 4px solid #ffc107;
@@ -413,6 +411,94 @@
       font-size: 16px;
       cursor: pointer;
     }
+    /* Rating Modal */
+    .rating-modal, .confirmation-modal, .info-modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.7);
+      z-index: 3000;
+      align-items: center;
+      justify-content: center;
+      backdrop-filter: blur(5px);
+    }
+    .rating-modal-content, .confirmation-modal-content {
+      background: white;
+      padding: 25px;
+      border-radius: 12px;
+      width: 90%;
+      max-width: 350px;
+      text-align: center;
+    }
+    .rating-stars {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      margin: 15px 0;
+      font-size: 2rem;
+    }
+    .rating-star {
+      cursor: pointer;
+      color: #ddd;
+    }
+    .rating-star.active {
+      color: #FFD700;
+    }
+    .rating-comment {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      margin: 12px 0;
+      min-height: 70px;
+      font-family: inherit;
+    }
+    .modal-buttons {
+      display: flex;
+      gap: 8px;
+      margin-top: 15px;
+    }
+    .modal-btn {
+      flex: 1;
+      padding: 10px;
+      border-radius: 6px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+    }
+    .modal-cancel {
+      background: #e9ecef;
+    }
+    .modal-submit {
+      background: var(--primary);
+      color: white;
+    }
+    .rating-presets {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 12px 0;
+      justify-content: center;
+    }
+    .preset-btn {
+      background: #f0f0f0;
+      border: 1px solid #ddd;
+      border-radius: 20px;
+      padding: 6px 12px;
+      font-size: 0.75rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .preset-btn:hover {
+      background: var(--primary);
+      color: white;
+      border-color: var(--primary);
+      transform: translateY(-1px);
+    }
   </style>
 </head>
 <body>
@@ -499,6 +585,27 @@
   </div>
 </div>
 
+<!-- Modal Rating untuk Customer -->
+<div id="ratingModal" class="rating-modal">
+  <div class="rating-modal-content">
+    <h2>Beri Rating Driver</h2>
+    <p>Bagaimana pengalaman Anda dengan driver ini?</p>
+    <div class="rating-stars" id="ratingStars">
+      <span class="rating-star" data-rating="1">☆</span>
+      <span class="rating-star" data-rating="2">☆</span>
+      <span class="rating-star" data-rating="3">☆</span>
+      <span class="rating-star" data-rating="4">☆</span>
+      <span class="rating-star" data-rating="5">☆</span>
+    </div>
+    <div id="ratingPresetsContainer" style="min-height: 50px;"></div>
+    <textarea id="ratingComment" class="rating-comment" placeholder="Tambahkan komentar (opsional)..."></textarea>
+    <div class="modal-buttons">
+      <button class="modal-btn modal-cancel" onclick="closeRatingModal()">Batal</button>
+      <button class="modal-btn modal-submit" onclick="submitRating()">Kirim Rating</button>
+    </div>
+  </div>
+</div>
+
 <script>
   const firebaseConfig = {
     apiKey: "AIzaSyCD0pgeZio-LdKqYDtWxcdXcZwyL4ngYQI",
@@ -517,6 +624,9 @@
   let orderData = null, map = null, driverMarker = null, pickupMarker = null, destMarker = null, routeLine = null;
   let arrivedAudio = null;
   let isArrivedAlertShowing = false;
+  let isRatingSubmitted = false;
+  let selectedRating = 0;
+  let driverIdForRating = null;
 
   function formatRupiah(num) { return 'Rp ' + (num || 0).toLocaleString('id-ID'); }
 
@@ -528,7 +638,14 @@
     console.error(msg);
   }
 
-  // Helper untuk menentukan pesan notifikasi cancelled_by
+  // ========== Fungsi untuk mendapatkan orderId dari URL atau localStorage ==========
+  function getOrderId() {
+    const urlParams = new URLSearchParams(window.location.search);
+    let id = urlParams.get('order_id') || urlParams.get('id');
+    if (id) return id;
+    return localStorage.getItem('current_order_id');
+  }
+
   function getCancelledMessage(cancelledBy) {
     if (cancelledBy === 'customer') {
       return "⚠️ Anda telah membatalkan perjalanan ini.";
@@ -555,7 +672,6 @@
     } else {
       contentWrapper.prepend(warningDiv);
     }
-    // Nonaktifkan tombol chat dan batalkan
     const chatBtn = document.getElementById('chatBtn');
     const cancelBtn = document.getElementById('cancelBtn');
     if (chatBtn) chatBtn.classList.add('disabled');
@@ -614,8 +730,111 @@
     }
   }
 
+  // ========== RATING MODAL FUNCTIONS (untuk customer menilai driver) ==========
+  function showRatingModal() {
+    if (isRatingSubmitted) return;
+    selectedRating = 0;
+    const stars = document.querySelectorAll('#ratingStars .rating-star');
+    stars.forEach(s => { s.textContent = '☆'; s.classList.remove('active'); });
+    document.getElementById('ratingComment').value = '';
+    document.getElementById('ratingPresetsContainer').innerHTML = '';
+    document.getElementById('ratingModal').style.display = 'flex';
+    setupRatingStars();
+  }
+
+  function setupRatingStars() {
+    const container = document.getElementById('ratingStars');
+    if (!container) return;
+    const newContainer = container.cloneNode(true);
+    container.parentNode.replaceChild(newContainer, container);
+    const stars = newContainer.querySelectorAll('.rating-star');
+    
+    const ratingPresets = {
+        1: ["Driver tidak sopan", "Perilaku tidak menyenangkan", "Tidak tepat waktu", "Membatalkan order mendadak", "Kendaraan tidak sesuai"],
+        2: ["Driver kurang ramah", "Komunikasi sulit", "Sedikit terlambat", "Perjalanan tidak mulus"],
+        3: ["Driver biasa saja", "Performa cukup", "Tepat waktu sedang"],
+        4: ["Driver ramah", "Komunikasi baik", "Tepat waktu", "Kendaraan bersih"],
+        5: ["Driver sangat ramah", "Komunikasi lancar", "Tepat waktu sekali", "Perjalanan nyaman", "Sangat profesional"]
+    };
+
+    newContainer.addEventListener('click', (e) => {
+        if (e.target.classList.contains('rating-star')) {
+            const rating = parseInt(e.target.dataset.rating);
+            selectedRating = rating;
+            stars.forEach((s, idx) => {
+                s.textContent = idx < rating ? '★' : '☆';
+                s.classList.toggle('active', idx < rating);
+            });
+            generatePresetButtons(rating, ratingPresets);
+        }
+    });
+  }
+
+  function generatePresetButtons(rating, ratingPresets) {
+    const container = document.getElementById('ratingPresetsContainer');
+    if (!container) return;
+    container.innerHTML = '';
+    const presets = ratingPresets[rating];
+    if (!presets) return;
+    
+    presets.forEach(text => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'preset-btn';
+        btn.textContent = text;
+        btn.addEventListener('click', () => {
+            const textarea = document.getElementById('ratingComment');
+            if (textarea.value.trim() === '') {
+                textarea.value = text;
+            } else {
+                textarea.value += ', ' + text;
+            }
+        });
+        container.appendChild(btn);
+    });
+  }
+
+  function closeRatingModal() { document.getElementById('ratingModal').style.display = 'none'; }
+
+  async function submitRating() {
+    if (selectedRating === 0) {
+      alert('Pilih rating terlebih dahulu');
+      return;
+    }
+    const comment = document.getElementById('ratingComment').value.trim();
+    const btn = document.querySelector('#ratingModal .modal-submit');
+    btn.disabled = true;
+    btn.textContent = 'Mengirim...';
+    try {
+      const user = auth.currentUser;
+      if (!user) throw new Error('User tidak login');
+      const driverId = driverIdForRating;
+      if (!driverId) throw new Error('Driver ID tidak ditemukan');
+      const ratingData = {
+        rating: selectedRating,
+        customer_id: user.uid,
+        customer_name: orderData?.customer_name || 'Customer',
+        order_id: orderId,
+        driver_id: driverId,
+        comment: comment,
+        created_at: new Date().toISOString(),
+        timestamp: Date.now()
+      };
+      await database.ref(`ratings/${orderId}/driver_rating`).set(ratingData);
+      isRatingSubmitted = true;
+      closeRatingModal();
+      alert(`Rating ${selectedRating} bintang berhasil diberikan. Terima kasih!`);
+    } catch (err) {
+      console.error(err);
+      alert('Gagal mengirim rating: ' + err.message);
+      btn.disabled = false;
+      btn.textContent = 'Kirim Rating';
+    }
+  }
+
+  // ========== LOAD ORDER DATA ==========
   async function loadOrderData() {
-    orderId = localStorage.getItem('current_order_id');
+    orderId = getOrderId();
     if (!orderId) { showErrorUI('Tidak ada ID pesanan. Silakan mulai dari awal.'); return; }
     try {
       const orderSnap = await database.ref(`orders/${orderId}`).once('value');
@@ -631,6 +850,7 @@
           if (order.driver_offers[did].status === 'accepted') { driverId = did; break; }
         }
       }
+      driverIdForRating = driverId; // simpan untuk rating
       let driverInfo = null;
       if (driverId) driverInfo = extractDriverFromOrder(order, driverId);
       document.getElementById('loadingScreen').style.display = 'none';
@@ -653,6 +873,10 @@
       startRealtimeUpdates(orderId);
       initChat(orderId);
       if (order.status === 'arrived') showArrivedAlert();
+      // Jika order sudah completed dan belum dirating, tampilkan modal
+      if (order.status === 'completed' && !isRatingSubmitted) {
+        setTimeout(() => showRatingModal(), 1500);
+      }
     } catch (err) {
       console.error(err);
       showErrorUI(`Gagal memuat data: ${err.message}`);
@@ -676,7 +900,6 @@
     badge.innerText = info.text;
     msgDiv.innerText = info.msg;
 
-    // Tampilkan pesan pembatalan spesifik
     if (status === 'cancelled') {
       const cancelMessage = getCancelledMessage(cancelledBy);
       cancelledDiv.innerText = cancelMessage;
@@ -736,6 +959,7 @@
             if (newOrder.driver_offers[did].status === 'accepted') { driverId = did; break; }
           }
         }
+        driverIdForRating = driverId;
         if (driverId && newOrder.driver_offers && newOrder.driver_offers[driverId]) {
           const d = newOrder.driver_offers[driverId];
           document.getElementById('driverName').innerText = d.driver_name || 'Driver';
@@ -747,6 +971,10 @@
         if (newOrder.price) {
           document.getElementById('priceDisplay').innerHTML = `${formatRupiah(newOrder.price)} <small>total</small>`;
           document.getElementById('price').innerHTML = formatRupiah(newOrder.price);
+        }
+        // Jika order baru saja menjadi completed dan rating belum diberikan, tampilkan modal
+        if (newOrder.status === 'completed' && !isRatingSubmitted) {
+          setTimeout(() => showRatingModal(), 1000);
         }
       }
     });
@@ -809,9 +1037,7 @@
         cancelled_by: 'customer', 
         cancelled_at: new Date().toISOString() 
       });
-      // Update UI status menjadi "Dibatalkan"
       updateStatusUI('cancelled', 'customer');
-      // Tampilkan pesan peringatan di halaman
       showCancelledWarning();
     } catch (err) {
       console.error('Gagal batalkan order:', err);
@@ -822,7 +1048,7 @@
   function openChat() { document.getElementById('chatOverlay').classList.add('open'); }
   function closeChat() { document.getElementById('chatOverlay').classList.remove('open'); }
 
-  // Prevent back button from exiting app (SPA style)
+  // Prevent back button from exiting app
   window.addEventListener('popstate', function(event) {
     if (document.getElementById('chatOverlay').classList.contains('open')) {
       closeChat();
