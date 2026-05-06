@@ -1,207 +1,424 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Status Notifikasi Driver</title>
-
-<script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-database-compat.js"></script>
-
-<style>
-body{
-    font-family:Arial;
-    background:#f5f5f5;
-    padding:20px;
-}
-.card{
-    background:white;
-    padding:20px;
-    border-radius:15px;
-    max-width:500px;
-    margin:auto;
-}
-button{
-    width:100%;
-    padding:12px;
-    margin-top:10px;
-    border:none;
-    border-radius:10px;
-    background:#2196F3;
-    color:white;
-    font-weight:bold;
-}
-#logBox{
-    background:black;
-    color:lime;
-    padding:10px;
-    margin-top:20px;
-    height:200px;
-    overflow:auto;
-    font-size:12px;
-}
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Status Notifikasi - JeGo Driver</title>
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-database-compat.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; padding: 20px; }
+        .container { max-width: 550px; margin: 0 auto; }
+        .card { background: white; border-radius: 20px; padding: 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); margin-bottom: 20px; }
+        .header { text-align: center; margin-bottom: 20px; }
+        .status-icon { font-size: 64px; margin-bottom: 10px; }
+        .status-badge { display: inline-block; padding: 8px 16px; border-radius: 30px; font-weight: bold; font-size: 14px; margin: 10px 0; }
+        .status-success { background: #d4edda; color: #155724; }
+        .status-error { background: #f8d7da; color: #721c24; }
+        .status-info { background: #cfe2ff; color: #004085; }
+        .btn { background: #FF9800; color: white; border: none; padding: 12px 24px; border-radius: 40px; font-weight: bold; cursor: pointer; width: 100%; font-size: 16px; margin-top: 15px; }
+        .btn-secondary { background: #6c757d; }
+        .btn:hover { opacity: 0.9; }
+        .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+        .info-row { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #eee; }
+        .info-label { font-weight: 600; color: #555; }
+        .info-value { text-align: right; word-break: break-all; max-width: 60%; }
+        .log-box { background: #1e1e2f; color: #ddd; padding: 12px; border-radius: 12px; font-family: monospace; font-size: 11px; max-height: 150px; overflow-y: auto; margin-top: 15px; }
+        .log-entry { border-bottom: 1px solid #444; padding: 4px 0; }
+        .debug-box { background: #2d2d44; color: #eee; padding: 12px; border-radius: 12px; font-family: monospace; font-size: 11px; margin-top: 15px; }
+        .debug-item { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #444; }
+        .debug-label { font-weight: bold; color: #FF9800; }
+        .warning-box { background: #fff3cd; color: #856404; padding: 12px; border-radius: 12px; margin-bottom: 15px; font-size: 13px; }
+        .small-text { font-size: 12px; color: #888; text-align: center; margin-top: 15px; }
+        .settings-btn { background: #17a2b8; margin-top: 8px; }
+    </style>
 </head>
 <body>
+<div class="container">
+    <div class="card">
+        <div class="header">
+            <div class="status-icon" id="statusEmoji">🔍</div>
+            <h2>Status Notifikasi</h2>
+            <div id="statusBadge" class="status-badge status-info">Memeriksa...</div>
+        </div>
+        <div class="info-row"><span class="info-label">📱 Subscription ID</span><span class="info-value" id="subsIdValue">-</span></div>
+        <div class="info-row"><span class="info-label">🆔 OneSignal User ID</span><span class="info-value" id="userIdValue">-</span></div>
+        <div class="info-row"><span class="info-label">📌 Status Langganan</span><span class="info-value" id="subscriptionStatus">-</span></div>
+        <div class="info-row"><span class="info-label">💾 Tersimpan di Firebase</span><span class="info-value" id="firebaseStatus">-</span></div>
+        <div class="info-row"><span class="info-label">👤 Nama Driver</span><span class="info-value" id="driverName">-</span></div>
 
-<div class="card">
-    <h2>Status Notifikasi Driver</h2>
+        <button id="activateBtn" class="btn">🔔 Aktifkan Notifikasi</button>
+        <button id="refreshBtn" class="btn btn-secondary">🔄 Refresh Status</button>
+        <button id="resetBtn" class="btn btn-secondary" style="margin-top: 8px;">🗑️ Reset & Hapus Subscription ID</button>
+    </div>
 
-    <p><b>Nama Driver:</b> <span id="driverName">-</span></p>
-    <p><b>Player ID:</b> <span id="playerId">-</span></p>
-    <p><b>Status:</b> <span id="statusText">Checking...</span></p>
+    <div id="medianWarning" class="warning-box" style="display:none;">
+        ⚠️ OneSignal SDK tidak terdeteksi. Halaman harus dijalankan di aplikasi Median.co.
+    </div>
 
-    <button id="activateBtn">Aktifkan Notifikasi</button>
-    <button id="refreshBtn">Refresh Status</button>
-
-    <div id="logBox"></div>
+    <div class="log-box" id="logBox"><div class="log-entry">▶️ Siap.</div></div>
+    <div class="debug-box" id="debugBox">
+        <div style="font-weight:bold; margin-bottom:8px;">🔧 Debug Info (OneSignal SDK v5)</div>
+        <div class="debug-item"><span class="debug-label">SDK Tersedia:</span><span id="debugSdk">-</span></div>
+        <div class="debug-item"><span class="debug-label">User ID:</span><span id="debugUserId">-</span></div>
+        <div class="debug-item"><span class="debug-label">Subscription ID:</span><span id="debugSubsId">-</span></div>
+        <div class="debug-item"><span class="debug-label">isSubscribed:</span><span id="debugSubscribed">-</span></div>
+        <div class="debug-item"><span class="debug-label">External ID:</span><span id="debugExternalId">-</span></div>
+    </div>
+    <div class="small-text">
+        Pastikan status <strong>SUBSCRIBED</strong> untuk menerima order.
+    </div>
 </div>
 
 <script>
-const firebaseConfig = {
-    apiKey: "AIzaSyCD0pgeZio-LdKqYDtWxcdXcZwyL4ngYQI",
-    authDomain: "jego-35a2b.firebaseapp.com",
-    databaseURL: "https://jego-35a2b-default-rtdb.asia-southeast1.firebasedatabase.app",
-    projectId: "jego-35a2b"
-};
+    // Firebase Config
+    const firebaseConfig = {
+        apiKey: "AIzaSyCD0pgeZio-LdKqYDtWxcdXcZwyL4ngYQI",
+        authDomain: "jego-35a2b.firebaseapp.com",
+        databaseURL: "https://jego-35a2b-default-rtdb.asia-southeast1.firebasedatabase.app",
+        projectId: "jego-35a2b",
+        storageBucket: "jego-35a2b.firebasestorage.app",
+        messagingSenderId: "600037007040",
+        appId: "1:600037007040:web:ac3243ad9b472647ffd725"
+    };
+    if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+    const database = firebase.database();
+    const auth = firebase.auth();
 
-firebase.initializeApp(firebaseConfig);
+    let currentUid = null;
+    let isActivating = false;
 
-const auth = firebase.auth();
-const db = firebase.database();
-
-let uid = null;
-
-function log(msg){
-    const box = document.getElementById("logBox");
-    box.innerHTML += `<div>${new Date().toLocaleTimeString()} - ${msg}</div>`;
-    box.scrollTop = box.scrollHeight;
-}
-
-async function savePlayerId(playerId){
-    if(!uid) return;
-
-    await db.ref("drivers/"+uid).update({
-        playerId: playerId
-    });
-
-    await db.ref("driver_locations/"+uid).update({
-        playerId: playerId
-    });
-
-    document.getElementById("playerId").innerText = playerId;
-
-    log("Player ID tersimpan ke Firebase");
-}
-
-async function checkStatus(){
-    try{
-        if(typeof median === "undefined" || !median.onesignal){
-            document.getElementById("statusText").innerText = "SDK tidak tersedia";
-            log("Median SDK tidak tersedia");
-            return;
-        }
-
-        const info = await median.onesignal.onesignalInfo();
-        console.log(info);
-
-        const playerId =
-            info?.subscription?.id ||
-            info?.userId ||
-            null;
-
-        const subscribed =
-            info?.isSubscribed ||
-            info?.subscription?.enabled;
-
-        if(playerId){
-            await savePlayerId(playerId);
-        }
-
-        document.getElementById("statusText").innerText = subscribed
-            ? "✅ SUBSCRIBED"
-            : "❌ NOT SUBSCRIBED";
-
-        log(subscribed ? "Notifikasi aktif" : "Notifikasi belum aktif");
-
-    }catch(e){
-        log("Error: " + e.message);
+    function addLog(msg, type = "info") {
+        const logBox = document.getElementById('logBox');
+        const entry = document.createElement('div');
+        entry.className = 'log-entry';
+        const time = new Date().toLocaleTimeString();
+        let color = "#66aaff";
+        if (type === "success") color = "#66ff66";
+        if (type === "error") color = "#ff6666";
+        if (type === "warning") color = "#ffaa66";
+        entry.style.color = color;
+        entry.textContent = `[${time}] ${msg}`;
+        logBox.appendChild(entry);
+        entry.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        while (logBox.children.length > 50) logBox.removeChild(logBox.firstChild);
     }
-}
 
-async function activateNotif(){
-    try{
-        log("Memulai aktivasi...");
-
-        if(typeof Notification !== "undefined"){
-            if(Notification.permission !== "granted"){
-                const permission = await Notification.requestPermission();
-                log("Permission: " + permission);
-            }
+    // OneSignal SDK v5 - Get user and subscription data
+    // Median.co menyediakan median.onesignal yang merupakan wrapper dari OneSignal SDK v5
+    async function getOnesignalV5Data() {
+        if (typeof median === 'undefined' || !median.onesignal) {
+            document.getElementById('medianWarning').style.display = 'block';
+            return { hasSdk: false };
         }
-
-        async function activateNotif(){
-    try{
-        log("Memulai aktivasi...");
-
-        if(typeof Notification !== "undefined"){
-            if(Notification.permission !== "granted"){
-                const permission = await Notification.requestPermission();
-                log("Permission: " + permission);
-
-                if(permission !== "granted"){
-                    log("Permission ditolak");
-                    return;
+        document.getElementById('medianWarning').style.display = 'none';
+        
+        try {
+            // OneSignal SDK v5 user-centric model
+            // User ID adalah ID utama, Subscription adalah perangkat individual
+            let userId = null;
+            let subscriptionId = null;
+            let isSubscribed = false;
+            let externalId = null;
+            
+            // Coba ambil data dari onesignalInfo() - ini biasanya mengembalikan data subscription saat ini
+            let info = null;
+            try {
+                info = await median.onesignal.onesignalInfo();
+                console.log("onesignalInfo:", JSON.stringify(info));
+            } catch(e) {
+                console.warn("onesignalInfo error:", e);
+            }
+            
+            if (info) {
+                // Versi Median mungkin mengembalikan struktur berbeda
+                // Subscription ID biasanya di info.subscription.id atau info.userId
+                if (info.subscription && info.subscription.id) {
+                    subscriptionId = info.subscription.id;
+                } else if (info.userId) {
+                    subscriptionId = info.userId;
+                } else if (info.onesignalId) {
+                    subscriptionId = info.onesignalId;
                 }
+                isSubscribed = info.isSubscribed === true || info.subscription?.enabled === true;
+                userId = info.userId || info.user_id || null;
+                externalId = info.externalId || info.external_id || null;
             }
+            
+            // Tambahan: coba getExternalUserId jika tersedia
+            if (median.onesignal.getExternalUserId) {
+                try {
+                    const extId = await median.onesignal.getExternalUserId();
+                    if (extId) externalId = extId;
+                } catch(e) {}
+            }
+            
+            // Untuk mendapatkan User ID utama (OneSignal user), coba melalui getTags atau method lain
+            // Median mungkin menyediakan getHashedIds atau getDeviceState
+            if (median.onesignal.getDeviceState) {
+                try {
+                    const deviceState = await median.onesignal.getDeviceState();
+                    if (deviceState) {
+                        if (deviceState.userId) userId = deviceState.userId;
+                        if (deviceState.subscriptionId) subscriptionId = deviceState.subscriptionId;
+                        if (deviceState.isSubscribed !== undefined) isSubscribed = deviceState.isSubscribed;
+                    }
+                } catch(e) {}
+            }
+            
+            // Fallback: bisa juga cek OneSignal.User
+            if (window.OneSignal) {
+                try {
+                    if (OneSignal.User && OneSignal.User.getConsent) {
+                        const consent = await OneSignal.User.getConsent();
+                        console.log("OneSignal.User consent:", consent);
+                    }
+                    if (OneSignal.User && OneSignal.User.getOnesignalId) {
+                        const onesignalId = await OneSignal.User.getOnesignalId();
+                        if (onesignalId) userId = onesignalId;
+                    }
+                    if (OneSignal.Notifications && OneSignal.Notifications.getPermission) {
+                        const perm = await OneSignal.Notifications.getPermission();
+                        isSubscribed = (perm === 'granted');
+                    }
+                } catch(e) {}
+            }
+            
+            // Update UI debug
+            document.getElementById('debugSdk').innerHTML = '✅ Tersedia';
+            document.getElementById('debugUserId').innerHTML = userId ? userId.substring(0, 20)+'...' : '-';
+            document.getElementById('debugSubsId').innerHTML = subscriptionId ? subscriptionId.substring(0, 20)+'...' : '-';
+            document.getElementById('debugSubscribed').innerHTML = isSubscribed ? '✅ SUBSCRIBED' : '❌ NOT SUBSCRIBED';
+            document.getElementById('debugExternalId').innerHTML = externalId || '-';
+            
+            return {
+                hasSdk: true,
+                userId: userId,
+                subscriptionId: subscriptionId,
+                isSubscribed: isSubscribed,
+                externalId: externalId,
+                rawInfo: info
+            };
+        } catch (err) {
+            addLog(`❌ Error membaca data OneSignal: ${err.message}`, "error");
+            console.error(err);
+            return { hasSdk: true, error: err.message };
         }
+    }
 
-        // cek apakah register tersedia
-        if(median.onesignal.register){
-            await median.onesignal.register();
-            log("Register OneSignal berhasil");
+    async function saveSubscriptionToFirebase(subscriptionId, userId) {
+        if (!currentUid) return;
+        if (!subscriptionId && !userId) return;
+        
+        const updates = {};
+        if (subscriptionId) updates.subscriptionId = subscriptionId;
+        if (userId) updates.oneSignalUserId = userId;
+        updates.last_onesignal_update = new Date().toISOString();
+        
+        await database.ref(`drivers/${currentUid}`).update(updates);
+        await database.ref(`driver_locations/${currentUid}`).update({ 
+            subscriptionId: subscriptionId || null,
+            oneSignalUserId: userId || null,
+            last_update: new Date().toISOString()
+        });
+        
+        if (subscriptionId) {
+            addLog(`✅ Subscription ID tersimpan: ${subscriptionId.substring(0,25)}...`, "success");
+        }
+        if (userId) {
+            addLog(`✅ OneSignal User ID tersimpan: ${userId.substring(0,25)}...`, "success");
+        }
+    }
+
+    async function clearSubscriptionFromFirebase() {
+        if (!currentUid) return;
+        await database.ref(`drivers/${currentUid}`).update({ 
+            subscriptionId: null, 
+            oneSignalUserId: null,
+            playerId: null,
+            last_onesignal_update: new Date().toISOString()
+        });
+        await database.ref(`driver_locations/${currentUid}`).update({ 
+            subscriptionId: null,
+            oneSignalUserId: null,
+            playerId: null,
+            last_update: new Date().toISOString()
+        });
+        addLog(`🗑️ Subscription ID dihapus dari Firebase`, "warning");
+    }
+
+    async function updateUI() {
+        if (!currentUid) return;
+        try {
+            const driverSnap = await database.ref(`drivers/${currentUid}`).once('value');
+            const driverData = driverSnap.val();
+            document.getElementById('driverName').innerText = driverData?.name || '-';
+            
+            const savedSubscriptionId = driverData?.subscriptionId || driverData?.playerId || null;
+            const savedUserId = driverData?.oneSignalUserId || null;
+            
+            if (savedSubscriptionId) {
+                document.getElementById('subsIdValue').innerHTML = savedSubscriptionId.substring(0, 25)+'...';
+                document.getElementById('firebaseStatus').innerHTML = '✅ Tersimpan';
+            } else {
+                document.getElementById('subsIdValue').innerHTML = '❌ Tidak ada';
+                document.getElementById('firebaseStatus').innerHTML = '⚠️ Belum tersimpan';
+            }
+            
+            if (savedUserId) {
+                document.getElementById('userIdValue').innerHTML = savedUserId.substring(0, 25)+'...';
+            } else {
+                document.getElementById('userIdValue').innerHTML = '❌ Tidak ada';
+            }
+        } catch (err) { addLog(`❌ Firebase error: ${err.message}`, "error"); }
+    }
+
+    async function refreshStatus() {
+        addLog("🔄 Menyegarkan status...", "info");
+        await updateUI();
+        
+        const data = await getOnesignalV5Data();
+        if (!data.hasSdk) return;
+        
+        const isSubscribed = data.isSubscribed === true;
+        const subscriptionId = data.subscriptionId;
+        const userId = data.userId;
+        
+        // Update tampilan UI
+        if (isSubscribed) {
+            document.getElementById('statusEmoji').innerHTML = "🔔✅";
+            document.getElementById('statusBadge').innerHTML = "Notifikasi Aktif";
+            document.getElementById('statusBadge').className = "status-badge status-success";
+            document.getElementById('subscriptionStatus').innerHTML = "✅ SUBSCRIBED (Aktif)";
+            document.getElementById('activateBtn').innerHTML = "✅ Notifikasi Aktif";
+            document.getElementById('activateBtn').disabled = true;
         } else {
-            log("Method register tidak tersedia");
+            document.getElementById('statusEmoji').innerHTML = "🔕❌";
+            document.getElementById('statusBadge').innerHTML = "Notifikasi Tidak Aktif";
+            document.getElementById('statusBadge').className = "status-badge status-error";
+            document.getElementById('subscriptionStatus').innerHTML = "❌ NOT SUBSCRIBED";
+            document.getElementById('activateBtn').innerHTML = "🔔 Aktifkan Notifikasi";
+            document.getElementById('activateBtn').disabled = false;
         }
-
-        // fallback prompt jika tersedia
-        if(median.onesignal.promptForPushNotificationsWithUserResponse){
-            await median.onesignal.promptForPushNotificationsWithUserResponse();
-            log("Prompt notifikasi dijalankan");
+        
+        // Simpan ke Firebase jika ada subscriptionId atau userId
+        if (subscriptionId || userId) {
+            await saveSubscriptionToFirebase(subscriptionId, userId);
+            await updateUI(); // refresh UI setelah simpan
         }
-
-        setTimeout(async ()=>{
-            await checkStatus();
-        },5000);
-
-    }catch(e){
-        log("Aktivasi gagal: " + e.message);
+        
+        // Update debug dengan data terbaru
+        document.getElementById('debugSubscribed').innerHTML = isSubscribed ? '✅ SUBSCRIBED' : '❌ NOT SUBSCRIBED';
+        if (subscriptionId) document.getElementById('debugSubsId').innerHTML = subscriptionId.substring(0,25)+'...';
+        if (userId) document.getElementById('debugUserId').innerHTML = userId.substring(0,25)+'...';
     }
-}
 
-auth.onAuthStateChanged(async(user)=>{
-    if(user){
-        uid = user.uid;
-        log("Driver login: " + uid);
-
-        const snap = await db.ref("drivers/"+uid).once("value");
-        const data = snap.val();
-
-        if(data?.name){
-            document.getElementById("driverName").innerText = data.name;
+    async function setExternalUserId() {
+        if (!currentUid) return;
+        try {
+            if (median && median.onesignal && median.onesignal.setExternalUserId) {
+                await median.onesignal.setExternalUserId(currentUid);
+                addLog(`🔗 External ID diset: ${currentUid}`, "success");
+            } else if (window.OneSignal && OneSignal.User && OneSignal.User.addAlias) {
+                // Alternatif untuk OneSignal SDK v5
+                await OneSignal.User.addAlias("externalId", currentUid);
+                addLog(`🔗 External ID diset via alias: ${currentUid}`, "success");
+            }
+        } catch (err) {
+            addLog(`⚠️ Gagal set external ID: ${err.message}`, "warning");
         }
-
-        checkStatus();
-
-    }else{
-        log("Driver belum login");
     }
-});
 
-document.getElementById("activateBtn").onclick = activateNotif;
-document.getElementById("refreshBtn").onclick = checkStatus;
+    async function activateNotifications() {
+        if (isActivating) { addLog("⏳ Proses aktivasi sedang berjalan...", "warning"); return; }
+        if (!currentUid) { addLog("❌ Driver belum login", "error"); return; }
+        isActivating = true;
+        document.getElementById('activateBtn').disabled = true;
+        document.getElementById('activateBtn').innerHTML = "⏳ Memproses...";
+        addLog("🚀 Memulai aktivasi notifikasi...", "info");
+
+        try {
+            if (typeof median === 'undefined' || !median.onesignal) {
+                throw new Error("OneSignal SDK tidak tersedia. Pastikan aplikasi berjalan di Median.co.");
+            }
+
+            // Set consent (GDPR)
+            if (median.onesignal.setConsentGiven) {
+                await median.onesignal.setConsentGiven(true);
+                addLog("✅ GDPR consent diberikan.", "success");
+            }
+            
+            // Register perangkat
+            await median.onesignal.register();
+            addLog("✅ OneSignal register berhasil.", "success");
+            
+            // Set external ID (UID driver)
+            await setExternalUserId();
+            
+            // Minta izin notifikasi
+            let data = await getOnesignalV5Data();
+            let isSubscribed = data.isSubscribed;
+            
+            if (!isSubscribed && median.onesignal.promptForPushNotificationsWithUserResponse) {
+                addLog("🔔 Meminta izin notifikasi...", "info");
+                const result = await median.onesignal.promptForPushNotificationsWithUserResponse();
+                addLog(`📌 Hasil prompt: ${result}`, result ? "success" : "error");
+                await new Promise(r => setTimeout(r, 3000));
+                data = await getOnesignalV5Data();
+                isSubscribed = data.isSubscribed;
+            }
+            
+            if (isSubscribed) {
+                if (data.subscriptionId) {
+                    await saveSubscriptionToFirebase(data.subscriptionId, data.userId);
+                    addLog("🎉 Notifikasi berhasil diaktifkan!", "success");
+                } else {
+                    addLog("⚠️ Subscription ID tidak ditemukan meskipun status subscribed.", "warning");
+                }
+            } else {
+                addLog("⚠️ Izin belum diberikan atau OneSignal belum subscribed.", "warning");
+                addLog("💡 Jika popup tidak muncul, coba buka aplikasi di Google Chrome.", "info");
+            }
+            
+            await refreshStatus();
+        } catch (err) {
+            addLog(`❌ Aktivasi gagal: ${err.message}`, "error");
+            alert("Gagal mengaktifkan notifikasi: " + err.message);
+        } finally {
+            isActivating = false;
+            document.getElementById('activateBtn').disabled = false;
+            document.getElementById('activateBtn').innerHTML = "🔔 Aktifkan Notifikasi";
+        }
+    }
+
+    async function resetAndClear() {
+        if (!confirm("Hapus Subscription ID dari Firebase? Anda harus mengaktifkan ulang notifikasi.\nLanjutkan?")) return;
+        addLog("🗑️ Menghapus Subscription ID dari Firebase...", "warning");
+        await clearSubscriptionFromFirebase();
+        await refreshStatus();
+        addLog("✅ Data direset. Silakan klik 'Aktifkan Notifikasi'", "success");
+    }
+
+    // Auth state listener
+    auth.onAuthStateChanged(async (user) => {
+        if (user) {
+            currentUid = user.uid;
+            addLog(`🔐 Driver: ${user.uid.substring(0,8)}...`, "success");
+            await updateUI();
+            await refreshStatus();
+        } else {
+            addLog("❌ Driver belum login.", "error");
+            document.getElementById('driverName').innerText = '(Tidak login)';
+        }
+    });
+
+    // Event listeners
+    document.getElementById('activateBtn').addEventListener('click', activateNotifications);
+    document.getElementById('refreshBtn').addEventListener('click', refreshStatus);
+    document.getElementById('resetBtn').addEventListener('click', resetAndClear);
 </script>
-
 </body>
 </html>
