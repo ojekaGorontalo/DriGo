@@ -610,14 +610,39 @@
   }
 
   async function initMap() {
-    mapboxgl.accessToken = mapboxAccessToken;
     map = new mapboxgl.Map({
-      container: 'map',
-      style: 'mapbox://styles/mapbox/streets-v12',
-      center: [123.0580, 0.5435],
-      zoom: 12
-    });
+  container: 'map',
+  style: 'mapbox://styles/mapbox/navigation-day-v1',
+  center: [123.0580, 0.5435],
+  zoom: 12
+});
     map.addControl(new mapboxgl.NavigationControl(), 'top-right');
+    // Fungsi untuk mengubah warna jalan menjadi #FF9800 (oranye seperti di map.html)
+function applyRoadColor() {
+    const layers = map.getStyle().layers;
+    layers.forEach(layer => {
+        if (layer.type === 'line' && layer.id.includes('road')) {
+            try {
+                map.setPaintProperty(layer.id, 'line-color', '#FF9800');
+            } catch(e) {}
+        }
+    });
+}
+
+map.on('load', () => {
+    applyRoadColor();
+    // Setiap kali style selesai dimuat ulang (misal ganti mode malam/siang), ulangi pewarnaan
+    map.on('styledata', () => {
+        applyRoadColor();
+    });
+});
+let nightMode = false;
+document.getElementById('mapModeBtn').addEventListener('click', () => {
+    nightMode = !nightMode;
+    const newStyle = nightMode ? 'mapbox://styles/mapbox/navigation-night-v1' : 'mapbox://styles/mapbox/navigation-day-v1';
+    map.setStyle(newStyle);
+    document.getElementById('mapModeBtn').innerText = nightMode ? '☀️ Mode Siang' : '🌙 Mode Malam';
+});
 
     const fromContainer = document.getElementById('from-container');
     const toContainer = document.getElementById('to-container');
@@ -993,10 +1018,14 @@ isSearching = true;
   window.onload = async () => {
     const tokenOk = await fetchMapboxToken();
     if (!tokenOk) return;
+    mapboxgl.accessToken = mapboxAccessToken;
     const loggedIn = await checkUserSession().catch(() => false);
     if (!loggedIn) return;
     const orderActive = await cekOrderAktifDanRedirect();
     await initMap();
+    console.log('Token OK:', tokenOk);
+console.log('Logged in:', loggedIn);
+console.log('Order active:', orderActive);
     if (orderActive) {
       const loaded = await loadWaitingOrderData();
       if (!loaded) {
@@ -1023,12 +1052,6 @@ isSearching = true;
     document.getElementById('confirmBtn').addEventListener('click', confirmRoute);
     document.getElementById('closeDriverOffers').addEventListener('click', () => document.getElementById('driverOffers').style.display = 'none');
     document.getElementById('cancelBtn').addEventListener('click', cancelSearchHandler);
-    let nightMode = false;
-    document.getElementById('mapModeBtn').addEventListener('click', () => {
-      nightMode = !nightMode;
-      map.setStyle(nightMode ? 'mapbox://styles/mapbox/dark-v11' : 'mapbox://styles/mapbox/streets-v12');
-      document.getElementById('mapModeBtn').innerText = nightMode ? '☀️ Mode Siang' : '🌙 Mode Malam';
-    });
   };
 </script>
 </body>
