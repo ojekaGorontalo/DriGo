@@ -27,7 +27,6 @@
             margin: 0 auto;
         }
 
-        /* Card utama */
         .card {
             background: white;
             border-radius: 36px;
@@ -37,7 +36,6 @@
             transition: all 0.2s;
         }
 
-        /* Ikon status besar */
         .status-icon {
             font-size: 80px;
             margin-bottom: 16px;
@@ -57,7 +55,6 @@
             margin-bottom: 24px;
         }
 
-        /* Badge status */
         .status-badge {
             display: inline-block;
             padding: 10px 24px;
@@ -85,7 +82,6 @@
             border: 1px solid #fbc5c5;
         }
 
-        /* Informasi driver */
         .driver-info {
             background: #f0f4f8;
             border-radius: 28px;
@@ -112,7 +108,6 @@
             color: #f97316;
         }
 
-        /* Pesan rekomendasi */
         .tips-box {
             background: #fef7e0;
             border-radius: 24px;
@@ -150,6 +145,34 @@
             transition: 0.2s;
             text-align: center;
             margin-top: 12px;
+            /* Tambahan untuk ripple effect */
+            position: relative;
+            overflow: hidden;
+            transform: translate3d(0,0,0);
+        }
+
+        /* Ripple effect */
+        .btn:after {
+            content: "";
+            display: block;
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+            pointer-events: none;
+            background-image: radial-gradient(circle, #fff 10%, transparent 10.01%);
+            background-repeat: no-repeat;
+            background-position: 50%;
+            transform: scale(10,10);
+            opacity: 0;
+            transition: transform 0.3s, opacity 0.5s;
+        }
+
+        .btn:active:after {
+            transform: scale(0,0);
+            opacity: 0.3;
+            transition: 0s;
         }
 
         .btn-primary {
@@ -191,7 +214,6 @@
             margin-top: 24px;
         }
 
-        /* Alert ringan */
         .toast-message {
             position: fixed;
             bottom: 20px;
@@ -207,7 +229,6 @@
             box-shadow: 0 4px 12px rgba(0,0,0,0.1);
         }
 
-        /* Sembunyikan elemen debug */
         .hidden-debug {
             display: none;
         }
@@ -234,19 +255,18 @@
         </div>
 
         <div class="tips-box">
-    <div class="tips-title">
-        <span>📍</span> Tips agar tidak melewatkan order dekat anda
-    </div>
-    <div class="tips-text">
-        ✅ Pastikan layar status ini menunjukkan <strong>"Notifikasi Aktif"</strong>.<br>
-        ✅ Aktifkan <strong>Tracking & Autobid</strong> di aplikasi Jego (pengaturan driver).<br>
-        ✅ Dengan Autobid aktif, Anda tetap bisa menerima order meskipun aplikasi ditutup.<br>
-        ✅ Izinkan notifikasi dari pengaturan HP jika belum.<br>
-        ✅ Semakin dekat lokasi anda dengan customer, semakin besar peluang dapat order.
-    </div>
-</div>
+            <div class="tips-title">
+                <span>📍</span> Tips agar tidak melewatkan order dekat anda
+            </div>
+            <div class="tips-text">
+                ✅ Pastikan layar status ini menunjukkan <strong>"Notifikasi Aktif"</strong>.<br>
+                ✅ Aktifkan <strong>Tracking & Autobid</strong> di aplikasi Jego (pengaturan driver).<br>
+                ✅ Dengan Autobid aktif, Anda tetap bisa menerima order meskipun aplikasi ditutup.<br>
+                ✅ Izinkan notifikasi dari pengaturan HP jika belum.<br>
+                ✅ Semakin dekat lokasi anda dengan customer, semakin besar peluang dapat order.
+            </div>
+        </div>
 
-        <!-- Tombol aksi (dinamis) -->
         <button id="actionBtn" class="btn btn-primary">🔔 Aktifkan Notifikasi</button>
         <button id="refreshBtn" class="btn btn-secondary">🔄 Refresh Status</button>
         <button id="resetBtn" class="btn btn-outline" style="margin-top: 8px;">🗑️ Reset & Daftar Ulang</button>
@@ -256,11 +276,10 @@
     </div>
 </div>
 
-<!-- Elemen tersembunyi untuk menyimpan data teknis (tidak tampil) -->
 <div id="hiddenData" style="display:none;"></div>
 
 <script>
-    // ========== Firebase Config (sama seperti sebelumnya) ==========
+    // ========== Firebase Config ==========
     const firebaseConfig = {
         apiKey: "AIzaSyCD0pgeZio-LdKqYDtWxcdXcZwyL4ngYQI",
         authDomain: "jego-35a2b.firebaseapp.com",
@@ -277,7 +296,7 @@
     let currentUid = null;
     let isProcessing = false;
 
-    // Helper: toast sederhana
+    // Helper: toast
     function showToast(message, isError = false) {
         let toast = document.querySelector('.toast-message');
         if (toast) toast.remove();
@@ -289,7 +308,6 @@
         setTimeout(() => toast.remove(), 3000);
     }
 
-    // --- Fungsi di belakang layar (mengambil & menyimpan Player ID UUID) ---
     async function getFirebasePlayerId() {
         if (!currentUid) return null;
         let snap = await database.ref(`driver_locations/${currentUid}`).once('value');
@@ -309,7 +327,6 @@
         }
         try {
             const info = await median.onesignal.onesignalInfo();
-            // Player ID yang benar adalah oneSignalUserId (UUID)
             const playerId = info?.oneSignalUserId || null;
             const isSubscribed = info?.oneSignalSubscribed === true;
             return { hasSdk: true, playerId, isSubscribed };
@@ -331,7 +348,6 @@
         await database.ref(`driver_locations/${currentUid}`).update({ playerId: null, subscriptionId: null });
     }
 
-    // --- Aktivasi notifikasi (request izin & register) ---
     async function activateNotifications() {
         if (isProcessing) return showToast("Proses sedang berjalan");
         if (!currentUid) return showToast("Driver belum login", true);
@@ -367,7 +383,6 @@
         }
     }
 
-    // Sinkron manual (jika diperlukan)
     async function syncPlayerId() {
         if (!currentUid) return;
         const sdk = await getSdkPlayerId();
@@ -387,7 +402,6 @@
         await refreshStatus();
     }
 
-    // --- Update UI secara profesional (tanpa teks teknis) ---
     async function refreshStatus() {
         if (!currentUid) {
             document.getElementById('driverName').innerText = "(Belum login)";
@@ -398,12 +412,10 @@
             return;
         }
 
-        // Nama driver
         const driverSnap = await database.ref(`drivers/${currentUid}`).once('value');
         const driverData = driverSnap.val();
         document.getElementById('driverName').innerText = driverData?.name || driverData?.fullName || "Driver";
 
-        // Cek kecocokan di belakang layar
         const firebaseId = await getFirebasePlayerId();
         const sdk = await getSdkPlayerId();
         const isMatch = (firebaseId && sdk.playerId && firebaseId === sdk.playerId);
@@ -424,7 +436,6 @@
             actionBtn.classList.remove("btn-primary");
             actionBtn.classList.add("btn-secondary");
         } else if (sdk.playerId && isSubscribed && !isMatch) {
-            // Perlu sinkron (backend ada ID, tapi beda)
             badgeElem.innerHTML = "🔄 Perlu Sinkronisasi";
             badgeElem.className = "status-badge badge-warning";
             statusIconElem.innerHTML = "🔄";
@@ -433,10 +444,8 @@
             actionBtn.disabled = false;
             actionBtn.classList.remove("btn-secondary");
             actionBtn.classList.add("btn-primary");
-            // Ubah event listener untuk tombol action sementara
             actionBtn.onclick = () => syncPlayerId();
         } else {
-            // Belum aktif / tidak ada izin
             badgeElem.innerHTML = "🔕 Notifikasi Tidak Aktif";
             badgeElem.className = "status-badge badge-inactive";
             statusIconElem.innerHTML = "🔕";
@@ -449,7 +458,6 @@
         }
     }
 
-    // --- Auth state handler ---
     auth.onAuthStateChanged(async (user) => {
         if (user) {
             currentUid = user.uid;
@@ -464,12 +472,21 @@
         }
     });
 
-    // Tombol refresh dan reset tetap
+    // Event listener untuk haptic effect (getaran saat klik tombol)
+    function addHapticToButtons() {
+        const buttons = document.querySelectorAll('.btn');
+        buttons.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                if (navigator.vibrate) navigator.vibrate(10);
+            });
+        });
+    }
+
     document.getElementById('refreshBtn').addEventListener('click', refreshStatus);
     document.getElementById('resetBtn').addEventListener('click', resetAndReRegister);
-    // Tombol action akan di-set ulang oleh refreshStatus (sesuai kondisi)
-    // Inisialisasi default
+    
     window.addEventListener('load', () => {
+        addHapticToButtons(); // tambahkan haptic ke semua tombol
         setTimeout(() => {
             if (currentUid) refreshStatus();
         }, 500);
