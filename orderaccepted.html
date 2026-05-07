@@ -32,6 +32,7 @@
       position: relative;
     }
 
+    /* Header dengan flex untuk menempatkan tombol di kanan */
     .app-header {
       background: linear-gradient(135deg, #FF9800, #F57C00);
       padding: 18px 20px;
@@ -39,6 +40,9 @@
       flex-shrink: 0;
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
       z-index: 10;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
     }
 
     .app-header h1 {
@@ -53,6 +57,24 @@
     .app-header h1::before {
       content: "🚗";
       font-size: 1.4rem;
+    }
+
+    /* Tombol batalkan di header */
+    .header-cancel-btn {
+      background: rgba(255, 255, 255, 0.2);
+      border: none;
+      color: white;
+      padding: 6px 14px;
+      border-radius: 40px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .header-cancel-btn:active {
+      transform: scale(0.95);
+      background: rgba(255, 255, 255, 0.4);
     }
 
     .map-area {
@@ -388,6 +410,7 @@
 <div class="app-container">
   <div class="app-header">
     <h1>JeGo Driver</h1>
+    <button id="headerCancelBtn" class="header-cancel-btn" style="display: none;">Batalkan</button>
   </div>
 
   <div id="loadingView" style="flex:1; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 16px;">
@@ -451,7 +474,7 @@
     <button class="action-btn btn-primary" id="chatMainBtn">💬 Chat Customer</button>
     <button class="action-btn btn-primary" id="startBtn">Ke Jemputan</button>
     <button class="action-btn btn-primary" id="completeBtn" style="display: none;">Selesaikan</button>
-    <button class="action-btn btn-danger" id="cancelBtn">Batalkan Perjalanan</button>
+    <button class="action-btn btn-danger" id="cancelBtn" style="display: none;">Batalkan Perjalanan</button>
   </div>
 </div>
 
@@ -517,11 +540,13 @@
     return true;
   }
 
-  // ========== UPDATE TOMBOL ==========
+  // ========== UPDATE TOMBOL (termasuk header cancel) ==========
   function updateActionButtons() {
     const startBtn = document.getElementById('startBtn');
     const completeBtn = document.getElementById('completeBtn');
     const cancelBtn = document.getElementById('cancelBtn');
+    const headerCancelBtn = document.getElementById('headerCancelBtn');
+    
     if(!startBtn) return;
     switch(currentStatus) {
       case 'accepted':
@@ -558,9 +583,20 @@
         completeBtn.style.display = 'none';
         cancelBtn.style.display = 'none';
     }
+    
+    // Kontrol tombol batalkan di header
+    if (headerCancelBtn) {
+      if (currentStatus === 'on_trip') {
+        headerCancelBtn.style.display = 'none';
+      } else if (['accepted', 'on_the_way', 'arrived'].includes(currentStatus)) {
+        headerCancelBtn.style.display = 'block';
+      } else {
+        headerCancelBtn.style.display = 'none';
+      }
+    }
   }
 
-  // ** PERBAIKAN: Gunakan fungsi terpisah dan pastikan tidak error **
+  // ** Fungsi untuk tombol aksi utama **
   function onStartAction(e) {
     console.log("Tombol start diklik, status:", currentStatus);
     if (!orderData) {
@@ -734,14 +770,14 @@
     listenOrder();
     initChat();
     
-    // ========== PERBAIKAN: Pasang event listener dengan addEventListener ==========
+    // ========== PASANG EVENT LISTENER ==========
     const startBtn = document.getElementById('startBtn');
     const completeBtn = document.getElementById('completeBtn');
     const cancelBtn = document.getElementById('cancelBtn');
     const chatMainBtn = document.getElementById('chatMainBtn');
     const chatSendBtn = document.getElementById('chatSendBtn');
+    const headerCancelBtn = document.getElementById('headerCancelBtn');
     
-    // Hapus listener lama jika ada (untuk keamanan)
     startBtn.removeEventListener('click', onStartAction);
     startBtn.addEventListener('click', onStartAction);
     
@@ -754,7 +790,6 @@
     chatMainBtn.removeEventListener('click', openChat);
     chatMainBtn.addEventListener('click', openChat);
     
-    chatSendBtn.removeEventListener('click', () => {});
     chatSendBtn.onclick = () => {
       let input = document.getElementById('chatInput');
       if(input.value.trim()){ 
@@ -762,6 +797,12 @@
         input.value=''; 
       }
     };
+    
+    // Listener untuk tombol header batalkan
+    if (headerCancelBtn) {
+      headerCancelBtn.removeEventListener('click', cancelTrip);
+      headerCancelBtn.addEventListener('click', cancelTrip);
+    }
   }
 
   function showErrorPage(msg){ document.getElementById('loadingView').style.display='none'; document.getElementById('errorView').style.display='flex'; document.getElementById('errorMessage').innerHTML=msg; }
