@@ -3,499 +3,261 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-    <title>Debug OneSignal Reader - JeGo Driver</title>
+    <title>Status Notifikasi - JeGo Driver</title>
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-database-compat.js"></script>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        body {
-            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-            background: #1a1a2e;
-            padding: 20px;
-            color: #eee;
-        }
-        .container {
-            max-width: 650px;
-            margin: 0 auto;
-        }
-        .card {
-            background: #16213e;
-            border-radius: 28px;
-            padding: 24px;
-            margin-bottom: 20px;
-            box-shadow: 0 8px 20px rgba(0,0,0,0.3);
-            border: 1px solid #2c3e66;
-        }
-        .card h2 {
-            font-size: 1.5rem;
-            margin-bottom: 16px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            border-left: 5px solid #f39c12;
-            padding-left: 15px;
-        }
-        .badge {
-            display: inline-block;
-            background: #0f3460;
-            padding: 4px 12px;
-            border-radius: 50px;
-            font-size: 0.75rem;
-            font-weight: normal;
-            margin-left: 10px;
-        }
-        .info-grid {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            margin: 15px 0;
-        }
-        .info-row {
-            background: #0a0f1c;
-            border-radius: 16px;
-            padding: 12px 16px;
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            flex-wrap: wrap;
-            gap: 8px;
-            border-left: 3px solid #f39c12;
-        }
-        .info-label {
-            font-weight: 600;
-            color: #b9c7db;
-            font-size: 0.85rem;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-        .info-value {
-            font-family: 'Monaco', 'Menlo', monospace;
-            font-size: 0.8rem;
-            word-break: break-all;
-            text-align: right;
-            max-width: 65%;
-            color: #f1c40f;
-        }
-        .code-block {
-            background: #0a0f1c;
-            border-radius: 16px;
-            padding: 15px;
-            font-family: monospace;
-            font-size: 11px;
-            overflow-x: auto;
-            white-space: pre-wrap;
-            word-break: break-word;
-            margin-top: 15px;
-            border: 1px solid #2c3e66;
-            color: #9cd9f0;
-        }
-        button {
-            background: #f39c12;
-            border: none;
-            color: #1e1e2f;
-            font-weight: bold;
-            padding: 12px 20px;
-            border-radius: 40px;
-            font-size: 0.9rem;
-            cursor: pointer;
-            margin-top: 12px;
-            margin-right: 10px;
-            transition: 0.2s;
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-        }
-        button:hover {
-            background: #e67e22;
-            transform: scale(0.98);
-        }
-        .btn-secondary {
-            background: #2c3e66;
-            color: white;
-        }
-        .btn-secondary:hover {
-            background: #1e2a47;
-        }
-        .btn-danger {
-            background: #c0392b;
-            color: white;
-        }
-        .status-badge {
-            display: inline-block;
-            padding: 4px 12px;
-            border-radius: 30px;
-            font-size: 0.7rem;
-            font-weight: bold;
-        }
-        .status-success {
-            background: #1e7e34;
-            color: white;
-        }
-        .status-error {
-            background: #a83232;
-            color: white;
-        }
-        .status-warning {
-            background: #f39c12;
-            color: #1e1e2f;
-        }
-        .log-box {
-            background: #0a0f1c;
-            border-radius: 20px;
-            padding: 15px;
-            max-height: 250px;
-            overflow-y: auto;
-            font-family: monospace;
-            font-size: 11px;
-            margin-top: 15px;
-        }
-        .log-entry {
-            border-bottom: 1px solid #2c3e66;
-            padding: 6px 0;
-            color: #bbd4f0;
-        }
-        .flex-buttons {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-            margin-top: 10px;
-        }
-        hr {
-            border-color: #2c3e66;
-            margin: 15px 0;
-        }
-        .warning-box {
-            background: #7e5109;
-            color: #ffe6b3;
-            padding: 12px;
-            border-radius: 20px;
-            margin-bottom: 15px;
-            font-size: 0.8rem;
-        }
-        .footer {
-            text-align: center;
-            font-size: 0.7rem;
-            color: #6c86a3;
-            margin-top: 20px;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', -apple-system, sans-serif; background: #f3f4f6; padding: 24px 16px; color: #1f2937; }
+        .container { max-width: 560px; margin: 0 auto; }
+        .card { background: white; border-radius: 32px; padding: 28px 24px; box-shadow: 0 8px 20px rgba(0,0,0,0.05); margin-bottom: 20px; }
+        .header { text-align: center; margin-bottom: 24px; }
+        .status-icon { font-size: 64px; margin-bottom: 12px; }
+        h1 { font-size: 1.8rem; font-weight: 700; margin-bottom: 8px; }
+        .subtitle { color: #6b7280; font-size: 0.9rem; }
+        .status-badge { display: inline-block; padding: 8px 20px; border-radius: 100px; font-weight: 600; font-size: 0.85rem; margin: 16px 0 8px; }
+        .badge-success { background: #e6f7e6; color: #0e7c32; border: 1px solid #b2e0b2; }
+        .badge-warning { background: #fff3e0; color: #c47d00; border: 1px solid #ffdeae; }
+        .badge-danger { background: #fee9e7; color: #b91c1c; border: 1px solid #fbc5c5; }
+        .info-grid { background: #f9fafb; border-radius: 24px; padding: 16px; margin: 20px 0; }
+        .info-row { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #e5e7eb; }
+        .info-row:last-child { border-bottom: none; }
+        .info-label { font-weight: 500; color: #4b5563; }
+        .info-value { font-family: monospace; font-size: 0.7rem; background: white; padding: 4px 10px; border-radius: 40px; color: #1e40af; max-width: 60%; word-break: break-all; text-align: right; }
+        .match-badge { font-weight: 600; font-size: 0.75rem; padding: 2px 10px; border-radius: 30px; }
+        .match-success { background: #d1fae5; color: #065f46; }
+        .match-failed { background: #fee2e2; color: #991b1b; }
+        .btn { display: block; width: 100%; padding: 14px 20px; border: none; border-radius: 60px; font-weight: 700; font-size: 1rem; cursor: pointer; text-align: center; margin-top: 16px; transition: 0.2s; }
+        .btn-primary { background: #f97316; color: white; }
+        .btn-primary:hover { background: #ea580c; }
+        .btn-secondary { background: #e5e7eb; color: #1f2937; }
+        .btn-outline { background: transparent; border: 1px solid #d1d5db; color: #4b5563; }
+        .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+        .alert { background: #fef9e3; border-left: 4px solid #f59e0b; padding: 14px 16px; border-radius: 20px; font-size: 0.85rem; color: #7c5c00; margin: 16px 0; }
+        .toast-message { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); background: #1f2937; color: white; padding: 10px 20px; border-radius: 40px; font-size: 0.85rem; z-index: 1000; white-space: nowrap; }
+        .footer-note { text-align: center; font-size: 0.7rem; color: #9ca3af; margin-top: 24px; }
     </style>
 </head>
 <body>
 <div class="container">
     <div class="card">
-        <h2>📡 OneSignal Debug Reader <span class="badge">v5 / Median.co</span></h2>
-        <div id="sdkWarning" class="warning-box" style="display: none;">
-            ⚠️ OneSignal SDK tidak terdeteksi. Halaman harus dijalankan di dalam aplikasi Median.co atau webView yang sudah terintegrasi OneSignal.
+        <div class="header">
+            <div class="status-icon" id="statusIcon">🔍</div>
+            <h1>Status Notifikasi</h1>
+            <div class="subtitle">Pastikan kamu menerima order</div>
+            <div id="mainBadge" class="status-badge badge-neutral">Memeriksa...</div>
         </div>
-        
         <div class="info-grid">
-            <div class="info-row"><span class="info-label">📱 OneSignal SDK tersedia?</span><span class="info-value" id="sdkAvailable">-</span></div>
-            <div class="info-row"><span class="info-label">🆔 OneSignal User ID (onesignalId)</span><span class="info-value" id="onesignalUserId">-</span></div>
-            <div class="info-row"><span class="info-label">🔑 Subscription ID (Player ID)</span><span class="info-value" id="subscriptionId">-</span></div>
-            <div class="info-row"><span class="info-label">✅ Status Subscribed (SDK)</span><span class="info-value" id="subscribedStatus">-</span></div>
-            <div class="info-row"><span class="info-label">🔗 External ID (custom)</span><span class="info-value" id="externalId">-</span></div>
-            <div class="info-row"><span class="info-label">🔔 Izin Notifikasi (permission)</span><span class="info-value" id="permissionState">-</span></div>
-            <div class="info-row"><span class="info-label">📦 Metode akses</span><span class="info-value" id="methodUsed">-</span></div>
+            <div class="info-row"><span class="info-label">👤 Nama Driver</span><span class="info-value" id="driverName">-</span></div>
+            <div class="info-row"><span class="info-label">📱 Player ID (Firebase)</span><span class="info-value" id="firebasePlayerId">-</span></div>
+            <div class="info-row"><span class="info-label">🆔 Player ID (OneSignal SDK)</span><span class="info-value" id="sdkPlayerId">-</span></div>
+            <div class="info-row"><span class="info-label">✅ Kecocokan</span><span class="info-value" id="matchStatus">-</span></div>
+            <div class="info-row"><span class="info-label">🔔 Status OneSignal</span><span class="info-value" id="onesignalStatus">-</span></div>
         </div>
-
-        <div class="flex-buttons">
-            <button id="refreshBtn">🔄 Refresh Data</button>
-            <button id="requestPermBtn">🔔 Minta Izin & Register</button>
-            <button id="setExternalBtn">🔗 Set External ID (UID demo)</button>
-            <button id="clearLogBtn" class="btn-secondary">🚫 Clear Log</button>
-        </div>
+        <button id="activateBtn" class="btn btn-primary">🔔 Aktifkan Notifikasi</button>
+        <button id="syncBtn" class="btn btn-outline" style="display:none;">🔄 Sinkronkan Player ID</button>
+        <button id="refreshBtn" class="btn btn-secondary">🔄 Refresh Status</button>
+        <button id="resetBtn" class="btn btn-outline">🗑️ Reset & Daftarkan Ulang</button>
+        <div id="infoMessage" class="alert" style="display:none;"></div>
     </div>
-
-    <div class="card">
-        <h2>📋 Raw Output dari SDK</h2>
-        <div class="code-block" id="rawDataBlock">🔍 Klik Refresh atau tunggu data...</div>
-    </div>
-
-    <div class="card">
-        <h2>📜 Event Log</h2>
-        <div class="log-box" id="logBox">
-            <div class="log-entry">▶️ Halaman debug siap. Tekan Refresh untuk membaca data OneSignal.</div>
-        </div>
-    </div>
-    <div class="footer">
-        Halaman ini khusus membaca data OneSignal SDK. Pastikan dijalankan pada aplikasi JeGo Driver (Median.co).<br>
-        Data bersumber dari <strong>median.onesignal</strong> dan <strong>window.OneSignal</strong>
-    </div>
+    <div class="footer-note">⚡ Player ID yang benar adalah UUID (contoh: cef1edc8-f630-4fff-ae6a-f41a7d9aecb0)</div>
 </div>
 
 <script>
-    // ---------- Helper log ----------
-    function addLog(msg, type = "info") {
-        const logBox = document.getElementById('logBox');
-        const entry = document.createElement('div');
-        entry.className = 'log-entry';
-        const time = new Date().toLocaleTimeString();
-        let color = "#88c0ff";
-        if (type === "success") color = "#6fcf97";
-        if (type === "error") color = "#ff8a7a";
-        if (type === "warning") color = "#f7d44a";
-        entry.style.color = color;
-        entry.textContent = `[${time}] ${msg}`;
-        logBox.appendChild(entry);
-        entry.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        while (logBox.children.length > 60) logBox.removeChild(logBox.firstChild);
+    const firebaseConfig = {
+        apiKey: "AIzaSyCD0pgeZio-LdKqYDtWxcdXcZwyL4ngYQI",
+        authDomain: "jego-35a2b.firebaseapp.com",
+        databaseURL: "https://jego-35a2b-default-rtdb.asia-southeast1.firebasedatabase.app",
+        projectId: "jego-35a2b",
+        storageBucket: "jego-35a2b.firebasestorage.app",
+        messagingSenderId: "600037007040",
+        appId: "1:600037007040:web:ac3243ad9b472647ffd725"
+    };
+    if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+    const database = firebase.database();
+    const auth = firebase.auth();
+
+    let currentUid = null;
+    let isProcessing = false;
+
+    function showToast(msg, isErr = false) {
+        let t = document.querySelector('.toast-message');
+        if (t) t.remove();
+        t = document.createElement('div');
+        t.className = 'toast-message';
+        t.textContent = msg;
+        t.style.background = isErr ? '#b91c1c' : '#0e7c32';
+        document.body.appendChild(t);
+        setTimeout(() => t.remove(), 3000);
     }
 
-    // ---------- Fungsi membaca data dari berbagai sumber (median & OneSignal) ----------
-    async function fetchOnesignalData() {
-        let result = {
-            hasSdk: false,
-            onesignalUserId: null,
-            subscriptionId: null,
-            isSubscribed: false,
-            externalId: null,
-            permission: null,
-            method: "none",
-            rawMedianInfo: null,
-            rawDeviceState: null,
-            rawOneSignalSDK: null
-        };
-
-        // 1. Deteksi median.onesignal
-        const hasMedian = (typeof median !== 'undefined' && median.onesignal);
-        const hasWindowOS = (typeof window.OneSignal !== 'undefined');
-
-        if (!hasMedian && !hasWindowOS) {
-            result.hasSdk = false;
-            result.method = "Tidak ada SDK";
-            return result;
+    // Ambil Player ID dari Firebase (seharusnya UUID)
+    async function getFirebasePlayerId() {
+        if (!currentUid) return null;
+        let snap = await database.ref(`driver_locations/${currentUid}`).once('value');
+        let data = snap.val();
+        let pid = data?.playerId || data?.subscriptionId || null;
+        if (!pid) {
+            snap = await database.ref(`drivers/${currentUid}`).once('value');
+            data = snap.val();
+            pid = data?.playerId || data?.subscriptionId || null;
         }
-
-        result.hasSdk = true;
-
-        // 2. Coba ambil melalui median.onesignal (cara utama di Median)
-        if (hasMedian) {
-            try {
-                // onesignalInfo()
-                const medianInfo = await median.onesignal.onesignalInfo();
-                result.rawMedianInfo = medianInfo;
-                if (medianInfo) {
-                    if (medianInfo.userId || medianInfo.user_id) result.onesignalUserId = medianInfo.userId || medianInfo.user_id;
-                    if (medianInfo.subscription?.id) result.subscriptionId = medianInfo.subscription.id;
-                    else if (medianInfo.subscriptionId) result.subscriptionId = medianInfo.subscriptionId;
-                    if (medianInfo.isSubscribed === true) result.isSubscribed = true;
-                    if (medianInfo.externalId) result.externalId = medianInfo.externalId;
-                }
-                // getDeviceState()
-                if (median.onesignal.getDeviceState) {
-                    const deviceState = await median.onesignal.getDeviceState();
-                    result.rawDeviceState = deviceState;
-                    if (deviceState) {
-                        if (deviceState.userId) result.onesignalUserId = deviceState.userId;
-                        if (deviceState.subscriptionId) result.subscriptionId = deviceState.subscriptionId;
-                        if (deviceState.isSubscribed !== undefined) result.isSubscribed = deviceState.isSubscribed;
-                        if (deviceState.externalId) result.externalId = deviceState.externalId;
-                    }
-                }
-                result.method = "median.onesignal";
-                addLog("✅ Berhasil membaca data via median.onesignal", "success");
-            } catch (err) {
-                addLog(`⚠️ Error median.onesignal: ${err.message}`, "warning");
-            }
-        }
-
-        // 3. Gunakan window.OneSignal langsung (lebih akurat untuk subscription)
-        if (hasWindowOS && window.OneSignal) {
-            try {
-                const permission = await OneSignal.Notifications.getPermissionAsync();
-                result.permission = permission;
-                if (permission === 'granted') result.isSubscribed = true;
-                else if (permission === 'denied') result.isSubscribed = false;
-                // subscriptionId
-                if (OneSignal.User && OneSignal.User.getSubscriptionId) {
-                    const subsId = await OneSignal.User.getSubscriptionId();
-                    if (subsId) result.subscriptionId = subsId;
-                }
-                // onesignal userId
-                if (OneSignal.User && OneSignal.User.getOnesignalId) {
-                    const osUserId = await OneSignal.User.getOnesignalId();
-                    if (osUserId) result.onesignalUserId = osUserId;
-                }
-                // external Id
-                if (OneSignal.User && OneSignal.User.getExternalId) {
-                    const extId = await OneSignal.User.getExternalId();
-                    if (extId) result.externalId = extId;
-                }
-                result.method = result.method === "median.onesignal" ? "median + OneSignal" : "window.OneSignal";
-                addLog("✅ Data dari window.OneSignal berhasil digabung", "success");
-                // Simpan raw object
-                result.rawOneSignalSDK = { permission, subscriptionId: result.subscriptionId, onesignalUserId: result.onesignalUserId };
-            } catch (err) {
-                addLog(`❌ Gagal query OneSignal langsung: ${err.message}`, "error");
-            }
-        }
-
-        // Jika belum dapat subscriptionId tapi detect push subscription via median fallback
-        if (!result.subscriptionId && hasMedian && median.onesignal) {
-            try {
-                const state = await median.onesignal.getDeviceState();
-                if (state && state.subscriptionId) result.subscriptionId = state.subscriptionId;
-            } catch(e) {}
-        }
-
-        return result;
+        return pid;
     }
 
-    // Update UI dengan data terbaru
-    async function refreshUIData() {
-        addLog("📡 Memulai pembacaan data OneSignal...", "info");
-        const data = await fetchOnesignalData();
-        
-        // update DOM elements
-        document.getElementById('sdkAvailable').innerHTML = data.hasSdk ? '✅ TERSEDIA' : '❌ TIDAK TERSEDIA';
-        if (!data.hasSdk) {
-            document.getElementById('sdkWarning').style.display = 'block';
-        } else {
-            document.getElementById('sdkWarning').style.display = 'none';
+    // Ambil Player ID dari OneSignal SDK (oneSignalUserId = UUID yang benar)
+    async function getSdkPlayerId() {
+        if (typeof median === 'undefined' || !median.onesignal) {
+            return { hasSdk: false, playerId: null, isSubscribed: false };
         }
-        
-        document.getElementById('onesignalUserId').innerHTML = data.onesignalUserId ? truncate(data.onesignalUserId, 35) : '❌ Tidak ada';
-        document.getElementById('subscriptionId').innerHTML = data.subscriptionId ? truncate(data.subscriptionId, 40) : '❌ Tidak ada';
-        document.getElementById('externalId').innerHTML = data.externalId ? truncate(data.externalId, 30) : '❌ Tidak diset';
-        document.getElementById('methodUsed').innerHTML = data.method;
-        
-        // status subscribed
-        const subStatusSpan = document.getElementById('subscribedStatus');
-        if (data.isSubscribed === true) {
-            subStatusSpan.innerHTML = '✅ SUBSCRIBED (Aktif)';
-            subStatusSpan.className = 'info-value status-success';
-        } else if (data.isSubscribed === false) {
-            subStatusSpan.innerHTML = '❌ NOT SUBSCRIBED';
-            subStatusSpan.className = 'info-value status-error';
-        } else {
-            subStatusSpan.innerHTML = '⚠️ Tidak diketahui';
-            subStatusSpan.className = 'info-value status-warning';
-        }
-        
-        // permission state
-        const permSpan = document.getElementById('permissionState');
-        if (data.permission === 'granted') permSpan.innerHTML = '✅ Granted (diizinkan)';
-        else if (data.permission === 'denied') permSpan.innerHTML = '🚫 Denied (ditolak)';
-        else if (data.permission === 'default') permSpan.innerHTML = '❓ Default (belum diminta)';
-        else permSpan.innerHTML = data.permission || 'Tidak terdeteksi';
-        
-        // Tampilkan raw JSON cantik
-        const rawDisplay = {
-            hasSdk: data.hasSdk,
-            onesignalUserId: data.onesignalUserId,
-            subscriptionId: data.subscriptionId,
-            isSubscribed: data.isSubscribed,
-            externalId: data.externalId,
-            permission: data.permission,
-            method: data.method,
-            medianInfo: data.rawMedianInfo,
-            deviceState: data.rawDeviceState,
-            oneSignalSDK: data.rawOneSignalSDK
-        };
-        document.getElementById('rawDataBlock').innerHTML = JSON.stringify(rawDisplay, null, 2);
-        
-        if (data.subscriptionId) {
-            addLog(`🎯 Subscription ID: ${data.subscriptionId.substring(0,20)}...`, "success");
-        } else {
-            addLog(`⚠️ Subscription ID kosong. Belum register atau izin notifikasi belum diberikan.`, "warning");
-        }
-        if (data.isSubscribed) addLog(`🔔 Status: SUBSCRIBED, notifikasi aktif.`, "success");
-        else addLog(`🔕 Status: NOT SUBSCRIBED, driver tidak akan menerima notifikasi order.`, "error");
-    }
-    
-    function truncate(str, len) {
-        if (!str) return '-';
-        return str.length > len ? str.substring(0, len) + '...' : str;
-    }
-    
-    // ---------- Fungsi aktivasi / register ----------
-    async function requestPermissionsAndRegister() {
-        addLog("🔔 Memulai proses request izin notifikasi...", "info");
         try {
-            if (typeof median === 'undefined' || !median.onesignal) {
-                alert("OneSignal SDK tidak tersedia. Pastikan berjalan di aplikasi Median.");
-                addLog("❌ SDK tidak tersedia untuk request izin", "error");
-                return;
-            }
-            
-            // Consent GDPR jika diperlukan
-            if (median.onesignal.setConsentGiven) {
-                await median.onesignal.setConsentGiven(true);
-                addLog("✅ Consent diberikan", "success");
-            }
-            
-            // register dulu
+            const info = await median.onesignal.onesignalInfo();
+            // Gunakan oneSignalUserId (UUID) sebagai playerId yang benar
+            const playerId = info?.oneSignalUserId || null;
+            const isSubscribed = info?.oneSignalSubscribed === true;
+            return { hasSdk: true, playerId, isSubscribed };
+        } catch (err) {
+            console.error(err);
+            return { hasSdk: true, playerId: null, isSubscribed: false };
+        }
+    }
+
+    async function savePlayerIdToFirebase(playerId) {
+        if (!currentUid || !playerId) return;
+        await database.ref(`drivers/${currentUid}`).update({ playerId: playerId, subscriptionId: playerId, last_update: new Date().toISOString() });
+        await database.ref(`driver_locations/${currentUid}`).update({ playerId: playerId, subscriptionId: playerId, last_update: new Date().toISOString() });
+    }
+
+    async function clearFirebasePlayerId() {
+        if (!currentUid) return;
+        await database.ref(`drivers/${currentUid}`).update({ playerId: null, subscriptionId: null });
+        await database.ref(`driver_locations/${currentUid}`).update({ playerId: null, subscriptionId: null });
+    }
+
+    async function activateNotifications() {
+        if (isProcessing) return showToast("Proses sedang berjalan");
+        if (!currentUid) return showToast("Driver belum login", true);
+        if (typeof median === 'undefined' || !median.onesignal) return showToast("OneSignal SDK tidak tersedia", true);
+        isProcessing = true;
+        const btn = document.getElementById('activateBtn');
+        const orig = btn.innerText;
+        btn.innerText = "⏳ Memproses...";
+        btn.disabled = true;
+        try {
+            await clearFirebasePlayerId();
+            if (median.onesignal.setConsentGiven) await median.onesignal.setConsentGiven(true);
             await median.onesignal.register();
-            addLog("✅ OneSignal.register() berhasil dipanggil", "success");
-            
-            // prompt notifikasi
             if (median.onesignal.promptForPushNotificationsWithUserResponse) {
-                addLog("📱 Menampilkan dialog minta izin notifikasi...", "info");
-                const result = await median.onesignal.promptForPushNotificationsWithUserResponse();
-                if (result === true) {
-                    addLog("🎉 Izin notifikasi DIBERIKAN oleh pengguna", "success");
-                } else {
-                    addLog("⚠️ Izin notifikasi DITOLAK atau tidak diberikan", "warning");
-                }
-            } else {
-                addLog("⚠️ promptForPushNotifications tidak tersedia, coba gunakan trigger default", "warning");
+                const granted = await median.onesignal.promptForPushNotificationsWithUserResponse();
+                if (!granted) showToast("Izin ditolak. Cek pengaturan.", true);
             }
-            
-            // Tunggu sejenak agar SDK menyimpan subscriptionId
-            addLog("⏳ Menunggu 3 detik untuk propagasi data...", "info");
-            await new Promise(r => setTimeout(r, 3000));
-            
-            // Refresh data setelah prompt
-            await refreshUIData();
+            await new Promise(r => setTimeout(r, 4000));
+            const sdk = await getSdkPlayerId();
+            if (sdk.playerId && sdk.isSubscribed) {
+                await savePlayerIdToFirebase(sdk.playerId);
+                showToast("Notifikasi berhasil diaktifkan!", false);
+            } else {
+                showToast("Gagal mendapat Player ID (UUID)", true);
+            }
+            await refreshStatus();
         } catch (err) {
-            addLog(`❌ Gagal request notifikasi: ${err.message}`, "error");
-            alert("Error: " + err.message);
+            showToast("Error: " + err.message, true);
+        } finally {
+            isProcessing = false;
+            btn.innerText = orig;
+            btn.disabled = false;
         }
     }
-    
-    async function setDemoExternalId() {
-        // Contoh: set external ID sesuai dengan driver UID (simulasi dari Firebase atau dari local)
-        // Di halaman ini kita bisa menggunakan UID contoh "demo_driver_123"
-        const fakeUid = "driver_onesignal_" + Math.random().toString(36).substr(2, 8);
-        addLog(`🔗 Mencoba set External ID ke: ${fakeUid}`, "info");
-        try {
-            if (typeof median !== 'undefined' && median.onesignal && median.onesignal.setExternalUserId) {
-                await median.onesignal.setExternalUserId(fakeUid);
-                addLog(`✅ External ID diset via median: ${fakeUid}`, "success");
-                await refreshUIData();
-            } else if (window.OneSignal && OneSignal.User && OneSignal.User.addAlias) {
-                await OneSignal.User.addAlias("externalId", fakeUid);
-                addLog(`✅ External ID diset via OneSignal.User.addAlias: ${fakeUid}`, "success");
-                await refreshUIData();
-            } else {
-                addLog("⚠️ Tidak ada method untuk setExternalUserId", "warning");
-            }
-        } catch (err) {
-            addLog(`❌ Gagal set external ID: ${err.message}`, "error");
+
+    async function syncPlayerId() {
+        if (!currentUid) return;
+        const sdk = await getSdkPlayerId();
+        if (sdk.playerId && sdk.isSubscribed) {
+            await savePlayerIdToFirebase(sdk.playerId);
+            showToast("Player ID (UUID) disinkronkan!", false);
+            await refreshStatus();
+        } else {
+            showToast("Tidak ada Player ID UUID dari SDK", true);
         }
     }
-    
-    // Clear log
-    function clearLog() {
-        const logBox = document.getElementById('logBox');
-        logBox.innerHTML = '<div class="log-entry">🗑️ Log dibersihkan.</div>';
-        addLog("Log direset oleh pengguna", "info");
+
+    async function resetAndReRegister() {
+        if (!confirm("Reset akan menghapus Player ID. Anda harus aktifkan ulang notifikasi. Lanjutkan?")) return;
+        await clearFirebasePlayerId();
+        showToast("Data direset. Silakan klik 'Aktifkan Notifikasi'", false);
+        await refreshStatus();
     }
-    
-    // Event listeners
-    document.getElementById('refreshBtn').addEventListener('click', refreshUIData);
-    document.getElementById('requestPermBtn').addEventListener('click', requestPermissionsAndRegister);
-    document.getElementById('setExternalBtn').addEventListener('click', setDemoExternalId);
-    document.getElementById('clearLogBtn').addEventListener('click', clearLog);
-    
-    // Load data saat halaman pertama kali di-load
-    window.addEventListener('load', () => {
-        setTimeout(() => {
-            refreshUIData();
-        }, 500); // biarkan SDK stabil
+
+    async function refreshStatus() {
+        if (!currentUid) {
+            document.getElementById('driverName').innerText = "(Belum login)";
+            document.getElementById('mainBadge').innerHTML = "⚠️ Driver tidak login";
+            document.getElementById('mainBadge').className = "status-badge badge-danger";
+            return;
+        }
+        const driverSnap = await database.ref(`drivers/${currentUid}`).once('value');
+        const driverData = driverSnap.val();
+        document.getElementById('driverName').innerText = driverData?.name || driverData?.fullName || "Driver";
+
+        const firebaseId = await getFirebasePlayerId();
+        document.getElementById('firebasePlayerId').innerHTML = firebaseId ? truncate(firebaseId) : '❌ Tidak ada';
+
+        const sdk = await getSdkPlayerId();
+        document.getElementById('sdkPlayerId').innerHTML = sdk.playerId ? truncate(sdk.playerId) : '❌ Tidak ada';
+        document.getElementById('onesignalStatus').innerHTML = sdk.isSubscribed ? '✅ SUBSCRIBED' : '❌ NOT SUBSCRIBED';
+
+        const isMatch = (firebaseId && sdk.playerId && firebaseId === sdk.playerId);
+        const matchSpan = document.getElementById('matchStatus');
+        if (isMatch) {
+            matchSpan.innerHTML = '<span class="match-badge match-success">✅ Cocok (Sinkron)</span>';
+        } else {
+            matchSpan.innerHTML = '<span class="match-badge match-failed">❌ Tidak Cocok / Kosong</span>';
+        }
+
+        const mainBadge = document.getElementById('mainBadge');
+        const statusIcon = document.getElementById('statusIcon');
+        const syncBtn = document.getElementById('syncBtn');
+        const activateBtn = document.getElementById('activateBtn');
+
+        if (isMatch && sdk.isSubscribed) {
+            mainBadge.innerHTML = "🔔 Notifikasi Aktif & Tersinkron";
+            mainBadge.className = "status-badge badge-success";
+            statusIcon.innerHTML = "✅🔔";
+            activateBtn.style.display = "none";
+            syncBtn.style.display = "none";
+        } else if (sdk.playerId && sdk.isSubscribed && !isMatch) {
+            mainBadge.innerHTML = "⚠️ Perlu Sinkronisasi";
+            mainBadge.className = "status-badge badge-warning";
+            statusIcon.innerHTML = "🔄";
+            activateBtn.style.display = "none";
+            syncBtn.style.display = "block";
+            syncBtn.innerText = "🔄 Sinkronkan Player ID (UUID)";
+        } else {
+            mainBadge.innerHTML = "🔕 Notifikasi Tidak Aktif";
+            mainBadge.className = "status-badge badge-danger";
+            statusIcon.innerHTML = "🔕";
+            activateBtn.style.display = "block";
+            syncBtn.style.display = "none";
+        }
+    }
+
+    function truncate(str) { if (!str) return '-'; return str.length > 35 ? str.substring(0, 32) + '...' : str; }
+
+    auth.onAuthStateChanged(async (user) => {
+        if (user) {
+            currentUid = user.uid;
+            await refreshStatus();
+        } else {
+            currentUid = null;
+            document.getElementById('driverName').innerText = "(Belum login)";
+        }
     });
+
+    document.getElementById('activateBtn').addEventListener('click', activateNotifications);
+    document.getElementById('syncBtn').addEventListener('click', syncPlayerId);
+    document.getElementById('refreshBtn').addEventListener('click', refreshStatus);
+    document.getElementById('resetBtn').addEventListener('click', resetAndReRegister);
 </script>
 </body>
 </html>
