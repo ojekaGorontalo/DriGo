@@ -270,6 +270,7 @@
       flex-direction: column;
       gap: 10px;
       z-index: 20;
+      pointer-events: auto;
     }
 
     .action-btn {
@@ -285,6 +286,8 @@
       cursor: pointer;
       transition: all 0.2s ease;
       box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      pointer-events: auto;
+      touch-action: manipulation;
     }
 
     .action-btn:active {
@@ -491,7 +494,6 @@
     let id = new URLSearchParams(location.search).get('order_id') || new URLSearchParams(location.search).get('id');
     if (id) return id;
     
-    // Tidak ada ID di URL -> cari order aktif driver
     const driver = getDriverData();
     if (!driver.uid) return null;
     const snapshot = await database.ref('orders').orderByChild('driver_id').equalTo(driver.uid).once('value');
@@ -558,12 +560,18 @@
     }
   }
 
-  function onStartAction() {
-    if (!orderData) return;
+  // ** PERBAIKAN: Gunakan fungsi terpisah dan pastikan tidak error **
+  function onStartAction(e) {
+    console.log("Tombol start diklik, status:", currentStatus);
+    if (!orderData) {
+      showToast("Data order belum siap");
+      return;
+    }
     if (currentStatus === 'accepted') {
       if (openNavigation(orderData.pickup_lat, orderData.pickup_lng, "Penjemputan")) {
         database.ref('orders/' + orderId).update({ status: 'on_the_way', updated_at: new Date().toISOString() })
-          .then(() => showToast("Menuju lokasi jemput")).catch(console.warn);
+          .then(() => showToast("Menuju lokasi jemput"))
+          .catch(err => console.error(err));
       }
     } 
     else if (currentStatus === 'on_the_way') {
@@ -575,6 +583,9 @@
         database.ref('orders/' + orderId).update({ status: 'on_trip', trip_started_at: new Date().toISOString() })
           .then(() => showToast("Perjalanan dimulai, navigasi menuju tujuan"));
       }
+    }
+    else {
+      showToast("Aksi tidak tersedia untuk status ini");
     }
   }
 
@@ -700,15 +711,12 @@
   function closeChat(){ chatOpen=false; document.getElementById('chatOverlay').style.display='none'; }
   function loadChatHistory(){ database.ref(`chat/${orderId}`).once('value', snap=>{ let msgs=snap.val(); let container=document.getElementById('chatMessages'); container.innerHTML=''; if(msgs) Object.values(msgs).forEach(m=>addMessageToChat(m)); }); }
   function addMessageToChat(msg){ let div=document.createElement('div'); div.className='message'; div.innerHTML=`<b>${msg.sender==='driver'?'Driver':'Customer'}</b>: ${msg.message}`; document.getElementById('chatMessages').appendChild(div); }
-  document.getElementById('chatSendBtn').onclick=()=>{ let input=document.getElementById('chatInput'); if(input.value.trim()){ chatRef.push({sender:'driver', message:input.value, timestamp:Date.now()}); input.value=''; }};
-  document.getElementById('chatMainBtn').onclick=openChat;
-
+  
   // ========== INIT UTAMA ==========
   async function loadOrder() {
     let driver = getDriverData();
     if(!driver?.uid){ window.location.href='loginDriver.html'; return; }
     
-    // Ambil order ID (dari URL atau cari otomatis)
     orderId = await getOrderId();
     if(!orderId){
       document.getElementById('errorView').style.display='flex';
@@ -725,9 +733,35 @@
     displayOrderUI();
     listenOrder();
     initChat();
-    document.getElementById('startBtn').onclick = onStartAction;
-    document.getElementById('completeBtn').onclick = completeTrip;
-    document.getElementById('cancelBtn').onclick = cancelTrip;
+    
+    // ========== PERBAIKAN: Pasang event listener dengan addEventListener ==========
+    const startBtn = document.getElementById('startBtn');
+    const completeBtn = document.getElementById('completeBtn');
+    const cancelBtn = document.getElementById('cancelBtn');
+    const chatMainBtn = document.getElementById('chatMainBtn');
+    const chatSendBtn = document.getElementById('chatSendBtn');
+    
+    // Hapus listener lama jika ada (untuk keamanan)
+    startBtn.removeEventListener('click', onStartAction);
+    startBtn.addEventListener('click', onStartAction);
+    
+    completeBtn.removeEventListener('click', completeTrip);
+    completeBtn.addEventListener('click', completeTrip);
+    
+    cancelBtn.removeEventListener('click', cancelTrip);
+    cancelBtn.addEventListener('click', cancelTrip);
+    
+    chatMainBtn.removeEventListener('click', openChat);
+    chatMainBtn.addEventListener('click', openChat);
+    
+    chatSendBtn.removeEventListener('click', () => {});
+    chatSendBtn.onclick = () => {
+      let input = document.getElementById('chatInput');
+      if(input.value.trim()){ 
+        chatRef.push({sender:'driver', message:input.value, timestamp:Date.now()}); 
+        input.value=''; 
+      }
+    };
   }
 
   function showErrorPage(msg){ document.getElementById('loadingView').style.display='none'; document.getElementById('errorView').style.display='flex'; document.getElementById('errorMessage').innerHTML=msg; }
