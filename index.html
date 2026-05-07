@@ -606,6 +606,7 @@ let offerRejectionListener = null; // listener untuk penolakan penawaran oleh cu
 const savedOffers = JSON.parse(localStorage.getItem('autobid_offered_orders') || '[]');
 savedOffers.forEach(id => autobidOfferedOrders.add(id));
 console.log(`Loaded ${autobidOfferedOrders.size} offered orders from localStorage`);
+let isWaitingForConfirmation = false; // Menandakan driver sedang menunggu konfirmasi customer untuk suatu order
 
 // ========== FUNGSI RADAR ==========
 function startRadarMessages() {
@@ -757,13 +758,18 @@ function loadOrders() {
     }
 
     addedOrders.forEach(order => {
-      if (locationTrackingEnabled && driverLocation.latitude && driverLocation.longitude && order.pickup_lat && order.pickup_lng) {
-        const dist = calculateDistance(driverLocation.latitude, driverLocation.longitude, order.pickup_lat, order.pickup_lng);
-        if (dist !== null && dist < 3) {
-          showOrderDetail({ orderId: order.id, orderData: order }, true);
-        }
-      }
-    });
+  // CEK JIKA SEDANG MENUNGGU KONFIRMASI, ABAIKAN ORDER BARU
+  if (isWaitingForConfirmation) {
+    console.log('Sedang menunggu konfirmasi order lain, abaikan order baru');
+    return;
+  }
+  if (locationTrackingEnabled && driverLocation.latitude && driverLocation.longitude && order.pickup_lat && order.pickup_lng) {
+    const dist = calculateDistance(driverLocation.latitude, driverLocation.longitude, order.pickup_lat, order.pickup_lng);
+    if (dist !== null && dist < 3) {
+      showOrderDetail({ orderId: order.id, orderData: order }, true);
+    }
+  }
+});
 
     if (ordersInRange.length === 0) {
       document.getElementById('radarContainer').style.display = 'flex';
@@ -847,8 +853,14 @@ function escapeHtml(str) {
 }
 
 async function showOrderDetail(orderObj, fromAuto = false) {
+  // CEK JIKA SEDANG MENUNGGU KONFIRMASI
+  if (isWaitingForConfirmation) {
+    showToast('Anda sedang memproses order lain, harap tunggu.', 'warning');
+    return;  // ← TAMBAHKAN RETURN
+  }
   if (!checkDriverData() || !globalCurrentUid) return;
   const { orderId, orderData } = orderObj;
+ 
   const snapshot = await database.ref(`orders/${orderId}`).once('value');
   const currentOrder = snapshot.val();
   if (!currentOrder || currentOrder.status !== 'waiting') {
@@ -964,6 +976,11 @@ function showRouteOnMapbox(order) {
 }
 
 async function sendDriverOffer(isAuto = false) {
+  // CEK JIKA SEDANG MENUNGGU KONFIRMASI
+  if (isWaitingForConfirmation) {
+    showToast('Sedang menunggu konfirmasi order lain, tidak bisa mengirim penawaran baru.', 'warning');
+    return;  // ← TAMBAHKAN RETURN
+  }
   if (!currentSelectedOrder || !globalCurrentUid) return;
   // Pastikan data driver dasar tersedia
   if (!checkDriverData()) return;
@@ -1067,6 +1084,7 @@ async function sendDriverOffer(isAuto = false) {
 }
 
 function stopCountdown() {
+isWaitingForConfirmation = false;
   if (countdownInterval) clearInterval(countdownInterval);
   if (orderStatusListener && countdownOrderId) {
     database.ref(`orders/${countdownOrderId}`).off('value', orderStatusListener);
@@ -1091,6 +1109,7 @@ function startCountdown(orderId, driverId) {
   stopCountdown();
   countdownOrderId = orderId;
   countdownDriverId = driverId;
+  isWaitingForConfirmation = true;
   const container = document.getElementById('countdownContainer');
   const progress = document.getElementById('countdownProgress');
   const secondsSpan = document.getElementById('countdownSeconds');
