@@ -300,32 +300,35 @@
     }
 
     async function sendPushNotification(playerId, title, message, orderId = null, extraData = {}) {
-        if (!playerId || !ONESIGNAL_API_KEY) return false;
-        try {
-            const res = await fetch("https://onesignal.com/api/v1/notifications", {
-                method: "POST",
-                headers: { "Content-Type": "application/json", "Authorization": `Basic ${ONESIGNAL_API_KEY}` },
-                body: JSON.stringify({
-                    app_id: ONESIGNAL_APP_ID,
-                    include_player_ids: [playerId],
-                    headings: { en: title },
-                    contents: { en: message },
-                    data: { orderId, type: "offer_from_admin", ...extraData }
-                })
-            });
-            const result = await res.json();
-            if (result.errors) {
-                addLog(`Gagal notif: ${JSON.stringify(result.errors)}`, "error");
-                return false;
-            } else {
-                addLog(`✅ Notif ke driver (${playerId.substring(0,8)}...)`, "success");
-                return true;
-            }
-        } catch(err) {
-            addLog(`Error API: ${err.message}`, "error");
+    if (!playerId || !ONESIGNAL_API_KEY) return false;
+    try {
+        const res = await fetch("https://onesignal.com/api/v1/notifications", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "Authorization": `Basic ${ONESIGNAL_API_KEY}` },
+            body: JSON.stringify({
+                app_id: ONESIGNAL_APP_ID,
+                include_player_ids: [playerId],
+                headings: { en: title },
+                contents: { en: message },
+                data: { orderId, type: "offer_from_admin", ...extraData },
+                priority: 10,
+                android_priority: "high",
+                android_channel_id: "14488f7c-4003-4699-b220-dee4451568df"
+            })
+        });
+        const result = await res.json();
+        if (result.errors) {
+            addLog(`Gagal notif: ${JSON.stringify(result.errors)}`, "error");
             return false;
+        } else {
+            addLog(`✅ Notif ke driver (${playerId.substring(0,8)}...)`, "success");
+            return true;
         }
+    } catch(err) {
+        addLog(`Error API: ${err.message}`, "error");
+        return false;
     }
+}
 
     async function sendManualPushToDriver(driverId, title, message, orderId = null) {
         if (!ONESIGNAL_API_KEY) {
