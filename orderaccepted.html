@@ -76,7 +76,7 @@
       background: rgba(255, 255, 255, 0.4);
     }
 
-    /* Map area + floating button overlay */
+    /* Map area */
     .map-area {
       width: 100%;
       height: 40vh;
@@ -95,10 +95,10 @@
       height: 100%;
     }
 
-    /* Floating action button di kanan atas map */
+    /* Floating action button di kanan BAWAH map */
     .map-float-btn {
       position: absolute;
-      top: 16px;
+      bottom: 16px;
       right: 16px;
       background: linear-gradient(95deg, #FF9800, #F57C00);
       color: white;
@@ -285,7 +285,7 @@
       font-size: 1rem;
     }
 
-    /* Action bar bawah (chat + selesaikan) */
+    /* Action bar bawah hanya untuk chat */
     .action-bar {
       position: fixed;
       bottom: 0;
@@ -327,11 +327,6 @@
     .btn-primary {
       background: linear-gradient(95deg, #FF9800, #F57C00);
       color: white;
-    }
-
-    .btn-secondary {
-      background: #EFF3F6;
-      color: #1E293B;
     }
 
     .modal-overlay {
@@ -435,7 +430,7 @@
   <div id="mainContent" style="display: none; flex-direction: column; flex:1; overflow: hidden;">
     <div class="map-area" id="mapSection">
       <div id="orderMap" style="height: 100%;"></div>
-      <!-- Floating button untuk aksi dinamis (Ke Jemputan / Sampai / Mulai) -->
+      <!-- Floating button di dalam map (kanan bawah) untuk semua aksi dinamis -->
       <button id="mapActionBtn" class="map-float-btn" style="display: none;">📍 Ke Jemputan</button>
     </div>
     <div class="scroll-content">
@@ -453,7 +448,6 @@
             </div>
           </div>
         </div>
-        <!-- arrival-note dihapus, informasi status sudah ada di status-chip -->
       </div>
 
       <div class="route-card">
@@ -477,10 +471,9 @@
     </div>
   </div>
 
-  <!-- Action bar bawah hanya berisi chat dan selesaikan -->
+  <!-- Action bar bawah hanya chat -->
   <div class="action-bar" id="actionsSection" style="display: none;">
     <button class="action-btn btn-primary" id="chatMainBtn">💬 Chat Customer</button>
-    <button class="action-btn btn-primary" id="completeBtn" style="display: none;">🏁 Selesaikan Perjalanan</button>
   </div>
 </div>
 
@@ -546,38 +539,33 @@
     return true;
   }
 
-  // ========== UPDATE TOMBOL (floating map button & header cancel) ==========
+  // ========== UPDATE FLOATING BUTTON (SATU TOMBOL UNTUK SEMUA AKSI) ==========
   function updateActionButtons() {
     const mapBtn = document.getElementById('mapActionBtn');
-    const completeBtn = document.getElementById('completeBtn');
     const headerCancelBtn = document.getElementById('headerCancelBtn');
     
     if (!mapBtn) return;
     
-    // Update floating button sesuai status
+    // Update teks dan fungsi tombol floating sesuai status
     switch(currentStatus) {
       case 'accepted':
         mapBtn.style.display = 'flex';
         mapBtn.innerHTML = '📍 Ke Jemputan';
-        completeBtn.style.display = 'none';
         break;
       case 'on_the_way':
         mapBtn.style.display = 'flex';
         mapBtn.innerHTML = '✅ Sampai di Lokasi';
-        completeBtn.style.display = 'none';
         break;
       case 'arrived':
         mapBtn.style.display = 'flex';
         mapBtn.innerHTML = '🚀 Mulai Perjalanan';
-        completeBtn.style.display = 'none';
         break;
       case 'on_trip':
-        mapBtn.style.display = 'none';
-        completeBtn.style.display = 'flex';
+        mapBtn.style.display = 'flex';
+        mapBtn.innerHTML = '🏁 Selesaikan Perjalanan';
         break;
       default:
         mapBtn.style.display = 'none';
-        completeBtn.style.display = 'none';
     }
     
     // Kontrol tombol batalkan di header
@@ -592,7 +580,7 @@
     }
   }
 
-  // Fungsi aksi untuk floating button (Ke Jemputan / Sampai / Mulai)
+  // Fungsi aksi untuk floating button (menangani semua status)
   function onMapAction() {
     console.log("Floating button diklik, status:", currentStatus);
     if (!orderData) {
@@ -615,6 +603,10 @@
         database.ref('orders/' + orderId).update({ status: 'on_trip', trip_started_at: new Date().toISOString() })
           .then(() => showToast("Perjalanan dimulai, navigasi menuju tujuan"));
       }
+    }
+    else if (currentStatus === 'on_trip') {
+      // Selesaikan perjalanan
+      completeTrip();
     }
     else {
       showToast("Aksi tidak tersedia untuk status ini");
@@ -678,7 +670,6 @@
   function updateStatusDisplay(status) {
     currentStatus = status;
     const badge = document.getElementById('statusBadge');
-    // Update badge saja (arrival-note sudah dihapus)
     if(status === 'accepted'){ badge.innerHTML = '📋 Order Diterima'; }
     else if(status === 'on_the_way'){ badge.innerHTML = '🚗 Menuju Lokasi'; }
     else if(status === 'arrived'){ badge.innerHTML = '📍 Telah Tiba'; }
@@ -767,7 +758,6 @@
     
     // ========== PASANG EVENT LISTENER ==========
     const mapActionBtn = document.getElementById('mapActionBtn');
-    const completeBtn = document.getElementById('completeBtn');
     const chatMainBtn = document.getElementById('chatMainBtn');
     const chatSendBtn = document.getElementById('chatSendBtn');
     const headerCancelBtn = document.getElementById('headerCancelBtn');
@@ -776,9 +766,6 @@
       mapActionBtn.removeEventListener('click', onMapAction);
       mapActionBtn.addEventListener('click', onMapAction);
     }
-    
-    completeBtn.removeEventListener('click', completeTrip);
-    completeBtn.addEventListener('click', completeTrip);
     
     chatMainBtn.removeEventListener('click', openChat);
     chatMainBtn.addEventListener('click', openChat);
@@ -791,7 +778,6 @@
       }
     };
     
-    // Listener untuk tombol header batalkan
     if (headerCancelBtn) {
       headerCancelBtn.removeEventListener('click', cancelTrip);
       headerCancelBtn.addEventListener('click', cancelTrip);
