@@ -2,7 +2,7 @@
 <html lang="id">
 <head>
   <meta charset="utf-8" />
-  <title>Performa - JeGo Driver</title>
+  <title>Performa - JeGo Driver (Harian)</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
   <!-- Firebase SDK -->
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
@@ -27,12 +27,7 @@
       --bg: #f1f5f9;
     }
 
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
-
+    * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
       background-color: var(--bg);
@@ -41,8 +36,6 @@
       font-size: 0.875rem;
       padding-bottom: 20px;
     }
-
-    /* Header */
     .header {
       background: linear-gradient(135deg, var(--primary), var(--primary-dark));
       color: white;
@@ -55,21 +48,48 @@
       top: 0;
       z-index: 100;
     }
-    .header-title {
-      font-size: 1.4rem;
-      font-weight: 700;
-      letter-spacing: -0.3px;
+    .header-title { font-size: 1.4rem; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+    .container { max-width: 640px; margin: 0 auto; padding: 16px; }
+
+    /* Date Navigator */
+    .date-nav {
+      background: white;
+      border-radius: 60px;
+      padding: 8px 12px;
+      margin-bottom: 16px;
       display: flex;
       align-items: center;
-      gap: 8px;
+      justify-content: space-between;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
     }
-
-    /* Container */
-    .container {
-      max-width: 640px;
-      margin: 0 auto;
-      padding: 16px;
+    .date-nav button {
+      background: var(--gray-light);
+      border: none;
+      width: 40px;
+      height: 40px;
+      border-radius: 40px;
+      font-size: 1.2rem;
+      font-weight: bold;
+      cursor: pointer;
+      transition: 0.2s;
+      color: var(--dark);
     }
+    .date-nav button:hover { background: var(--primary); color: white; }
+    .current-date {
+      font-weight: 700;
+      font-size: 0.9rem;
+      background: #f8fafc;
+      padding: 6px 16px;
+      border-radius: 40px;
+      color: var(--primary-dark);
+    }
+    .reset-date {
+      background: var(--gray-light) !important;
+      width: auto !important;
+      padding: 0 16px !important;
+      font-size: 0.8rem !important;
+    }
+    .reset-date:hover { background: var(--danger) !important; color: white !important; }
 
     /* Filter */
     .filter-container {
@@ -81,7 +101,6 @@
       gap: 8px;
       overflow-x: auto;
       box-shadow: 0 2px 8px rgba(0,0,0,0.04);
-      scrollbar-width: thin;
     }
     .filter-option {
       background: #f1f5f9;
@@ -95,16 +114,12 @@
       transition: all 0.2s;
       color: var(--dark);
     }
-    .filter-option.active {
-      background: var(--primary);
-      color: white;
-      box-shadow: 0 4px 10px rgba(255,152,0,0.3);
-    }
+    .filter-option.active { background: var(--primary); color: white; box-shadow: 0 4px 10px rgba(255,152,0,0.3); }
 
     /* Summary Cards */
     .summary-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
       gap: 12px;
       margin-bottom: 24px;
     }
@@ -114,388 +129,76 @@
       padding: 16px 8px;
       text-align: center;
       box-shadow: 0 4px 12px rgba(0,0,0,0.03);
-      transition: all 0.2s;
       border: 1px solid rgba(0,0,0,0.03);
     }
-    .summary-icon {
-      font-size: 28px;
-      margin-bottom: 6px;
-    }
-    .summary-label {
-      font-size: 11px;
-      color: var(--gray);
-      text-transform: uppercase;
-      font-weight: 600;
-      letter-spacing: 0.5px;
-    }
-    .summary-value {
-      font-size: 18px;
-      font-weight: 800;
-      color: var(--primary);
-      margin-top: 6px;
-    }
+    .summary-icon { font-size: 28px; margin-bottom: 6px; }
+    .summary-label { font-size: 11px; color: var(--gray); text-transform: uppercase; font-weight: 600; }
+    .summary-value { font-size: 18px; font-weight: 800; margin-top: 6px; }
     .summary-value.earnings { color: var(--success); }
     .summary-value.distance { color: var(--secondary); }
     .summary-value.fees { color: var(--danger); }
 
     /* Orders List */
-    .orders-list {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-    }
-    .date-header {
-      font-size: 0.85rem;
-      font-weight: 700;
-      color: var(--primary-dark);
-      margin: 8px 0 6px;
-      padding-bottom: 8px;
-      border-bottom: 2px solid rgba(255,152,0,0.2);
-      display: flex;
-      justify-content: space-between;
-      align-items: baseline;
-    }
-    .order-item {
-      background: white;
-      border-radius: 24px;
-      padding: 16px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
-      cursor: pointer;
-      transition: all 0.2s;
-      border: 1px solid #eef2f6;
-    }
-    .order-item:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 12px 24px rgba(0,0,0,0.08);
-      border-color: var(--primary);
-    }
-    .order-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 12px;
-    }
-    .customer-name {
-      font-weight: 700;
-      color: var(--primary-dark);
-      font-size: 0.95rem;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-    .kurir-badge {
-      background: var(--accent);
-      color: #2c3e50;
-      padding: 2px 10px;
-      border-radius: 30px;
-      font-size: 0.65rem;
-      font-weight: 700;
-    }
-    .status-badge {
-      padding: 4px 12px;
-      border-radius: 30px;
-      font-size: 0.7rem;
-      font-weight: 700;
-    }
+    .orders-list { display: flex; flex-direction: column; gap: 12px; }
+    .date-header { font-size: 0.85rem; font-weight: 700; color: var(--primary-dark); margin: 8px 0 6px; padding-bottom: 8px; border-bottom: 2px solid rgba(255,152,0,0.2); display: flex; justify-content: space-between; }
+    .order-item { background: white; border-radius: 24px; padding: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); cursor: pointer; transition: 0.2s; border: 1px solid #eef2f6; }
+    .order-item:hover { transform: translateY(-2px); box-shadow: 0 12px 24px rgba(0,0,0,0.08); border-color: var(--primary); }
+    .order-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+    .customer-name { font-weight: 700; color: var(--primary-dark); font-size: 0.95rem; display: flex; align-items: center; gap: 8px; }
+    .kurir-badge { background: var(--accent); color: #2c3e50; padding: 2px 10px; border-radius: 30px; font-size: 0.65rem; font-weight: 700; }
+    .status-badge { padding: 4px 12px; border-radius: 30px; font-size: 0.7rem; font-weight: 700; }
     .status-completed { background: #d1fae5; color: #065f46; }
     .status-cancelled { background: #fee2e2; color: #991b1b; }
-
-    .route-info {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      margin-bottom: 12px;
-    }
-    .route-point {
-      display: flex;
-      align-items: flex-start;
-      gap: 10px;
-    }
-    .point-marker {
-      width: 22px;
-      height: 22px;
-      border-radius: 50%;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 0.7rem;
-      font-weight: bold;
-      color: white;
-      flex-shrink: 0;
-    }
+    .route-info { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+    .route-point { display: flex; align-items: flex-start; gap: 10px; }
+    .point-marker { width: 22px; height: 22px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 0.7rem; font-weight: bold; color: white; flex-shrink: 0; }
     .point-marker-a { background: var(--primary); }
     .point-marker-b { background: var(--secondary); }
-    .point-address {
-      flex: 1;
-      word-break: break-word;
-      font-size: 0.8rem;
-      color: #334155;
-    }
-
-    .order-details {
-      display: flex;
-      justify-content: space-between;
-      border-top: 1px solid var(--gray-light);
-      padding-top: 12px;
-      margin-bottom: 8px;
-    }
-    .detail-item {
-      flex: 1;
-      text-align: center;
-    }
-    .detail-value {
-      font-weight: 700;
-      color: var(--primary);
-      font-size: 0.85rem;
-    }
-    .price-highlight {
-      color: var(--success);
-    }
-    .order-meta {
-      display: flex;
-      justify-content: space-between;
-      font-size: 0.7rem;
-      color: var(--gray);
-      border-top: 1px solid #f0f2f5;
-      padding-top: 8px;
-    }
-    .empty-state, .loading, .login-required {
-      background: white;
-      border-radius: 28px;
-      padding: 48px 20px;
-      text-align: center;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.04);
-    }
-    .spinner {
-      width: 40px;
-      height: 40px;
-      border: 4px solid rgba(0,0,0,0.1);
-      border-top-color: var(--primary);
-      border-radius: 50%;
-      animation: spin 1s linear infinite;
-      margin: 0 auto 15px;
-    }
+    .point-address { flex: 1; word-break: break-word; font-size: 0.8rem; color: #334155; }
+    .order-details { display: flex; justify-content: space-between; border-top: 1px solid var(--gray-light); padding-top: 12px; margin-bottom: 8px; }
+    .detail-item { flex: 1; text-align: center; }
+    .detail-value { font-weight: 700; color: var(--primary); font-size: 0.85rem; }
+    .price-highlight { color: var(--success); }
+    .order-meta { display: flex; justify-content: space-between; font-size: 0.7rem; color: var(--gray); border-top: 1px solid #f0f2f5; padding-top: 8px; }
+    .empty-state, .loading, .login-required { background: white; border-radius: 28px; padding: 48px 20px; text-align: center; box-shadow: 0 4px 12px rgba(0,0,0,0.04); }
+    .spinner { width: 40px; height: 40px; border: 4px solid rgba(0,0,0,0.1); border-top-color: var(--primary); border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 15px; }
     @keyframes spin { to { transform: rotate(360deg); } }
 
-    /* ========== DETAIL PANEL PROFESSIONAL ========== */
-    .detail-overlay {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(0,0,0,0.5);
-      backdrop-filter: blur(4px);
-      z-index: 1000;
-      visibility: hidden;
-      opacity: 0;
-      transition: all 0.3s ease;
-    }
-    .detail-overlay.active {
-      visibility: visible;
-      opacity: 1;
-    }
-    .detail-panel {
-      position: fixed;
-      top: 0;
-      right: 0;
-      width: 100%;
-      max-width: 500px;
-      height: 100%;
-      background: white;
-      box-shadow: -8px 0 40px rgba(0,0,0,0.15);
-      z-index: 1001;
-      transform: translateX(100%);
-      transition: transform 0.3s cubic-bezier(0.2, 0.9, 0.4, 1.1);
-      overflow-y: auto;
-      display: flex;
-      flex-direction: column;
-    }
-    .detail-overlay.active .detail-panel {
-      transform: translateX(0);
-    }
-    .detail-header {
-      background: white;
-      border-bottom: 1px solid var(--gray-light);
-      padding: 16px 20px;
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      position: sticky;
-      top: 0;
-      z-index: 10;
-      background: white;
-    }
-    .close-detail {
-      background: #f1f5f9;
-      border: none;
-      border-radius: 40px;
-      padding: 8px 18px;
-      color: var(--dark);
-      font-weight: 600;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 0.8rem;
-      transition: 0.2s;
-    }
-    .close-detail:hover {
-      background: #e2e8f0;
-    }
-    .detail-title {
-      font-size: 1.1rem;
-      font-weight: 700;
-      flex: 1;
-      color: var(--dark);
-    }
-    .detail-body {
-      padding: 20px;
-      flex: 1;
-      background: #f8fafc;
-    }
-    .detail-card {
-      background: white;
-      border-radius: 28px;
-      padding: 20px;
-      margin-bottom: 20px;
-      box-shadow: 0 4px 14px rgba(0,0,0,0.05);
-      border: 1px solid #edf2f7;
-    }
-    .map-detail {
-      height: 240px;
-      border-radius: 20px;
-      overflow: hidden;
-      margin-bottom: 0;
-      border: 1px solid var(--gray-light);
-    }
-    .customer-profile-detail {
-      display: flex;
-      align-items: center;
-      gap: 16px;
-      margin-bottom: 20px;
-    }
-    .customer-avatar {
-      width: 56px;
-      height: 56px;
-      border-radius: 50%;
-      object-fit: cover;
-      border: 2px solid var(--primary);
-      background: #fff;
-    }
-    .customer-name-detail {
-      font-weight: 800;
-      font-size: 1.1rem;
-      color: var(--dark);
-    }
-    .stars {
-      color: #fbbf24;
-      letter-spacing: 2px;
-      font-size: 0.85rem;
-    }
-    .route-detail {
-      margin-bottom: 20px;
-    }
-    .route-detail .point {
-      display: flex;
-      gap: 14px;
-      margin-bottom: 14px;
-      align-items: flex-start;
-    }
-    .marker {
-      width: 28px;
-      height: 28px;
-      border-radius: 50%;
-      background: var(--primary);
-      color: white;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 0.75rem;
-      font-weight: bold;
-      flex-shrink: 0;
-    }
-    .marker.b {
-      background: var(--secondary);
-    }
-    .info-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 16px;
-      background: #f8fafc;
-      border-radius: 20px;
-      padding: 16px;
-      margin: 16px 0;
-    }
-    .info-item {
-      text-align: center;
-    }
-    .info-label {
-      font-size: 0.7rem;
-      text-transform: uppercase;
-      color: var(--gray);
-      font-weight: 600;
-    }
-    .info-value {
-      font-weight: 800;
-      font-size: 1rem;
-      margin-top: 4px;
-      color: var(--dark);
-    }
-    .breakdown-box {
-      background: #fefce8;
-      border-radius: 24px;
-      padding: 18px;
-      margin: 16px 0;
-      border: 1px solid #fde68a;
-    }
-    .break-row {
-      display: flex;
-      justify-content: space-between;
-      margin-bottom: 12px;
-      font-size: 0.85rem;
-      align-items: center;
-    }
-    .timeline-detail {
-      margin-top: 20px;
-      background: #f1f5f9;
-      border-radius: 20px;
-      padding: 12px;
-    }
-    .timeline-item {
-      display: flex;
-      gap: 16px;
-      margin-bottom: 14px;
-      font-size: 0.8rem;
-      align-items: baseline;
-      padding-bottom: 8px;
-      border-bottom: 1px dashed #e2e8f0;
-    }
-    .timeline-time {
-      width: 110px;
-      color: var(--gray);
-      font-size: 0.7rem;
-      font-weight: 500;
-    }
-    .timeline-desc {
-      flex: 1;
-      color: var(--dark);
-    }
-    @media (max-width: 500px) {
-      .detail-panel { max-width: 100%; }
-      .timeline-time { width: 90px; }
-      .info-grid { gap: 8px; }
-    }
+    /* Detail Panel (sama) */
+    .detail-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); z-index: 1000; visibility: hidden; opacity: 0; transition: 0.3s; }
+    .detail-overlay.active { visibility: visible; opacity: 1; }
+    .detail-panel { position: fixed; top: 0; right: 0; width: 100%; max-width: 500px; height: 100%; background: white; box-shadow: -8px 0 40px rgba(0,0,0,0.15); z-index: 1001; transform: translateX(100%); transition: transform 0.3s cubic-bezier(0.2, 0.9, 0.4, 1.1); overflow-y: auto; display: flex; flex-direction: column; }
+    .detail-overlay.active .detail-panel { transform: translateX(0); }
+    .detail-header { background: white; border-bottom: 1px solid var(--gray-light); padding: 16px 20px; display: flex; align-items: center; gap: 12px; position: sticky; top: 0; z-index: 10; }
+    .close-detail { background: #f1f5f9; border: none; border-radius: 40px; padding: 8px 18px; cursor: pointer; font-weight: 600; }
+    .detail-body { padding: 20px; background: #f8fafc; }
+    .detail-card { background: white; border-radius: 28px; padding: 20px; margin-bottom: 20px; box-shadow: 0 4px 14px rgba(0,0,0,0.05); }
+    .map-detail { height: 220px; border-radius: 20px; overflow: hidden; margin-bottom: 0; border: 1px solid var(--gray-light); }
+    .customer-profile-detail { display: flex; align-items: center; gap: 16px; margin-bottom: 20px; }
+    .customer-avatar { width: 56px; height: 56px; border-radius: 50%; object-fit: cover; border: 2px solid var(--primary); }
+    .customer-name-detail { font-weight: 800; font-size: 1.1rem; }
+    .stars { color: #fbbf24; letter-spacing: 2px; font-size: 0.85rem; }
+    .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; background: #f8fafc; border-radius: 20px; padding: 16px; margin: 16px 0; }
+    .breakdown-box { background: #fefce8; border-radius: 24px; padding: 18px; margin: 16px 0; border: 1px solid #fde68a; }
+    .break-row { display: flex; justify-content: space-between; margin-bottom: 12px; font-size: 0.85rem; }
+    .timeline-detail { margin-top: 20px; background: #f1f5f9; border-radius: 20px; padding: 12px; }
+    .timeline-item { display: flex; gap: 16px; margin-bottom: 14px; font-size: 0.8rem; border-bottom: 1px dashed #e2e8f0; padding-bottom: 8px; }
+    .timeline-time { width: 110px; color: var(--gray); font-size: 0.7rem; }
+    @media (max-width: 500px) { .timeline-time { width: 90px; } }
   </style>
 </head>
 <body>
-
-<div class="header">
-  <div class="header-title">⚡ PERFORMA</div>
-</div>
-
+<div class="header"><div class="header-title">⚡ PERFORMA HARIAN</div></div>
 <div class="container">
-  <!-- Filter -->
+  <!-- Date Navigator -->
+  <div class="date-nav">
+    <button id="prevDateBtn" title="Hari sebelumnya">←</button>
+    <span id="currentDateLabel" class="current-date">Hari ini</span>
+    <button id="nextDateBtn" title="Hari berikutnya">→</button>
+    <button id="resetDateBtn" class="reset-date">Reset</button>
+  </div>
+
+  <!-- Filter Status -->
   <div class="filter-container">
     <div class="filter-option active" data-filter="all">Semua</div>
     <div class="filter-option" data-filter="completed">Selesai</div>
@@ -507,67 +210,50 @@
   <!-- Summary Cards -->
   <div id="summaryContainer" class="summary-grid" style="display: none;"></div>
 
-  <!-- Daftar Riwayat -->
-  <div class="orders-list" id="ordersList">
-    <div class="loading"><div class="spinner"></div><p>Memuat data...</p></div>
-  </div>
+  <!-- Daftar Order -->
+  <div class="orders-list" id="ordersList"><div class="loading"><div class="spinner"></div><p>Memuat data...</p></div></div>
 </div>
 
-<!-- Detail Panel Professional -->
+<!-- Detail Panel -->
 <div class="detail-overlay" id="detailOverlay">
   <div class="detail-panel">
-    <div class="detail-header">
-      <button class="close-detail" id="closeDetailBtn">← Kembali</button>
-      <div class="detail-title">Detail Perjalanan</div>
-      <div style="width: 30px;"></div>
-    </div>
-    <div class="detail-body" id="detailBody">
-      <div class="loading"><div class="spinner"></div><p>Memuat detail...</p></div>
-    </div>
+    <div class="detail-header"><button class="close-detail" id="closeDetailBtn">← Kembali</button><div class="detail-title">Detail Perjalanan</div><div style="width:30px;"></div></div>
+    <div class="detail-body" id="detailBody"><div class="loading"><div class="spinner"></div><p>Memuat detail...</p></div></div>
   </div>
 </div>
 
 <script>
-  // ========== FIREBASE ==========
   const firebaseConfig = {
     apiKey: "AIzaSyCD0pgeZio-LdKqYDtWxcdXcZwyL4ngYQI",
     authDomain: "jego-35a2b.firebaseapp.com",
     databaseURL: "https://jego-35a2b-default-rtdb.asia-southeast1.firebasedatabase.app",
     projectId: "jego-35a2b",
     storageBucket: "jego-35a2b.firebasestorage.app",
-    messagingSenderId: "600037007040",
     appId: "1:600037007040:web:ac3243ad9b472647ffd725"
   };
   if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
   const database = firebase.database();
 
-  // ========== GLOBAL ==========
   let currentDriverData = null, driverId = null;
   let currentFilter = 'all';
-  let feePersen = 0, pajakPersen = 0;
+  let feePersen = 7, pajakPersen = 11;
   let currentDetailMap = null;
-  let isHandlingPopState = false; // Flag untuk mencegah loop history
+  let isHandlingPopState = false;
+  let currentDate = null;        // Date object (tanggal yang dipilih) atau null
 
-  function formatRupiah(num) {
-    if (num === undefined || num === null) return 'Rp 0';
-    return 'Rp ' + num.toLocaleString('id-ID', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
-  }
-
+  function formatRupiah(num) { if (num == null) return 'Rp 0'; return 'Rp ' + num.toLocaleString('id-ID', { minimumFractionDigits: 0 }); }
   async function loadFeeSettings() {
     try {
       const potonganSnap = await database.ref('data-jego/potongan').once('value');
       const pajakSnap = await database.ref('data-jego/pajak').once('value');
       feePersen = potonganSnap.exists() ? parseFloat(potonganSnap.val()) : 7;
       pajakPersen = pajakSnap.exists() ? parseFloat(pajakSnap.val()) : 11;
-    } catch(e) {
-      feePersen = 7;
-      pajakPersen = 11;
-    }
+    } catch(e) {}
   }
 
   function calculateEarningsDetails(price, orderFee = null, orderTax = null) {
-    const fee = (orderFee !== null && orderFee !== undefined) ? orderFee : feePersen;
-    const tax = (orderTax !== null && orderTax !== undefined) ? orderTax : pajakPersen;
+    const fee = (orderFee != null) ? orderFee : feePersen;
+    const tax = (orderTax != null) ? orderTax : pajakPersen;
     const potonganRupiah = price * (fee / 100);
     const pajakRupiah = potonganRupiah * (tax / 100);
     const totalPotongan = potonganRupiah + pajakRupiah;
@@ -578,18 +264,18 @@
   function computeStats(orders) {
     let totalOrders = 0, totalDistance = 0, grossEarnings = 0, netEarningsSum = 0;
     orders.forEach(order => {
-        if (order.status !== 'completed') return;
-        totalOrders++;
-        const distance = order.distance_meters ? order.distance_meters / 1000 : 0;
-        totalDistance += distance;
-        const price = order.price || 0;
-        grossEarnings += price;
-        const fee = (order.fee_percent != null) ? order.fee_percent : feePersen;
-        const tax = (order.tax_percent != null) ? order.tax_percent : pajakPersen;
-        const potonganRupiah = price * (fee / 100);
-        const pajakRupiah = potonganRupiah * (tax / 100);
-        const net = price - (potonganRupiah + pajakRupiah);
-        netEarningsSum += net;
+      if (order.status !== 'completed') return;
+      totalOrders++;
+      const distance = order.distance_meters ? order.distance_meters / 1000 : 0;
+      totalDistance += distance;
+      const price = order.price || 0;
+      grossEarnings += price;
+      const fee = (order.fee_percent != null) ? order.fee_percent : feePersen;
+      const tax = (order.tax_percent != null) ? order.tax_percent : pajakPersen;
+      const potonganRupiah = price * (fee / 100);
+      const pajakRupiah = potonganRupiah * (tax / 100);
+      const net = price - (potonganRupiah + pajakRupiah);
+      netEarningsSum += net;
     });
     const totalFees = grossEarnings - netEarningsSum;
     const avgPerKm = totalDistance > 0 ? netEarningsSum / totalDistance : 0;
@@ -612,6 +298,27 @@
     `;
   }
 
+  // Mendapatkan tanggal acuan order (prioritas completed_at, lalu created_at)
+  function getOrderDate(order) {
+    if (order.completed_at) return new Date(order.completed_at);
+    if (order.created_at) return new Date(order.created_at);
+    return null;
+  }
+
+  function isSameDay(date1, date2) {
+    if (!date1 || !date2) return false;
+    return date1.getFullYear() === date2.getFullYear() &&
+           date1.getMonth() === date2.getMonth() &&
+           date1.getDate() === date2.getDate();
+  }
+
+  function formatDateIndonesia(date) {
+    if (!date) return '-';
+    const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+    return `${days[date.getDay()]}, ${date.getDate()} ${months[date.getMonth()]} ${date.getFullYear()}`;
+  }
+
   function checkDriverData() {
     const data = localStorage.getItem('jego_logged_in_driver');
     if (!data) return false;
@@ -625,32 +332,88 @@
     } catch { return false; }
   }
 
-  function formatDateKey(dateStr) {
-    if (!dateStr) return '';
-    const d = new Date(dateStr);
-    return d.toLocaleDateString('id-ID', { year:'numeric', month:'2-digit', day:'2-digit' });
+  async function refreshData() {
+    if (!checkDriverData()) {
+      document.getElementById('ordersList').innerHTML = `<div class="login-required"><h3>🔐 Login Diperlukan</h3><button class="login-btn" style="background:var(--primary);border:none;padding:12px 24px;border-radius:40px;color:white;font-weight:bold;margin-top:12px;cursor:pointer;" onclick="window.location.href='loginDriver.html'">Login Driver</button></div>`;
+      return;
+    }
+    await loadFeeSettings();
+    const ordersListDiv = document.getElementById('ordersList');
+    ordersListDiv.innerHTML = `<div class="loading"><div class="spinner"></div><p>Memuat data...</p></div>`;
+
+    try {
+      const snapshot = await database.ref('orders').once('value');
+      const all = snapshot.val();
+      let driverOrders = [];
+      if (all) {
+        Object.entries(all).forEach(([id, order]) => {
+          if (order.driver_id === driverId && (order.status === 'completed' || order.status === 'cancelled')) {
+            driverOrders.push({ id, ...order });
+          }
+        });
+      }
+
+      // Filter berdasarkan status
+      let filtered = [...driverOrders];
+      if (currentFilter === 'completed') filtered = filtered.filter(o => o.status === 'completed');
+      else if (currentFilter === 'cancelled') filtered = filtered.filter(o => o.status === 'cancelled');
+      else if (currentFilter === 'this_week') filtered = filtered.filter(o => {
+        const d = getOrderDate(o);
+        if (!d) return false;
+        const today = new Date();
+        const start = new Date(today); start.setDate(today.getDate() - today.getDay()); start.setHours(0,0,0,0);
+        const end = new Date(today); end.setDate(today.getDate() + (6 - today.getDay())); end.setHours(23,59,59,999);
+        return d >= start && d <= end;
+      });
+      else if (currentFilter === 'this_month') filtered = filtered.filter(o => {
+        const d = getOrderDate(o);
+        if (!d) return false;
+        const today = new Date();
+        const start = new Date(today.getFullYear(), today.getMonth(), 1);
+        const end = new Date(today.getFullYear(), today.getMonth()+1, 0, 23,59,59,999);
+        return d >= start && d <= end;
+      });
+
+      // Jika sedang dalam mode tanggal tertentu (currentDate !== null)
+      if (currentDate !== null) {
+        filtered = filtered.filter(order => {
+          const orderDate = getOrderDate(order);
+          return orderDate && isSameDay(orderDate, currentDate);
+        });
+      }
+
+      filtered.sort((a,b) => new Date(b.completed_at || b.created_at) - new Date(a.completed_at || a.created_at));
+      renderSummary(filtered);
+
+      if (filtered.length === 0) {
+        ordersListDiv.innerHTML = '<div class="empty-state">📭 Tidak ada order untuk periode ini</div>';
+        return;
+      }
+
+      const grouped = {};
+      filtered.forEach(order => {
+        const orderDate = getOrderDate(order);
+        if (!orderDate) return;
+        const key = orderDate.toLocaleDateString('id-ID');
+        if (!grouped[key]) grouped[key] = [];
+        grouped[key].push(order);
+      });
+
+      ordersListDiv.innerHTML = '';
+      Object.keys(grouped).sort((a,b) => {
+        const [dA, mA, yA] = a.split('/'); const [dB, mB, yB] = b.split('/');
+        return new Date(`${yA}-${mA}-${dA}`) - new Date(`${yB}-${mB}-${dB}`);
+      }).reverse().forEach(date => {
+        const header = document.createElement('div');
+        header.className = 'date-header';
+        header.innerHTML = `<span>📅 ${date}</span><span>${grouped[date].length} order</span>`;
+        ordersListDiv.appendChild(header);
+        grouped[date].forEach(order => ordersListDiv.appendChild(createOrderCard(order)));
+      });
+    } catch(err) {
+      ordersListDiv.innerHTML = '<div class="empty-state">⚠️ Gagal memuat data. Coba lagi nanti.</div>';
+    }
   }
-  function formatTime(timeStr) {
-    if (!timeStr) return '-';
-    return new Date(timeStr).toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit' });
-  }
-  function formatDateTime(dateStr) {
-    if (!dateStr) return '-';
-    return new Date(dateStr).toLocaleString('id-ID', { day:'numeric', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' });
-  }
-  function isThisWeek(date) {
-    const today = new Date();
-    const start = new Date(today); start.setDate(today.getDate() - today.getDay()); start.setHours(0,0,0,0);
-    const end = new Date(today); end.setDate(today.getDate() + (6 - today.getDay())); end.setHours(23,59,59,999);
-    return date >= start && date <= end;
-  }
-  function isThisMonth(date) {
-    const today = new Date();
-    const start = new Date(today.getFullYear(), today.getMonth(), 1);
-    const end = new Date(today.getFullYear(), today.getMonth()+1, 0, 23,59,59,999);
-    return date >= start && date <= end;
-  }
-  function escapeHtml(str) { if(!str) return ''; return str.replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'})[m]); }
 
   function createOrderCard(order) {
     const div = document.createElement('div');
@@ -680,53 +443,26 @@
     return div;
   }
 
-  // ========== FUNGSI TUTUP DETAIL (dengan history back) ==========
-  function closeDetail() {
-    const overlay = document.getElementById('detailOverlay');
-    if (!overlay.classList.contains('active')) return; // Sudah tertutup
+  function formatTime(dateStr) { if (!dateStr) return '-'; return new Date(dateStr).toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit' }); }
+  function formatDateTime(dateStr) { if (!dateStr) return '-'; return new Date(dateStr).toLocaleString('id-ID', { day:'numeric', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' }); }
+  function escapeHtml(str) { if(!str) return ''; return str.replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'})[m]); }
 
-    // Hapus map jika ada
-    if (currentDetailMap) {
-      currentDetailMap.remove();
-      currentDetailMap = null;
-    }
-    // Tutup overlay
-    overlay.classList.remove('active');
-    
-    // Gunakan history.back jika memungkinkan, tapi hindari loop dengan flag
-    if (!isHandlingPopState && window.history.state && window.history.state.isDetailOpen === true) {
-      isHandlingPopState = true;
-      history.back();
-      // Reset flag setelah timeout
-      setTimeout(() => { isHandlingPopState = false; }, 100);
-    }
-  }
-
-  // ========== BUKA DETAIL (push state) ==========
+  // Detail Panel (sama seperti sebelumnya, sedikit disederhanakan)
   async function showOrderDetail(orderId) {
-    // Jika overlay sudah aktif, jangan buka lagi
     const overlay = document.getElementById('detailOverlay');
     if (overlay.classList.contains('active')) return;
-    
-    // Push state ke history
-    const state = { isDetailOpen: true, orderId: orderId };
-    history.pushState(state, '', window.location.href);
-    
-    // Tampilkan loading
-    const body = document.getElementById('detailBody');
+    history.pushState({ isDetailOpen: true, orderId }, '', window.location.href);
     overlay.classList.add('active');
+    const body = document.getElementById('detailBody');
     body.innerHTML = '<div class="loading"><div class="spinner"></div><p>Memuat detail...</p></div>';
-
     try {
       const orderSnap = await database.ref('orders/' + orderId).once('value');
       const order = orderSnap.val();
       if (!order) throw new Error('Order tidak ditemukan');
-
       const price = order.price || 0;
       const details = calculateEarningsDetails(price, order.fee_percent, order.tax_percent);
       const durasi = order.duration_seconds ? `${Math.round(order.duration_seconds/60)} menit` : '-';
       const jarak = order.distance_meters ? (order.distance_meters/1000).toFixed(1) + ' km' : '-';
-
       let ratingHtml = '<span>⭐ Belum dinilai</span>';
       try {
         const ratingSnap = await database.ref(`ratings/${orderId}/customer_rating`).once('value');
@@ -736,196 +472,125 @@
           ratingHtml = `<span class="stars">${stars}</span> ${ratingData.rating} bintang`;
         }
       } catch(e) {}
-
       body.innerHTML = `
-        <!-- MAP CARD -->
-        <div class="detail-card" style="padding:0; overflow:hidden;">
-          <div id="detailMap" class="map-detail" style="height:220px; width:100%;"></div>
-        </div>
-
-        <!-- Info Customer & Rute -->
+        <div class="detail-card" style="padding:0;"><div id="detailMap" class="map-detail" style="height:220px;"></div></div>
         <div class="detail-card">
-          <div class="customer-profile-detail">
-            <img class="customer-avatar" src="${order.photoURL || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png'}">
-            <div>
-              <div class="customer-name-detail">${escapeHtml(order.customer_name || 'Customer')}</div>
-              <div class="driver-rating" style="margin-top:4px;">${ratingHtml}</div>
-            </div>
-          </div>
-
-          <div class="route-detail">
-            <div class="point"><div class="marker">A</div><div>${escapeHtml(order.pickup_address || '-')}</div></div>
-            <div class="point"><div class="marker b">B</div><div>${escapeHtml(order.destination_address || '-')}</div></div>
-          </div>
-
-          <div class="info-grid">
-            <div class="info-item"><div class="info-label">Durasi</div><div class="info-value">${durasi}</div></div>
-            <div class="info-item"><div class="info-label">Jarak</div><div class="info-value">${jarak}</div></div>
-            <div class="info-item"><div class="info-label">Harga</div><div class="info-value" style="color:var(--success);">${formatRupiah(price)}</div></div>
-            <div class="info-item"><div class="info-label">Status</div><div class="info-value">${order.status === 'completed' ? '✅ Selesai' : '❌ Dibatalkan'}</div></div>
-          </div>
-
-          <div class="breakdown-box">
-            <div class="break-row"><span><strong>💰 Pendapatan Bersih Driver</strong></span><strong>${formatRupiah(details.net)}</strong></div>
-            <div class="break-row"><span>📉 Fee aplikasi (${details.feePercent}%)</span><span>${formatRupiah(details.fee)}</span></div>
-            <div class="break-row"><span>📊 PPN ${details.taxPercent}% dari fee</span><span>${formatRupiah(details.tax)}</span></div>
-            <div class="break-row"><span>📋 Total potongan</span><span>${formatRupiah(details.totalPotongan)}</span></div>
-            <div class="break-row" style="border-top:1px solid #e2e8f0; margin-top:8px; padding-top:8px;"><span>💵 Total dibayar customer</span><strong>${formatRupiah(price)}</strong></div>
-          </div>
-
-          <div class="timeline-detail">
-            <div class="timeline-item"><div class="timeline-time">${formatDateTime(order.created_at)}</div><div class="timeline-desc">Order dibuat</div></div>
-            <div class="timeline-item"><div class="timeline-time">${formatDateTime(order.driver_offers?.[driverId]?.offered_at)}</div><div class="timeline-desc">Penawaran diterima</div></div>
-            <div class="timeline-item"><div class="timeline-time">${formatDateTime(order.trip_started_at)}</div><div class="timeline-desc">Perjalanan dimulai</div></div>
-            <div class="timeline-item"><div class="timeline-time">${formatDateTime(order.arrived_at)}</div><div class="timeline-desc">Tiba di tujuan</div></div>
-            <div class="timeline-item"><div class="timeline-time">${formatDateTime(order.completed_at || order.updated_at)}</div><div class="timeline-desc">Selesai</div></div>
-          </div>
+          <div class="customer-profile-detail"><img class="customer-avatar" src="${order.photoURL || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png'}"><div><div class="customer-name-detail">${escapeHtml(order.customer_name)}</div><div>${ratingHtml}</div></div></div>
+          <div class="route-detail"><div class="point"><div class="marker">A</div><div>${escapeHtml(order.pickup_address)}</div></div><div class="point"><div class="marker b">B</div><div>${escapeHtml(order.destination_address)}</div></div></div>
+          <div class="info-grid"><div class="info-item"><div class="info-label">Durasi</div><div class="info-value">${durasi}</div></div><div class="info-item"><div class="info-label">Jarak</div><div class="info-value">${jarak}</div></div><div class="info-item"><div class="info-label">Harga</div><div class="info-value" style="color:var(--success);">${formatRupiah(price)}</div></div><div class="info-item"><div class="info-label">Status</div><div class="info-value">${order.status === 'completed' ? '✅ Selesai' : '❌ Dibatalkan'}</div></div></div>
+          <div class="breakdown-box"><div class="break-row"><span><strong>💰 Pendapatan Bersih Driver</strong></span><strong>${formatRupiah(details.net)}</strong></div><div class="break-row"><span>📉 Fee aplikasi (${details.feePercent}%)</span><span>${formatRupiah(details.fee)}</span></div><div class="break-row"><span>📊 PPN ${details.taxPercent}% dari fee</span><span>${formatRupiah(details.tax)}</span></div><div class="break-row"><span>📋 Total potongan</span><span>${formatRupiah(details.totalPotongan)}</span></div><div class="break-row" style="border-top:1px solid #e2e8f0; margin-top:8px; padding-top:8px;"><span>💵 Total dibayar customer</span><strong>${formatRupiah(price)}</strong></div></div>
+          <div class="timeline-detail"><div class="timeline-item"><div class="timeline-time">${formatDateTime(order.created_at)}</div><div class="timeline-desc">Order dibuat</div></div><div class="timeline-item"><div class="timeline-time">${formatDateTime(order.driver_offers?.[driverId]?.offered_at)}</div><div class="timeline-desc">Penawaran diterima</div></div><div class="timeline-item"><div class="timeline-time">${formatDateTime(order.trip_started_at)}</div><div class="timeline-desc">Perjalanan dimulai</div></div><div class="timeline-item"><div class="timeline-time">${formatDateTime(order.arrived_at)}</div><div class="timeline-desc">Tiba di tujuan</div></div><div class="timeline-item"><div class="timeline-time">${formatDateTime(order.completed_at || order.updated_at)}</div><div class="timeline-desc">Selesai</div></div></div>
         </div>
       `;
-
       setTimeout(() => {
         if (currentDetailMap) currentDetailMap.remove();
-        const mapContainer = document.getElementById('detailMap');
-        if (mapContainer && order.pickup_lat && order.pickup_lng && order.dest_lat && order.dest_lng) {
-          currentDetailMap = L.map(mapContainer).setView([order.pickup_lat, order.pickup_lng], 13);
-          L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>',
-            maxZoom: 19
-          }).addTo(currentDetailMap);
+        const container = document.getElementById('detailMap');
+        if (container && order.pickup_lat && order.pickup_lng && order.dest_lat && order.dest_lng) {
+          currentDetailMap = L.map(container).setView([order.pickup_lat, order.pickup_lng], 13);
+          L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OSM' }).addTo(currentDetailMap);
           L.marker([order.pickup_lat, order.pickup_lng]).bindPopup('📍 Penjemputan').addTo(currentDetailMap);
           L.marker([order.dest_lat, order.dest_lng]).bindPopup('🏁 Tujuan').addTo(currentDetailMap);
-          const bounds = L.latLngBounds([[order.pickup_lat, order.pickup_lng], [order.dest_lat, order.dest_lng]]);
-          currentDetailMap.fitBounds(bounds, { padding: [50,50] });
-        } else if (mapContainer) {
-          mapContainer.innerHTML = '<div style="padding:20px;text-align:center;color:gray;">🗺️ Lokasi tidak tersedia</div>';
+          currentDetailMap.fitBounds([[order.pickup_lat, order.pickup_lng], [order.dest_lat, order.dest_lng]], { padding: [50,50] });
         }
-      }, 150);
-    } catch(err) {
-      body.innerHTML = `<div class="empty-state">⚠️ Gagal memuat detail: ${err.message}</div>`;
+      }, 100);
+    } catch(err) { body.innerHTML = `<div class="empty-state">⚠️ Gagal memuat detail: ${err.message}</div>`; }
+  }
+
+  function closeDetail() {
+    const overlay = document.getElementById('detailOverlay');
+    if (!overlay.classList.contains('active')) return;
+    if (currentDetailMap) { currentDetailMap.remove(); currentDetailMap = null; }
+    overlay.classList.remove('active');
+    if (!isHandlingPopState && window.history.state?.isDetailOpen) {
+      isHandlingPopState = true;
+      history.back();
+      setTimeout(() => { isHandlingPopState = false; }, 100);
     }
   }
 
-  // ========== HANDLE TOMBOL BACK BROWSER ==========
   function handlePopState(event) {
     if (isHandlingPopState) return;
-    
     const overlay = document.getElementById('detailOverlay');
-    const isOpen = overlay.classList.contains('active');
-    
-    if (isOpen) {
-      // Jika overlay aktif, tutup tanpa push state lagi
-      isHandlingPopState = true;
-      
-      // Hapus map
-      if (currentDetailMap) {
-        currentDetailMap.remove();
-        currentDetailMap = null;
-      }
-      overlay.classList.remove('active');
-      
-      // State saat ini sudah di-pop, kita tidak perlu push lagi
-      setTimeout(() => { isHandlingPopState = false; }, 100);
+    if (overlay.classList.contains('active')) closeDetail();
+  }
+
+  // ========== NAVIGASI TANGGAL ==========
+  function updateDateNavigator() {
+    const label = document.getElementById('currentDateLabel');
+    if (currentDate) {
+      label.textContent = formatDateIndonesia(currentDate);
     } else {
-      // Jika tidak ada overlay, biarkan browser kembali ke halaman sebelumnya
-      // Tidak perlu melakukan apa-apa
+      label.textContent = '📆 Semua tanggal (filter aktif)';
     }
   }
 
-  // ========== LOAD RIWAYAT ==========
-  async function loadHistoryData() {
-    if (!checkDriverData()) {
-      document.getElementById('ordersList').innerHTML = `<div class="login-required"><h3>🔐 Login Diperlukan</h3><button class="login-btn" style="background:var(--primary);border:none;padding:12px 24px;border-radius:40px;color:white;font-weight:bold;margin-top:12px;cursor:pointer;" onclick="window.location.href='loginDriver.html'">Login Driver</button></div>`;
-      return;
-    }
-    await loadFeeSettings();
-    const ordersListDiv = document.getElementById('ordersList');
-    ordersListDiv.innerHTML = `<div class="loading"><div class="spinner"></div><p>Memuat data...</p></div>`;
-
-    try {
-      const snapshot = await database.ref('orders').once('value');
-      const all = snapshot.val();
-      let orders = [];
-      if (all) {
-        Object.entries(all).forEach(([id, order]) => {
-          if (order.driver_id === driverId && (order.status === 'completed' || order.status === 'cancelled')) {
-            orders.push({ id, ...order });
-          }
-        });
-      }
-      let filtered = [...orders];
-      if (currentFilter === 'completed') filtered = filtered.filter(o => o.status === 'completed');
-      else if (currentFilter === 'cancelled') filtered = filtered.filter(o => o.status === 'cancelled');
-      else if (currentFilter === 'this_week') filtered = filtered.filter(o => isThisWeek(new Date(o.completed_at || o.created_at)));
-      else if (currentFilter === 'this_month') filtered = filtered.filter(o => isThisMonth(new Date(o.completed_at || o.created_at)));
-
-      filtered.sort((a,b) => new Date(b.completed_at || b.created_at) - new Date(a.completed_at || a.created_at));
-      renderSummary(filtered);
-
-      if (filtered.length === 0) {
-        ordersListDiv.innerHTML = '<div class="empty-state">📭 Tidak ada order sesuai filter</div>';
-        return;
-      }
-
-      const grouped = {};
-      filtered.forEach(order => {
-        const key = formatDateKey(order.completed_at || order.created_at);
-        if (!grouped[key]) grouped[key] = [];
-        grouped[key].push(order);
-      });
-      const sortedDates = Object.keys(grouped).sort((a,b) => {
-        const [dA, mA, yA] = a.split('/'); const [dB, mB, yB] = b.split('/');
-        return new Date(`${yA}-${mA}-${dA}`) - new Date(`${yB}-${mB}-${dB}`);
-      }).reverse();
-
-      ordersListDiv.innerHTML = '';
-      sortedDates.forEach(date => {
-        const header = document.createElement('div');
-        header.className = 'date-header';
-        header.innerHTML = `<span>📅 ${date}</span><span>${grouped[date].length} order</span>`;
-        ordersListDiv.appendChild(header);
-        grouped[date].forEach(order => ordersListDiv.appendChild(createOrderCard(order)));
-      });
-    } catch(err) {
-      console.error(err);
-      ordersListDiv.innerHTML = '<div class="empty-state">⚠️ Gagal memuat data. Coba lagi nanti.</div>';
-    }
+  function setDate(date) {
+    currentDate = date ? new Date(date) : null;
+    updateDateNavigator();
+    refreshData();
   }
 
+  function goPrevDay() {
+    let newDate;
+    if (currentDate) {
+      newDate = new Date(currentDate);
+      newDate.setDate(currentDate.getDate() - 1);
+    } else {
+      newDate = new Date(); // mulai dari hari ini
+    }
+    setDate(newDate);
+  }
+
+  function goNextDay() {
+    let newDate;
+    if (currentDate) {
+      newDate = new Date(currentDate);
+      newDate.setDate(currentDate.getDate() + 1);
+    } else {
+      newDate = new Date();
+    }
+    setDate(newDate);
+  }
+
+  function resetDate() {
+    setDate(null);
+    // Reset juga filter ke 'all'? biarkan filter tetap, tapi kita hapus mode tanggal
+    // Untuk konsistensi, kita set currentFilter ke 'all' dan aktifkan tombol filter
+    currentFilter = 'all';
+    document.querySelectorAll('.filter-option').forEach(opt => {
+      if (opt.dataset.filter === 'all') opt.classList.add('active');
+      else opt.classList.remove('active');
+    });
+    refreshData();
+  }
+
+  // Interaksi filter - jika klik filter, reset mode tanggal
   function changeFilter(filter) {
     currentFilter = filter;
+    // Jika sedang mode tanggal, reset tanggal agar tidak membingungkan
+    if (currentDate !== null) {
+      currentDate = null;
+      updateDateNavigator();
+    }
     document.querySelectorAll('.filter-option').forEach(opt => {
       if (opt.dataset.filter === filter) opt.classList.add('active');
       else opt.classList.remove('active');
     });
-    loadHistoryData();
+    refreshData();
   }
 
-  // ========== INIT ==========
+  // Event binding
   document.addEventListener('DOMContentLoaded', () => {
-    // Event listener untuk tombol close
-    const closeBtn = document.getElementById('closeDetailBtn');
-    if (closeBtn) {
-      closeBtn.addEventListener('click', (e) => {
-        e.preventDefault();
-        closeDetail();
-      });
-    }
-    
-    // Tutup overlay jika klik di luar panel
-    const overlay = document.getElementById('detailOverlay');
-    overlay.addEventListener('click', (e) => {
-      if (e.target === overlay) closeDetail();
-    });
-    
-    // Pasang event listener popstate untuk tombol back
+    document.getElementById('prevDateBtn').addEventListener('click', goPrevDay);
+    document.getElementById('nextDateBtn').addEventListener('click', goNextDay);
+    document.getElementById('resetDateBtn').addEventListener('click', resetDate);
+    document.getElementById('closeDetailBtn').addEventListener('click', closeDetail);
+    document.getElementById('detailOverlay').addEventListener('click', (e) => { if (e.target === document.getElementById('detailOverlay')) closeDetail(); });
     window.addEventListener('popstate', handlePopState);
-    
-    // Filter click
     document.querySelectorAll('.filter-option').forEach(opt => {
       opt.addEventListener('click', () => changeFilter(opt.dataset.filter));
     });
-    
-    loadHistoryData();
+    refreshData();
   });
 </script>
 </body>
