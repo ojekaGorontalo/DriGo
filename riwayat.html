@@ -2,25 +2,32 @@
 <html lang="id">
 <head>
   <meta charset="utf-8" />
-  <title>Riwayat Order - JeGo</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Riwayat Order - JeGo Driver</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+
   <!-- Firebase SDK -->
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
-  <!-- Leaflet CSS -->
+
+  <!-- Leaflet CSS & JS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
   <style>
     :root {
-      --primary: #FF9800;    /* Orange */
-      --secondary: #FF5722;   /* Red-Orange */
-      --accent: #FFC107;     /* Amber/Yellow */
+      --primary: #FF9800;
+      --primary-dark: #F57C00;
+      --secondary: #FF5722;
+      --accent: #FFC107;
       --light: #f8f9fa;
-      --dark: #343a40;
-      --success: #4CAF50;    /* Green */
-      --danger: #f44336;     /* Red */
-      --warning: #FFC107;    /* Yellow */
-      --info: #2196F3;       /* Blue */
-      --gray: #9E9E9E;       /* Gray */
+      --dark: #1e2a3e;
+      --success: #10b981;
+      --danger: #ef4444;
+      --warning: #f59e0b;
+      --info: #3b82f6;
+      --gray: #64748b;
+      --gray-light: #e2e8f0;
+      --bg: #f1f5f9;
     }
 
     * {
@@ -30,19 +37,20 @@
     }
 
     body {
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      background-color: #f5f5f5;
-      color: #333;
-      line-height: 1.4;
-      font-size: 0.85rem;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      background-color: var(--bg);
+      color: var(--dark);
+      line-height: 1.5;
+      font-size: 0.875rem;
+      padding-bottom: 20px;
     }
 
-    /* Header Styles */
+    /* Header dengan tombol aksi */
     .header {
-      background: linear-gradient(135deg, var(--primary), var(--secondary));
+      background: linear-gradient(135deg, var(--primary), var(--primary-dark));
       color: white;
-      padding: 15px 20px;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+      padding: 18px 20px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.08);
       display: flex;
       align-items: center;
       justify-content: space-between;
@@ -50,685 +58,469 @@
       top: 0;
       z-index: 100;
     }
-
-    .logo-container {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-
-    .back-btn {
-      background: rgba(255,255,255,0.2);
-      color: white;
-      border: none;
-      border-radius: 8px;
-      padding: 8px 15px;
-      cursor: pointer;
-      font-weight: 600;
-      transition: all 0.3s;
-      display: flex;
-      align-items: center;
-      gap: 5px;
-      font-size: 0.85rem;
-    }
-
-    .back-btn:hover {
-      background: rgba(255,255,255,0.3);
-    }
-
     .header-title {
-      font-size: 1.1rem;
+      font-size: 1.4rem;
+      font-weight: 700;
+      letter-spacing: -0.3px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .header-actions {
+      display: flex;
+      gap: 12px;
+    }
+    .action-btn {
+      background: rgba(255,255,255,0.2);
+      border: none;
+      border-radius: 40px;
+      padding: 6px 16px;
+      font-size: 0.75rem;
       font-weight: 600;
-      flex: 1;
-      text-align: center;
-      white-space: nowrap;
+      color: white;
+      cursor: pointer;
+      transition: 0.2s;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .action-btn:hover {
+      background: rgba(255,255,255,0.35);
+      transform: translateY(-1px);
     }
 
-    /* Container Styles */
+    /* Container */
     .container {
-      max-width: 100%;
-      padding: 15px;
+      max-width: 640px;
+      margin: 0 auto;
+      padding: 16px;
     }
 
-    /* Filter Styles */
+    /* Filter */
     .filter-container {
       background: white;
-      border-radius: 12px;
-      padding: 15px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-      margin-bottom: 15px;
+      border-radius: 48px;
+      padding: 6px 12px;
+      margin-bottom: 20px;
       display: flex;
-      gap: 10px;
+      gap: 8px;
       overflow-x: auto;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+      scrollbar-width: thin;
     }
-
     .filter-option {
-      background: #f8f9fa;
-      border: 1px solid #e9ecef;
-      border-radius: 20px;
-      padding: 8px 15px;
-      font-size: 0.8rem;
-      font-weight: 500;
+      background: #f1f5f9;
+      border: none;
+      border-radius: 40px;
+      padding: 8px 18px;
+      font-size: 0.75rem;
+      font-weight: 600;
       cursor: pointer;
-      transition: all 0.3s;
       white-space: nowrap;
+      transition: all 0.2s;
+      color: var(--dark);
     }
-
     .filter-option.active {
       background: var(--primary);
       color: white;
-      border-color: var(--primary);
+      box-shadow: 0 4px 10px rgba(255,152,0,0.3);
     }
 
-    /* Orders List Styles */
+    /* Daftar Order */
     .orders-list {
       display: flex;
       flex-direction: column;
-      gap: 10px;
+      gap: 12px;
     }
-
-    .date-section {
-      margin-bottom: 5px;
-    }
-
     .date-header {
-      font-size: 0.9rem;
-      font-weight: 600;
-      color: var(--primary);
-      margin-bottom: 10px;
-      padding-bottom: 5px;
-      border-bottom: 1px solid #eee;
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: var(--primary-dark);
+      margin: 8px 0 6px;
+      padding-bottom: 8px;
+      border-bottom: 2px solid rgba(255,152,0,0.2);
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
     }
-
     .order-item {
       background: white;
-      border-radius: 8px;
-      padding: 12px;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.08);
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
+      border-radius: 24px;
+      padding: 16px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
       cursor: pointer;
-      transition: all 0.3s;
+      transition: all 0.2s;
+      border: 1px solid #eef2f6;
     }
-
     .order-item:hover {
       transform: translateY(-2px);
-      box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+      box-shadow: 0 12px 24px rgba(0,0,0,0.08);
+      border-color: var(--primary);
     }
-
     .order-header {
       display: flex;
       justify-content: space-between;
-      align-items: flex-start;
+      align-items: center;
+      margin-bottom: 12px;
     }
-
     .customer-name {
-      font-weight: 600;
-      color: var(--primary);
-      font-size: 0.9rem;
+      font-weight: 700;
+      color: var(--primary-dark);
+      font-size: 0.95rem;
       display: flex;
       align-items: center;
-      gap: 5px;
+      gap: 8px;
     }
-
     .kurir-badge {
-      background-color: var(--accent);
-      color: var(--dark);
-      padding: 2px 6px;
-      border-radius: 4px;
-      font-size: 0.7rem;
-      font-weight: 600;
+      background: var(--accent);
+      color: #2c3e50;
+      padding: 2px 10px;
+      border-radius: 30px;
+      font-size: 0.65rem;
+      font-weight: 700;
     }
-
     .status-badge {
-      display: inline-block;
-      padding: 4px 8px;
-      border-radius: 4px;
-      font-size: 0.75rem;
-      font-weight: 600;
-      text-transform: uppercase;
+      padding: 4px 12px;
+      border-radius: 30px;
+      font-size: 0.7rem;
+      font-weight: 700;
     }
-
-    .status-completed {
-      background-color: #d4edda;
-      color: #155724;
-    }
-
-    .status-cancelled {
-      background-color: #f8d7da;
-      color: #721c24;
-    }
-
-    .status-on_the_way {
-      background-color: #d1ecf1;
-      color: #0c5460;
-    }
-
-    .status-accepted {
-      background-color: #fff3cd;
-      color: #856404;
-    }
-
-    .status-search {
-      background-color: #e3f2fd;
-      color: #0d47a1;
-    }
+    .status-completed { background: #d1fae5; color: #065f46; }
+    .status-cancelled { background: #fee2e2; color: #991b1b; }
 
     .route-info {
       display: flex;
       flex-direction: column;
-      gap: 5px;
-      font-size: 0.8rem;
+      gap: 8px;
+      margin-bottom: 12px;
     }
-
     .route-point {
       display: flex;
       align-items: flex-start;
+      gap: 10px;
     }
-
     .point-marker {
-      width: 16px;
-      height: 16px;
+      width: 22px;
+      height: 22px;
       border-radius: 50%;
-      display: flex;
+      display: inline-flex;
       align-items: center;
       justify-content: center;
-      margin-right: 8px;
-      flex-shrink: 0;
       font-size: 0.7rem;
-      color: white;
       font-weight: bold;
+      color: white;
+      flex-shrink: 0;
     }
-
-    .point-marker-a {
-      background-color: var(--primary);
-    }
-
-    .point-marker-b {
-      background-color: var(--secondary);
-    }
-
+    .point-marker-a { background: var(--primary); }
+    .point-marker-b { background: var(--secondary); }
     .point-address {
       flex: 1;
       word-break: break-word;
-    }
-
-    .point-address-a {
-      font-weight: 700;
+      font-size: 0.8rem;
+      color: #334155;
     }
 
     .order-details {
       display: flex;
       justify-content: space-between;
-      border-top: 1px solid #eee;
-      padding-top: 8px;
-      font-size: 0.8rem;
+      border-top: 1px solid var(--gray-light);
+      padding-top: 12px;
+      margin-bottom: 8px;
     }
-
     .detail-item {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      text-align: center;
       flex: 1;
+      text-align: center;
     }
-
     .detail-value {
-      font-weight: 600;
+      font-weight: 700;
       color: var(--primary);
+      font-size: 0.85rem;
     }
-
-    .detail-label {
-      font-size: 0.75rem;
-      color: #666;
-      margin-top: 2px;
-    }
-
     .price-highlight {
       color: var(--success);
-      font-weight: 700;
     }
-
     .order-meta {
       display: flex;
       justify-content: space-between;
       font-size: 0.7rem;
-      color: #666;
-      border-top: 1px solid #f0f0f0;
+      color: var(--gray);
+      border-top: 1px solid #f0f2f5;
       padding-top: 8px;
-      margin-top: 5px;
     }
-
-    /* Empty state */
-    .empty-state {
+    .empty-state, .loading, .login-required {
+      background: white;
+      border-radius: 28px;
+      padding: 48px 20px;
       text-align: center;
-      padding: 40px 20px;
-      color: #666;
-      background: white;
-      border-radius: 8px;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.04);
     }
-
-    /* Loading spinner */
-    .loading {
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      padding: 40px 20px;
-      background: white;
-      border-radius: 8px;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.08);
-    }
-
     .spinner {
       width: 40px;
       height: 40px;
-      border: 4px solid rgba(0, 0, 0, 0.1);
-      border-radius: 50%;
+      border: 4px solid rgba(0,0,0,0.1);
       border-top-color: var(--primary);
-      animation: spin 1s ease-in-out infinite;
-      margin-bottom: 15px;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 15px;
     }
+    @keyframes spin { to { transform: rotate(360deg); } }
 
-    @keyframes spin {
-      to { transform: rotate(360deg); }
-    }
-
-    /* Modal Styles */
-    .modal {
-      display: none;
+    /* ========== DETAIL PANEL (sama seperti pendapatan.html) ========== */
+    .detail-overlay {
       position: fixed;
       top: 0;
       left: 0;
       width: 100%;
       height: 100%;
-      background-color: rgba(0, 0, 0, 0.5);
+      background: rgba(0,0,0,0.5);
+      backdrop-filter: blur(4px);
       z-index: 1000;
-      align-items: center;
-      justify-content: center;
+      visibility: hidden;
+      opacity: 0;
+      transition: all 0.3s ease;
     }
-
-    .modal-content {
-      background-color: white;
-      border-radius: 12px;
-      width: 95%;
-      max-width: 500px;
-      max-height: 90vh;
-      overflow-y: auto;
-      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
-      display: flex;
-      flex-direction: column;
+    .detail-overlay.active {
+      visibility: visible;
+      opacity: 1;
     }
-
-    .modal-header {
-      padding: 15px 20px;
-      border-bottom: 1px solid #eee;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      background: linear-gradient(135deg, var(--primary), var(--secondary));
-      color: white;
-    }
-
-    .modal-title {
-      font-size: 1.2rem;
-      font-weight: 600;
-      color: white;
-    }
-
-    .close-btn {
-      background: none;
-      border: none;
-      font-size: 1.5rem;
-      cursor: pointer;
-      color: white;
-      padding: 0;
-      width: 30px;
-      height: 30px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .close-btn:hover {
-      color: var(--accent);
-    }
-
-    .modal-body {
-      padding: 0;
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-    }
-
-    .modal-map {
-      height: 250px;
+    .detail-panel {
+      position: fixed;
+      top: 0;
+      right: 0;
       width: 100%;
-      border-radius: 0;
-      z-index: 1;
-    }
-
-    .modal-details {
-      padding: 15px 20px;
-    }
-
-    .modal-route-info {
+      max-width: 500px;
+      height: 100%;
+      background: white;
+      box-shadow: -8px 0 40px rgba(0,0,0,0.15);
+      z-index: 1001;
+      transform: translateX(100%);
+      transition: transform 0.3s cubic-bezier(0.2, 0.9, 0.4, 1.1);
+      overflow-y: auto;
       display: flex;
       flex-direction: column;
-      gap: 10px;
-      margin-bottom: 15px;
     }
-
-    .modal-route-point {
+    .detail-overlay.active .detail-panel {
+      transform: translateX(0);
+    }
+    .detail-header {
+      background: white;
+      border-bottom: 1px solid var(--gray-light);
+      padding: 16px 20px;
       display: flex;
+      align-items: center;
+      gap: 12px;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background: white;
+    }
+    .close-detail {
+      background: #f1f5f9;
+      border: none;
+      border-radius: 40px;
+      padding: 8px 18px;
+      color: var(--dark);
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.8rem;
+      transition: 0.2s;
+    }
+    .close-detail:hover {
+      background: #e2e8f0;
+    }
+    .detail-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      flex: 1;
+      color: var(--dark);
+    }
+    .detail-body {
+      padding: 20px;
+      flex: 1;
+      background: #f8fafc;
+    }
+    .detail-card {
+      background: white;
+      border-radius: 28px;
+      padding: 20px;
+      margin-bottom: 20px;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.05);
+      border: 1px solid #edf2f7;
+    }
+    .map-detail {
+      height: 240px;
+      border-radius: 20px;
+      overflow: hidden;
+      margin-bottom: 0;
+      border: 1px solid var(--gray-light);
+    }
+    .customer-profile-detail {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+    .customer-avatar {
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 2px solid var(--primary);
+      background: #fff;
+    }
+    .customer-name-detail {
+      font-weight: 800;
+      font-size: 1.1rem;
+      color: var(--dark);
+    }
+    .stars {
+      color: #fbbf24;
+      letter-spacing: 2px;
+      font-size: 0.85rem;
+    }
+    .route-detail {
+      margin-bottom: 20px;
+    }
+    .route-detail .point {
+      display: flex;
+      gap: 14px;
+      margin-bottom: 14px;
       align-items: flex-start;
     }
-
-    .modal-point-marker {
-      width: 20px;
-      height: 20px;
+    .marker {
+      width: 28px;
+      height: 28px;
       border-radius: 50%;
-      display: flex;
+      background: var(--primary);
+      color: white;
+      display: inline-flex;
       align-items: center;
       justify-content: center;
-      margin-right: 10px;
-      flex-shrink: 0;
-      font-size: 0.8rem;
-      color: white;
+      font-size: 0.75rem;
       font-weight: bold;
+      flex-shrink: 0;
     }
-
-    .modal-point-address {
-      flex: 1;
-      word-break: break-word;
+    .marker.b {
+      background: var(--secondary);
     }
-
-    .modal-point-address-a {
-      font-weight: 700;
+    .info-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      background: #f8fafc;
+      border-radius: 20px;
+      padding: 16px;
+      margin: 16px 0;
     }
-
-    .modal-order-details {
+    .info-item {
+      text-align: center;
+    }
+    .info-label {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      color: var(--gray);
+      font-weight: 600;
+    }
+    .info-value {
+      font-weight: 800;
+      font-size: 1rem;
+      margin-top: 4px;
+      color: var(--dark);
+    }
+    .breakdown-box {
+      background: #fefce8;
+      border-radius: 24px;
+      padding: 18px;
+      margin: 16px 0;
+      border: 1px solid #fde68a;
+    }
+    .break-row {
       display: flex;
       justify-content: space-between;
-      background-color: #f9f9f9;
-      padding: 12px;
-      border-radius: 8px;
-      margin-bottom: 15px;
-    }
-
-    .modal-detail-item {
-      display: flex;
-      flex-direction: column;
+      margin-bottom: 12px;
+      font-size: 0.85rem;
       align-items: center;
-      text-align: center;
-      flex: 1;
     }
-
-    .modal-detail-value {
-      font-weight: 600;
-      color: var(--primary);
-      font-size: 1rem;
+    .timeline-detail {
+      margin-top: 20px;
+      background: #f1f5f9;
+      border-radius: 20px;
+      padding: 12px;
     }
-
-    .modal-detail-label {
-      font-size: 0.8rem;
-      color: #666;
-      margin-top: 2px;
-    }
-
-    .modal-price-highlight {
-      color: var(--success);
-      font-weight: 700;
-      font-size: 1.1rem;
-    }
-
-    .modal-timeline {
-      margin-top: 15px;
-    }
-
-    .timeline-title {
-      font-weight: 600;
-      margin-bottom: 10px;
-      color: var(--primary);
-    }
-
     .timeline-item {
       display: flex;
-      margin-bottom: 8px;
+      gap: 16px;
+      margin-bottom: 14px;
       font-size: 0.8rem;
+      align-items: baseline;
+      padding-bottom: 8px;
+      border-bottom: 1px dashed #e2e8f0;
     }
-
     .timeline-time {
-      width: 80px;
-      color: #666;
-      flex-shrink: 0;
+      width: 110px;
+      color: var(--gray);
+      font-size: 0.7rem;
+      font-weight: 500;
     }
-
-    .timeline-event {
+    .timeline-desc {
       flex: 1;
+      color: var(--dark);
     }
-
-    /* Route Loading Indicator */
-    .route-loading {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      background: rgba(255, 255, 255, 0.9);
-      padding: 10px 15px;
-      border-radius: 8px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-      z-index: 1000;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      font-size: 0.8rem;
-    }
-
-    /* Login Required */
-    .login-required {
-      text-align: center;
-      padding: 40px 20px;
-      color: #666;
-      background: white;
-      border-radius: 8px;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.08);
-    }
-
-    .login-btn {
-      background: linear-gradient(to right, var(--primary), var(--secondary));
-      color: white;
-      border: none;
-      border-radius: 8px;
-      padding: 12px 25px;
-      font-size: 1rem;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all 0.3s;
-      box-shadow: 0 4px 10px rgba(0,0,0,0.15);
-      margin-top: 15px;
-    }
-
-    .login-btn:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 6px 15px rgba(0,0,0,0.2);
-    }
-
-    /* Responsive adjustments */
-    @media (max-width: 768px) {
-      body {
-        font-size: 0.8rem;
-      }
-      
-      .order-item {
-        padding: 10px;
-      }
-      
-      .route-info {
-        font-size: 0.75rem;
-      }
-      
-      .order-details {
-        font-size: 0.75rem;
-      }
-      
-      .modal-content {
-        width: 98%;
-        max-height: 95vh;
-      }
-      
-      .modal-map {
-        height: 200px;
-      }
-    }
-
-    @media (max-width: 576px) {
-      .container {
-        padding: 10px;
-      }
-      
-      .order-details {
-        flex-wrap: wrap;
-        gap: 5px;
-      }
-      
-      .detail-item {
-        flex: 0 0 calc(33.333% - 10px);
-      }
-      
-      .modal-header {
-        padding: 12px 15px;
-      }
-      
-      .modal-details {
-        padding: 12px 15px;
-      }
-      
-      .modal-order-details {
-        flex-direction: column;
-        gap: 10px;
-      }
-      
-      .modal-detail-item {
-        flex-direction: row;
-        justify-content: space-between;
-        text-align: left;
-      }
-
-      .header {
-        padding: 12px 15px;
-      }
+    @media (max-width: 500px) {
+      .detail-panel { max-width: 100%; }
+      .timeline-time { width: 90px; }
+      .info-grid { gap: 8px; }
+      .header-actions { gap: 6px; }
+      .action-btn { padding: 4px 12px; font-size: 0.7rem; }
     }
   </style>
 </head>
 <body>
-  <!-- Header -->
-  <div class="header">
-    <div class="logo-container">
-      <button class="back-btn" id="backBtn">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M19 12H5M12 19l-7-7 7-7"/>
-        </svg>
-      </button>
-    </div>
-    <div class="header-title">Riwayat Order</div>
-    <div style="width: 80px;"></div>
+
+<div class="header">
+  <div class="header-title">📋 Riwayat Order</div>
+  <div class="header-actions">
+    <a href="referensi.html" class="action-btn">📜 Regensi</a>
+    <a href="feedback.html" class="action-btn">💬 Feedback</a>
+  </div>
+</div>
+
+<div class="container">
+  <!-- Filter (sama seperti pendapatan) -->
+  <div class="filter-container">
+    <div class="filter-option active" data-filter="all">Semua</div>
+    <div class="filter-option" data-filter="completed">Selesai</div>
+    <div class="filter-option" data-filter="cancelled">Dibatalkan</div>
+    <div class="filter-option" data-filter="this_week">Minggu Ini</div>
+    <div class="filter-option" data-filter="this_month">Bulan Ini</div>
   </div>
 
-  <!-- Container -->
-  <div class="container">
-    <!-- Filter Options -->
-    <div class="filter-container">
-      <div class="filter-option active" data-filter="all">Semua</div>
-      <div class="filter-option" data-filter="completed">Selesai</div>
-      <div class="filter-option" data-filter="cancelled">Dibatalkan</div>
-      <div class="filter-option" data-filter="this_week">Minggu Ini</div>
-      <div class="filter-option" data-filter="this_month">Bulan Ini</div>
-    </div>
+  <!-- Daftar Riwayat (tanpa summary cards performa) -->
+  <div class="orders-list" id="ordersList">
+    <div class="loading"><div class="spinner"></div><p>Memuat data riwayat...</p></div>
+  </div>
+</div>
 
-    <div class="orders-list" id="ordersList">
-      <!-- Data akan diisi oleh JavaScript -->
-      <div class="loading">
-        <div class="spinner"></div>
-        <p>Memuat data riwayat...</p>
-      </div>
+<!-- Detail Panel Profesional (sama seperti pendapatan.html) -->
+<div class="detail-overlay" id="detailOverlay">
+  <div class="detail-panel">
+    <div class="detail-header">
+      <button class="close-detail" id="closeDetailBtn">← Kembali</button>
+      <div class="detail-title">Detail Perjalanan</div>
+      <div style="width: 30px;"></div>
+    </div>
+    <div class="detail-body" id="detailBody">
+      <div class="loading"><div class="spinner"></div><p>Memuat detail...</p></div>
     </div>
   </div>
+</div>
 
-  <!-- Modal Detail Order -->
-  <div class="modal" id="orderModal">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h3 class="modal-title">Detail Order</h3>
-        <button class="close-btn" id="closeModal">&times;</button>
-      </div>
-      <div class="modal-body">
-        <div class="modal-map" id="modalMap">
-          <div class="route-loading" id="routeLoading" style="display: none;">
-            <div class="spinner" style="width: 20px; height: 20px;"></div>
-            Memuat peta...
-          </div>
-        </div>
-        <div class="modal-details">
-          <div class="modal-route-info">
-            <div class="modal-route-point">
-              <div class="modal-point-marker point-marker-a">A</div>
-              <div class="modal-point-address modal-point-address-a" id="modalAddressA">-</div>
-            </div>
-            <div class="modal-route-point">
-              <div class="modal-point-marker point-marker-b">B</div>
-              <div class="modal-point-address" id="modalAddressB">-</div>
-            </div>
-          </div>
-          <div class="modal-order-details">
-            <div class="modal-detail-item">
-              <span class="modal-detail-value" id="modalDuration">-</span>
-              <span class="modal-detail-label">Durasi</span>
-            </div>
-            <div class="modal-detail-item">
-              <span class="modal-detail-value" id="modalDistance">-</span>
-              <span class="modal-detail-label">Jarak</span>
-            </div>
-            <div class="modal-detail-item">
-              <span class="modal-detail-value modal-price-highlight" id="modalPrice">-</span>
-              <span class="modal-detail-label">Harga</span>
-            </div>
-          </div>
-          
-          <div class="modal-timeline">
-            <div class="timeline-title">Timeline Order</div>
-            <div class="timeline-item">
-              <div class="timeline-time" id="timelineCreated">-</div>
-              <div class="timeline-event">Order dibuat</div>
-            </div>
-            <div class="timeline-item">
-              <div class="timeline-time" id="timelineAccepted">-</div>
-              <div class="timeline-event">Driver diterima</div>
-            </div>
-            <div class="timeline-item">
-              <div class="timeline-time" id="timelineStarted">-</div>
-              <div class="timeline-event">Perjalanan dimulai</div>
-            </div>
-            <div class="timeline-item">
-              <div class="timeline-time" id="timelineArrived">-</div>
-              <div class="timeline-event">Tiba di tujuan</div>
-            </div>
-            <div class="timeline-item">
-              <div class="timeline-time" id="timelineCompleted">-</div>
-              <div class="timeline-event">Order selesai</div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Leaflet JS -->
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script>
-  // ==================== KONFIGURASI FIREBASE ====================
+<script>
+  // ========== KONFIGURASI FIREBASE ==========
   const firebaseConfig = {
     apiKey: "AIzaSyCD0pgeZio-LdKqYDtWxcdXcZwyL4ngYQI",
     authDomain: "jego-35a2b.firebaseapp.com",
@@ -738,396 +530,310 @@
     messagingSenderId: "600037007040",
     appId: "1:600037007040:web:ac3243ad9b472647ffd725"
   };
-
   if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
   const database = firebase.database();
 
-  // ==================== VARIABEL GLOBAL ====================
-  let currentDriverData = null;
-  let driverId = null;
+  // ========== GLOBAL VARIABLES ==========
+  let currentDriverData = null, driverId = null;
   let currentFilter = 'all';
-  let modalMap = null;
-  let routePolyline = null;
-  let startMarker = null;
-  let endMarker = null;
-  let mapLayers = [];
+  let feePersen = 0, pajakPersen = 0;
+  let currentDetailMap = null;
+  let isHandlingPopState = false;
 
-  // ==================== UTILITY ====================
-  function formatCurrency(amount) {
-    return 'Rp ' + (parseInt(amount) || 0).toLocaleString('id-ID');
+  // ========== UTILITY ==========
+  function formatRupiah(num) {
+    if (num === undefined || num === null) return 'Rp 0';
+    return 'Rp ' + num.toLocaleString('id-ID', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
   }
 
-  function formatDateTime(dateString) {
-    if (!dateString) return '-';
-    try {
-      const date = new Date(dateString);
-      if (isNaN(date.getTime())) return '-';
-      return date.toLocaleString('id-ID', {
-        day: 'numeric', month: 'short', year: 'numeric',
-        hour: '2-digit', minute: '2-digit'
-      });
-    } catch {
-      return '-';
-    }
+  function formatDateTime(dateStr) {
+    if (!dateStr) return '-';
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return '-';
+    return d.toLocaleString('id-ID', { day:'numeric', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' });
   }
 
-  function formatTime(dateString) {
-    if (!dateString) return '-';
-    try {
-      const date = new Date(dateString);
-      return date.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
-    } catch {
-      return '-';
-    }
+  function formatTime(timeStr) {
+    if (!timeStr) return '-';
+    const d = new Date(timeStr);
+    return d.toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit' });
   }
 
-  function formatDateKey(dateString) {
-    if (!dateString) return '';
-    const date = new Date(dateString);
-    return date.toLocaleDateString('id-ID', {
-      year: 'numeric', month: '2-digit', day: '2-digit'
-    });
-  }
-
-  function getStatusText(status) {
-    const map = {
-      'completed': 'Selesai',
-      'cancelled': 'Dibatalkan',
-      'accepted': 'Diterima',
-      'on_the_way': 'Menuju Lokasi',
-      'arrived': 'Tiba',
-      'on_trip': 'Perjalanan',
-      'searching': 'Mencari Driver',
-      'pending': 'Menunggu'
-    };
-    return map[status] || status;
-  }
-
-  function getStatusClass(status) {
-    const map = {
-      'completed': 'status-completed',
-      'cancelled': 'status-cancelled',
-      'accepted': 'status-accepted',
-      'on_the_way': 'status-on_the_way',
-      'arrived': 'status-on_the_way',
-      'on_trip': 'status-on_the_way',
-      'searching': 'status-search',
-      'pending': 'status-accepted'
-    };
-    return map[status] || 'status-completed';
+  function formatDateKey(dateStr) {
+    if (!dateStr) return '';
+    const d = new Date(dateStr);
+    return d.toLocaleDateString('id-ID', { year:'numeric', month:'2-digit', day:'2-digit' });
   }
 
   function isThisWeek(date) {
     const today = new Date();
-    const startOfWeek = new Date(today);
-    startOfWeek.setDate(today.getDate() - today.getDay());
-    startOfWeek.setHours(0, 0, 0, 0);
-    const endOfWeek = new Date(today);
-    endOfWeek.setDate(today.getDate() + (6 - today.getDay()));
-    endOfWeek.setHours(23, 59, 59, 999);
-    return date >= startOfWeek && date <= endOfWeek;
+    const start = new Date(today); start.setDate(today.getDate() - today.getDay()); start.setHours(0,0,0,0);
+    const end = new Date(today); end.setDate(today.getDate() + (6 - today.getDay())); end.setHours(23,59,59,999);
+    return date >= start && date <= end;
   }
-
   function isThisMonth(date) {
     const today = new Date();
-    const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-    const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0, 23, 59, 59, 999);
-    return date >= startOfMonth && date <= endOfMonth;
+    const start = new Date(today.getFullYear(), today.getMonth(), 1);
+    const end = new Date(today.getFullYear(), today.getMonth()+1, 0, 23,59,59,999);
+    return date >= start && date <= end;
   }
+  function escapeHtml(str) { if(!str) return ''; return str.replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'})[m]); }
 
-  // ==================== MANAJEMEN PETA ====================
-  function clearMapLayers() {
-    mapLayers.forEach(layer => {
-      if (layer && modalMap && modalMap.hasLayer(layer)) modalMap.removeLayer(layer);
-    });
-    mapLayers = [];
-    routePolyline = null;
-    startMarker = null;
-    endMarker = null;
-  }
-
-  function addMapLayer(layer) {
-    if (layer && modalMap) {
-      modalMap.addLayer(layer);
-      mapLayers.push(layer);
-    }
-  }
-
-  function initModalMap() {
-    if (modalMap) {
-      modalMap.remove();
-      modalMap = null;
-    }
-    clearMapLayers();
-    const mapElement = document.getElementById('modalMap');
-    modalMap = L.map(mapElement).setView([0.5441, 123.0595], 13);
-    const tileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y.png}', {
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-    });
-    addMapLayer(tileLayer);
-  }
-
-  function showRouteOnMap(order) {
-    if (!modalMap) initModalMap();
-    clearMapLayers();
-    const startLat = order.pickup_lat;
-    const startLng = order.pickup_lng;
-    const endLat = order.dest_lat;
-    const endLng = order.dest_lng;
-    if (!startLat || !startLng || !endLat || !endLng) return;
-
-    const startCoords = [startLat, startLng];
-    const endCoords = [endLat, endLng];
-
-    routePolyline = L.polyline([startCoords, endCoords], {
-      color: '#FF5722',
-      weight: 5,
-      opacity: 0.8,
-      lineJoin: 'round'
-    });
-    addMapLayer(routePolyline);
-
-    startMarker = L.marker(startCoords)
-      .bindPopup(`<b>Penjemputan</b><br>${order.pickup_address || 'Lokasi A'}`);
-    addMapLayer(startMarker);
-
-    endMarker = L.marker(endCoords)
-      .bindPopup(`<b>Tujuan</b><br>${order.destination_address || 'Lokasi B'}`);
-    addMapLayer(endMarker);
-
-    const bounds = L.latLngBounds([startCoords, endCoords]);
-    modalMap.fitBounds(bounds, { padding: [40, 40] });
-  }
-
-  // ==================== MODAL DETAIL ====================
-  function showOrderDetail(order) {
-    document.getElementById('modalAddressA').textContent = order.pickup_address || '-';
-    document.getElementById('modalAddressB').textContent = order.destination_address || '-';
-    
-    const durasi = order.duration_seconds ? Math.round(order.duration_seconds / 60) + ' menit' : '-';
-    const jarak = order.distance_meters ? (order.distance_meters / 1000).toFixed(1) + ' km' : '-';
-    document.getElementById('modalDuration').textContent = durasi;
-    document.getElementById('modalDistance').textContent = jarak;
-    document.getElementById('modalPrice').textContent = formatCurrency(order.price);
-
-    // Timeline: ambil dari field yang tersedia
-    document.getElementById('timelineCreated').textContent = formatDateTime(order.created_at);
-    
-    // Waktu accepted: cek dari driver_offers milik driver ini
-    let acceptedTime = '-';
-    if (order.driver_offers && driverId && order.driver_offers[driverId]) {
-      const offer = order.driver_offers[driverId];
-      acceptedTime = formatDateTime(offer.offered_at || offer.accepted_at);
-    }
-    document.getElementById('timelineAccepted').textContent = acceptedTime;
-    
-    document.getElementById('timelineStarted').textContent = formatDateTime(order.trip_started_at);
-    document.getElementById('timelineArrived').textContent = formatDateTime(order.arrived_at);
-    document.getElementById('timelineCompleted').textContent = formatDateTime(order.completed_at || order.updated_at);
-
-    document.getElementById('orderModal').style.display = 'flex';
-    setTimeout(() => {
-      document.getElementById('routeLoading').style.display = 'none';
-      showRouteOnMap(order);
-    }, 100);
-  }
-
-  function closeModal() {
-    clearMapLayers();
-    document.getElementById('orderModal').style.display = 'none';
-    document.getElementById('routeLoading').style.display = 'none';
-  }
-
-  // ==================== CEK DATA DRIVER ====================
-  function checkDriverData() {
+  // ========== LOAD SETTING POTONGAN ==========
+  async function loadFeeSettings() {
     try {
-      const driverDataStr = localStorage.getItem('jego_logged_in_driver');
-      if (!driverDataStr || driverDataStr === '{}') {
-        showLoginRequired('Anda belum login sebagai driver');
-        return false;
-      }
-      const driverData = JSON.parse(driverDataStr);
-      // pastikan ada uid atau driverId
-      const uid = driverData.uid || driverData.driverId;
-      if (!uid) {
-        showLoginRequired('Data driver tidak lengkap');
-        return false;
-      }
-      currentDriverData = driverData;
+      const potonganSnap = await database.ref('data-jego/potongan').once('value');
+      const pajakSnap = await database.ref('data-jego/pajak').once('value');
+      feePersen = potonganSnap.exists() ? parseFloat(potonganSnap.val()) : 7;
+      pajakPersen = pajakSnap.exists() ? parseFloat(pajakSnap.val()) : 11;
+    } catch(e) {
+      feePersen = 7;
+      pajakPersen = 11;
+    }
+  }
+
+  function calculateEarningsDetails(price, orderFee = null, orderTax = null) {
+    const fee = (orderFee !== null && orderFee !== undefined) ? orderFee : feePersen;
+    const tax = (orderTax !== null && orderTax !== undefined) ? orderTax : pajakPersen;
+    const potonganRupiah = price * (fee / 100);
+    const pajakRupiah = potonganRupiah * (tax / 100);
+    const totalPotongan = potonganRupiah + pajakRupiah;
+    const netEarnings = price - totalPotongan;
+    return { net: netEarnings, fee: potonganRupiah, tax: pajakRupiah, totalPotongan, feePercent: fee, taxPercent: tax };
+  }
+
+  // ========== CEK LOGIN DRIVER ==========
+  function checkDriverData() {
+    const data = localStorage.getItem('jego_logged_in_driver');
+    if (!data) return false;
+    try {
+      const d = JSON.parse(data);
+      const uid = d.uid || d.driverId;
+      if (!uid) return false;
+      currentDriverData = d;
       driverId = uid;
       return true;
-    } catch (error) {
-      console.error(error);
-      showLoginRequired('Data driver tidak valid');
-      return false;
+    } catch { return false; }
+  }
+
+  // ========== FUNGSI TUTUP DETAIL (dengan history back) ==========
+  function closeDetail() {
+    const overlay = document.getElementById('detailOverlay');
+    if (!overlay.classList.contains('active')) return;
+    if (currentDetailMap) {
+      currentDetailMap.remove();
+      currentDetailMap = null;
+    }
+    overlay.classList.remove('active');
+    if (!isHandlingPopState && window.history.state && window.history.state.isDetailOpen === true) {
+      isHandlingPopState = true;
+      history.back();
+      setTimeout(() => { isHandlingPopState = false; }, 100);
     }
   }
 
-  function showLoginRequired(message) {
-    const ordersList = document.getElementById('ordersList');
-    ordersList.innerHTML = `
-      <div class="login-required">
-        <div style="font-size: 3rem; margin-bottom: 15px; color: var(--primary)">🚗</div>
-        <h3>Akses Dibatasi</h3>
-        <p>${message}</p>
-        <div style="margin-top: 20px;">
-          <button class="login-btn" onclick="window.location.href='loginDriver.html'">Login Driver</button>
-          <button class="login-btn" onclick="window.location.href='list.html'" style="background: var(--gray);">Kembali</button>
-        </div>
-      </div>
-    `;
-  }
-
-  // ==================== LOAD RIWAYAT ORDER ====================
-  async function loadHistoryData() {
-    const ordersList = document.getElementById('ordersList');
-    if (!checkDriverData()) return;
-
-    ordersList.innerHTML = `<div class="loading"><div class="spinner"></div><p>Memuat riwayat...</p></div>`;
+  // ========== BUKA DETAIL (dengan push state) ==========
+  async function showOrderDetail(orderId) {
+    const overlay = document.getElementById('detailOverlay');
+    if (overlay.classList.contains('active')) return;
+    
+    const state = { isDetailOpen: true, orderId: orderId };
+    history.pushState(state, '', window.location.href);
+    
+    const body = document.getElementById('detailBody');
+    overlay.classList.add('active');
+    body.innerHTML = '<div class="loading"><div class="spinner"></div><p>Memuat detail...</p></div>';
 
     try {
-      const snapshot = await database.ref('orders').once('value');
-      const allOrdersObj = snapshot.val();
-      if (!allOrdersObj) {
-        ordersList.innerHTML = `<div class="empty-state">Belum ada order</div>`;
-        return;
-      }
+      const orderSnap = await database.ref('orders/' + orderId).once('value');
+      const order = orderSnap.val();
+      if (!order) throw new Error('Order tidak ditemukan');
 
-      // Filter order milik driver ini dan status selesai/dibatalkan
-      let driverOrders = [];
-      Object.entries(allOrdersObj).forEach(([orderId, order]) => {
-        if (order.driver_id === driverId && (order.status === 'completed' || order.status === 'cancelled')) {
-          driverOrders.push({ id: orderId, ...order });
+      const price = order.price || 0;
+      const details = calculateEarningsDetails(price, order.fee_percent, order.tax_percent);
+      const durasi = order.duration_seconds ? `${Math.round(order.duration_seconds/60)} menit` : '-';
+      const jarak = order.distance_meters ? (order.distance_meters/1000).toFixed(1) + ' km' : '-';
+
+      let ratingHtml = '<span>⭐ Belum dinilai</span>';
+      try {
+        const ratingSnap = await database.ref(`ratings/${orderId}/customer_rating`).once('value');
+        const ratingData = ratingSnap.val();
+        if (ratingData && ratingData.rating) {
+          const stars = '★'.repeat(ratingData.rating) + '☆'.repeat(5 - ratingData.rating);
+          ratingHtml = `<span class="stars">${stars}</span> ${ratingData.rating} bintang`;
         }
-      });
+      } catch(e) {}
 
-      if (driverOrders.length === 0) {
-        ordersList.innerHTML = `<div class="empty-state">Tidak ada riwayat order</div>`;
-        return;
+      // Ambil waktu penawaran dari driver_offers
+      let offerTime = '-';
+      if (order.driver_offers && driverId && order.driver_offers[driverId]) {
+        offerTime = order.driver_offers[driverId].offered_at || order.driver_offers[driverId].accepted_at;
       }
 
-      // Urutkan berdasarkan completed_at (terbaru di atas)
-      driverOrders.sort((a, b) => {
-        const dateA = new Date(a.completed_at || a.updated_at || a.created_at || 0);
-        const dateB = new Date(b.completed_at || b.updated_at || b.created_at || 0);
-        return dateB - dateA;
-      });
+      body.innerHTML = `
+        <div class="detail-card" style="padding:0; overflow:hidden;">
+          <div id="detailMap" class="map-detail" style="height:220px; width:100%;"></div>
+        </div>
+        <div class="detail-card">
+          <div class="customer-profile-detail">
+            <img class="customer-avatar" src="${order.photoURL || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png'}">
+            <div>
+              <div class="customer-name-detail">${escapeHtml(order.customer_name || 'Customer')}</div>
+              <div class="driver-rating" style="margin-top:4px;">${ratingHtml}</div>
+            </div>
+          </div>
+          <div class="route-detail">
+            <div class="point"><div class="marker">A</div><div>${escapeHtml(order.pickup_address || '-')}</div></div>
+            <div class="point"><div class="marker b">B</div><div>${escapeHtml(order.destination_address || '-')}</div></div>
+          </div>
+          <div class="info-grid">
+            <div class="info-item"><div class="info-label">Durasi</div><div class="info-value">${durasi}</div></div>
+            <div class="info-item"><div class="info-label">Jarak</div><div class="info-value">${jarak}</div></div>
+            <div class="info-item"><div class="info-label">Harga</div><div class="info-value" style="color:var(--success);">${formatRupiah(price)}</div></div>
+            <div class="info-item"><div class="info-label">Status</div><div class="info-value">${order.status === 'completed' ? '✅ Selesai' : '❌ Dibatalkan'}</div></div>
+          </div>
+          <div class="breakdown-box">
+            <div class="break-row"><span><strong>💰 Pendapatan Bersih Driver</strong></span><strong>${formatRupiah(details.net)}</strong></div>
+            <div class="break-row"><span>📉 Fee aplikasi (${details.feePercent}%)</span><span>${formatRupiah(details.fee)}</span></div>
+            <div class="break-row"><span>📊 PPN ${details.taxPercent}% dari fee</span><span>${formatRupiah(details.tax)}</span></div>
+            <div class="break-row"><span>📋 Total potongan</span><span>${formatRupiah(details.totalPotongan)}</span></div>
+            <div class="break-row" style="border-top:1px solid #e2e8f0; margin-top:8px; padding-top:8px;"><span>💵 Total dibayar customer</span><strong>${formatRupiah(price)}</strong></div>
+          </div>
+          <div class="timeline-detail">
+            <div class="timeline-item"><div class="timeline-time">${formatDateTime(order.created_at)}</div><div class="timeline-desc">Order dibuat</div></div>
+            <div class="timeline-item"><div class="timeline-time">${formatDateTime(offerTime)}</div><div class="timeline-desc">Penawaran diterima</div></div>
+            <div class="timeline-item"><div class="timeline-time">${formatDateTime(order.trip_started_at)}</div><div class="timeline-desc">Perjalanan dimulai</div></div>
+            <div class="timeline-item"><div class="timeline-time">${formatDateTime(order.arrived_at)}</div><div class="timeline-desc">Tiba di tujuan</div></div>
+            <div class="timeline-item"><div class="timeline-time">${formatDateTime(order.completed_at || order.updated_at)}</div><div class="timeline-desc">Selesai</div></div>
+          </div>
+        </div>
+      `;
 
-      // Filter berdasarkan pilihan (all, completed, cancelled, this_week, this_month)
-      let filteredOrders = driverOrders;
-      if (currentFilter === 'completed') {
-        filteredOrders = driverOrders.filter(o => o.status === 'completed');
-      } else if (currentFilter === 'cancelled') {
-        filteredOrders = driverOrders.filter(o => o.status === 'cancelled');
-      } else if (currentFilter === 'this_week') {
-        filteredOrders = driverOrders.filter(o => isThisWeek(new Date(o.completed_at || o.created_at)));
-      } else if (currentFilter === 'this_month') {
-        filteredOrders = driverOrders.filter(o => isThisMonth(new Date(o.completed_at || o.created_at)));
-      }
-
-      if (filteredOrders.length === 0) {
-        ordersList.innerHTML = `<div class="empty-state">Tidak ada order sesuai filter</div>`;
-        return;
-      }
-
-      // Kelompokkan berdasarkan tanggal
-      const grouped = {};
-      filteredOrders.forEach(order => {
-        const dateKey = formatDateKey(order.completed_at || order.created_at);
-        if (!grouped[dateKey]) grouped[dateKey] = [];
-        grouped[dateKey].push(order);
-      });
-
-      // Urutkan tanggal descending
-      const sortedDates = Object.keys(grouped).sort((a, b) => {
-        const [dayA, monthA, yearA] = a.split('/');
-        const [dayB, monthB, yearB] = b.split('/');
-        const dateA = new Date(`${yearA}-${monthA}-${dayA}`);
-        const dateB = new Date(`${yearB}-${monthB}-${dayB}`);
-        return dateB - dateA;
-      });
-
-      ordersList.innerHTML = '';
-      sortedDates.forEach(dateKey => {
-        const ordersOnDate = grouped[dateKey];
-        const dateHeader = document.createElement('div');
-        dateHeader.className = 'date-header';
-        dateHeader.textContent = `${dateKey} • ${ordersOnDate.length} order`;
-        ordersList.appendChild(dateHeader);
-
-        ordersOnDate.forEach(order => {
-          ordersList.appendChild(createOrderCard(order));
-        });
-      });
-
-    } catch (error) {
-      console.error(error);
-      ordersList.innerHTML = `<div class="empty-state">Gagal memuat data: ${error.message}</div>`;
+      setTimeout(() => {
+        if (currentDetailMap) currentDetailMap.remove();
+        const mapContainer = document.getElementById('detailMap');
+        if (mapContainer && order.pickup_lat && order.pickup_lng && order.dest_lat && order.dest_lng) {
+          currentDetailMap = L.map(mapContainer).setView([order.pickup_lat, order.pickup_lng], 13);
+          L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>',
+            maxZoom: 19
+          }).addTo(currentDetailMap);
+          L.marker([order.pickup_lat, order.pickup_lng]).bindPopup('📍 Penjemputan').addTo(currentDetailMap);
+          L.marker([order.dest_lat, order.dest_lng]).bindPopup('🏁 Tujuan').addTo(currentDetailMap);
+          const bounds = L.latLngBounds([[order.pickup_lat, order.pickup_lng], [order.dest_lat, order.dest_lng]]);
+          currentDetailMap.fitBounds(bounds, { padding: [50,50] });
+        } else if (mapContainer) {
+          mapContainer.innerHTML = '<div style="padding:20px;text-align:center;color:gray;">🗺️ Lokasi tidak tersedia</div>';
+        }
+      }, 150);
+    } catch(err) {
+      body.innerHTML = `<div class="empty-state">⚠️ Gagal memuat detail: ${err.message}</div>`;
     }
   }
 
+  function handlePopState(event) {
+    if (isHandlingPopState) return;
+    const overlay = document.getElementById('detailOverlay');
+    if (overlay.classList.contains('active')) {
+      isHandlingPopState = true;
+      if (currentDetailMap) {
+        currentDetailMap.remove();
+        currentDetailMap = null;
+      }
+      overlay.classList.remove('active');
+      setTimeout(() => { isHandlingPopState = false; }, 100);
+    }
+  }
+
+  // ========== MEMBUAT CARD ORDER (style pendapatan) ==========
   function createOrderCard(order) {
-    const card = document.createElement('div');
-    card.className = 'order-item';
-
-    const customerName = order.customer_name || 'Customer';
-    const alamatA = order.pickup_address || '-';
-    const alamatB = order.destination_address || '-';
-    const durasi = order.duration_seconds ? Math.round(order.duration_seconds / 60) + ' menit' : '-';
-    const jarak = order.distance_meters ? (order.distance_meters / 1000).toFixed(1) + ' km' : '-';
-    const harga = formatCurrency(order.price);
-    const statusText = getStatusText(order.status);
-    const statusClass = getStatusClass(order.status);
-    const orderTime = formatTime(order.completed_at || order.created_at);
-    const vehicleType = order.transport_type || (order.vehicle || 'motor');
-
-    card.innerHTML = `
+    const div = document.createElement('div');
+    div.className = 'order-item';
+    const isKurir = (order.transport_type || '').includes('kurir');
+    const distanceKm = order.distance_meters ? (order.distance_meters/1000).toFixed(1) : '-';
+    const durasi = order.duration_seconds ? `${Math.round(order.duration_seconds/60)} mnt` : '-';
+    const statusText = order.status === 'completed' ? 'Selesai' : 'Dibatalkan';
+    const statusClass = order.status === 'completed' ? 'status-completed' : 'status-cancelled';
+    div.innerHTML = `
       <div class="order-header">
-        <div class="customer-name">
-          ${escapeHtml(customerName)}
-          ${vehicleType.includes('kurir') ? '<span class="kurir-badge">📦 KURIR</span>' : ''}
-        </div>
+        <div class="customer-name">${escapeHtml(order.customer_name || 'Customer')} ${isKurir ? '<span class="kurir-badge">📦 KURIR</span>' : ''}</div>
         <span class="status-badge ${statusClass}">${statusText}</span>
       </div>
       <div class="route-info">
-        <div class="route-point">
-          <div class="point-marker point-marker-a">A</div>
-          <div class="point-address point-address-a">${escapeHtml(alamatA)}</div>
-        </div>
-        <div class="route-point">
-          <div class="point-marker point-marker-b">B</div>
-          <div class="point-address">${escapeHtml(alamatB)}</div>
-        </div>
+        <div class="route-point"><div class="point-marker point-marker-a">A</div><div class="point-address">${escapeHtml(order.pickup_address || '-')}</div></div>
+        <div class="route-point"><div class="point-marker point-marker-b">B</div><div class="point-address">${escapeHtml(order.destination_address || '-')}</div></div>
       </div>
       <div class="order-details">
-        <div class="detail-item">
-          <span class="detail-value">${durasi}</span>
-          <span class="detail-label">Durasi</span>
-        </div>
-        <div class="detail-item">
-          <span class="detail-value">${jarak}</span>
-          <span class="detail-label">Jarak</span>
-        </div>
-        <div class="detail-item">
-          <span class="detail-value price-highlight">${harga}</span>
-          <span class="detail-label">Harga</span>
-        </div>
+        <div class="detail-item"><span class="detail-value">${durasi}</span><div class="detail-label">Durasi</div></div>
+        <div class="detail-item"><span class="detail-value">${distanceKm} km</span><div class="detail-label">Jarak</div></div>
+        <div class="detail-item"><span class="detail-value price-highlight">${formatRupiah(order.price || 0)}</span><div class="detail-label">Harga</div></div>
       </div>
-      <div class="order-meta">
-        <span>${orderTime}</span>
-        <span>${vehicleType}</span>
-      </div>
+      <div class="order-meta"><span>${formatTime(order.completed_at || order.created_at)}</span><span>${order.transport_type || '-'}</span></div>
     `;
-    card.addEventListener('click', () => showOrderDetail(order));
-    return card;
+    div.addEventListener('click', () => showOrderDetail(order.id));
+    return div;
   }
 
-  function escapeHtml(str) {
-    if (!str) return '';
-    return str.replace(/[&<>]/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[m]));
+  // ========== LOAD RIWAYAT (hanya completed/cancelled milik driver) ==========
+  async function loadHistoryData() {
+    if (!checkDriverData()) {
+      document.getElementById('ordersList').innerHTML = `<div class="login-required"><h3>🔐 Login Diperlukan</h3><button class="login-btn" style="background:var(--primary);border:none;padding:12px 24px;border-radius:40px;color:white;font-weight:bold;margin-top:12px;cursor:pointer;" onclick="window.location.href='loginDriver.html'">Login Driver</button></div>`;
+      return;
+    }
+    await loadFeeSettings();
+    const ordersListDiv = document.getElementById('ordersList');
+    ordersListDiv.innerHTML = `<div class="loading"><div class="spinner"></div><p>Memuat data...</p></div>`;
+
+    try {
+      const snapshot = await database.ref('orders').once('value');
+      const all = snapshot.val();
+      let orders = [];
+      if (all) {
+        Object.entries(all).forEach(([id, order]) => {
+          if (order.driver_id === driverId && (order.status === 'completed' || order.status === 'cancelled')) {
+            orders.push({ id, ...order });
+          }
+        });
+      }
+      // Filter berdasarkan pilihan
+      let filtered = [...orders];
+      if (currentFilter === 'completed') filtered = filtered.filter(o => o.status === 'completed');
+      else if (currentFilter === 'cancelled') filtered = filtered.filter(o => o.status === 'cancelled');
+      else if (currentFilter === 'this_week') filtered = filtered.filter(o => isThisWeek(new Date(o.completed_at || o.created_at)));
+      else if (currentFilter === 'this_month') filtered = filtered.filter(o => isThisMonth(new Date(o.completed_at || o.created_at)));
+
+      filtered.sort((a,b) => new Date(b.completed_at || b.created_at) - new Date(a.completed_at || a.created_at));
+
+      if (filtered.length === 0) {
+        ordersListDiv.innerHTML = '<div class="empty-state">📭 Tidak ada order sesuai filter</div>';
+        return;
+      }
+
+      const grouped = {};
+      filtered.forEach(order => {
+        const key = formatDateKey(order.completed_at || order.created_at);
+        if (!grouped[key]) grouped[key] = [];
+        grouped[key].push(order);
+      });
+      const sortedDates = Object.keys(grouped).sort((a,b) => {
+        const [dA, mA, yA] = a.split('/'); const [dB, mB, yB] = b.split('/');
+        return new Date(`${yA}-${mA}-${dA}`) - new Date(`${yB}-${mB}-${dB}`);
+      }).reverse();
+
+      ordersListDiv.innerHTML = '';
+      sortedDates.forEach(date => {
+        const header = document.createElement('div');
+        header.className = 'date-header';
+        header.innerHTML = `<span>📅 ${date}</span><span>${grouped[date].length} order</span>`;
+        ordersListDiv.appendChild(header);
+        grouped[date].forEach(order => ordersListDiv.appendChild(createOrderCard(order)));
+      });
+    } catch(err) {
+      console.error(err);
+      ordersListDiv.innerHTML = '<div class="empty-state">⚠️ Gagal memuat data. Coba lagi nanti.</div>';
+    }
   }
 
-  // ==================== FILTER ====================
   function changeFilter(filter) {
     currentFilter = filter;
     document.querySelectorAll('.filter-option').forEach(opt => {
@@ -1137,17 +843,13 @@
     loadHistoryData();
   }
 
-  function goBack() {
-    window.location.href = 'list.html';
-  }
-
-  // ==================== INIT ====================
+  // ========== INIT ==========
   document.addEventListener('DOMContentLoaded', () => {
-    document.getElementById('backBtn').addEventListener('click', goBack);
-    document.getElementById('closeModal').addEventListener('click', closeModal);
-    document.getElementById('orderModal').addEventListener('click', (e) => {
-      if (e.target === document.getElementById('orderModal')) closeModal();
-    });
+    const closeBtn = document.getElementById('closeDetailBtn');
+    if (closeBtn) closeBtn.addEventListener('click', (e) => { e.preventDefault(); closeDetail(); });
+    const overlay = document.getElementById('detailOverlay');
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) closeDetail(); });
+    window.addEventListener('popstate', handlePopState);
     document.querySelectorAll('.filter-option').forEach(opt => {
       opt.addEventListener('click', () => changeFilter(opt.dataset.filter));
     });
