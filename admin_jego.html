@@ -300,35 +300,35 @@
     }
 
     async function sendPushNotification(playerId, title, message, orderId = null, extraData = {}) {
-    if (!playerId || !ONESIGNAL_API_KEY) return false;
-    try {
-        const res = await fetch("https://onesignal.com/api/v1/notifications", {
-            method: "POST",
-            headers: { "Content-Type": "application/json", "Authorization": `Basic ${ONESIGNAL_API_KEY}` },
-            body: JSON.stringify({
-                app_id: ONESIGNAL_APP_ID,
-                include_player_ids: [playerId],
-                headings: { en: title },
-                contents: { en: message },
-                data: { orderId, type: "offer_from_admin", ...extraData },
-                priority: 10,
-                android_priority: "high",
-                android_channel_id: "14488f7c-4003-4699-b220-dee4451568df"
-            })
-        });
-        const result = await res.json();
-        if (result.errors) {
-            addLog(`Gagal notif: ${JSON.stringify(result.errors)}`, "error");
+        if (!playerId || !ONESIGNAL_API_KEY) return false;
+        try {
+            const res = await fetch("https://onesignal.com/api/v1/notifications", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "Authorization": `Basic ${ONESIGNAL_API_KEY}` },
+                body: JSON.stringify({
+                    app_id: ONESIGNAL_APP_ID,
+                    include_player_ids: [playerId],
+                    headings: { en: title },
+                    contents: { en: message },
+                    data: { orderId, type: "offer_from_admin", ...extraData },
+                    priority: 10,
+                    android_priority: "high",
+                    android_channel_id: "14488f7c-4003-4699-b220-dee4451568df"
+                })
+            });
+            const result = await res.json();
+            if (result.errors) {
+                addLog(`Gagal notif: ${JSON.stringify(result.errors)}`, "error");
+                return false;
+            } else {
+                addLog(`✅ Notif ke driver (${playerId.substring(0,8)}...)`, "success");
+                return true;
+            }
+        } catch(err) {
+            addLog(`Error API: ${err.message}`, "error");
             return false;
-        } else {
-            addLog(`✅ Notif ke driver (${playerId.substring(0,8)}...)`, "success");
-            return true;
         }
-    } catch(err) {
-        addLog(`Error API: ${err.message}`, "error");
-        return false;
     }
-}
 
     async function sendManualPushToDriver(driverId, title, message, orderId = null) {
         if (!ONESIGNAL_API_KEY) {
@@ -378,7 +378,6 @@
         const activeDrivers = [];
         for (const uid in all) {
             const d = all[uid];
-            // Hanya driver dengan tracking ON, memiliki lokasi dan playerId
             if (d.tracking_enabled === true && d.playerId && d.latitude && d.longitude) {
                 activeDrivers.push({
                     uid: uid,
@@ -394,7 +393,7 @@
         return activeDrivers;
     }
 
-    // ========== FUNGSI AUTO FALLBACK (tidak berubah kecuali sudah pakai tracking ON) ==========
+    // ========== FUNGSI AUTO FALLBACK ==========
     async function sendFallbackOffer(orderId, orderData) {
         const orderSnap = await database.ref(`orders/${orderId}`).once('value');
         const order = orderSnap.val();
@@ -465,7 +464,7 @@
         }
     }
 
-    // ========== PROSES ORDER BARU (sesuai aturan baru) ==========
+    // ========== PROSES ORDER BARU ==========
     async function processNewOrder(orderId, orderData) {
         if (processedOrderIds.has(orderId)) return;
         if (orderData.status !== "waiting" && orderData.status !== "searching") return;
@@ -474,20 +473,18 @@
         if (!lat || !lng) return;
         addLog(`📦 Order baru: ${orderId.substring(0,8)}`, "info");
 
-        const drivers = await loadActiveDrivers(); // semua driver tracking ON
+        const drivers = await loadActiveDrivers();
         let notifiedCount = 0;
         let autoOfferCount = 0;
 
         for (const driver of drivers) {
             const dist = getDistance(lat, lng, driver.latitude, driver.longitude);
             if (dist < 3) {
-                // 1. Kirim notifikasi ke semua driver dalam radius (apapun autobid)
                 const cust = orderData.customer_name || "Customer";
                 const harga = orderData.price || 0;
                 await sendPushNotification(driver.playerId, "🚖 Order Baru Dekat Anda!", `${cust} Rp ${harga.toLocaleString()} jarak ${dist.toFixed(1)}km`, orderId);
                 notifiedCount++;
 
-                // 2. Jika autobid ON, kirim offer otomatis (dengan cek saldo)
                 if (driver.autobid_enabled) {
                     const driverSnap = await database.ref(`drivers/${driver.uid}`).once('value');
                     const driverData = driverSnap.val();
@@ -495,7 +492,6 @@
                     const potonganInfo = await hitungTotalPotongan(orderData.price || 0);
                     const saldoDriver = driverData.balance || 0;
                     if (saldoDriver >= potonganInfo.total) {
-                        // Cek apakah sudah pernah offer
                         const existingOffer = await database.ref(`orders/${orderId}/driver_offers/${driver.uid}`).once('value');
                         if (!existingOffer.exists()) {
                             const offerData = {
@@ -522,7 +518,6 @@
         }
         addLog(`✅ Order ${orderId.substring(0,8)}: notif ke ${notifiedCount} driver, auto offer ke ${autoOfferCount} driver`, "success");
 
-        // Timer fallback (20 detik)
         if (!fallbackProcessed.has(orderId)) {
             if (fallbackTimers.has(orderId)) clearTimeout(fallbackTimers.get(orderId));
             const timer = setTimeout(async () => {
@@ -548,7 +543,7 @@
         processedOrderIds.add(orderId);
     }
 
-    // ========== AUTO DEDUCT (tidak berubah) ==========
+    // ========== AUTO DEDUCT ==========
     async function autoDeductOnTrip(orderId, orderData) {
         if (processedDeductionOrders.has(orderId)) return;
         if (orderData.status !== 'on_trip') return;
@@ -695,7 +690,7 @@
                         <th data-col="pickup">Alamat Jemput</th><th data-col="destination">Tujuan</th>
                         <th data-col="price">Harga</th><th data-col="status">Status</th>
                         <th data-col="driver">Driver</th><th data-col="created_at">Dibuat</th>
-                    </tr></thead>
+                    </table></thead>
                     <tbody>${orders.map(order => {
                         let statusClass = '';
                         switch(order.status) {
@@ -770,6 +765,7 @@
         }
         return data;
     }
+
     async function loadWaitingOrdersTable() {
         const snap = await database.ref('orders').once('value');
         const orders = snap.val() || {};
@@ -785,6 +781,7 @@
         }
         return data;
     }
+
     async function loadAutoDeductLog() {
         const snap = await database.ref('driver_deductions').once('value');
         const deductions = snap.val() || {};
@@ -802,6 +799,7 @@
         let html = `<div class="table-toolbar">${searchable ? '<input type="text" class="search-box" placeholder="Cari...">' : ''}${exportable ? '<button class="export-btn"><i class="fas fa-download"></i> Export CSV</button>' : ''}</div><div class="table-wrapper"><table id="dynamicTable"><thead><tr>${columns.map(col => `<th data-col="${col.key}">${col.label} ${col.sortable !== false ? '🔼' : ''}</th>`).join('')}</tr></thead><tbody>${data.map(row => `<tr>${columns.map(col => `<td>${row[col.key] ?? ''}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
         return html;
     }
+
     function attachTableEvents(container, columns, data) {
         const searchBox = container.querySelector('.search-box');
         const exportBtn = container.querySelector('.export-btn');
@@ -844,6 +842,38 @@
         });
     }
 
+    // ========== SINKRONISASI PERJALANAN DRIVER ==========
+    async function resyncAllDriverTrips() {
+        addLog("🔄 Memulai sinkronisasi ulang perjalanan driver...", "info");
+        try {
+            const driversSnap = await database.ref('drivers').once('value');
+            const drivers = driversSnap.val() || {};
+            const ordersSnap = await database.ref('orders').once('value');
+            const orders = ordersSnap.val() || {};
+
+            const completedOrdersByDriver = {};
+            for (const [orderId, order] of Object.entries(orders)) {
+                if (order.status === 'completed' && order.driver_id) {
+                    completedOrdersByDriver[order.driver_id] = (completedOrdersByDriver[order.driver_id] || 0) + 1;
+                }
+            }
+
+            for (const [driverId, count] of Object.entries(completedOrdersByDriver)) {
+                await database.ref(`drivers/${driverId}/perjalanan`).set(count);
+                addLog(`🔄 Sinkronisasi: Driver ${driverId} perjalanan = ${count}`, "success");
+            }
+            addLog("✅ Sinkronisasi ulang perjalanan driver selesai.", "success");
+            alert("✅ Sinkronisasi selesai. Data perjalanan driver telah diperbarui.");
+            // Refresh tampilan jika sedang di halaman driver
+            if (currentView === 'drivers_list' || currentView === 'statistik_driver') {
+                showView(currentView);
+            }
+        } catch (err) {
+            addLog("❌ Gagal sinkronisasi: " + err.message, "error");
+            alert("❌ Gagal sinkronisasi: " + err.message);
+        }
+    }
+
     // ========== VIEW HANDLER ==========
     async function showView(view) {
         currentView = view;
@@ -860,6 +890,7 @@
             tools: 'Tools & Utilitas'
         };
         document.getElementById('pageTitle').innerText = titleMap[view] || 'Admin';
+
         if (view === 'dashboard') {
             await refreshDashboardOrders();
             return;
@@ -888,6 +919,7 @@
             await loadDriversForSelect(); await loadWaitingOrdersForSelect();
             container.innerHTML = `<div class="inline-form"><select id="adminDriverSelect" style="flex:2"><option value="">-- Pilih Driver --</option></select><select id="adminOrderSelect" style="flex:2"><option value="">-- Pilih Order (waiting) --</option></select><button id="adminSendOfferBtn" class="action-btn"><i class="fas fa-paper-plane"></i> Kirim Penawaran</button></div><div id="adminOfferResult" style="padding:10px;"></div><div class="table-wrapper"><p>Hasil pengiriman akan tampil di sini dan log.</p></div>`;
             document.getElementById("adminSendOfferBtn").onclick = sendAdminOffer;
+
             async function loadDriversForSelect() {
                 const snap = await database.ref('drivers').once('value');
                 const drvs = snap.val() || {};
@@ -920,14 +952,12 @@
                     resultDiv.innerHTML = '<span style="color:#ff6666;">❌ Data tidak valid</span>';
                     return;
                 }
-                // CEK TRACKING ON dari driver_locations
                 const locSnap = await database.ref(`driver_locations/${driverId}`).once('value');
                 const loc = locSnap.val();
                 if (!loc || loc.tracking_enabled !== true) {
                     resultDiv.innerHTML = '<span style="color:#ffaa66;">⚠️ Driver tidak aktif (tracking mati)</span>';
                     return;
                 }
-                // CEK SALDO DRIVER
                 const potonganInfo = await hitungTotalPotongan(order.price || 0);
                 const saldoDriver = driver.balance || 0;
                 if (saldoDriver < potonganInfo.total) {
@@ -967,7 +997,13 @@
                 }
             };
         } else if (view === 'tools') {
-            container.innerHTML = `<div class="inline-form"><button id="testNotifBtn" class="action-btn"><i class="fas fa-bell"></i> Test Notifikasi (driver pertama)</button><button id="cleanupOrdersBtn" class="action-btn" style="background:#f44336;"><i class="fas fa-trash"></i> Hapus Order Kadaluarsa</button><button id="clearLogBtn" class="action-btn"><i class="fas fa-eraser"></i> Bersihkan Log</button><button id="refreshDataBtn" class="action-btn"><i class="fas fa-sync"></i> Refresh Data Driver & Order</button></div><div id="toolResult" style="padding:10px;"></div>`;
+            container.innerHTML = `<div class="inline-form">
+                <button id="testNotifBtn" class="action-btn"><i class="fas fa-bell"></i> Test Notifikasi (driver pertama)</button>
+                <button id="cleanupOrdersBtn" class="action-btn" style="background:#f44336;"><i class="fas fa-trash"></i> Hapus Order Kadaluarsa</button>
+                <button id="clearLogBtn" class="action-btn"><i class="fas fa-eraser"></i> Bersihkan Log</button>
+                <button id="refreshDataBtn" class="action-btn"><i class="fas fa-sync"></i> Refresh Data Driver & Order</button>
+                <button id="resyncTripsBtn" class="action-btn" style="background:#2196F3;"><i class="fas fa-chart-line"></i> Sinkronisasi Perjalanan Driver</button>
+            </div><div id="toolResult" style="padding:10px;"></div>`;
             document.getElementById('testNotifBtn').onclick = async () => {
                 if (!ONESIGNAL_API_KEY) { addLog("API Key tidak tersedia", "error"); return; }
                 const drivers = await loadActiveDrivers();
@@ -978,6 +1014,7 @@
             document.getElementById('cleanupOrdersBtn').onclick = deleteExpiredOrders;
             document.getElementById('clearLogBtn').onclick = () => { document.getElementById('logMessages').innerHTML = ''; addLog("Log dibersihkan", "info"); };
             document.getElementById('refreshDataBtn').onclick = async () => { await loadDriversForSelectGlobal(); await loadWaitingOrdersForSelectGlobal(); addLog("Data driver & order direfresh", "success"); };
+            document.getElementById('resyncTripsBtn').onclick = resyncAllDriverTrips;
         } else if (view === 'fallback_log') {
             container.innerHTML = `<div style="padding:20px;">Log auto fallback tercatat di area log realtime di bawah. Setiap order baru yang tidak mendapat offer setelah ${FALLBACK_DELAY_SECONDS} detik akan diproses otomatis.</div>`;
         } else if (view === 'realtime_log') {
@@ -1004,6 +1041,7 @@
 
     async function loadDriversForSelectGlobal() { const snap = await database.ref('drivers').once('value'); allDrivers = snap.val() || {}; }
     async function loadWaitingOrdersForSelectGlobal() { const snap = await database.ref('orders').once('value'); const orders = snap.val() || {}; allWaitingOrders = {}; for (let [id, o] of Object.entries(orders)) if (o.status === 'waiting') allWaitingOrders[id] = o; }
+
     async function deleteExpiredOrders() {
         addLog("🕒 Mengecek order kadaluarsa (>30 menit)", "info");
         const now = new Date();
