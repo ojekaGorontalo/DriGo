@@ -954,39 +954,47 @@ isSearching = true;
   }
   function cancelSearchHandler() { cancelSearch(); }
 
-  function showPriceOfferPopup() {
+  
+function showPriceOfferPopup() {
     if (priceOfferShown) return;
     priceOfferShown = true;
+
     const currentPriceVal = currentPrice;
     document.getElementById('currentPriceDisplay').innerText = formatRupiah(currentPriceVal);
+
     const price1 = Math.round(currentPriceVal * 1.1);
     const price2 = Math.round(currentPriceVal * 1.2);
     const price3 = Math.round(currentPriceVal * 1.3);
+
     document.getElementById('priceUp1Btn').innerHTML = formatRupiah(price1);
     document.getElementById('priceUp2Btn').innerHTML = formatRupiah(price2);
     document.getElementById('priceUp3Btn').innerHTML = formatRupiah(price3);
+
     const popup = document.getElementById('priceOfferPopup');
     popup.classList.add('active');
+
     const closePopup = () => popup.classList.remove('active');
-    document.getElementById('priceUp1Btn').onclick = () => { updateOrderPrice(price1); closePopup(); };
-    document.getElementById('priceUp2Btn').onclick = () => { updateOrderPrice(price2); closePopup(); };
-    document.getElementById('priceUp3Btn').onclick = () => { updateOrderPrice(price3); closePopup(); };
+
+    // Tombol kenaikan manual (hanya sekali, tanpa interval)
+    document.getElementById('priceUp1Btn').onclick = () => {
+        updateOrderPrice(price1);
+        closePopup();
+    };
+    document.getElementById('priceUp2Btn').onclick = () => {
+        updateOrderPrice(price2);
+        closePopup();
+    };
+    document.getElementById('priceUp3Btn').onclick = () => {
+        updateOrderPrice(price3);
+        closePopup();
+    };
     document.getElementById('continueWaitingBtn').onclick = closePopup;
-    let autoIncreaseInterval = setInterval(async () => {
-      if (!isSearching || !currentOrderId) { clearInterval(autoIncreaseInterval); return; }
-      const newPrice = Math.round(currentPrice * 1.1);
-      if (newPrice === currentPrice) return;
-      await updateOrderPrice(newPrice);
-      document.getElementById('currentPriceDisplay').innerText = formatRupiah(newPrice);
-      document.getElementById('priceUp1Btn').innerHTML = formatRupiah(Math.round(newPrice * 1.1));
-      document.getElementById('priceUp2Btn').innerHTML = formatRupiah(Math.round(newPrice * 1.2));
-      document.getElementById('priceUp3Btn').innerHTML = formatRupiah(Math.round(newPrice * 1.3));
-    }, 30000);
-    const originalClose = closePopup;
-    window._temp = () => { if (autoIncreaseInterval) clearInterval(autoIncreaseInterval); originalClose(); };
-    document.getElementById('continueWaitingBtn').onclick = () => { if (autoIncreaseInterval) clearInterval(autoIncreaseInterval); closePopup(); };
-    popup.addEventListener('click', (e) => { if (e.target === popup) { if (autoIncreaseInterval) clearInterval(autoIncreaseInterval); closePopup(); } }, { once: true });
-  }
+
+    // Tutup popup jika klik di luar
+    popup.addEventListener('click', (e) => {
+        if (e.target === popup) closePopup();
+    }, { once: true });
+}
 
   async function updateOrderPrice(newPrice) {
     if (!currentOrderId) return;
