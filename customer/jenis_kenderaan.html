@@ -338,47 +338,24 @@
 
   function escapeHtml(str) { if (!str) return ''; return str.replace(/[&<>]/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[m])); }
 
-  // ==================== FITUR AMBIL KONTAK (Contact Picker) ====================
-  async function pickContactFromDevice(fieldId) {
-    const inputEl = document.getElementById(fieldId);
-    if (!inputEl) return;
+// ==================== FITUR AMBIL KONTAK (Manual prompt untuk Median) ====================
+async function pickContactFromDevice(fieldId) {
+  const inputEl = document.getElementById(fieldId);
+  if (!inputEl) return;
 
-    // Cek apakah Contact Picker API tersedia
-    if (navigator.contacts && navigator.contacts.select) {
-      try {
-        const contacts = await navigator.contacts.select(['tel'], { multiple: false });
-        if (contacts && contacts.length > 0) {
-          const phoneNumbers = contacts[0].tel;
-          if (phoneNumbers && phoneNumbers.length > 0) {
-            let rawNumber = phoneNumbers[0];
-            rawNumber = rawNumber.replace(/\s/g, '').replace(/^\+62/, '0').replace(/[^0-9]/g, '');
-            if (rawNumber.startsWith('0')) {
-              inputEl.value = rawNumber;
-            } else if (rawNumber.startsWith('62')) {
-              inputEl.value = '0' + rawNumber.slice(2);
-            } else {
-              inputEl.value = rawNumber;
-            }
-            showToast('Nomor kontak berhasil diambil', 'success');
-            return;
-          }
-        }
-        showToast('Tidak ada nomor telepon pada kontak yang dipilih', 'error');
-      } catch (err) {
-        console.error('Gagal mengambil kontak:', err);
-        showToast('Gagal mengakses kontak. Coba izinkan akses kontak.', 'error');
-      }
-    } else {
-      // Fallback: input manual atau upload VCF
-      const manualNumber = prompt('Masukkan nomor telepon (manual):');
-      if (manualNumber && manualNumber.trim()) {
-        inputEl.value = manualNumber.trim();
-        showToast('Nomor dimasukkan secara manual', 'info');
-      } else {
-        showToast('Anda belum memasukkan nomor', 'error');
-      }
-    }
+  // Karena Median tidak support Contact Picker API, kita gunakan prompt manual
+  const manualNumber = prompt('Masukkan nomor telepon (contoh: 08123456789):');
+  if (manualNumber && manualNumber.trim()) {
+    let rawNumber = manualNumber.trim().replace(/\s/g, '');
+    // Hapus kode negara +62 atau 62 menjadi 0 jika perlu
+    if (rawNumber.startsWith('+62')) rawNumber = '0' + rawNumber.slice(3);
+    else if (rawNumber.startsWith('62')) rawNumber = '0' + rawNumber.slice(2);
+    inputEl.value = rawNumber;
+    showToast('Nomor berhasil dimasukkan', 'success');
+  } else {
+    showToast('Anda belum memasukkan nomor', 'error');
   }
+}
 
   // ==================== DRIVER MARKERS ====================
   function isValidCoordinate(lat, lng) {
