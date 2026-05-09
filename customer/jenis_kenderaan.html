@@ -20,7 +20,12 @@
     * { box-sizing: border-box; }
     html, body, #map { height: 100%; margin: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
     .panel { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); width: 90%; max-width: 500px; background: rgba(255,255,255,0.98); padding: 15px; z-index: 5; border-radius: 16px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); backdrop-filter: blur(4px); }
-    .input-container { margin-bottom: 12px; }
+    .input-group { margin-bottom: 12px; }
+    .input-label { font-size: 0.75rem; font-weight: 600; color: var(--primary); margin-bottom: 4px; display: block; }
+    .input-wrapper { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .input-wrapper .input-container { flex: 1; min-width: 0; }
+    .pickup-map-btn { background: #f5f5f5; border: none; border-radius: 20px; padding: 6px 12px; font-size: 12px; font-weight: 500; color: #333; cursor: pointer; white-space: nowrap; transition: all 0.2s; display: inline-block; }
+    .pickup-map-btn:hover { background: var(--primary); color: white; }
     mapbox-search-box { width: 100%; display: block; }
     .map-mode-btn { position: absolute; bottom: 130px; right: 20px; background: var(--primary); color: white; border: none; border-radius: 40px; padding: 10px 18px; cursor: pointer; z-index: 5; box-shadow: 0 4px 12px rgba(0,0,0,0.2); font-weight: 600; font-size: 14px; }
     .route-details { position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%); width: 90%; max-width: 500px; background: white; border-radius: 20px; padding: 16px; box-shadow: 0 6px 20px rgba(0,0,0,0.15); z-index: 8; display: none; transition: all 0.3s ease; }
@@ -37,8 +42,6 @@
     .radar::after { animation-delay: 1.5s; }
     .radar span { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(255,255,255,0.95); padding: 8px 16px; border-radius: 30px; font-weight: bold; white-space: nowrap; }
     @keyframes radarPulse { 0% { transform: scale(0.4); opacity: 1; } 100% { transform: scale(1.5); opacity: 0; } }
-    @keyframes driverShake { 0% { transform: translateX(0); } 25% { transform: translateX(2px); } 75% { transform: translateX(-2px); } 100% { transform: translateX(0); } }
-    .driver-marker-animate { animation: driverShake 1.5s infinite ease-in-out; }
     #driverOffers { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); width: 90%; max-width: 450px; z-index: 9999; display: none; }
     #driverOffers > div { background: white; border-radius: 20px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
     #driverOffers > div > div:first-child { background: linear-gradient(135deg, var(--primary), var(--secondary)); color: white; padding: 14px 16px; display: flex; justify-content: space-between; }
@@ -95,14 +98,37 @@
     .modal-btn { flex: 1; padding: 12px; border: none; border-radius: 40px; font-weight: 600; cursor: pointer; }
     .btn-primary { background: linear-gradient(135deg, var(--primary), var(--secondary)); color: white; }
     .btn-secondary { background: var(--light); color: var(--dark); border: 2px solid #EDF2F7; }
-    @media (max-width: 640px) { .panel, .route-details, #driverOffers { width: 95%; } .vehicle-card { width: 80px; } .vehicle-icon { width: 40px; height: 40px; } }
+    
+    /* FITUR MANUAL PICKUP / DESTINATION */
+    .fixed-pin { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1000; font-size: 42px; filter: drop-shadow(0 2px 5px rgba(0,0,0,0.3)); pointer-events: none; transition: transform 0.2s ease-out; }
+    .fixed-pin.pin-lift { transform: translate(-50%, -70%); }
+    .manual-location-panel { position: fixed; bottom: 0; left: 0; right: 0; background: white; border-radius: 28px 28px 0 0; box-shadow: 0 -4px 20px rgba(0,0,0,0.2); z-index: 10020; transition: transform 0.3s ease; padding: 20px; display: none; flex-direction: column; gap: 16px; }
+    .manual-address { font-size: 0.95rem; color: var(--dark); text-align: center; padding: 8px 0; font-weight: 500; word-break: break-word; }
+    .manual-buttons { display: flex; gap: 12px; }
+    .manual-buttons button { flex: 1; padding: 12px; border: none; border-radius: 40px; font-weight: 600; cursor: pointer; }
+    .manual-cancel { background: var(--light); color: var(--dark); border: 1px solid #ddd; }
+    .manual-use { background: linear-gradient(135deg, var(--primary), var(--secondary)); color: white; }
+    
+    @media (max-width: 640px) { .panel, .route-details, #driverOffers { width: 95%; } .vehicle-card { width: 80px; } .vehicle-icon { width: 40px; height: 40px; } .fixed-pin { font-size: 36px; } }
   </style>
 </head>
 <body>
 
 <div class="panel">
-  <div id="from-container" class="input-container"></div>
-  <div id="to-container" class="input-container"></div>
+  <div class="input-group">
+    <div class="input-label">📍 Lokasi Penjemputan</div>
+    <div class="input-wrapper">
+      <div id="from-container" class="input-container"></div>
+      <button class="pickup-map-btn" data-type="pickup">🗺️ Pilih lewat peta</button>
+    </div>
+  </div>
+  <div class="input-group">
+    <div class="input-label">📍 Lokasi Tujuan</div>
+    <div class="input-wrapper">
+      <div id="to-container" class="input-container"></div>
+      <button class="pickup-map-btn" data-type="destination">🗺️ Pilih lewat peta</button>
+    </div>
+  </div>
   <div class="delivery-info-panel" id="deliveryInfoPanel">
     <div class="delivery-item"><span class="delivery-label">Jenis Barang:</span><span id="deliveryItemCategory">-</span></div>
     <div class="delivery-item"><span class="delivery-label">Deskripsi:</span><span id="deliveryDescription">-</span></div>
@@ -130,7 +156,7 @@
   </div>
 </div>
 
-<div class="radar" id="radar"><span>🔍 Mencari driver...</span></div>
+<div class="radar" id="radar"><span>📡 Mencari driver...</span></div>
 
 <div class="popup-overlay" id="popupOverlay">
   <div class="popup">
@@ -165,7 +191,7 @@
   </div>
   <div id="vehicleScrollContainer" class="vehicle-scroll"></div>
   <div class="sheet-footer">
-    <button class="confirm-sheet-btn" id="confirmSheetBtn" disabled>🚀 CARI DRIVER</button>
+    <button class="confirm-sheet-btn" id="confirmSheetBtn" disabled>🔍 CARI DRIVER</button>
   </div>
 </div>
 
@@ -212,6 +238,16 @@
   </div>
 </div>
 
+<!-- Elemen untuk fitur manual location (reusable) -->
+<div id="fixedPin" class="fixed-pin" style="display: none;">📍</div>
+<div id="manualLocationPanel" class="manual-location-panel" style="display: none;">
+  <div class="manual-address" id="manualAddress">Memilih lokasi...</div>
+  <div class="manual-buttons">
+    <button id="cancelManualBtn" class="manual-cancel">Batal</button>
+    <button id="useManualBtn" class="manual-use">Gunakan lokasi ini</button>
+  </div>
+</div>
+
 <script>
   // ==================== KONFIGURASI FIREBASE ====================
   const FIREBASE_CONFIG = {
@@ -252,15 +288,20 @@
   let priceOfferTimer = null;
   let priceOfferShown = false;
   let currentZoomAnimation = null;
-  let driverMarkers = [];
-  let driversRef = null;
-  let driversListener = null;
   let fromSearchElement = null;
   let toSearchElement = null;
-  let autoDriverSearchEnabled = false;
   let transportData = {};
   let tariffRates = {};
   let selectedCategory = null;
+
+  // Variabel untuk fitur manual location (reusable)
+  let isManualMode = false;
+  let manualType = null; // 'pickup' atau 'destination'
+  let originalPickupCoord = null, originalPickupAddress = null;
+  let originalDestCoord = null, originalDestAddress = null;
+  let mapMoveHandler = null;
+  let mapMoveEndHandler = null;
+  let lastManualAddress = '';
 
   // ==================== UTILITY ====================
   function showPopup(title, message, onClose = null) {
@@ -355,26 +396,181 @@
     }
   }
 
-  // ==================== DRIVER MARKERS (sama seperti sebelumnya) ====================
-  function isValidCoordinate(lat, lng) { return typeof lat === 'number' && typeof lng === 'number' && !isNaN(lat) && !isNaN(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180 && !(lat === 0 && lng === 0); }
-  function getDriverIconUrl(vehicleType) { /* sama */ 
-    if (!vehicleType) return 'https://cdn-icons-png.flaticon.com/128/5811/5811823.png';
-    const type = vehicleType.toLowerCase();
-    if (type === 'motor') return 'https://cdn-icons-png.flaticon.com/128/5811/5811823.png';
-    if (type === 'bentor') return 'https://cdn-icons-png.flaticon.com/128/7890/7890227.png';
-    if (type === 'mobil') return 'https://cdn-icons-png.flaticon.com/128/12689/12689302.png';
-    if (type === 'kurir_motor') return 'https://cdn-icons-png.flaticon.com/128/9561/9561688.png';
-    if (type === 'kurir_bentor') return 'https://cdn-icons-png.flaticon.com/128/7890/7890227.png';
-    return 'https://cdn-icons-png.flaticon.com/128/5811/5811823.png';
+  // ==================== MANUAL LOCATION MODE (REUSABLE) ====================
+  async function reverseGeocodeMapbox(lng, lat) {
+    const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${mapboxAccessToken}&language=id&types=address,poi,place`;
+    try {
+      const resp = await fetch(url);
+      const data = await resp.json();
+      if (data.features && data.features.length > 0) {
+        return data.features[0].place_name;
+      }
+      return null;
+    } catch (err) {
+      console.error('Reverse geocode error', err);
+      return null;
+    }
   }
-  function addDriverMarker(driverId, location, vehicleType = null) { /* sama */ if (!map) return; const lat = location.latitude, lng = location.longitude; if (!isValidCoordinate(lat, lng)) return; const iconUrl = getDriverIconUrl(vehicleType); const el = document.createElement('div'); el.style.backgroundImage = `url(${iconUrl})`; el.style.backgroundSize = 'cover'; el.style.width = '35px'; el.style.height = '35px'; el.style.borderRadius = '50%'; el.style.border = '2px solid var(--primary)'; el.style.boxShadow = '0 2px 6px rgba(0,0,0,0.2)'; el.style.cursor = 'pointer'; el.title = `Driver ${driverId} - ${vehicleType || 'kendaraan'}`; el.classList.add('driver-marker-animate'); const marker = new mapboxgl.Marker({ element: el }).setLngLat([lng, lat]).addTo(map); driverMarkers.push({ id: driverId, marker }); }
-  function removeAllDriverMarkers() { driverMarkers.forEach(item => { if (item.marker && item.marker.remove) item.marker.remove(); }); driverMarkers = []; }
-  function getDistanceKm(lat1, lon1, lat2, lon2) { const R = 6371; const dLat = (lat2 - lat1) * Math.PI / 180; const dLon = (lon2 - lon1) * Math.PI / 180; const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2); const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); return R * c; }
-  function startAutoShowDrivers(centerLatLng, radiusKm = 3) { /* sama */ if (!autoDriverSearchEnabled) return; if (!database || !centerLatLng || !centerLatLng[0] || !centerLatLng[1]) return; if (driversListener && driversRef) driversRef.off('value', driversListener); removeAllDriverMarkers(); driversRef = database.ref('driver_locations'); driversListener = driversRef.on('value', async (snapshot) => { removeAllDriverMarkers(); const locations = snapshot.val(); if (!locations) return; const [pickupLng, pickupLat] = centerLatLng; const promises = []; Object.keys(locations).forEach(driverId => { const driverData = locations[driverId]; if (driverData && driverData.tracking_enabled === true && driverData.latitude && driverData.longitude) { if (!isValidCoordinate(driverData.latitude, driverData.longitude)) return; const distance = getDistanceKm(pickupLat, pickupLng, driverData.latitude, driverData.longitude); if (distance <= radiusKm) { const promise = database.ref(`drivers/${driverId}/vehicleType`).once('value').then(snap => addDriverMarker(driverId, { latitude: driverData.latitude, longitude: driverData.longitude }, snap.val())).catch(() => addDriverMarker(driverId, { latitude: driverData.latitude, longitude: driverData.longitude }, null)); promises.push(promise); } } }); await Promise.all(promises); if (map && centerLatLng) map.flyTo({ center: [centerLatLng[0], centerLatLng[1]], zoom: 15, essential: true }); }); }
-  function stopAutoShowDrivers() { if (driversListener && driversRef) { driversRef.off('value', driversListener); driversListener = null; driversRef = null; } removeAllDriverMarkers(); }
+
+  async function updateManualAddressFromMapCenter() {
+    const center = map.getCenter();
+    const addressEl = document.getElementById('manualAddress');
+    addressEl.innerText = '🔍 Mencari alamat...';
+    const address = await reverseGeocodeMapbox(center.lng, center.lat);
+    if (address) {
+      lastManualAddress = address;
+      addressEl.innerText = address;
+    } else {
+      lastManualAddress = `${center.lat.toFixed(5)}, ${center.lng.toFixed(5)}`;
+      addressEl.innerText = lastManualAddress;
+    }
+  }
+
+  function onMapMove() {
+    const pin = document.getElementById('fixedPin');
+    if (pin) pin.classList.add('pin-lift');
+    const addressEl = document.getElementById('manualAddress');
+    if (addressEl) addressEl.innerText = '🔍 Mencari alamat...';
+  }
+
+  async function onMapMoveEnd() {
+    const pin = document.getElementById('fixedPin');
+    if (pin) pin.classList.remove('pin-lift');
+    await updateManualAddressFromMapCenter();
+  }
+
+  function enterManualLocationMode(type) {
+    if (isManualMode) return;
+    manualType = type;
+    // Simpan nilai asli
+    if (type === 'pickup') {
+      originalPickupCoord = pickupCoord ? [...pickupCoord] : null;
+      originalPickupAddress = pickupAddress;
+      // Sembunyikan marker pickup agar tidak mengganggu
+      if (pickupMarker) {
+        pickupMarker.remove();
+        pickupMarker = null;
+      }
+    } else {
+      originalDestCoord = destCoord ? [...destCoord] : null;
+      originalDestAddress = destAddress;
+      if (destMarker) {
+        destMarker.remove();
+        destMarker = null;
+      }
+    }
+    
+    isManualMode = true;
+    const fixedPin = document.getElementById('fixedPin');
+    const panel = document.getElementById('manualLocationPanel');
+    fixedPin.style.display = 'block';
+    panel.style.display = 'flex';
+    
+    // Atur peta ke posisi saat ini jika ada
+    let currentCoord = (type === 'pickup') ? pickupCoord : destCoord;
+    if (currentCoord) {
+      map.flyTo({ center: currentCoord, zoom: 15, duration: 500 });
+    }
+    
+    // Pasang event listener map
+    if (mapMoveHandler) map.off('move', mapMoveHandler);
+    if (mapMoveEndHandler) map.off('moveend', mapMoveEndHandler);
+    mapMoveHandler = onMapMove;
+    mapMoveEndHandler = onMapMoveEnd;
+    map.on('move', mapMoveHandler);
+    map.on('moveend', mapMoveEndHandler);
+    
+    // Ambil alamat pertama
+    setTimeout(() => updateManualAddressFromMapCenter(), 100);
+  }
+
+  function exitManualLocationMode(saveChanges = false) {
+    if (!isManualMode) return;
+    
+    // Lepas event listener
+    if (mapMoveHandler) map.off('move', mapMoveHandler);
+    if (mapMoveEndHandler) map.off('moveend', mapMoveEndHandler);
+    mapMoveHandler = null;
+    mapMoveEndHandler = null;
+    
+    // Sembunyikan UI manual
+    document.getElementById('fixedPin').style.display = 'none';
+    document.getElementById('manualLocationPanel').style.display = 'none';
+    
+    if (saveChanges) {
+      const center = map.getCenter();
+      const newCoord = [center.lng, center.lat];
+      const newAddress = lastManualAddress || `${center.lat.toFixed(5)}, ${center.lng.toFixed(5)}`;
+      
+      if (manualType === 'pickup') {
+        pickupCoord = newCoord;
+        pickupAddress = newAddress;
+        setMapboxSearchValue(fromSearchElement, pickupAddress);
+        updateMarkers();
+        if (destCoord) updateRoute();
+        else if (map && pickupCoord) map.flyTo({ center: pickupCoord, zoom: 14 });
+        showToast('Lokasi penjemputan diperbarui', 'success');
+      } else {
+        destCoord = newCoord;
+        destAddress = newAddress;
+        setMapboxSearchValue(toSearchElement, destAddress);
+        updateMarkers();
+        if (pickupCoord) updateRoute();
+        else if (map && destCoord) map.flyTo({ center: destCoord, zoom: 14 });
+        showToast('Lokasi tujuan diperbarui', 'success');
+      }
+    } else {
+      // Restore nilai asli
+      if (manualType === 'pickup') {
+        if (originalPickupCoord) {
+          pickupCoord = [...originalPickupCoord];
+          pickupAddress = originalPickupAddress;
+        } else {
+          pickupCoord = null;
+          pickupAddress = '';
+        }
+        if (pickupCoord) {
+          setMapboxSearchValue(fromSearchElement, pickupAddress);
+          updateMarkers();
+          if (destCoord) updateRoute();
+          if (map && pickupCoord) map.flyTo({ center: pickupCoord, zoom: 14 });
+        } else {
+          if (fromSearchElement) setMapboxSearchValue(fromSearchElement, '');
+          if (pickupMarker) { pickupMarker.remove(); pickupMarker = null; }
+        }
+      } else {
+        if (originalDestCoord) {
+          destCoord = [...originalDestCoord];
+          destAddress = originalDestAddress;
+        } else {
+          destCoord = null;
+          destAddress = '';
+        }
+        if (destCoord) {
+          setMapboxSearchValue(toSearchElement, destAddress);
+          updateMarkers();
+          if (pickupCoord) updateRoute();
+          if (map && destCoord) map.flyTo({ center: destCoord, zoom: 14 });
+        } else {
+          if (toSearchElement) setMapboxSearchValue(toSearchElement, '');
+          if (destMarker) { destMarker.remove(); destMarker = null; }
+        }
+      }
+    }
+    
+    isManualMode = false;
+    manualType = null;
+    originalPickupCoord = null;
+    originalPickupAddress = null;
+    originalDestCoord = null;
+    originalDestAddress = null;
+  }
 
   // ==================== CEK ORDER AKTIF & LOAD WAITING ====================
-  async function cekOrderAktifDanRedirect() { /* sama */ const orderId = localStorage.getItem('current_order_id'); if (!orderId) return false; try { const snap = await database.ref(`orders/${orderId}`).once('value'); const order = snap.val(); if (!order) { localStorage.removeItem('current_order_id'); return false; } if (order.status === 'waiting') return true; const statusRedirect = ['accepted', 'on_the_way', 'arrived', 'on_trip']; if (statusRedirect.includes(order.status) && orderId && orderId !== 'null') { window.location.href = `tracking_customer.html?order_id=${orderId}`; return true; } else { localStorage.removeItem('current_order_id'); return false; } } catch (err) { return false; } }
+  async function cekOrderAktifDanRedirect() {
+    const orderId = localStorage.getItem('current_order_id'); if (!orderId) return false;
+    try { const snap = await database.ref(`orders/${orderId}`).once('value'); const order = snap.val(); if (!order) { localStorage.removeItem('current_order_id'); return false; } if (order.status === 'waiting') return true; const statusRedirect = ['accepted', 'on_the_way', 'arrived', 'on_trip']; if (statusRedirect.includes(order.status) && orderId && orderId !== 'null') { window.location.href = `tracking_customer.html?order_id=${orderId}`; return true; } else { localStorage.removeItem('current_order_id'); return false; } } catch (err) { return false; }
+  }
 
   async function loadWaitingOrderData() {
     const orderId = localStorage.getItem('current_order_id');
@@ -390,51 +586,31 @@
       currentPrice = order.price;
       transportType = order.transport_type;
       transportIconUrl = getDriverIconUrl(transportType);
-      
-      // Set data kurir jika ada
       if (order.sender_phone) {
         isCourier = true;
-        deliveryData = {
-          senderPhone: order.sender_phone,
-          receiverPhone: order.receiver_phone,
-          itemCategory: order.item_category,
-          description: order.item_description,
-          timestamp: order.created_at
-        };
+        deliveryData = { senderPhone: order.sender_phone, receiverPhone: order.receiver_phone, itemCategory: order.item_category, description: order.item_description, timestamp: order.created_at };
         document.getElementById('deliveryInfoPanel').style.display = 'block';
         document.getElementById('deliveryItemCategory').innerText = deliveryData.itemCategory || '-';
         document.getElementById('deliveryDescription').innerText = deliveryData.description || '-';
         document.getElementById('deliverySender').innerText = deliveryData.senderPhone;
         document.getElementById('deliveryReceiver').innerText = deliveryData.receiverPhone;
-      } else {
-        isCourier = false;
-        document.getElementById('deliveryInfoPanel').style.display = 'none';
-      }
-      
+      } else { isCourier = false; document.getElementById('deliveryInfoPanel').style.display = 'none'; }
       document.getElementById('routeFrom').innerText = pickupAddress;
       document.getElementById('routeTo').innerText = destAddress;
       document.getElementById('routeDuration').innerText = order.duration_seconds ? Math.round(order.duration_seconds / 60) + ' menit' : '-';
       document.getElementById('routePrice').innerHTML = formatRupiah(order.price);
       document.getElementById('routeDetails').style.display = 'block';
       document.getElementById('confirmSheetBtn').disabled = false;
-      document.getElementById('confirmSheetBtn').innerHTML = `🚀 CARI DRIVER | ${formatRupiah(order.price)}`;
+      document.getElementById('confirmSheetBtn').innerHTML = `🔍 CARI DRIVER | ${formatRupiah(order.price)}`;
       currentOrderId = orderId;
       currentRoute = { distance: order.distance_meters, duration: order.duration_seconds, price: order.price };
-      
-      // Update pilihan vehicle di sheet (setelah transportData siap)
       if (transportData[transportType]) {
         const v = transportData[transportType];
         selectedTransport = { type: transportType, name: v.name, icon: v.icon, tariff: tariffRates[transportType], minimalDistance: v.minimalDistance, minimalPrice: v.minimalPrice };
         transportRate = { minimal_distance: v.minimalDistance, minimal_price: v.minimalPrice, price_per_km: tariffRates[transportType] };
         if (isCourier && deliveryData) selectedTransport.deliveryData = deliveryData;
-        // highlight card after render
-        setTimeout(() => {
-          document.querySelectorAll('.vehicle-card').forEach(card => card.classList.remove('selected'));
-          const selectedCard = document.querySelector(`.vehicle-card[data-type="${transportType}"]`);
-          if (selectedCard) selectedCard.classList.add('selected');
-        }, 100);
+        setTimeout(() => { document.querySelectorAll('.vehicle-card').forEach(card => card.classList.remove('selected')); const selectedCard = document.querySelector(`.vehicle-card[data-type="${transportType}"]`); if (selectedCard) selectedCard.classList.add('selected'); }, 100);
       }
-      
       updateMarkers();
       if (map && mapboxAccessToken) {
         if (routeLayer) { try { map.removeLayer(routeLayer); } catch(e) {} try { map.removeSource('route'); } catch(e) {} }
@@ -458,8 +634,20 @@
   }
 
   // ==================== AMBIL DATA TRANSPORTASI ====================
+  function getDriverIconUrl(vehicleType) {
+    if (!vehicleType) return 'https://cdn-icons-png.flaticon.com/128/5811/5811823.png';
+    const type = vehicleType.toLowerCase();
+    if (type === 'motor') return 'https://cdn-icons-png.flaticon.com/128/5811/5811823.png';
+    if (type === 'bentor') return 'https://cdn-icons-png.flaticon.com/128/7890/7890227.png';
+    if (type === 'mobil') return 'https://cdn-icons-png.flaticon.com/128/12689/12689302.png';
+    if (type === 'kurir_motor') return 'https://cdn-icons-png.flaticon.com/128/9561/9561688.png';
+    if (type === 'kurir_bentor') return 'https://cdn-icons-png.flaticon.com/128/7890/7890227.png';
+    return 'https://cdn-icons-png.flaticon.com/128/5811/5811823.png';
+  }
+
   function loadFallbackData() { transportData = { motor: { name: "Motor", icon: "https://cdn-icons-png.flaticon.com/128/5811/5811823.png", minimalDistance: 4, minimalPrice: 10000 }, bentor: { name: "Bentor", icon: "https://cdn-icons-png.flaticon.com/128/7890/7890227.png", minimalDistance: 4, minimalPrice: 11000 }, mobil: { name: "Mobil", icon: "https://cdn-icons-png.flaticon.com/128/12689/12689302.png", minimalDistance: 4, minimalPrice: 15000 }, kurir_motor: { name: "Kurir Motor", icon: "https://cdn-icons-png.flaticon.com/128/9561/9561688.png", minimalDistance: 4, minimalPrice: 10000 }, kurir_bentor: { name: "Kurir Bentor", icon: "https://cdn-icons-png.flaticon.com/128/7890/7890227.png", minimalDistance: 4, minimalPrice: 10000 } }; tariffRates = { motor: 2200, bentor: 3000, mobil: 4000, kurir_motor: 2100, kurir_bentor: 2100 }; renderVehicleOptions(); }
-  async function fetchTransportData() { /* sama */ try { const snapshot = await database.ref('tarif').once('value'); const firebaseData = snapshot.val(); if (!firebaseData) throw new Error(); const transportNameMapping = { 'Motor': 'motor', 'Bentor': 'bentor', 'Mobil': 'mobil', 'Kurir Motor': 'kurir_motor', 'Kurir Bentor': 'kurir_bentor' }; snapshot.forEach((child) => { const data = child.val(); const transportName = data.nama; const internalName = transportNameMapping[transportName]; if (internalName && data) { transportData[internalName] = { name: data.nama, icon: data.icon_url || "https://cdn-icons-png.flaticon.com/128/5811/5811823.png", minimalDistance: data.minimal_distance || 4, minimalPrice: data.minimal_price || 10000 }; tariffRates[internalName] = data.price_per_km || 2000; } }); if (Object.keys(transportData).length === 0) loadFallbackData(); else renderVehicleOptions(); } catch (err) { console.warn(err); loadFallbackData(); } }
+  async function fetchTransportData() {
+    try { const snapshot = await database.ref('tarif').once('value'); const firebaseData = snapshot.val(); if (!firebaseData) throw new Error(); const transportNameMapping = { 'Motor': 'motor', 'Bentor': 'bentor', 'Mobil': 'mobil', 'Kurir Motor': 'kurir_motor', 'Kurir Bentor': 'kurir_bentor' }; snapshot.forEach((child) => { const data = child.val(); const transportName = data.nama; const internalName = transportNameMapping[transportName]; if (internalName && data) { transportData[internalName] = { name: data.nama, icon: data.icon_url || "https://cdn-icons-png.flaticon.com/128/5811/5811823.png", minimalDistance: data.minimal_distance || 4, minimalPrice: data.minimal_price || 10000 }; tariffRates[internalName] = data.price_per_km || 2000; } }); if (Object.keys(transportData).length === 0) loadFallbackData(); else renderVehicleOptions(); } catch (err) { console.warn(err); loadFallbackData(); } }
   function renderVehicleOptions() { const container = document.getElementById('vehicleScrollContainer'); if (!container) return; container.innerHTML = ''; const order = ['motor', 'bentor', 'mobil', 'kurir_motor', 'kurir_bentor']; order.forEach(type => { const v = transportData[type]; if (v) { const card = document.createElement('div'); card.className = 'vehicle-card'; card.setAttribute('data-type', type); card.innerHTML = `<img src="${v.icon}" class="vehicle-icon" alt="${v.name}"><div class="vehicle-name">${v.name}</div>`; card.addEventListener('click', () => selectVehicle(type)); container.appendChild(card); } }); }
   
   async function selectVehicle(type) {
@@ -485,7 +673,7 @@
       document.getElementById('kurirModal').style.display = 'flex';
       document.getElementById('confirmSheetBtn').disabled = true;
     } else {
-      if (currentRoute && currentRoute.distance) { const newPrice = calculatePrice(currentRoute.distance); currentPrice = newPrice; document.getElementById('routePrice').innerHTML = formatRupiah(newPrice); document.getElementById('confirmSheetBtn').innerHTML = `🚀 CARI DRIVER | ${formatRupiah(newPrice)}`; }
+      if (currentRoute && currentRoute.distance) { const newPrice = calculatePrice(currentRoute.distance); currentPrice = newPrice; document.getElementById('routePrice').innerHTML = formatRupiah(newPrice); document.getElementById('confirmSheetBtn').innerHTML = `🔍 CARI DRIVER | ${formatRupiah(newPrice)}`; }
       localStorage.setItem('jego_last_transport', JSON.stringify(selectedTransport));
       document.getElementById('confirmSheetBtn').disabled = false;
     }
@@ -505,15 +693,16 @@
     document.getElementById('deliverySender').innerText = deliveryData.senderPhone;
     document.getElementById('deliveryReceiver').innerText = deliveryData.receiverPhone;
     localStorage.setItem('jego_last_transport', JSON.stringify(selectedTransport));
-    if (currentRoute && currentRoute.distance) { const newPrice = calculatePrice(currentRoute.distance); currentPrice = newPrice; document.getElementById('routePrice').innerHTML = formatRupiah(newPrice); document.getElementById('confirmSheetBtn').innerHTML = `🚀 CARI DRIVER | ${formatRupiah(newPrice)}`; }
+    if (currentRoute && currentRoute.distance) { const newPrice = calculatePrice(currentRoute.distance); currentPrice = newPrice; document.getElementById('routePrice').innerHTML = formatRupiah(newPrice); document.getElementById('confirmSheetBtn').innerHTML = `🔍 CARI DRIVER | ${formatRupiah(newPrice)}`; }
     document.getElementById('confirmSheetBtn').disabled = false;
     closeModal();
   }
 
   // ==================== PETA & RUTE ====================
   function getFullAddress(feature) { const name = feature.properties?.name; const fullAddress = feature.properties?.full_address || feature.properties?.address || ''; if (name && name.trim()) { if (fullAddress.toLowerCase().includes(name.toLowerCase())) return fullAddress; return `${name}, ${fullAddress}`; } return fullAddress; }
-  async function reverseGeocode(lng, lat) { try { const controller = new AbortController(); const timeoutId = setTimeout(() => controller.abort(), 10000); const osmUrl = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1&accept-language=id`; const resp = await fetch(osmUrl, { signal: controller.signal, headers: { 'User-Agent': 'JeGo-App/1.0' } }); clearTimeout(timeoutId); if (resp.ok) { const data = await resp.json(); if (data.display_name) return data.display_name.replace(', Indonesia', ''); } } catch (err) { } return null; }
-  async function autoFillPickupLocation() { return new Promise((resolve) => { if (!navigator.geolocation) { resolve(false); return; } navigator.geolocation.getCurrentPosition(async (position) => { const { latitude, longitude } = position.coords; let address = await reverseGeocode(longitude, latitude); if (!address || address.trim() === '') address = '(Jalan Tanpa Nama)'; pickupCoord = [longitude, latitude]; pickupAddress = address; updateMarkers(); if (map) map.flyTo({ center: pickupCoord, zoom: 14, duration: 1500 }); setMapboxSearchValue(fromSearchElement, pickupAddress); if (destCoord) await updateRoute(); if (autoDriverSearchEnabled && pickupCoord) startAutoShowDrivers(pickupCoord, 3); resolve(true); }, () => resolve(false), { enableHighAccuracy: true, timeout: 10000 }); }); }
+  async function reverseGeocode(lng, lat) {
+    try { const controller = new AbortController(); const timeoutId = setTimeout(() => controller.abort(), 10000); const osmUrl = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1&accept-language=id`; const resp = await fetch(osmUrl, { signal: controller.signal, headers: { 'User-Agent': 'JeGo-App/1.0' } }); clearTimeout(timeoutId); if (resp.ok) { const data = await resp.json(); if (data.display_name) return data.display_name.replace(', Indonesia', ''); } } catch (err) { } return null; }
+  async function autoFillPickupLocation() { return new Promise((resolve) => { if (!navigator.geolocation) { resolve(false); return; } navigator.geolocation.getCurrentPosition(async (position) => { const { latitude, longitude } = position.coords; let address = await reverseGeocode(longitude, latitude); if (!address || address.trim() === '') address = '(Jalan Tanpa Nama)'; pickupCoord = [longitude, latitude]; pickupAddress = address; updateMarkers(); if (map) map.flyTo({ center: pickupCoord, zoom: 14, duration: 1500 }); setMapboxSearchValue(fromSearchElement, pickupAddress); if (destCoord) await updateRoute(); resolve(true); }, () => resolve(false), { enableHighAccuracy: true, timeout: 10000 }); }); }
   
   async function initMap() {
     map = new mapboxgl.Map({ container: 'map', style: 'mapbox://styles/mapbox/navigation-day-v1', center: [123.0580, 0.5435], zoom: 12 });
@@ -522,33 +711,31 @@
     map.on('load', () => { applyRoadColor(); map.on('styledata', () => applyRoadColor()); });
     let nightMode = false; document.getElementById('mapModeBtn').addEventListener('click', () => { nightMode = !nightMode; const newStyle = nightMode ? 'mapbox://styles/mapbox/navigation-night-v1' : 'mapbox://styles/mapbox/navigation-day-v1'; map.setStyle(newStyle); document.getElementById('mapModeBtn').innerText = nightMode ? '☀️ Mode Siang' : '🌙 Mode Malam'; });
     const fromContainer = document.getElementById('from-container'); const toContainer = document.getElementById('to-container');
-    const fromSearch = document.createElement('mapbox-search-box'); fromSearch.setAttribute('access-token', mapboxAccessToken); fromSearch.setAttribute('placeholder', '📍 Lokasi penjemputan'); fromContainer.appendChild(fromSearch); fromSearchElement = fromSearch;
-    const toSearch = document.createElement('mapbox-search-box'); toSearch.setAttribute('access-token', mapboxAccessToken); toSearch.setAttribute('placeholder', '📍 Lokasi tujuan'); toContainer.appendChild(toSearch); toSearchElement = toSearch;
-    fromSearch.addEventListener('retrieve', (e) => { const f = e.detail.features[0]; if (f) { pickupCoord = f.geometry.coordinates; pickupAddress = getFullAddress(f); updateMarkers(); if (destCoord) updateRoute(); else if (map && pickupCoord) map.flyTo({ center: pickupCoord, zoom: 14, duration: 1000 }); if (autoDriverSearchEnabled && pickupCoord) startAutoShowDrivers(pickupCoord, 3); if (pickupCoord && destCoord) showBottomSheet(); } });
+    const fromSearch = document.createElement('mapbox-search-box'); fromSearch.setAttribute('access-token', mapboxAccessToken); fromSearch.setAttribute('placeholder', '📍 Cari lokasi penjemputan'); fromContainer.appendChild(fromSearch); fromSearchElement = fromSearch;
+    const toSearch = document.createElement('mapbox-search-box'); toSearch.setAttribute('access-token', mapboxAccessToken); toSearch.setAttribute('placeholder', '📍 Cari lokasi tujuan'); toContainer.appendChild(toSearch); toSearchElement = toSearch;
+    fromSearch.addEventListener('retrieve', (e) => { const f = e.detail.features[0]; if (f) { pickupCoord = f.geometry.coordinates; pickupAddress = getFullAddress(f); updateMarkers(); if (destCoord) updateRoute(); else if (map && pickupCoord) map.flyTo({ center: pickupCoord, zoom: 14, duration: 1000 }); if (pickupCoord && destCoord) showBottomSheet(); } });
     toSearch.addEventListener('retrieve', (e) => { const f = e.detail.features[0]; if (f) { destCoord = f.geometry.coordinates; destAddress = getFullAddress(f); updateRoute(); if (pickupCoord && destCoord) showBottomSheet(); } });
   }
 
   function updateMarkers() { if (pickupMarker) pickupMarker.remove(); if (destMarker) destMarker.remove(); if (pickupCoord) { const el = document.createElement('div'); el.style.backgroundImage = `url(${transportIconUrl || 'https://cdn-icons-png.flaticon.com/128/5811/5811823.png'})`; el.style.backgroundSize = 'cover'; el.style.width = '35px'; el.style.height = '35px'; el.style.borderRadius = '50%'; el.style.border = '2px solid white'; pickupMarker = new mapboxgl.Marker({ element: el }).setLngLat(pickupCoord).addTo(map); } if (destCoord) { const el = document.createElement('div'); el.style.backgroundImage = `url(${transportIconUrl || 'https://cdn-icons-png.flaticon.com/128/5811/5811823.png'})`; el.style.backgroundSize = 'cover'; el.style.width = '35px'; el.style.height = '35px'; el.style.borderRadius = '50%'; el.style.border = '2px solid white'; destMarker = new mapboxgl.Marker({ element: el }).setLngLat(destCoord).addTo(map); } }
   
-  async function updateRoute() { if (!pickupCoord || !destCoord) return; if (routeLayer) { map.removeLayer(routeLayer); map.removeSource('route'); } const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${pickupCoord[0]},${pickupCoord[1]};${destCoord[0]},${destCoord[1]}?geometries=geojson&access_token=${mapboxAccessToken}`; try { const resp = await fetch(url); const data = await resp.json(); if (data.code !== 'Ok' || !data.routes.length) throw new Error(); const route = data.routes[0]; const price = calculatePrice(route.distance); currentPrice = price; currentRoute = { geometry: route.geometry, distance: route.distance, duration: route.duration, price: price }; document.getElementById('routeFrom').innerText = pickupAddress; document.getElementById('routeTo').innerText = destAddress; document.getElementById('routeDuration').innerText = Math.round(route.duration / 60) + ' menit'; document.getElementById('routePrice').innerHTML = formatRupiah(price); document.getElementById('routeDetails').style.display = 'block'; document.getElementById('confirmSheetBtn').disabled = false; document.getElementById('confirmSheetBtn').innerHTML = `🚀 CARI DRIVER | ${formatRupiah(price)}`; map.addSource('route', { type: 'geojson', data: { type: 'Feature', geometry: route.geometry } }); map.addLayer({ id: 'route', type: 'line', source: 'route', layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: { 'line-color': '#289672', 'line-width': 5 } }); routeLayer = 'route'; updateMarkers(); const bounds = new mapboxgl.LngLatBounds().extend(pickupCoord).extend(destCoord); map.fitBounds(bounds, { padding: 50 }); } catch (err) { showPopup('Error', 'Gagal menghitung rute.'); } }
+  async function updateRoute() { if (!pickupCoord || !destCoord) return; if (routeLayer) { map.removeLayer(routeLayer); map.removeSource('route'); } const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${pickupCoord[0]},${pickupCoord[1]};${destCoord[0]},${destCoord[1]}?geometries=geojson&access_token=${mapboxAccessToken}`; try { const resp = await fetch(url); const data = await resp.json(); if (data.code !== 'Ok' || !data.routes.length) throw new Error(); const route = data.routes[0]; const price = calculatePrice(route.distance); currentPrice = price; currentRoute = { geometry: route.geometry, distance: route.distance, duration: route.duration, price: price }; document.getElementById('routeFrom').innerText = pickupAddress; document.getElementById('routeTo').innerText = destAddress; document.getElementById('routeDuration').innerText = Math.round(route.duration / 60) + ' menit'; document.getElementById('routePrice').innerHTML = formatRupiah(price); document.getElementById('routeDetails').style.display = 'block'; document.getElementById('confirmSheetBtn').disabled = false; document.getElementById('confirmSheetBtn').innerHTML = `🔍 CARI DRIVER | ${formatRupiah(price)}`; map.addSource('route', { type: 'geojson', data: { type: 'Feature', geometry: route.geometry } }); map.addLayer({ id: 'route', type: 'line', source: 'route', layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: { 'line-color': '#289672', 'line-width': 5 } }); routeLayer = 'route'; updateMarkers(); const bounds = new mapboxgl.LngLatBounds().extend(pickupCoord).extend(destCoord); map.fitBounds(bounds, { padding: 50 }); } catch (err) { showPopup('Error', 'Gagal menghitung rute.'); } }
   function showBottomSheet() { document.getElementById('bottomSheet').classList.add('active'); } function hideBottomSheet() { document.getElementById('bottomSheet').classList.remove('active'); }
 
   // ==================== ORDER & OFFERS ====================
-  function renderOffers(offers) { const container = document.getElementById('driverOfferList'); if (!container) return; if (!offers || Object.keys(offers).length === 0) { container.innerHTML = '<div style="text-align:center; padding:16px;">🚫 Belum ada penawaran driver</div>'; return; } container.innerHTML = ''; Object.entries(offers).forEach(([driverId, offer]) => { const isProcessed = offer.status === 'accepted' || offer.status === 'rejected'; const card = document.createElement('div'); card.className = 'driver-offer-card'; card.innerHTML = `<div class="driver-info"><img class="driver-photo" src="${offer.driver_photo || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png'}"><div class="driver-details"><div class="driver-name">${escapeHtml(offer.driver_name)}</div><div class="driver-vehicle">${offer.driver_plate || '-'} • ${offer.driver_type || transportType}</div><div>⭐ ${offer.driver_rating || 5} (${offer.driver_trips || 0} trip)</div></div></div><div class="driver-action-buttons">${!isProcessed ? `<button class="accept-btn" data-driver="${driverId}">✅ Terima</button><button class="reject-btn" data-driver="${driverId}">❌ Tolak</button>` : `<span>${offer.status === 'accepted' ? '✅ Diterima' : '❌ Ditolak'}</span>`}</div>`; container.appendChild(card); }); document.querySelectorAll('.accept-btn').forEach(btn => btn.addEventListener('click', () => acceptOffer(btn.getAttribute('data-driver')))); document.querySelectorAll('.reject-btn').forEach(btn => btn.addEventListener('click', () => rejectOffer(btn.getAttribute('data-driver')))); }
-  async function acceptOffer(driverId) { let orderIdToUse = currentOrderId; if (!orderIdToUse || orderIdToUse === 'null') orderIdToUse = localStorage.getItem('current_order_id'); if (!orderIdToUse || orderIdToUse === 'null') { showToast('⚠️ ID order tidak valid', 'error'); return; } await database.ref(`orders/${orderIdToUse}/driver_offers/${driverId}/status`).set('accepted'); await database.ref(`orders/${orderIdToUse}`).update({ status: 'accepted', driver_id: driverId, accepted_at: new Date().toISOString() }); localStorage.setItem('current_order_id', orderIdToUse); showToast('✅ Driver dipilih, mengalihkan...', 'success'); if (orderIdToUse && orderIdToUse !== 'null') setTimeout(() => { window.location.href = `tracking_customer.html?order_id=${orderIdToUse}`; }, 1000); }
+  function renderOffers(offers) { const container = document.getElementById('driverOfferList'); if (!container) return; if (!offers || Object.keys(offers).length === 0) { container.innerHTML = '<div style="text-align:center; padding:16px;">📭 Belum ada penawaran driver</div>'; return; } container.innerHTML = ''; Object.entries(offers).forEach(([driverId, offer]) => { const isProcessed = offer.status === 'accepted' || offer.status === 'rejected'; const card = document.createElement('div'); card.className = 'driver-offer-card'; card.innerHTML = `<div class="driver-info"><img class="driver-photo" src="${offer.driver_photo || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png'}"><div class="driver-details"><div class="driver-name">${escapeHtml(offer.driver_name)}</div><div class="driver-vehicle">${offer.driver_plate || '-'} • ${offer.driver_type || transportType}</div><div>⭐ ${offer.driver_rating || 5} (${offer.driver_trips || 0} trip)</div></div></div><div class="driver-action-buttons">${!isProcessed ? `<button class="accept-btn" data-driver="${driverId}">✅ Terima</button><button class="reject-btn" data-driver="${driverId}">❌ Tolak</button>` : `<span>${offer.status === 'accepted' ? '✅ Diterima' : '❌ Ditolak'}</span>`}</div>`; container.appendChild(card); }); document.querySelectorAll('.accept-btn').forEach(btn => btn.addEventListener('click', () => acceptOffer(btn.getAttribute('data-driver')))); document.querySelectorAll('.reject-btn').forEach(btn => btn.addEventListener('click', () => rejectOffer(btn.getAttribute('data-driver')))); }
+  async function acceptOffer(driverId) { let orderIdToUse = currentOrderId; if (!orderIdToUse || orderIdToUse === 'null') orderIdToUse = localStorage.getItem('current_order_id'); if (!orderIdToUse || orderIdToUse === 'null') { showToast('⚠️ ID order tidak valid', 'error'); return; } await database.ref(`orders/${orderIdToUse}/driver_offers/${driverId}/status`).set('accepted'); await database.ref(`orders/${orderIdToUse}`).update({ status: 'accepted', driver_id: driverId, accepted_at: new Date().toISOString() }); localStorage.setItem('current_order_id', orderIdToUse); showToast('🚀 Driver dipilih, mengalihkan...', 'success'); if (orderIdToUse && orderIdToUse !== 'null') setTimeout(() => { window.location.href = `tracking_customer.html?order_id=${orderIdToUse}`; }, 1000); }
   async function rejectOffer(driverId) { if (currentOrderId) await database.ref(`orders/${currentOrderId}/driver_offers/${driverId}/status`).set('rejected'); }
   
   async function confirmRoute() { if (isSearching) { await cancelSearch(); return; } if (currentOrderId) { const snap = await database.ref(`orders/${currentOrderId}`).once('value'); if (snap.val()?.status === 'waiting') { startSearchForCurrentOrder(); return; } } if (!currentRoute || !currentUser) { showPopup('Perhatian', 'Lengkapi asal dan tujuan.'); return; } if (!selectedTransport) { showToast('Pilih jenis kendaraan terlebih dahulu', 'error'); return; } startNewOrder(); }
   
-  async function startSearchForCurrentOrder() { isSearching = true; if (autoDriverSearchEnabled) stopAutoShowDrivers(); if (pickupCoord) startSearchDriversForOrder(pickupCoord, 3); document.getElementById('driverOffers').style.display = 'block'; const btn = document.getElementById('confirmSheetBtn'); btn.innerHTML = '⏹️ BATALKAN PENCARIAN'; const vehicleContainer = document.getElementById('vehicleScrollContainer'); if (vehicleContainer) vehicleContainer.style.display = 'none'; orderRef = database.ref(`orders/${currentOrderId}/status`); orderStatusCallback = (snap) => { const status = snap.val(); if (status === 'cancelled' || status === 'cancelled_by_user') { cleanupSearch(); showToast('⛔ Order dibatalkan', 'error'); } else if (status === 'accepted') cleanupSearch(); }; orderRef.on('value', orderStatusCallback); offersRef = database.ref(`orders/${currentOrderId}/driver_offers`); offersCallback = (snap) => renderOffers(snap.val()); offersRef.on('value', offersCallback); priceOfferTimer = setTimeout(() => { if (isSearching && currentOrderId) showPriceOfferPopup(); }, 30000); document.getElementById('radar').style.display = 'block'; setTimeout(() => document.getElementById('radar').classList.add('expanding'), 100); activateRadarOnPickup(); if (map && pickupCoord) { map.flyTo({ center: [pickupCoord[0], pickupCoord[1]], zoom: 15, duration: 2000 }); setTimeout(() => { map.flyTo({ center: [pickupCoord[0], pickupCoord[1]], zoom: 11, duration: 178000, easing: t => t }); }, 2000); } }
+  async function startSearchForCurrentOrder() { isSearching = true; document.getElementById('driverOffers').style.display = 'block'; const btn = document.getElementById('confirmSheetBtn'); btn.innerHTML = '⏹️ BATALKAN PENCARIAN'; const vehicleContainer = document.getElementById('vehicleScrollContainer'); if (vehicleContainer) vehicleContainer.style.display = 'none'; orderRef = database.ref(`orders/${currentOrderId}/status`); orderStatusCallback = (snap) => { const status = snap.val(); if (status === 'cancelled' || status === 'cancelled_by_user') { cleanupSearch(); showToast('☠️ Order dibatalkan', 'error'); } else if (status === 'accepted') cleanupSearch(); }; orderRef.on('value', orderStatusCallback); offersRef = database.ref(`orders/${currentOrderId}/driver_offers`); offersCallback = (snap) => renderOffers(snap.val()); offersRef.on('value', offersCallback); priceOfferTimer = setTimeout(() => { if (isSearching && currentOrderId) showPriceOfferPopup(); }, 30000); document.getElementById('radar').style.display = 'block'; setTimeout(() => document.getElementById('radar').classList.add('expanding'), 100); activateRadarOnPickup(); if (map && pickupCoord) { map.flyTo({ center: [pickupCoord[0], pickupCoord[1]], zoom: 15, duration: 2000 }); setTimeout(() => { map.flyTo({ center: [pickupCoord[0], pickupCoord[1]], zoom: 11, duration: 178000, easing: t => t }); }, 2000); } }
   
-  async function startNewOrder() { const btn = document.getElementById('confirmSheetBtn'); btn.innerHTML = '⏹️ BATALKAN PENCARIAN'; const vehicleContainer = document.getElementById('vehicleScrollContainer'); if (vehicleContainer) vehicleContainer.style.display = 'none'; document.getElementById('radar').style.display = 'block'; setTimeout(() => document.getElementById('radar').classList.add('expanding'), 100); activateRadarOnPickup(); if (map && pickupCoord) { map.flyTo({ center: [pickupCoord[0], pickupCoord[1]], zoom: 15, duration: 2000 }); setTimeout(() => { map.flyTo({ center: [pickupCoord[0], pickupCoord[1]], zoom: 11, duration: 178000, easing: t => t }); }, 2000); } const newOrderRef = database.ref('orders').push(); currentOrderId = newOrderRef.key; const orderData = { user_id: currentUser.id, customer_name: currentUser.name, transport_type: transportType, pickup_address: pickupAddress, pickup_lat: pickupCoord[1], pickup_lng: pickupCoord[0], destination_address: destAddress, dest_lat: destCoord[1], dest_lng: destCoord[0], distance_meters: currentRoute.distance, duration_seconds: currentRoute.duration, price: currentPrice, status: 'waiting', created_at: new Date().toISOString(), passenger_rating: currentUser.rating || 5, perjalanan: currentUser.perjalanan || 0, photoURL: currentUser.photoURL || '' }; if (isCourier && deliveryData) { orderData.sender_phone = deliveryData.senderPhone; orderData.receiver_phone = deliveryData.receiverPhone; orderData.item_category = deliveryData.itemCategory; orderData.item_description = deliveryData.description; } await newOrderRef.set(orderData); await database.ref(`userOrders/${currentUser.id}/${currentOrderId}`).set(true); localStorage.setItem('current_order_id', currentOrderId); isSearching = true; if (autoDriverSearchEnabled) stopAutoShowDrivers(); if (pickupCoord) startSearchDriversForOrder(pickupCoord, 3); document.getElementById('driverOffers').style.display = 'block'; orderRef = database.ref(`orders/${currentOrderId}/status`); orderStatusCallback = (snap) => { const status = snap.val(); if (status === 'cancelled' || status === 'cancelled_by_user') { cleanupSearch(); showToast('⛔ Order dibatalkan', 'error'); } else if (status === 'accepted') cleanupSearch(); }; orderRef.on('value', orderStatusCallback); offersRef = database.ref(`orders/${currentOrderId}/driver_offers`); offersCallback = (snap) => renderOffers(snap.val()); offersRef.on('value', offersCallback); priceOfferTimer = setTimeout(() => { if (isSearching && currentOrderId) showPriceOfferPopup(); }, 30000); }
+  async function startNewOrder() { const btn = document.getElementById('confirmSheetBtn'); btn.innerHTML = '⏹️ BATALKAN PENCARIAN'; const vehicleContainer = document.getElementById('vehicleScrollContainer'); if (vehicleContainer) vehicleContainer.style.display = 'none'; document.getElementById('radar').style.display = 'block'; setTimeout(() => document.getElementById('radar').classList.add('expanding'), 100); activateRadarOnPickup(); if (map && pickupCoord) { map.flyTo({ center: [pickupCoord[0], pickupCoord[1]], zoom: 15, duration: 2000 }); setTimeout(() => { map.flyTo({ center: [pickupCoord[0], pickupCoord[1]], zoom: 11, duration: 178000, easing: t => t }); }, 2000); } const newOrderRef = database.ref('orders').push(); currentOrderId = newOrderRef.key; const orderData = { user_id: currentUser.id, customer_name: currentUser.name, transport_type: transportType, pickup_address: pickupAddress, pickup_lat: pickupCoord[1], pickup_lng: pickupCoord[0], destination_address: destAddress, dest_lat: destCoord[1], dest_lng: destCoord[0], distance_meters: currentRoute.distance, duration_seconds: currentRoute.duration, price: currentPrice, status: 'waiting', created_at: new Date().toISOString(), passenger_rating: currentUser.rating || 5, perjalanan: currentUser.perjalanan || 0, photoURL: currentUser.photoURL || '' }; if (isCourier && deliveryData) { orderData.sender_phone = deliveryData.senderPhone; orderData.receiver_phone = deliveryData.receiverPhone; orderData.item_category = deliveryData.itemCategory; orderData.item_description = deliveryData.description; } await newOrderRef.set(orderData); await database.ref(`userOrders/${currentUser.id}/${currentOrderId}`).set(true); localStorage.setItem('current_order_id', currentOrderId); isSearching = true; document.getElementById('driverOffers').style.display = 'block'; orderRef = database.ref(`orders/${currentOrderId}/status`); orderStatusCallback = (snap) => { const status = snap.val(); if (status === 'cancelled' || status === 'cancelled_by_user') { cleanupSearch(); showToast('☠️ Order dibatalkan', 'error'); } else if (status === 'accepted') cleanupSearch(); }; orderRef.on('value', orderStatusCallback); offersRef = database.ref(`orders/${currentOrderId}/driver_offers`); offersCallback = (snap) => renderOffers(snap.val()); offersRef.on('value', offersCallback); priceOfferTimer = setTimeout(() => { if (isSearching && currentOrderId) showPriceOfferPopup(); }, 30000); }
   
-  function startSearchDriversForOrder(centerLatLng, radiusKm = 3) { if (!database || !centerLatLng) return; if (driversListener && driversRef) driversRef.off('value', driversListener); driversRef = database.ref('driver_locations'); driversListener = driversRef.on('value', async (snapshot) => { const locations = snapshot.val(); if (!locations) return; const [pickupLng, pickupLat] = centerLatLng; let driversInRadius = 0; Object.keys(locations).forEach(driverId => { const driverData = locations[driverId]; if (driverData && driverData.tracking_enabled === true && driverData.latitude && driverData.longitude) { if (!isValidCoordinate(driverData.latitude, driverData.longitude)) return; const distance = getDistanceKm(pickupLat, pickupLng, driverData.latitude, driverData.longitude); if (distance <= radiusKm) driversInRadius++; } }); console.log(`🚗 Driver dalam radius untuk order: ${driversInRadius}`); }); }
+  async function cancelSearch() { if (!currentOrderId) { cleanupSearch(); localStorage.removeItem('current_order_id'); return; } try { await database.ref(`orders/${currentOrderId}`).update({ status: 'cancelled_by_user', cancelled_at: new Date().toISOString() }); cleanupSearch(); localStorage.removeItem('current_order_id'); showToast('🚫 Perjalanan berhasil dibatalkan', 'success'); } catch (err) { showToast('⚠️ Gagal membatalkan order', 'error'); } }
   
-  async function cancelSearch() { if (!currentOrderId) { cleanupSearch(); localStorage.removeItem('current_order_id'); return; } try { await database.ref(`orders/${currentOrderId}`).update({ status: 'cancelled_by_user', cancelled_at: new Date().toISOString() }); cleanupSearch(); localStorage.removeItem('current_order_id'); showToast('✅ Perjalanan berhasil dibatalkan', 'success'); } catch (err) { showToast('❌ Gagal membatalkan order', 'error'); } }
-  
-  function cleanupSearch() { if (orderRef && orderStatusCallback) orderRef.off('value', orderStatusCallback); if (offersRef && offersCallback) offersRef.off('value', offersCallback); isSearching = false; if (priceOfferTimer) clearTimeout(priceOfferTimer); priceOfferShown = false; document.getElementById('radar').style.display = 'none'; document.getElementById('radar').classList.remove('expanding'); document.getElementById('driverOffers').style.display = 'none'; const btn = document.getElementById('confirmSheetBtn'); btn.innerHTML = currentPrice ? `🚀 CARI DRIVER | ${formatRupiah(currentPrice)}` : '🚀 CARI DRIVER'; const vehicleContainer = document.getElementById('vehicleScrollContainer'); if (vehicleContainer) vehicleContainer.style.display = 'flex'; document.getElementById('routeDetails').style.display = 'block'; currentOrderId = null; deactivateRadarOnPickup(); stopSlowZoomOut(); if (driversListener && driversRef) { driversRef.off('value', driversListener); driversListener = null; driversRef = null; } if (autoDriverSearchEnabled && pickupCoord) startAutoShowDrivers(pickupCoord, 3); }
+  function cleanupSearch() { if (orderRef && orderStatusCallback) orderRef.off('value', orderStatusCallback); if (offersRef && offersCallback) offersRef.off('value', offersCallback); isSearching = false; if (priceOfferTimer) clearTimeout(priceOfferTimer); priceOfferShown = false; document.getElementById('radar').style.display = 'none'; document.getElementById('radar').classList.remove('expanding'); document.getElementById('driverOffers').style.display = 'none'; const btn = document.getElementById('confirmSheetBtn'); btn.innerHTML = currentPrice ? `🔍 CARI DRIVER | ${formatRupiah(currentPrice)}` : '🔍 CARI DRIVER'; const vehicleContainer = document.getElementById('vehicleScrollContainer'); if (vehicleContainer) vehicleContainer.style.display = 'flex'; document.getElementById('routeDetails').style.display = 'block'; currentOrderId = null; deactivateRadarOnPickup(); stopSlowZoomOut(); }
   
   function showPriceOfferPopup() { if (priceOfferShown) return; priceOfferShown = true; const currentPriceVal = currentPrice; document.getElementById('currentPriceDisplay').innerText = formatRupiah(currentPriceVal); const price1 = Math.round(currentPriceVal * 1.1), price2 = Math.round(currentPriceVal * 1.2), price3 = Math.round(currentPriceVal * 1.3); document.getElementById('priceUp1Btn').innerHTML = formatRupiah(price1); document.getElementById('priceUp2Btn').innerHTML = formatRupiah(price2); document.getElementById('priceUp3Btn').innerHTML = formatRupiah(price3); const popup = document.getElementById('priceOfferPopup'); popup.classList.add('active'); const closePopup = () => popup.classList.remove('active'); document.getElementById('priceUp1Btn').onclick = () => { updateOrderPrice(price1); closePopup(); }; document.getElementById('priceUp2Btn').onclick = () => { updateOrderPrice(price2); closePopup(); }; document.getElementById('priceUp3Btn').onclick = () => { updateOrderPrice(price3); closePopup(); }; document.getElementById('continueWaitingBtn').onclick = closePopup; popup.addEventListener('click', (e) => { if (e.target === popup) closePopup(); }, { once: true }); }
   async function updateOrderPrice(newPrice) { if (!currentOrderId) return; currentPrice = newPrice; await database.ref(`orders/${currentOrderId}`).update({ price: newPrice, price_updated_at: new Date().toISOString() }); showPopup('Tarif Dinaikkan', `Tarif baru: ${formatRupiah(newPrice)}. Menunggu driver...`); }
@@ -571,10 +758,8 @@
     if (orderActive) {
       const loaded = await loadWaitingOrderData();
       if (!loaded) await autoFillPickupLocation();
-      autoDriverSearchEnabled = false;
     } else {
       await autoFillPickupLocation();
-      autoDriverSearchEnabled = true;
     }
     document.getElementById('closeSheetBtn')?.addEventListener('click', hideBottomSheet);
     document.getElementById('confirmSheetBtn')?.addEventListener('click', confirmRoute);
@@ -586,6 +771,21 @@
     });
     document.querySelectorAll('.contact-icon').forEach(icon => {
       icon.addEventListener('click', (e) => { const field = icon.getAttribute('data-contact-field'); if (field === 'sender') pickContactFromDevice('senderPhone'); else if (field === 'receiver') pickContactFromDevice('receiverPhone'); });
+    });
+    
+    // Tombol manual location untuk pickup dan destination
+    document.querySelectorAll('.pickup-map-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        if (isManualMode) return;
+        const type = btn.getAttribute('data-type');
+        enterManualLocationMode(type);
+      });
+    });
+    document.getElementById('cancelManualBtn').addEventListener('click', () => {
+      if (isManualMode) exitManualLocationMode(false);
+    });
+    document.getElementById('useManualBtn').addEventListener('click', () => {
+      if (isManualMode) exitManualLocationMode(true);
     });
   };
 </script>
