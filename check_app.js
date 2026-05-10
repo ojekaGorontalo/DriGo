@@ -1,43 +1,30 @@
-<script>
 (function () {
 
-    function isAndroidWebView() {
-        const ua = navigator.userAgent;
+    function isJeGoApp() {
 
-        return (
-            /wv/.test(ua) ||
-            /Version\/[\d.]+ Chrome\/[\d.]+ Mobile/.test(ua) ||
-            /; wv\)/.test(ua) ||
-            ua.includes("JeGo-Android-App")
-        );
+        const ua = navigator.userAgent.toLowerCase();
+
+        return ua.includes('jego-android-app');
     }
 
-    const host = location.hostname;
-
     const isLocal =
-        host === "localhost" ||
-        host === "127.0.0.1";
+        location.hostname === 'localhost' ||
+        location.hostname === '127.0.0.1';
 
-    if (!isAndroidWebView() && !isLocal) {
+    if (!isJeGoApp() && !isLocal) {
 
         document.documentElement.innerHTML = `
-        <head>
-            <title>Akses Ditolak</title>
-            <meta name="viewport" content="width=device-width,initial-scale=1">
-        </head>
-
         <body style="
             margin:0;
+            height:100vh;
             display:flex;
             justify-content:center;
             align-items:center;
-            height:100vh;
             font-family:sans-serif;
             background:#fff3e0;
             text-align:center;
             padding:20px;
         ">
-
             <div>
                 <h2>⚠️ Akses Ditolak</h2>
 
@@ -48,23 +35,21 @@
                 <button
                     onclick="location.href='https://play.google.com/store/apps/details?id=com.jego.app'"
                     style="
-                        padding:14px 20px;
-                        border:none;
-                        border-radius:10px;
+                        padding:14px 22px;
                         background:#ff9800;
                         color:white;
+                        border:none;
+                        border-radius:10px;
                         font-weight:bold;
                     "
                 >
                     Download Aplikasi
                 </button>
             </div>
-
         </body>
         `;
 
-        throw new Error("Blocked Browser Access");
+        throw new Error("Browser blocked");
     }
 
 })();
-</script>
