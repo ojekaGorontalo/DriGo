@@ -1,62 +1,70 @@
-(function() {
+<script>
+(function () {
 
-    function isWebView() {
-        const ua = navigator.userAgent.toLowerCase();
+    function isAndroidWebView() {
+        const ua = navigator.userAgent;
 
-        const isMedian =
-            ua.includes('median') ||
-            ua.includes('gonative') ||
-            ua.includes('wv');
-
-        const isJeGoApp =
-            ua.includes('jego-android-app');
-
-        return isMedian || isJeGoApp;
+        return (
+            /wv/.test(ua) ||
+            /Version\/[\d.]+ Chrome\/[\d.]+ Mobile/.test(ua) ||
+            /; wv\)/.test(ua) ||
+            ua.includes("JeGo-Android-App")
+        );
     }
 
-    const host = window.location.hostname;
+    const host = location.hostname;
 
-    const isLocalhost =
-        host === 'localhost' ||
-        host === '127.0.0.1';
+    const isLocal =
+        host === "localhost" ||
+        host === "127.0.0.1";
 
-    if (!isWebView() && !isLocalhost) {
+    if (!isAndroidWebView() && !isLocal) {
 
-        document.body.innerHTML = `
-            <div style="
-                text-align:center;
-                padding:50px;
-                font-family:sans-serif;
-            ">
+        document.documentElement.innerHTML = `
+        <head>
+            <title>Akses Ditolak</title>
+            <meta name="viewport" content="width=device-width,initial-scale=1">
+        </head>
+
+        <body style="
+            margin:0;
+            display:flex;
+            justify-content:center;
+            align-items:center;
+            height:100vh;
+            font-family:sans-serif;
+            background:#fff3e0;
+            text-align:center;
+            padding:20px;
+        ">
+
+            <div>
                 <h2>⚠️ Akses Ditolak</h2>
 
                 <p>
-                    Aplikasi JeGo hanya dapat diakses melalui APK resmi.
-                    <br>
-                    Silakan unduh aplikasi dari
-                    <a href="https://play.google.com/store/apps/details?id=com.jego.app" target="_blank">
-                        Google Play Store
-                    </a>.
+                    Halaman ini hanya dapat dibuka melalui aplikasi resmi JeGo.
                 </p>
 
                 <button
-                    onclick="window.location.href='https://play.google.com/store/apps/details?id=com.jego.app'"
+                    onclick="location.href='https://play.google.com/store/apps/details?id=com.jego.app'"
                     style="
-                        padding:12px 20px;
-                        background:#FF9800;
+                        padding:14px 20px;
                         border:none;
-                        border-radius:8px;
+                        border-radius:10px;
+                        background:#ff9800;
                         color:white;
                         font-weight:bold;
-                        cursor:pointer;
                     "
                 >
-                    Download Sekarang
+                    Download Aplikasi
                 </button>
             </div>
+
+        </body>
         `;
 
-        throw new Error('Akses ditolak');
+        throw new Error("Blocked Browser Access");
     }
 
 })();
+</script>
