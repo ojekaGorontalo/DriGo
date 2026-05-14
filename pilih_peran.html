@@ -4,7 +4,6 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
   <title>JeGo - Pilih Peran</title>
-  <!-- <script src="app_check/check_app.js"></script> -->
   <style>
     * {
       margin: 0;
@@ -22,15 +21,17 @@
       --gray: #6C757D;
       --white: #FFFFFF;
       --success: #2ECC71;
+      --danger: #E74C3C;
     }
 
-    /* Status bar transparan untuk Android native */
     body {
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
       background: linear-gradient(135deg, #FFF3E0, #FFE0B2);
       min-height: 100vh;
+      display: flex;
+      flex-direction: column;
       padding-top: env(safe-area-inset-top, 0px);
-      background-attachment: fixed;
+      padding-bottom: env(safe-area-inset-bottom, 20px);
     }
 
     /* Toolbar ala Android ActionBar */
@@ -41,6 +42,7 @@
       background: linear-gradient(135deg, var(--primary), var(--secondary));
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
       z-index: 100;
+      flex-shrink: 0;
     }
 
     .toolbar-container {
@@ -60,11 +62,86 @@
       text-shadow: 0 1px 2px rgba(0,0,0,0.1);
     }
 
-    /* Konten utama */
-    .container {
+    /* Container utama - FLEX untuk center card */
+    .main-container {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .card-container {
       max-width: 550px;
-      margin: 30px auto;
-      padding: 0 20px;
+      width: 100%;
+      margin: 0 auto;
+    }
+
+    /* Panel lokasi (seperti di rute.html) */
+    .location-panel {
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(4px);
+      border-radius: 20px;
+      padding: 12px 16px;
+      margin-bottom: 24px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      border: 1px solid rgba(255, 152, 0, 0.2);
+    }
+
+    .location-icon {
+      font-size: 28px;
+      background: #FFF3E0;
+      width: 44px;
+      height: 44px;
+      border-radius: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .location-info {
+      flex: 1;
+    }
+
+    .location-label {
+      font-size: 0.7rem;
+      font-weight: 600;
+      color: var(--primary);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .location-address {
+      font-size: 0.9rem;
+      font-weight: 500;
+      color: var(--dark);
+      word-break: break-word;
+    }
+
+    .location-refresh {
+      background: var(--primary);
+      border: none;
+      width: 36px;
+      height: 36px;
+      border-radius: 36px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 18px;
+      color: white;
+      flex-shrink: 0;
+      transition: 0.2s;
+    }
+
+    .location-refresh:active {
+      transform: scale(0.95);
+      background: var(--primary-dark);
     }
 
     /* Kartu pilihan peran */
@@ -74,9 +151,14 @@
       padding: 24px;
       margin-bottom: 24px;
       box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
-      transition: all 0.25s ease;
+      transition: all 0.3s cubic-bezier(0.2, 0.9, 0.4, 1.1);
       cursor: pointer;
       border: 1px solid rgba(0,0,0,0.03);
+    }
+
+    .role-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 20px 30px rgba(0, 0, 0, 0.12);
     }
 
     .role-card:active {
@@ -102,6 +184,11 @@
       font-size: 36px;
       color: white;
       box-shadow: 0 4px 12px rgba(255,152,0,0.3);
+      transition: transform 0.2s;
+    }
+
+    .role-card:hover .role-icon {
+      transform: scale(1.05);
     }
 
     .role-title {
@@ -117,7 +204,7 @@
       padding-left: 88px;
     }
 
-    /* Loading message */
+    /* Loading message & toast */
     .loading-msg {
       text-align: center;
       margin-top: 20px;
@@ -132,9 +219,11 @@
       text-align: center;
       margin-top: 30px;
       color: var(--gray);
-      font-size: 0.75rem;
+      font-size: 0.7rem;
+      flex-shrink: 0;
     }
 
+    /* Responsive */
     @media (max-width: 480px) {
       .role-icon {
         width: 55px;
@@ -148,9 +237,19 @@
         padding-left: 73px;
         font-size: 0.8rem;
       }
-      .container {
-        margin: 20px auto;
+      .location-address {
+        font-size: 0.8rem;
       }
+    }
+
+    /* Animasi refresh */
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+    .spin-animation {
+      animation: spin 1s linear infinite;
+      display: inline-block;
     }
   </style>
 </head>
@@ -163,58 +262,148 @@
   </div>
 </div>
 
-<div class="container">
-  <!-- Kartu Pilih Peran Penumpang -->
-  <div class="role-card" id="penumpangBtn">
-    <div class="role-card-header">
-      <div class="role-icon">👤</div>
-      <div class="role-title">Penumpang</div>
+<div class="main-container">
+  <div class="card-container">
+    
+    <!-- Panel Lokasi (Geolocation) seperti di rute.html -->
+    <div class="location-panel" id="locationPanel">
+      <div class="location-icon">📍</div>
+      <div class="location-info">
+        <div class="location-label">LOKASI ANDA SAAT INI</div>
+        <div class="location-address" id="currentLocationAddress">Mengambil lokasi...</div>
+      </div>
+      <button class="location-refresh" id="refreshLocationBtn" title="Refresh lokasi">⟳</button>
     </div>
-    <div class="role-desc">
-      Pesan kendaraan, antar barang, dan nikmati perjalanan nyaman bersama JeGo.
-    </div>
-  </div>
 
-  <!-- Kartu Pilih Peran Driver -->
-  <div class="role-card" id="driverBtn">
-    <div class="role-card-header">
-      <div class="role-icon">🚗</div>
-      <div class="role-title">Driver</div>
+    <!-- Kartu Pilih Peran Penumpang -->
+    <div class="role-card" id="penumpangBtn">
+      <div class="role-card-header">
+        <div class="role-icon">👤</div>
+        <div class="role-title">Penumpang</div>
+      </div>
+      <div class="role-desc">
+        Pesan kendaraan, antar barang, dan nikmati perjalanan nyaman bersama JeGo.
+      </div>
     </div>
-    <div class="role-desc">
-      Dapatkan order, atur jadwal, dan mulai hasilkan pendapatan bersama JeGo.
-    </div>
-  </div>
 
-  <div id="loadingMsg" class="loading-msg"></div>
-  <div class="footer">
-    &copy; 2026 JeGo. All rights reserved.<br> 
-    Buatan Anak Gorontalo
+    <!-- Kartu Pilih Peran Driver -->
+    <div class="role-card" id="driverBtn">
+      <div class="role-card-header">
+        <div class="role-icon">🚗</div>
+        <div class="role-title">Driver</div>
+      </div>
+      <div class="role-desc">
+        Dapatkan order, atur jadwal, dan mulai hasilkan pendapatan bersama JeGo.
+      </div>
+    </div>
+
+    <div id="loadingMsg" class="loading-msg"></div>
+    <div class="footer">
+      &copy; 2026 JeGo. All rights reserved.
+    </div>
   </div>
 </div>
 
 <script>
   (function() {
     const msgDiv = document.getElementById('loadingMsg');
+    const locationAddressDiv = document.getElementById('currentLocationAddress');
+    const refreshBtn = document.getElementById('refreshLocationBtn');
+    
+    // Fungsi reverse geocode menggunakan Nominatim (sama seperti di rute.html)
+    async function reverseGeocode(lng, lat) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000);
+        const osmUrl = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1&accept-language=id`;
+        const resp = await fetch(osmUrl, { signal: controller.signal, headers: { 'User-Agent': 'JeGo-App/1.0' } });
+        clearTimeout(timeoutId);
+        if (resp.ok) {
+          const data = await resp.json();
+          if (data.display_name) return data.display_name.replace(', Indonesia', '');
+        }
+      } catch (err) {
+        console.warn('Reverse geocode error:', err);
+      }
+      return null;
+    }
 
+    // Fungsi mendapatkan lokasi pengguna (geolocation + reverse geocode)
+    async function getUserLocationAndDisplay() {
+      if (!navigator.geolocation) {
+        locationAddressDiv.innerHTML = '⚠️ Browser tidak mendukung geolokasi';
+        return;
+      }
+      
+      // Tampilkan loading
+      locationAddressDiv.innerHTML = '⏳ Mendapatkan lokasi...';
+      refreshBtn.style.opacity = '0.6';
+      refreshBtn.disabled = true;
+      
+      navigator.geolocation.getCurrentPosition(async (position) => {
+        const { latitude, longitude } = position.coords;
+        // Simpan ke sessionStorage jika diperlukan nanti di halaman selanjutnya
+        sessionStorage.setItem('pickup_lat', latitude);
+        sessionStorage.setItem('pickup_lng', longitude);
+        
+        let address = await reverseGeocode(longitude, latitude);
+        if (!address || address.trim() === '') {
+          address = `📍 Koordinat: ${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
+        } else {
+          // Potong jika terlalu panjang
+          if (address.length > 80) address = address.substring(0, 77) + '...';
+        }
+        locationAddressDiv.innerHTML = address;
+        refreshBtn.style.opacity = '1';
+        refreshBtn.disabled = false;
+      }, (error) => {
+        console.error('Geolocation error:', error);
+        let errMsg = 'Gagal mengambil lokasi. ';
+        if (error.code === 1) errMsg += 'Izin lokasi ditolak.';
+        else if (error.code === 2) errMsg += 'Lokasi tidak tersedia.';
+        else errMsg += 'Coba lagi nanti.';
+        locationAddressDiv.innerHTML = errMsg;
+        refreshBtn.style.opacity = '1';
+        refreshBtn.disabled = false;
+      }, { enableHighAccuracy: true, timeout: 15000 });
+    }
+
+    // Fungsi untuk redirect dengan pesan loading
     function redirectWithMessage(url, roleText) {
       if (msgDiv) {
         msgDiv.innerText = `⏳ Mengalihkan ke halaman ${roleText}...`;
       }
-      // Sedikit delay agar pesan sempat tampil, tapi redirect cepat.
+      // Simpan lokasi terakhir yang didapat ke sessionStorage (opsional)
+      // Bisa digunakan di rute.html untuk mengisi otomatis pickup
       setTimeout(() => {
         window.location.href = url;
       }, 150);
     }
 
+    // Event listener tombol refresh
+    refreshBtn.addEventListener('click', () => {
+      getUserLocationAndDisplay();
+    });
+
+    // Saat halaman dimuat, ambil lokasi otomatis
+    getUserLocationAndDisplay();
+
     // Tombol Penumpang -> langsung ke halaman customer (jenis_kenderaan.html)
     document.getElementById('penumpangBtn').addEventListener('click', function(e) {
-      // Cek jika sudah login sebagai customer sebelumnya bisa langsung, tapi tetap arahkan ke halaman customer
+      // Kita bisa menyimpan lokasi terakhir ke localStorage agar digunakan di halaman rute
+      const lat = sessionStorage.getItem('pickup_lat');
+      const lng = sessionStorage.getItem('pickup_lng');
+      if (lat && lng) {
+        localStorage.setItem('jego_last_pickup_lat', lat);
+        localStorage.setItem('jego_last_pickup_lng', lng);
+        localStorage.setItem('jego_last_pickup_address', locationAddressDiv.innerText);
+      }
       redirectWithMessage('customer/jenis_kenderaan.html', 'Penumpang');
     });
 
     // Tombol Driver -> langsung ke halaman driver (index.html)
     document.getElementById('driverBtn').addEventListener('click', function(e) {
+      // Untuk driver, tidak butuh lokasi pickup, tapi tetap simpan untuk keperluan lain
       redirectWithMessage('index.html', 'Driver');
     });
   })();
