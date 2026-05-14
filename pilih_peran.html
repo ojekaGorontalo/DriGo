@@ -62,13 +62,19 @@
       text-shadow: 0 1px 2px rgba(0,0,0,0.1);
     }
 
-    /* Container utama - FLEX untuk center card */
+    /* Container utama - FLEX untuk center card (sembunyikan dulu sampai loading selesai) */
     .main-container {
       flex: 1;
       display: flex;
       align-items: center;
       justify-content: center;
       padding: 20px;
+      opacity: 0;
+      transition: opacity 0.5s ease;
+    }
+
+    .main-container.visible {
+      opacity: 1;
     }
 
     .card-container {
@@ -251,9 +257,74 @@
       animation: spin 1s linear infinite;
       display: inline-block;
     }
+
+    /* ========== LOADING OVERLAY (POPUP) ========== */
+    .loading-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(4px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 20000;
+      transition: opacity 0.3s ease;
+      opacity: 1;
+      visibility: visible;
+    }
+    .loading-overlay.hide {
+      opacity: 0;
+      visibility: hidden;
+    }
+    .loading-popup {
+      background: white;
+      border-radius: 28px;
+      padding: 32px 24px;
+      text-align: center;
+      max-width: 280px;
+      width: 80%;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+      animation: fadeInScale 0.3s ease;
+    }
+    .loading-spinner {
+      width: 48px;
+      height: 48px;
+      border: 4px solid #f3f3f3;
+      border-top: 4px solid var(--primary);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 16px;
+    }
+    .loading-popup p {
+      font-size: 1rem;
+      color: var(--dark);
+      font-weight: 500;
+    }
+    @keyframes fadeInScale {
+      from {
+        opacity: 0;
+        transform: scale(0.9);
+      }
+      to {
+        opacity: 1;
+        transform: scale(1);
+      }
+    }
   </style>
 </head>
 <body>
+
+<!-- LOADING OVERLAY (POPUP) -->
+<div id="loadingOverlay" class="loading-overlay">
+  <div class="loading-popup">
+    <div class="loading-spinner"></div>
+    <p>📍 Mengambil lokasi Anda...</p>
+    <p style="font-size: 0.75rem; color: #999; margin-top: 12px;">Mohon izinkan akses lokasi</p>
+  </div>
+</div>
 
 <!-- Toolbar ala Android -->
 <div class="android-toolbar">
@@ -262,7 +333,7 @@
   </div>
 </div>
 
-<div class="main-container">
+<div class="main-container" id="mainContainer">
   <div class="card-container">
     
     <!-- Panel Lokasi (Geolocation) seperti di rute.html -->
@@ -270,7 +341,7 @@
       <div class="location-icon">📍</div>
       <div class="location-info">
         <div class="location-label">LOKASI ANDA SAAT INI</div>
-        <div class="location-address" id="currentLocationAddress">Mengambil lokasi...</div>
+        <div class="location-address" id="currentLocationAddress">-</div>
       </div>
       <button class="location-refresh" id="refreshLocationBtn" title="Refresh lokasi">⟳</button>
     </div>
@@ -306,9 +377,11 @@
 
 <script>
   (function() {
-    const msgDiv = document.getElementById('loadingMsg');
+    const loadingOverlay = document.getElementById('loadingOverlay');
+    const mainContainer = document.getElementById('mainContainer');
     const locationAddressDiv = document.getElementById('currentLocationAddress');
     const refreshBtn = document.getElementById('refreshLocationBtn');
+    const msgDiv = document.getElementById('loadingMsg');
     
     // Fungsi reverse geocode menggunakan Nominatim (sama seperti di rute.html)
     async function reverseGeocode(lng, lat) {
@@ -329,52 +402,54 @@
     }
 
     // Fungsi mendapatkan lokasi pengguna (geolocation + reverse geocode)
+    // Kembalikan promise agar bisa menunggu selesai
     async function getUserLocationAndDisplay() {
-      if (!navigator.geolocation) {
-        locationAddressDiv.innerHTML = '⚠️ Browser tidak mendukung geolokasi';
-        return;
-      }
-      
-      // Tampilkan loading
-      locationAddressDiv.innerHTML = '⏳ Mendapatkan lokasi...';
-      refreshBtn.style.opacity = '0.6';
-      refreshBtn.disabled = true;
-      
-      navigator.geolocation.getCurrentPosition(async (position) => {
-        const { latitude, longitude } = position.coords;
-        // Simpan ke sessionStorage jika diperlukan nanti di halaman selanjutnya
-        sessionStorage.setItem('pickup_lat', latitude);
-        sessionStorage.setItem('pickup_lng', longitude);
-        
-        let address = await reverseGeocode(longitude, latitude);
-        if (!address || address.trim() === '') {
-          address = `📍 Koordinat: ${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
-        } else {
-          // Potong jika terlalu panjang
-          if (address.length > 80) address = address.substring(0, 77) + '...';
+      return new Promise((resolve) => {
+        if (!navigator.geolocation) {
+          locationAddressDiv.innerHTML = '⚠️ Browser tidak mendukung geolokasi';
+          resolve(false);
+          return;
         }
-        locationAddressDiv.innerHTML = address;
-        refreshBtn.style.opacity = '1';
-        refreshBtn.disabled = false;
-      }, (error) => {
-        console.error('Geolocation error:', error);
-        let errMsg = 'Gagal mengambil lokasi. ';
-        if (error.code === 1) errMsg += 'Izin lokasi ditolak.';
-        else if (error.code === 2) errMsg += 'Lokasi tidak tersedia.';
-        else errMsg += 'Coba lagi nanti.';
-        locationAddressDiv.innerHTML = errMsg;
-        refreshBtn.style.opacity = '1';
-        refreshBtn.disabled = false;
-      }, { enableHighAccuracy: true, timeout: 15000 });
+        
+        navigator.geolocation.getCurrentPosition(async (position) => {
+          const { latitude, longitude } = position.coords;
+          // Simpan ke sessionStorage
+          sessionStorage.setItem('pickup_lat', latitude);
+          sessionStorage.setItem('pickup_lng', longitude);
+          
+          let address = await reverseGeocode(longitude, latitude);
+          if (!address || address.trim() === '') {
+            address = `📍 Koordinat: ${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
+          } else {
+            if (address.length > 80) address = address.substring(0, 77) + '...';
+          }
+          locationAddressDiv.innerHTML = address;
+          resolve(true);
+        }, (error) => {
+          console.error('Geolocation error:', error);
+          let errMsg = 'Gagal mengambil lokasi. ';
+          if (error.code === 1) errMsg += 'Izin lokasi ditolak.';
+          else if (error.code === 2) errMsg += 'Lokasi tidak tersedia.';
+          else errMsg += 'Coba lagi nanti.';
+          locationAddressDiv.innerHTML = errMsg;
+          resolve(false);
+        }, { enableHighAccuracy: true, timeout: 15000 });
+      });
     }
 
-    // Fungsi untuk redirect dengan pesan loading
+    // Fungsi untuk menampilkan halaman setelah loading selesai
+    function showMainPage() {
+      loadingOverlay.classList.add('hide');
+      // Setelah overlay hilang, tampilkan main container
+      mainContainer.classList.add('visible');
+      // Nonaktifkan interaksi card sementara (opsional)
+    }
+
+    // Fungsi redirect
     function redirectWithMessage(url, roleText) {
       if (msgDiv) {
         msgDiv.innerText = `⏳ Mengalihkan ke halaman ${roleText}...`;
       }
-      // Simpan lokasi terakhir yang didapat ke sessionStorage (opsional)
-      // Bisa digunakan di rute.html untuk mengisi otomatis pickup
       setTimeout(() => {
         window.location.href = url;
       }, 150);
@@ -382,15 +457,22 @@
 
     // Event listener tombol refresh
     refreshBtn.addEventListener('click', () => {
-      getUserLocationAndDisplay();
+      // Tampilkan loading di panel saja? Atau bisa juga overlay kecil. Untuk sederhana, kita refresh lokasi tanpa overlay penuh.
+      locationAddressDiv.innerHTML = '⏳ Memperbarui...';
+      getUserLocationAndDisplay().then(() => {});
     });
 
-    // Saat halaman dimuat, ambil lokasi otomatis
-    getUserLocationAndDisplay();
+    // Proses awal: ambil lokasi, lalu tampilkan halaman
+    (async () => {
+      await getUserLocationAndDisplay();
+      // Beri sedikit delay agar transisi halus
+      setTimeout(() => {
+        showMainPage();
+      }, 500);
+    })();
 
-    // Tombol Penumpang -> langsung ke halaman customer (jenis_kenderaan.html)
+    // Tombol Penumpang -> langsung ke halaman customer
     document.getElementById('penumpangBtn').addEventListener('click', function(e) {
-      // Kita bisa menyimpan lokasi terakhir ke localStorage agar digunakan di halaman rute
       const lat = sessionStorage.getItem('pickup_lat');
       const lng = sessionStorage.getItem('pickup_lng');
       if (lat && lng) {
@@ -401,9 +483,8 @@
       redirectWithMessage('customer/jenis_kenderaan.html', 'Penumpang');
     });
 
-    // Tombol Driver -> langsung ke halaman driver (index.html)
+    // Tombol Driver -> langsung ke halaman driver
     document.getElementById('driverBtn').addEventListener('click', function(e) {
-      // Untuk driver, tidak butuh lokasi pickup, tapi tetap simpan untuk keperluan lain
       redirectWithMessage('index.html', 'Driver');
     });
   })();
