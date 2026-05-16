@@ -1320,36 +1320,42 @@ let mapPickResolveTimer = null;
         }
 
         async function loadSelectedTransport() {
-            const lastTransport = localStorage.getItem('jego_last_transport');
-            if (!lastTransport) { showPopup('Pilih Transportasi', 'Anda belum memilih jenis kendaraan.', () => window
-                    .location.href = 'jenis_kenderaan.html'); return false; }
-            try {
-                selectedTransport = JSON.parse(lastTransport);
-                transportType = selectedTransport.type;
-                let typeForDB = transportType.replace(/_/g, ' ');
-                typeForDB = typeForDB.charAt(0).toUpperCase() + typeForDB.slice(1);
-                if (transportType === 'kurir_motor') typeForDB = 'Kurir Motor';
-                if (transportType === 'kurir_bentor') typeForDB = 'Kurir Bentor';
-                if (transportType === 'bentor') typeForDB = 'Bentor';
-                if (transportType === 'mobil') typeForDB = 'Mobil';
-                if (transportType === 'motor') typeForDB = 'Motor';
-                isCourier = transportType && transportType.toLowerCase().includes('kurir');
-                await loadTransportRateFromDB(typeForDB);
-                if (isCourier && selectedTransport.deliveryData) {
-                    deliveryData = selectedTransport.deliveryData;
-                    document.getElementById('deliveryInfoPanel').style.display = 'block';
-                    document.getElementById('deliveryItemCategory').innerText = deliveryData.itemCategory || '-';
-                    document.getElementById('deliveryDescription').innerText = deliveryData.description || '-';
-                    document.getElementById('deliverySender').innerText = deliveryData.senderPhone || '-';
-                    document.getElementById('deliveryReceiver').innerText = deliveryData.receiverPhone || '-';
-                } else if (isCourier && !selectedTransport.deliveryData) {
-                    showPopup('Data Kurir Tidak Lengkap', 'Silakan kembali ke halaman sebelumnya.', () => window.location
-                        .href = 'jenis_kenderaan.html');
-                    return false;
-                }
-                return true;
-            } catch (e) { showPopup('Error', 'Gagal memuat data transportasi'); return false; }
+    const lastTransport = localStorage.getItem('jego_last_transport');
+    if (!lastTransport) { 
+        showPopup('Pilih Transportasi', 'Anda belum memilih jenis kendaraan.', () => window.location.href = 'jenis_kenderaan.html'); 
+        return false; 
+    }
+    try {
+        selectedTransport = JSON.parse(lastTransport);
+        transportType = selectedTransport.type;
+        isCourier = transportType && transportType.toLowerCase().includes('kurir');
+        
+        // ✅ LANGSUNG PAKAI DATA DARI LOCALSTORAGE, tanpa panggil Firebase
+        transportRate = {
+            minimal_distance: selectedTransport.minimalDistance,
+            minimal_price: selectedTransport.minimalPrice,
+            price_per_km: selectedTransport.tariff
+        };
+        transportIconUrl = selectedTransport.icon || getDriverIconUrl(transportType);
+        
+        // Tampilkan data kurir jika ada
+        if (isCourier && selectedTransport.deliveryData) {
+            deliveryData = selectedTransport.deliveryData;
+            document.getElementById('deliveryInfoPanel').style.display = 'block';
+            document.getElementById('deliveryItemCategory').innerText = deliveryData.itemCategory || '-';
+            document.getElementById('deliveryDescription').innerText = deliveryData.description || '-';
+            document.getElementById('deliverySender').innerText = deliveryData.senderPhone || '-';
+            document.getElementById('deliveryReceiver').innerText = deliveryData.receiverPhone || '-';
+        } else if (isCourier && !selectedTransport.deliveryData) {
+            showPopup('Data Kurir Tidak Lengkap', 'Silakan kembali ke halaman sebelumnya.', () => window.location.href = 'jenis_kenderaan.html');
+            return false;
         }
+        return true;
+    } catch (e) { 
+        showPopup('Error', 'Gagal memuat data transportasi'); 
+        return false; 
+    }
+}
 
         // ==================== PETA & RUTE ====================
         function getFullAddress(feature) {
