@@ -24,6 +24,58 @@
       --danger: #E74C3C;
     }
 
+    /* --- CSS untuk Splash Screen --- */
+    #splashScreen {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(135deg, #FFF3E0, #FFE0B2);
+      z-index: 2000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: opacity 0.8s ease-out, visibility 0.8s ease-out;
+    }
+
+    .splash-content {
+      text-align: center;
+      animation: fadeInUp 1s ease-out;
+    }
+
+    .splash-logo {
+      max-width: 85%;
+      width: 320px;
+      height: auto;
+      margin-bottom: 20px;
+      border-radius: 28px;
+      box-shadow: 0 20px 35px rgba(0, 0, 0, 0.2);
+    }
+
+    .splash-title {
+      font-size: 2rem;
+      font-weight: 800;
+      background: linear-gradient(135deg, var(--primary), var(--secondary));
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      margin-top: 16px;
+      letter-spacing: 1px;
+    }
+
+    @keyframes fadeInUp {
+      from {
+        opacity: 0;
+        transform: translateY(30px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    /* Konten utama (awalnya tersembunyi) */
     body {
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
       background: linear-gradient(135deg, #FFF3E0, #FFE0B2);
@@ -34,7 +86,6 @@
       padding-bottom: env(safe-area-inset-bottom, 20px);
     }
 
-    /* Toolbar ala Android ActionBar */
     .android-toolbar {
       position: sticky;
       top: 0;
@@ -62,19 +113,12 @@
       text-shadow: 0 1px 2px rgba(0,0,0,0.1);
     }
 
-    /* Container utama - FLEX untuk center card (sembunyikan dulu sampai loading selesai) */
     .main-container {
       flex: 1;
       display: flex;
       align-items: center;
       justify-content: center;
       padding: 20px;
-      opacity: 0;
-      transition: opacity 0.5s ease;
-    }
-
-    .main-container.visible {
-      opacity: 1;
     }
 
     .card-container {
@@ -210,7 +254,6 @@
       padding-left: 88px;
     }
 
-    /* Loading message & toast */
     .loading-msg {
       text-align: center;
       margin-top: 20px;
@@ -220,7 +263,6 @@
       min-height: 40px;
     }
 
-    /* Footer */
     .footer {
       text-align: center;
       margin-top: 30px;
@@ -248,7 +290,6 @@
       }
     }
 
-    /* Animasi refresh */
     @keyframes spin {
       from { transform: rotate(0deg); }
       to { transform: rotate(360deg); }
@@ -257,166 +298,141 @@
       animation: spin 1s linear infinite;
       display: inline-block;
     }
-
-    /* ========== LOADING OVERLAY (POPUP) ========== */
-    .loading-overlay {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(0, 0, 0, 0.7);
-      backdrop-filter: blur(4px);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      z-index: 20000;
-      transition: opacity 0.3s ease;
-      opacity: 1;
-      visibility: visible;
-    }
-    .loading-overlay.hide {
-      opacity: 0;
-      visibility: hidden;
-    }
-    .loading-popup {
-      background: white;
-      border-radius: 28px;
-      padding: 32px 24px;
-      text-align: center;
-      max-width: 280px;
-      width: 80%;
-      box-shadow: 0 20px 40px rgba(0,0,0,0.2);
-      animation: fadeInScale 0.3s ease;
-    }
-    .loading-spinner {
-      width: 48px;
-      height: 48px;
-      border: 4px solid #f3f3f3;
-      border-top: 4px solid var(--primary);
-      border-radius: 50%;
-      animation: spin 1s linear infinite;
-      margin: 0 auto 16px;
-    }
-    .loading-popup p {
-      font-size: 1rem;
-      color: var(--dark);
-      font-weight: 500;
-    }
-    @keyframes fadeInScale {
-      from {
-        opacity: 0;
-        transform: scale(0.9);
-      }
-      to {
-        opacity: 1;
-        transform: scale(1);
-      }
-    }
   </style>
 </head>
 <body>
 
-<!-- LOADING OVERLAY (POPUP) -->
-<div id="loadingOverlay" class="loading-overlay">
-  <div class="loading-popup">
-    <div class="loading-spinner"></div>
-    <p>📍 Mengambil lokasi Anda...</p>
-    <p style="font-size: 0.75rem; color: #999; margin-top: 12px;">Mohon izinkan akses lokasi</p>
-  </div>
-</div>
-
-<!-- Toolbar ala Android -->
-<div class="android-toolbar">
-  <div class="toolbar-container">
-    <div class="toolbar-title">JeGo</div>
-  </div>
-</div>
-
-<div class="main-container" id="mainContainer">
-  <div class="card-container">
-    
-    <!-- Panel Lokasi (Geolocation) seperti di rute.html -->
-    <div class="location-panel" id="locationPanel">
-      <div class="location-icon">📍</div>
-      <div class="location-info">
-        <div class="location-label">LOKASI ANDA SAAT INI</div>
-        <div class="location-address" id="currentLocationAddress">-</div>
-      </div>
-      <button class="location-refresh" id="refreshLocationBtn" title="Refresh lokasi">⟳</button>
-    </div>
-
-    <!-- Kartu Pilih Peran Penumpang -->
-    <div class="role-card" id="penumpangBtn">
-      <div class="role-card-header">
-        <div class="role-icon">👤</div>
-        <div class="role-title">Penumpang</div>
-      </div>
-      <div class="role-desc">
-        Pesan kendaraan, antar barang, dan nikmati perjalanan nyaman bersama JeGo.
-      </div>
-    </div>
-
-    <!-- Kartu Pilih Peran Driver -->
-    <div class="role-card" id="driverBtn">
-      <div class="role-card-header">
-        <div class="role-icon">🚗</div>
-        <div class="role-title">Driver</div>
-      </div>
-      <div class="role-desc">
-        Dapatkan order, atur jadwal, dan mulai hasilkan pendapatan bersama JeGo.
-      </div>
-    </div>
-
-    <div id="loadingMsg" class="loading-msg"></div>
-    <div class="footer">
-      &copy; 2026 JeGo. All rights reserved.
+  <!-- Splash Screen -->
+  <div id="splashScreen">
+    <div class="splash-content">
+      <img class="splash-logo" src="https://jegoapp-gorontalo.netlify.app/Imgsplash.png" alt="JeGo Logo" loading="eager">
+      <div class="splash-title">JeGo</div>
     </div>
   </div>
-</div>
 
-<script>
-  (function() {
-    const loadingOverlay = document.getElementById('loadingOverlay');
-    const mainContainer = document.getElementById('mainContainer');
-    const locationAddressDiv = document.getElementById('currentLocationAddress');
-    const refreshBtn = document.getElementById('refreshLocationBtn');
-    const msgDiv = document.getElementById('loadingMsg');
-    
-    // Fungsi reverse geocode menggunakan Nominatim (sama seperti di rute.html)
-    async function reverseGeocode(lng, lat) {
-      try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000);
-        const osmUrl = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1&accept-language=id`;
-        const resp = await fetch(osmUrl, { signal: controller.signal, headers: { 'User-Agent': 'JeGo-App/1.0' } });
-        clearTimeout(timeoutId);
-        if (resp.ok) {
-          const data = await resp.json();
-          if (data.display_name) return data.display_name.replace(', Indonesia', '');
-        }
-      } catch (err) {
-        console.warn('Reverse geocode error:', err);
+  <!-- Audio untuk splash screen -->
+  <audio id="splashAudio" preload="auto" src="https://jegoapp-gorontalo.netlify.app/audio/jego-spark.mp3"></audio>
+
+  <!-- Konten utama -->
+  <div class="android-toolbar">
+    <div class="toolbar-container">
+      <div class="toolbar-title">JeGo</div>
+    </div>
+  </div>
+
+  <div class="main-container">
+    <div class="card-container">
+      
+      <div class="location-panel" id="locationPanel">
+        <div class="location-icon">📍</div>
+        <div class="location-info">
+          <div class="location-label">LOKASI ANDA SAAT INI</div>
+          <div class="location-address" id="currentLocationAddress">Mengambil lokasi...</div>
+        </div>
+        <button class="location-refresh" id="refreshLocationBtn" title="Refresh lokasi">⟳</button>
+      </div>
+
+      <div class="role-card" id="penumpangBtn">
+        <div class="role-card-header">
+          <div class="role-icon">👤</div>
+          <div class="role-title">Penumpang</div>
+        </div>
+        <div class="role-desc">
+          Pesan kendaraan, antar barang, dan nikmati perjalanan nyaman bersama JeGo.
+        </div>
+      </div>
+
+      <div class="role-card" id="driverBtn">
+        <div class="role-card-header">
+          <div class="role-icon">🚗</div>
+          <div class="role-title">Driver</div>
+        </div>
+        <div class="role-desc">
+          Dapatkan order, atur jadwal, dan mulai hasilkan pendapatan bersama JeGo.
+        </div>
+      </div>
+
+      <div id="loadingMsg" class="loading-msg"></div>
+      <div class="footer">
+        &copy; 2026 JeGo. All rights reserved.
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function() {
+      // --- SPLASH SCREEN LOGIC ---
+      const splashElement = document.getElementById('splashScreen');
+      const splashAudio = document.getElementById('splashAudio');
+      let audioPlayed = false;
+
+      // Fungsi untuk menyembunyikan splash screen dan mulai konten
+      function hideSplashAndStart() {
+        if (!splashElement) return;
+        splashElement.style.opacity = '0';
+        splashElement.style.visibility = 'hidden';
+        setTimeout(() => {
+          splashElement.style.display = 'none';
+        }, 800);
       }
-      return null;
-    }
 
-    // Fungsi mendapatkan lokasi pengguna (geolocation + reverse geocode)
-    // Kembalikan promise agar bisa menunggu selesai
-    async function getUserLocationAndDisplay() {
-      return new Promise((resolve) => {
+      // Fungsi untuk memainkan audio splash (hanya sekali)
+      function playSplashAudio() {
+        if (audioPlayed) return;
+        if (splashAudio) {
+          splashAudio.play().then(() => {
+            audioPlayed = true;
+          }).catch(error => {
+            console.warn('Audio autoplay gagal:', error);
+            // Jika autoplay diblokir, kita tetap lanjutkan
+          });
+        }
+      }
+
+      // Mulai audio setelah 1 detik (pendekatan user gesture)
+      setTimeout(() => {
+        playSplashAudio();
+      }, 1000);
+
+      // Tampilkan splash minimal selama 2 detik, lalu sembunyikan
+      setTimeout(() => {
+        hideSplashAndStart();
+      }, 3000);
+
+      // --- FUNGSI UTAMA (GEOLOKASI DAN REDIRECT) ---
+      const msgDiv = document.getElementById('loadingMsg');
+      const locationAddressDiv = document.getElementById('currentLocationAddress');
+      const refreshBtn = document.getElementById('refreshLocationBtn');
+
+      async function reverseGeocode(lng, lat) {
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 10000);
+          const osmUrl = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1&accept-language=id`;
+          const resp = await fetch(osmUrl, { signal: controller.signal, headers: { 'User-Agent': 'JeGo-App/1.0' } });
+          clearTimeout(timeoutId);
+          if (resp.ok) {
+            const data = await resp.json();
+            if (data.display_name) return data.display_name.replace(', Indonesia', '');
+          }
+        } catch (err) {
+          console.warn('Reverse geocode error:', err);
+        }
+        return null;
+      }
+
+      async function getUserLocationAndDisplay() {
         if (!navigator.geolocation) {
           locationAddressDiv.innerHTML = '⚠️ Browser tidak mendukung geolokasi';
-          resolve(false);
           return;
         }
-        
+        locationAddressDiv.innerHTML = '⏳ Mendapatkan lokasi...';
+        refreshBtn.style.opacity = '0.6';
+        refreshBtn.disabled = true;
         navigator.geolocation.getCurrentPosition(async (position) => {
           const { latitude, longitude } = position.coords;
-          // Simpan ke sessionStorage
           sessionStorage.setItem('pickup_lat', latitude);
           sessionStorage.setItem('pickup_lng', longitude);
-          
           let address = await reverseGeocode(longitude, latitude);
           if (!address || address.trim() === '') {
             address = `📍 Koordinat: ${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
@@ -424,7 +440,8 @@
             if (address.length > 80) address = address.substring(0, 77) + '...';
           }
           locationAddressDiv.innerHTML = address;
-          resolve(true);
+          refreshBtn.style.opacity = '1';
+          refreshBtn.disabled = false;
         }, (error) => {
           console.error('Geolocation error:', error);
           let errMsg = 'Gagal mengambil lokasi. ';
@@ -432,62 +449,41 @@
           else if (error.code === 2) errMsg += 'Lokasi tidak tersedia.';
           else errMsg += 'Coba lagi nanti.';
           locationAddressDiv.innerHTML = errMsg;
-          resolve(false);
+          refreshBtn.style.opacity = '1';
+          refreshBtn.disabled = false;
         }, { enableHighAccuracy: true, timeout: 15000 });
+      }
+
+      function redirectWithMessage(url, roleText) {
+        if (msgDiv) {
+          msgDiv.innerText = `⏳ Mengalihkan ke halaman ${roleText}...`;
+        }
+        setTimeout(() => {
+          window.location.href = url;
+        }, 150);
+      }
+
+      refreshBtn.addEventListener('click', () => {
+        getUserLocationAndDisplay();
       });
-    }
 
-    // Fungsi untuk menampilkan halaman setelah loading selesai
-    function showMainPage() {
-      loadingOverlay.classList.add('hide');
-      // Setelah overlay hilang, tampilkan main container
-      mainContainer.classList.add('visible');
-      // Nonaktifkan interaksi card sementara (opsional)
-    }
+      getUserLocationAndDisplay();
 
-    // Fungsi redirect
-    function redirectWithMessage(url, roleText) {
-      if (msgDiv) {
-        msgDiv.innerText = `⏳ Mengalihkan ke halaman ${roleText}...`;
-      }
-      setTimeout(() => {
-        window.location.href = url;
-      }, 150);
-    }
+      document.getElementById('penumpangBtn').addEventListener('click', function(e) {
+        const lat = sessionStorage.getItem('pickup_lat');
+        const lng = sessionStorage.getItem('pickup_lng');
+        if (lat && lng) {
+          localStorage.setItem('jego_last_pickup_lat', lat);
+          localStorage.setItem('jego_last_pickup_lng', lng);
+          localStorage.setItem('jego_last_pickup_address', locationAddressDiv.innerText);
+        }
+        redirectWithMessage('customer/jenis_kenderaan.html', 'Penumpang');
+      });
 
-    // Event listener tombol refresh
-    refreshBtn.addEventListener('click', () => {
-      // Tampilkan loading di panel saja? Atau bisa juga overlay kecil. Untuk sederhana, kita refresh lokasi tanpa overlay penuh.
-      locationAddressDiv.innerHTML = '⏳ Memperbarui...';
-      getUserLocationAndDisplay().then(() => {});
-    });
-
-    // Proses awal: ambil lokasi, lalu tampilkan halaman
-    (async () => {
-      await getUserLocationAndDisplay();
-      // Beri sedikit delay agar transisi halus
-      setTimeout(() => {
-        showMainPage();
-      }, 500);
+      document.getElementById('driverBtn').addEventListener('click', function(e) {
+        redirectWithMessage('index.html', 'Driver');
+      });
     })();
-
-    // Tombol Penumpang -> langsung ke halaman customer
-    document.getElementById('penumpangBtn').addEventListener('click', function(e) {
-      const lat = sessionStorage.getItem('pickup_lat');
-      const lng = sessionStorage.getItem('pickup_lng');
-      if (lat && lng) {
-        localStorage.setItem('jego_last_pickup_lat', lat);
-        localStorage.setItem('jego_last_pickup_lng', lng);
-        localStorage.setItem('jego_last_pickup_address', locationAddressDiv.innerText);
-      }
-      redirectWithMessage('customer/jenis_kenderaan.html', 'Penumpang');
-    });
-
-    // Tombol Driver -> langsung ke halaman driver
-    document.getElementById('driverBtn').addEventListener('click', function(e) {
-      redirectWithMessage('index.html', 'Driver');
-    });
-  })();
-</script>
+  </script>
 </body>
 </html>
