@@ -163,7 +163,6 @@
             user-select: none;
             border-top: 1px solid #e9ecef;
         }
-        /* Style tabel seperti Excel */
         table tr:hover {
             background: #f5f5f5;
         }
@@ -391,6 +390,12 @@
         }
     }
 
+    // ========== FUNGSI CEK ORDER KURIR ==========
+    function isKurirOrder(orderData) {
+        const tipe = orderData.transport_type || orderData.vehicle || '';
+        return tipe.includes('kurir');
+    }
+
     // ========== FUNGSI AMBIL DRIVER AKTIF ==========
     async function loadActiveDrivers() {
         const snap = await database.ref("driver_locations").once("value");
@@ -413,8 +418,13 @@
         return activeDrivers;
     }
 
-    // ========== FUNGSI AUTO FALLBACK ==========
+    // ========== FUNGSI AUTO FALLBACK (dengan pengecualian kurir) ==========
     async function sendFallbackOffer(orderId, orderData) {
+        // Jangan fallback untuk order Kurir
+        if (isKurirOrder(orderData)) {
+            addLog(`🚫 Fallback dibatalkan untuk order Kurir ${orderId.substring(0,8)}`, "warning");
+            return false;
+        }
         const orderSnap = await database.ref(`orders/${orderId}`).once('value');
         const order = orderSnap.val();
         if (!order || order.status !== 'waiting') return false;
@@ -484,14 +494,16 @@
         }
     }
 
-    // ========== PROSES ORDER BARU ==========
+    // ========== PROSES ORDER BARU (dengan pengecualian kurir) ==========
     async function processNewOrder(orderId, orderData) {
         if (processedOrderIds.has(orderId)) return;
         if (orderData.status !== "waiting" && orderData.status !== "searching") return;
         const lat = orderData.pickup_lat || orderData.from_lat;
         const lng = orderData.pickup_lng || orderData.from_lng;
         if (!lat || !lng) return;
-        addLog(`📦 Order baru: ${orderId.substring(0,8)}`, "info");
+
+        const isKurir = isKurirOrder(orderData);
+        addLog(`📦 Order baru: ${orderId.substring(0,8)}${isKurir ? ' (KURIR)' : ''}`, "info");
 
         const drivers = await loadActiveDrivers();
         let notifiedCount = 0;
@@ -505,7 +517,8 @@
                 await sendPushNotification(driver.playerId, "🚖 Order Baru Dekat Anda!", `${cust} Rp ${harga.toLocaleString()} jarak ${dist.toFixed(1)}km`, orderId);
                 notifiedCount++;
 
-                if (driver.autobid_enabled) {
+                // Auto offer hanya jika driver autobid ON dan order BUKAN kurir
+                if (driver.autobid_enabled && !isKurir) {
                     const driverSnap = await database.ref(`drivers/${driver.uid}`).once('value');
                     const driverData = driverSnap.val();
                     if (!driverData) continue;
@@ -538,7 +551,8 @@
         }
         addLog(`✅ Order ${orderId.substring(0,8)}: notif ke ${notifiedCount} driver, auto offer ke ${autoOfferCount} driver`, "success");
 
-        if (!fallbackProcessed.has(orderId)) {
+        // Fallback hanya untuk order NON-KURIR
+        if (!isKurir && !fallbackProcessed.has(orderId)) {
             if (fallbackTimers.has(orderId)) clearTimeout(fallbackTimers.get(orderId));
             const timer = setTimeout(async () => {
                 const cur = await database.ref(`orders/${orderId}`).once('value');
@@ -559,6 +573,8 @@
             }, FALLBACK_DELAY_SECONDS * 1000);
             fallbackTimers.set(orderId, timer);
             addLog(`⏲️ Timer fallback ${FALLBACK_DELAY_SECONDS}s untuk order ${orderId.substring(0,8)}`, "info");
+        } else if (isKurir) {
+            addLog(`🚫 Order Kurir: auto fallback dinonaktifkan (harus manual)`, "info");
         }
         processedOrderIds.add(orderId);
     }
@@ -644,7 +660,7 @@
         }
     }
 
-    // ========== UPDATE RATING CUSTOMER (BARU) ==========
+    // ========== UPDATE RATING CUSTOMER ==========
     async function updateCustomerStats(customerId) {
         if (!customerId) return;
         try {
@@ -797,7 +813,7 @@
                             <th data-col="pickup">Alamat Jemput</th><th data-col="destination">Tujuan</th>
                             <th data-col="price">Harga</th><th data-col="status">Status</th>
                             <th data-col="driver">Driver</th><th data-col="created_at">Dibuat</th>
-                        </tr>
+                         </tr>
                     </thead>
                     <tbody>${orders.map(order => {
                         let statusClass = '';
@@ -820,9 +836,9 @@
                             <td><strong>${order.status}</strong></td>
                             <td>${order.driver}</td>
                             <td>${order.created_at}</td>
-                         </tr>`;
+                          </tr>`;
                     }).join('')}</tbody>
-                </table>
+                 </table>
             </div>
         </div>`;
         container.innerHTML = html;
