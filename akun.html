@@ -9,7 +9,7 @@
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
   <style>
-    /* ========== CSS SAMA PERSIS SEPERTI SEBELUMNYA (DIKECUALIKAN AGAR TIDAK MEMPERPANJANG) ========== */
+    /* ========== CSS SAMA PERSIS (tidak diubah) ========== */
     :root { --primary: #FF9800; --secondary: #FF5722; --accent: #FFC107; --light: #f8f9fa; --dark: #343a40; --success: #4CAF50; --danger: #f44336; --warning: #FFC107; --info: #2196F3; --gray: #9E9E9E; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f5f5f5; color: #333; line-height: 1.4; font-size: 0.85rem; padding-bottom: 20px; }
@@ -154,7 +154,11 @@
           </div>
         </div>
       </div>
-      <div class="action-buttons"><button class="submit-btn btn-danger" id="logoutBtn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16,17 21,12 16,7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>Logout</button></div>
+      <div class="action-buttons">
+        <button class="submit-btn btn-danger" id="logoutBtn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16,17 21,12 16,7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>Logout</button>
+        <!-- TOMBOL HAPUS AKUN (BARU) -->
+        <button class="submit-btn btn-danger" id="deleteAccountBtn" style="background: linear-gradient(to right, #f44336, #d32f2f);"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M8 6V4h8v2"></path><rect x="6" y="10" width="12" height="12" rx="1"></rect><line x1="10" y1="14" x2="10" y2="18"></line><line x1="14" y1="14" x2="14" y2="18"></line></svg>Hapus Akun</button>
+      </div>
     </div>
   </div>
   <!-- Modal -->
@@ -229,7 +233,7 @@
         if (!data) throw new Error('Data driver tidak ditemukan');
         currentDriverData = { ...data, uid: uid };
         
-        // ========== PERBAIKAN: Simpan ke localStorage dengan format yang SAMA dengan index.html ==========
+        // Simpan ke localStorage dengan format yang sama seperti index.html
         const driverForLocal = {
           uid: uid,
           name: data.name || '',
@@ -240,12 +244,12 @@
           vehicleBrand: data.vehicle_brand || '',
           rating: data.rating || 5,
           perjalanan: data.perjalanan || 0,
-          Balance: data.balance || 0,          // huruf besar B agar sesuai index.html
+          Balance: data.balance || 0,
           profilePhotoUrl: data.photoURL || data.fotoProfilURL || '',
           status: data.status || 'pending'
         };
         localStorage.setItem('jego_logged_in_driver', JSON.stringify(driverForLocal));
-        console.log('✅ Data driver disimpan ke localStorage (format index.html):', driverForLocal);
+        console.log('✅ Data driver disimpan ke localStorage');
         
         displayProfile(currentDriverData);
         await loadBalanceAndCommission(uid);
@@ -290,51 +294,47 @@
     }
 
     async function loadBalanceAndCommission(uid) {
-  try {
-    const balanceSnap = await database.ref(`drivers/${uid}/balance`).once('value');
-    // Ambil potongan dari data-jego (global)
-    const potonganSnap = await database.ref('data-jego/potongan').once('value');
-    const potongan = potonganSnap.val() !== null ? potonganSnap.val() : 0;
-    document.getElementById('balanceAmount').textContent = formatCurrency(balanceSnap.val() || 0);
-    document.getElementById('commissionRate').textContent = potongan + '%';
-  } catch(e) { console.error(e); }
-}
+      try {
+        const balanceSnap = await database.ref(`drivers/${uid}/balance`).once('value');
+        const potonganSnap = await database.ref('data-jego/potongan').once('value');
+        const potongan = potonganSnap.val() !== null ? potonganSnap.val() : 0;
+        document.getElementById('balanceAmount').textContent = formatCurrency(balanceSnap.val() || 0);
+        document.getElementById('commissionRate').textContent = potongan + '%';
+      } catch(e) { console.error(e); }
+    }
 
     async function loadDriverOrders(uid) {
-  try {
-    const ordersSnap = await database.ref('orders').once('value');
-    const ordersData = ordersSnap.val();
-    driverOrders = [];
-    if (ordersData) {
-      Object.entries(ordersData).forEach(([orderId, order]) => {
-        // Pastikan order milik driver ini dan status completed
-        if (order.driver_id === uid && order.status === 'completed') {
-          driverOrders.push({
-            ...order,
-            completed_at: order.completed_at || order.updated_at || order.created_at,
-            price: order.price || 0
+      try {
+        const ordersSnap = await database.ref('orders').once('value');
+        const ordersData = ordersSnap.val();
+        driverOrders = [];
+        if (ordersData) {
+          Object.entries(ordersData).forEach(([orderId, order]) => {
+            if (order.driver_id === uid && order.status === 'completed') {
+              driverOrders.push({
+                ...order,
+                completed_at: order.completed_at || order.updated_at || order.created_at,
+                price: order.price || 0
+              });
+            }
           });
         }
-      });
+        updateTodayEarnings();
+        updateOrderStats();
+      } catch(e) { console.error(e); }
     }
-    updateTodayEarnings();
-    updateOrderStats();
-  } catch(e) { 
-    console.error(e); 
-  }
-}
 
-function updateTodayEarnings() {
-  if (!driverOrders.length) {
-    document.getElementById('todayEarnings').textContent = 'Rp 0';
-    return;
-  }
-  const today = new Date().toISOString().split('T')[0];
-  const earnings = driverOrders
-    .filter(o => o.completed_at && o.completed_at.split('T')[0] === today)
-    .reduce((sum, o) => sum + (parseInt(o.price) || 0), 0);
-  document.getElementById('todayEarnings').textContent = formatCurrency(earnings);
-}
+    function updateTodayEarnings() {
+      if (!driverOrders.length) {
+        document.getElementById('todayEarnings').textContent = 'Rp 0';
+        return;
+      }
+      const today = new Date().toISOString().split('T')[0];
+      const earnings = driverOrders
+        .filter(o => o.completed_at && o.completed_at.split('T')[0] === today)
+        .reduce((sum, o) => sum + (parseInt(o.price) || 0), 0);
+      document.getElementById('todayEarnings').textContent = formatCurrency(earnings);
+    }
     function updateOrderStats() {
       document.getElementById('totalOrders').textContent = driverOrders.length;
       document.getElementById('completedOrders').textContent = driverOrders.filter(o => o.status === 'completed').length;
@@ -370,15 +370,18 @@ function updateTodayEarnings() {
       });
       document.getElementById('logoutBtn').addEventListener('click', logout);
       document.getElementById('balanceContainer').addEventListener('click', () => {
-  window.location.href = 'payment.html';
-});
-document.getElementById('todayEarningsStat').addEventListener('click', () => {
-  window.location.href = 'pendapatan.html';
-});
-// Event untuk rating bintang
-document.getElementById('ratingClickable').addEventListener('click', () => {
-  window.location.href = 'penilaianLayanan.html';
-});
+        window.location.href = 'payment.html';
+      });
+      document.getElementById('todayEarningsStat').addEventListener('click', () => {
+        window.location.href = 'pendapatan.html';
+      });
+      document.getElementById('ratingClickable').addEventListener('click', () => {
+        window.location.href = 'penilaianLayanan.html';
+      });
+      // EVENT UNTUK TOMBOL HAPUS AKUN
+      document.getElementById('deleteAccountBtn').addEventListener('click', () => {
+        window.location.href = 'hapus_akun.html';
+      });
       modalOverlay.addEventListener('click', (e) => { if (e.target === modalOverlay) hidePopup(); });
     });
 
