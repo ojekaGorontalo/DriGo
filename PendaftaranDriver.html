@@ -194,6 +194,36 @@
             font-size: 12px;
             color: #666;
         }
+        /* Style untuk checkbox privasi */
+        .privacy-checkbox {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            margin: 20px 0;
+            font-size: 14px;
+        }
+        .privacy-checkbox input {
+            width: 18px;
+            height: 18px;
+            margin-top: 2px;
+            flex-shrink: 0;
+            accent-color: var(--primary);
+        }
+        .privacy-checkbox label {
+            display: inline;
+            font-weight: 400;
+            margin: 0;
+            line-height: 1.4;
+        }
+        .privacy-link {
+            color: var(--primary);
+            text-decoration: none;
+            font-weight: 500;
+            cursor: pointer;
+        }
+        .privacy-link:hover {
+            text-decoration: underline;
+        }
         @media (max-width: 480px) {
             .container { padding: 15px; }
             .form-card { padding: 20px; }
@@ -203,7 +233,7 @@
 <body>
     <header>
         <div class="container">
-            <div class="logo">🚗 JeGo Driver</div>
+            <div class="logo">📱 JeGo Driver</div>
             <div style="font-size: 14px; opacity: 0.9;">Gabung jadi mitra – mudah & cepat</div>
         </div>
     </header>
@@ -240,16 +270,15 @@
                     <label>Jenis Kendaraan (wajib)</label>
                     <select id="vehicleType" required>
                         <option value="">Pilih Jenis Kendaraan</option>
-                        <option value="Motor">Motor</option>
-                        <option value="Mobil">Mobil</option>
-                        <option value="Bentor">Bentor</option>
+                        <option value="motor">Motor</option>
+                        <option value="mobil">Mobil</option>
+                        <option value="bentor">Bentor</option>
                     </select>
                 </div>
                 <div class="form-group">
                     <label>Nomor Plat Kendaraan (wajib)</label>
                     <input type="text" id="plateNumber" placeholder="Contoh: DM 1234 AB" required>
                 </div>
-                <!-- NEW: Field Alamat -->
                 <div class="form-group">
                     <label>Alamat Lengkap (wajib)</label>
                     <textarea id="address" rows="3" placeholder="Contoh: Jl. Merdeka No. 10, RT 01/RW 02, Kel. Sukamaju, Kec. Cicendo, Kota Bandung, Jawa Barat" required></textarea>
@@ -263,8 +292,19 @@
                         <div id="uploadStatus" class="upload-status"></div>
                     </div>
                 </div>
+
+                <!-- CHECKBOX PRIVASI -->
+                <div class="privacy-checkbox">
+                    <input type="checkbox" id="privacyConsent" required>
+                    <label for="privacyConsent">
+                        Saya telah membaca dan menyetujui 
+                        <span class="privacy-link" id="privacyLink">kebijakan privasi</span> 
+                        serta memahami penggunaan data pribadi pada aplikasi JeGo.
+                    </label>
+                </div>
+
                 <div class="info-box">
-                    💡 Dengan mendaftar, Anda setuju untuk mengikuti aturan JeGo. Data akan diverifikasi oleh admin. Pendaftaran GRATIS!
+                    ℹ️ Dengan mendaftar, Anda setuju untuk mengikuti aturan JeGo. Data akan diverifikasi oleh admin. Pendaftaran GRATIS!
                 </div>
                 <button type="submit" id="submitBtn" class="btn">Daftar Sekarang</button>
                 <button type="button" id="backHomeBtn" class="btn btn-outline">Kembali ke Beranda</button>
@@ -299,11 +339,12 @@
         const phone = document.getElementById('phone');
         const vehicleTypeSelect = document.getElementById('vehicleType');
         const plateNumberInput = document.getElementById('plateNumber');
-        const addressInput = document.getElementById('address');          // NEW
+        const addressInput = document.getElementById('address');
         const photoFile = document.getElementById('photoFile');
         const uploadPhotoBtn = document.getElementById('uploadPhotoBtn');
         const photoPreview = document.getElementById('photoPreview');
         const uploadStatus = document.getElementById('uploadStatus');
+        const privacyCheckbox = document.getElementById('privacyConsent');
 
         let uploadedPhotoURL = null;
         let isUploading = false;
@@ -450,7 +491,7 @@
             }
         });
 
-        // Fungsi registrasi driver (menyimpan address)
+        // Fungsi registrasi driver
         async function registerDriver(data) {
             const userCredential = await auth.createUserWithEmailAndPassword(data.email, data.password);
             const uid = userCredential.user.uid;
@@ -460,8 +501,8 @@
                 name: data.fullName,
                 email: data.email,
                 phone: data.phoneFormatted,
-                address: data.address,            // NEW: alamat driver
-                vehicle_type: data.vehicleType,
+                address: data.address,
+                vehicle_type: data.vehicleType.toLowerCase(),
                 plate_number: data.plateNumber,
                 photoURL: data.photoURL || '',
                 status: 'pending',
@@ -473,23 +514,20 @@
                 updated_at: new Date().toISOString()
             };
 
+            // Simpan ke Realtime Database
             await database.ref(`drivers/${uid}`).set(driverRecord);
-
+            
+            // Simpan juga untuk pengecekan nomor HP
             const phoneKey = data.phoneFormatted.replace(/\+/g, '_');
-            await database.ref(`phone_check_drivers/${phoneKey}`).set({
-                phone: data.phoneFormatted,
-                uid: uid,
-                registered_at: new Date().toISOString(),
-                status: 'pending'
-            });
+            await database.ref(`phone_check_drivers/${phoneKey}`).set(uid);
 
             const driverLocal = {
                 uid: uid,
                 name: data.fullName,
                 phone: data.phoneFormatted,
                 email: data.email,
-                address: data.address,            // NEW: simpan juga di localStorage
-                vehicleType: data.vehicleType,
+                address: data.address,
+                vehicleType: data.vehicleType.toLowerCase(),
                 plateNumber: data.plateNumber,
                 photoURL: data.photoURL || '',
                 status: 'pending',
@@ -505,13 +543,21 @@
             e.preventDefault();
             if (submitBtn.disabled) return;
 
+            // Validasi checkbox privasi
+            if (!privacyCheckbox.checked) {
+                errorBox.innerText = 'Anda harus menyetujui kebijakan privasi untuk melanjutkan pendaftaran.';
+                errorBox.style.display = 'block';
+                setTimeout(() => errorBox.style.display = 'none', 4000);
+                return;
+            }
+
             const nameVal = fullName.value.trim();
             const emailVal = email.value.trim();
             const passVal = password.value;
             const phoneVal = phone.value.trim();
             const vehicleVal = vehicleTypeSelect.value;
             const plateVal = plateNumberInput.value.trim().toUpperCase();
-            const addressVal = addressInput.value.trim();        // NEW
+            const addressVal = addressInput.value.trim();
 
             if (!nameVal || !emailVal || !passVal || !phoneVal || !plateVal || !addressVal) {
                 errorBox.innerText = 'Semua field wajib diisi!';
@@ -566,7 +612,7 @@
                     phoneFormatted: formattedPhone,
                     vehicleType: vehicleVal,
                     plateNumber: plateVal,
-                    address: addressVal,         // NEW
+                    address: addressVal,
                     photoURL: uploadedPhotoURL
                 });
 
@@ -575,6 +621,7 @@
                 uploadedPhotoURL = null;
                 photoPreview.src = 'https://via.placeholder.com/100?text=Foto';
                 uploadStatus.innerHTML = '';
+                privacyCheckbox.checked = false; // reset checkbox
                 window.scrollTo({ top: successBox.offsetTop - 20, behavior: 'smooth' });
             } catch (err) {
                 console.error(err);
@@ -587,6 +634,12 @@
                 submitBtn.disabled = false;
                 submitBtn.innerHTML = 'Daftar Sekarang';
             }
+        });
+
+        // Event listener untuk link kebijakan privasi
+        document.getElementById('privacyLink').addEventListener('click', (e) => {
+            e.preventDefault();
+            window.location.href = 'privasi.html';
         });
 
         document.getElementById('backHomeBtn').addEventListener('click', () => {
