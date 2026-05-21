@@ -9,18 +9,83 @@
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
   <style>
-    /* ========== CSS SAMA PERSIS (tidak diubah) ========== */
+    /* ========== FULL LEBAR TANPA CELAH ========== */
     :root { --primary: #FF9800; --secondary: #FF5722; --accent: #FFC107; --light: #f8f9fa; --dark: #343a40; --success: #4CAF50; --danger: #f44336; --warning: #FFC107; --info: #2196F3; --gray: #9E9E9E; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f5f5f5; color: #333; line-height: 1.4; font-size: 0.85rem; padding-bottom: 20px; }
-    .header { background: linear-gradient(135deg, var(--primary), var(--secondary)); color: white; padding: 15px 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.2); display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; }
+    body { 
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+      background-color: white; /* biar tidak ada warna abu-abu */
+      color: #333; 
+      line-height: 1.4; 
+      font-size: 0.85rem; 
+      padding: 0;
+    }
+    .header { 
+      background: linear-gradient(135deg, var(--primary), var(--secondary)); 
+      color: white; 
+      padding: 15px 20px; 
+      box-shadow: 0 2px 10px rgba(0,0,0,0.2); 
+      display: flex; 
+      align-items: center; 
+      justify-content: space-between; 
+      position: sticky; 
+      top: 0; 
+      z-index: 100;
+    }
     .logo-container { display: flex; align-items: center; }
     .logo { width: 40px; height: 40px; background-color: var(--accent); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-right: 10px; font-weight: bold; font-size: 16px; color: var(--primary); }
     .header-title { font-size: 1.2rem; font-weight: 600; }
-    .container { max-width: 100%; padding: 15px; }
-    .form-container { background: white; border-radius: 8px; padding: 20px; box-shadow: 0 2px 6px rgba(0,0,0,0.08); max-width: 800px; margin: 0 auto; }
-    .form-title { font-size: 1.5rem; font-weight: 600; color: var(--primary); margin-bottom: 20px; text-align: center; }
-    .profile-card { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 2px 6px rgba(0,0,0,0.08); margin-bottom: 20px; text-align: center; }
+    .container { 
+      max-width: 100%; 
+      padding: 0; /* hilangkan padding */
+      margin: 0;
+    }
+    .form-container { 
+      background: white; 
+      border-radius: 0; /* full */
+      padding: 0; /* hilangkan padding agar card full */
+      box-shadow: none; 
+      max-width: 100%; 
+      margin: 0;
+    }
+    /* Semua card memiliki padding internal agar konten tidak menempel tepi */
+    .profile-card { 
+      background: white; 
+      border-radius: 0; 
+      padding: 20px; 
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05); 
+      margin-bottom: 0; 
+      text-align: center; 
+      position: relative; 
+    }
+    .info-cards-container { 
+      display: grid; 
+      grid-template-columns: 1fr; 
+      gap: 0; /* hapus gap agar rapat */
+      margin-bottom: 0; 
+    }
+    @media (min-width: 768px) { 
+      .info-cards-container { grid-template-columns: 1fr 1fr; } 
+    }
+    .info-card { 
+      background: white; 
+      border-radius: 0; 
+      padding: 20px; 
+      box-shadow: none; 
+      border-top: 1px solid #f0f0f0; /* pemisah antar card */
+    }
+    .action-buttons {
+      padding: 20px;
+      border-top: 1px solid #f0f0f0;
+    }
+    .action-buttons {
+    padding: 20px;
+    border-top: 1px solid #f0f0f0;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+    /* sisanya sama seperti CSS sebelumnya, hanya sedikit penyesuaian */
     .profile-photo-container { position: relative; display: inline-block; margin-bottom: 15px; }
     .profile-photo { width: 120px; height: 120px; border-radius: 50%; object-fit: cover; border: 4px solid var(--accent); box-shadow: 0 4px 10px rgba(0,0,0,0.15); }
     .priority-badge { display: inline-block; padding: 6px 14px; border-radius: 20px; font-size: 0.8rem; font-weight: 700; text-transform: uppercase; margin: 8px 0; box-shadow: 0 2px 8px rgba(0,0,0,0.15); letter-spacing: 0.5px; color: white; }
@@ -46,9 +111,6 @@
     .stat-item:hover { background-color: rgba(255, 152, 0, 0.05); }
     .stat-value { font-weight: 700; font-size: 1.1rem; color: var(--primary); }
     .stat-label { font-size: 0.75rem; color: #666; margin-top: 2px; }
-    .info-cards-container { display: grid; grid-template-columns: 1fr; gap: 15px; margin-bottom: 20px; }
-    @media (min-width: 768px) { .info-cards-container { grid-template-columns: 1fr 1fr; } }
-    .info-card { background: white; border-radius: 8px; padding: 20px; box-shadow: 0 2px 6px rgba(0,0,0,0.08); }
     .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
     .card-title { font-size: 1rem; font-weight: 600; color: var(--primary); display: flex; align-items: center; gap: 8px; }
     .toggle-btn { background: none; border: none; color: var(--primary); cursor: pointer; padding: 5px; border-radius: 4px; transition: background 0.3s; }
@@ -61,7 +123,6 @@
     .info-value { color: #333; text-align: right; font-size: 0.85rem; max-width: 60%; word-break: break-word; display: flex; align-items: center; gap: 8px; }
     .copy-btn { background: none; border: none; color: var(--primary); cursor: pointer; padding: 4px; border-radius: 4px; transition: all 0.3s; display: flex; align-items: center; justify-content: center; }
     .copy-btn:hover { background-color: rgba(255,152,0,0.1); transform: scale(1.1); }
-    .action-buttons { display: flex; flex-direction: column; gap: 12px; margin-top: 20px; }
     .submit-btn { background: linear-gradient(to right, var(--primary), var(--secondary)); color: white; border: none; border-radius: 8px; padding: 12px 25px; font-size: 1rem; font-weight: 600; cursor: pointer; transition: all 0.3s; box-shadow: 0 4px 10px rgba(0,0,0,0.15); width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; }
     .submit-btn.btn-danger { background: linear-gradient(to right, var(--danger), #d32f2f); }
     .status-badge { display: inline-block; padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; }
@@ -69,6 +130,27 @@
     .status-pending { background-color: rgba(255,193,7,0.1); color: var(--warning); border: 1px solid var(--warning); }
     .status-rejected { background-color: rgba(244,67,54,0.1); color: var(--danger); border: 1px solid var(--danger); }
     .status-blocked { background-color: rgba(158,158,158,0.1); color: var(--gray); border: 1px solid var(--gray); }
+    .status-pending-delete { background-color: rgba(255,152,0,0.1); color: #FF9800; border: 1px solid #FF9800; }
+    .delete-warning {
+      background: #fff3e0;
+      border-left: 4px solid #FF9800;
+      padding: 12px 15px;
+      border-radius: 10px;
+      margin: 10px 0 15px;
+      font-size: 0.8rem;
+      text-align: left;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .delete-warning a {
+      color: #FF9800;
+      font-weight: 600;
+      text-decoration: none;
+    }
+    .delete-warning a:hover {
+      text-decoration: underline;
+    }
     .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000; opacity: 0; visibility: hidden; transition: all 0.3s ease; }
     .modal-overlay.active { opacity: 1; visibility: visible; }
     .modal { background-color: white; border-radius: 12px; width: 90%; max-width: 500px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); transform: translateY(-20px); transition: transform 0.3s ease; overflow: hidden; }
@@ -87,10 +169,31 @@
     .modal-btn { padding: 10px 20px; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; transition: all 0.3s; font-size: 15px; }
     .modal-btn.confirm { background-color: var(--primary); color: white; margin-left: 10px; }
     .modal-btn.cancel { background-color: #6c757d; color: white; }
-    .loading-modal .modal-body { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px 20px; }
-    .loading-spinner { width: 60px; height: 60px; border: 4px solid rgba(255,152,0,0.1); border-top: 4px solid var(--primary); border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 20px; }
-    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-    @media (max-width: 768px) { .info-item { flex-direction: column; gap: 5px; align-items: flex-start; } .info-value { text-align: left; max-width: 100%; width: 100%; justify-content: space-between; } }
+    /* Loading sederhana - timpa gaya lama */
+.loading-modal .modal-body {
+  display: block !important;
+  padding: 20px !important;
+}
+.loading-spinner {
+  display: none !important;
+}
+.loading-text {
+  font-size: 0.9rem !important;
+  color: #FF9800 !important;
+  font-weight: 500 !important;
+  margin: 0 !important;
+}
+.modal-overlay .modal.loading-modal {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  max-width: 200px;
+  text-align: center;
+}
+    @media (max-width: 768px) { 
+      .info-item { flex-direction: column; gap: 5px; align-items: flex-start; } 
+      .info-value { text-align: left; max-width: 100%; width: 100%; justify-content: space-between; } 
+    }
   </style>
 </head>
 <body>
@@ -99,8 +202,7 @@
   </div>
   <div class="container">
     <div class="form-container">
-      <h1 class="form-title">Profil Driver</h1>
-      <div class="profile-card">
+      <div class="profile-card" id="profileCard">
         <div class="profile-photo-container">
           <img id="profilePhoto" class="profile-photo" src="https://cdn-icons-png.flaticon.com/512/3135/3135715.png" alt="Foto Profil">
           <div class="priority-badge basic" id="priorityBadgeSmall">Basic</div>
@@ -156,17 +258,22 @@
       </div>
       <div class="action-buttons">
         <button class="submit-btn btn-danger" id="logoutBtn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16,17 21,12 16,7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>Logout</button>
-        <!-- TOMBOL HAPUS AKUN (BARU) -->
         <button class="submit-btn btn-danger" id="deleteAccountBtn" style="background: linear-gradient(to right, #f44336, #d32f2f);"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M8 6V4h8v2"></path><rect x="6" y="10" width="12" height="12" rx="1"></rect><line x1="10" y1="14" x2="10" y2="18"></line><line x1="14" y1="14" x2="14" y2="18"></line></svg>Hapus Akun</button>
       </div>
     </div>
   </div>
-  <!-- Modal -->
+  <!-- Modal (sama seperti sebelumnya) -->
   <div id="modalOverlay" class="modal-overlay"><div id="modal" class="modal"><div class="modal-header"><h3 class="modal-title"><span id="modalIcon" class="modal-icon">!</span><span id="modalTitleText">Judul</span></h3><button id="modalCloseBtn" class="close-btn-modal">&times;</button></div><div class="modal-body"><p id="modalMessage">Pesan</p></div><div class="modal-footer"><button id="modalCancelBtn" class="modal-btn cancel" style="display:none;">Batal</button><button id="modalConfirmBtn" class="modal-btn confirm">OK</button></div></div></div>
-  <div id="loadingModal" class="modal-overlay"><div class="modal loading-modal"><div class="modal-body"><div class="loading-spinner"></div><p id="loadingText" class="loading-text">Memuat data...</p></div></div></div>
+  <div id="loadingModal" class="modal-overlay">
+  <div class="modal loading-modal" style="max-width: 200px; text-align: center;">
+    <div class="modal-body">
+      <p id="loadingText" class="loading-text">Memuat data...</p>
+    </div>
+  </div>
+</div>
 
   <script>
-    // ================= KONFIGURASI FIREBASE =================
+    // ================= SCRIPT SAMA PERSIS SEPERTI SEBELUMNYA =================
     const FIREBASE_CONFIG = {
       apiKey: "AIzaSyCD0pgeZio-LdKqYDtWxcdXcZwyL4ngYQI",
       authDomain: "jego-35a2b.firebaseapp.com",
@@ -180,11 +287,9 @@
     const auth = firebase.auth();
     const database = firebase.database();
 
-    // ================= VARIABEL GLOBAL =================
     let currentDriverData = null;
     let driverOrders = [];
 
-    // ================= ELEMEN MODAL =================
     const modalOverlay = document.getElementById('modalOverlay');
     const modal = document.getElementById('modal');
     const modalIcon = document.getElementById('modalIcon');
@@ -215,16 +320,18 @@
     function showLoading(msg) { loadingText.textContent = msg; loadingModal.classList.add('active'); }
     function hideLoading() { loadingModal.classList.remove('active'); }
 
-    // ================= UTILITY =================
     function formatCurrency(amount) { return 'Rp ' + (parseInt(amount) || 0).toLocaleString('id-ID'); }
     function formatDate(dateString) { if (!dateString) return '-'; try { return new Date(dateString).toLocaleDateString('id-ID'); } catch { return '-'; } }
     function maskIdCard(idCard) { if (!idCard || idCard === '-') return '-'; const s = idCard.toString(); if (s.length <= 8) return s; return s.substring(0,4) + '*'.repeat(s.length-8) + s.substring(s.length-4); }
     function getVehicleTypeText(t) { const map = { 'motor':'Motor','bentor':'Bentor','mobil':'Mobil','kurir_motor':'Kurir Motor','kurir_bentor':'Kurir Bentor' }; return map[t] || t; }
-    function getStatusBadge(status) { const text = { 'active':'Aktif','accepted':'Diterima','pending':'Menunggu','rejected':'Ditolak','blocked':'Diblokir' }[status] || status; const cls = { 'active':'status-active','accepted':'status-active','pending':'status-pending','rejected':'status-rejected','blocked':'status-blocked' }[status] || 'status-pending'; return `<span class="status-badge ${cls}">${text}</span>`; }
+    function getStatusBadge(status) {
+      const text = { 'active':'Aktif','accepted':'Diterima','pending':'Menunggu','rejected':'Ditolak','blocked':'Diblokir','delete_akun_driver':'Penghapusan Akun (30 hari)' }[status] || status;
+      const cls = { 'active':'status-active','accepted':'status-active','pending':'status-pending','rejected':'status-rejected','blocked':'status-blocked','delete_akun_driver':'status-pending-delete' }[status] || 'status-pending';
+      return `<span class="status-badge ${cls}">${text}</span>`;
+    }
     function generateStarRating(rating) { let html = ''; for (let i=1; i<=5; i++) html += `<span class="star ${i<=rating ? 'filled' : ''}">★</span>`; return html; }
     function getPriorityBadge(rating) { if (rating>=4.5) return { level:'Essential', class:'priority-badge essential' }; if (rating>=4.0) return { level:'Regular', class:'priority-badge regular' }; if (rating>=3.0) return { level:'Standard', class:'priority-badge standard' }; return { level:'Basic', class:'priority-badge basic' }; }
 
-    // ================= LOAD DATA DENGAN AUTH =================
     async function loadDriverData(uid) {
       showLoading('Memuat profil driver...');
       try {
@@ -232,42 +339,26 @@
         const data = snapshot.val();
         if (!data) throw new Error('Data driver tidak ditemukan');
         currentDriverData = { ...data, uid: uid };
-        
-        // Simpan ke localStorage dengan format yang sama seperti index.html
         const driverForLocal = {
-          uid: uid,
-          name: data.name || '',
-          phone: data.phone || '',
-          email: data.email || '',
-          vehicleType: data.vehicle_type || '',
-          plateNumber: data.plate_number || '',
-          vehicleBrand: data.vehicle_brand || '',
-          rating: data.rating || 5,
-          perjalanan: data.perjalanan || 0,
-          Balance: data.balance || 0,
-          profilePhotoUrl: data.photoURL || data.fotoProfilURL || '',
-          status: data.status || 'pending'
+          uid: uid, name: data.name || '', phone: data.phone || '', email: data.email || '',
+          vehicleType: data.vehicle_type || '', plateNumber: data.plate_number || '', vehicleBrand: data.vehicle_brand || '',
+          rating: data.rating || 5, perjalanan: data.perjalanan || 0, Balance: data.balance || 0,
+          profilePhotoUrl: data.photoURL || data.fotoProfilURL || '', status: data.status || 'pending'
         };
         localStorage.setItem('jego_logged_in_driver', JSON.stringify(driverForLocal));
-        console.log('✅ Data driver disimpan ke localStorage');
-        
         displayProfile(currentDriverData);
         await loadBalanceAndCommission(uid);
         await loadDriverOrders(uid);
         updateRatingDisplay();
+        if (currentDriverData.status === 'delete_akun_driver') showDeleteWarning(); else removeDeleteWarning();
         hideLoading();
-      } catch (err) {
-        hideLoading();
-        console.error(err);
-        showPopup('Error', 'Gagal memuat data: ' + err.message, 'error');
-      }
+      } catch (err) { hideLoading(); showPopup('Error', 'Gagal memuat data: ' + err.message, 'error'); }
     }
 
     function displayProfile(data) {
       document.getElementById('profileName').textContent = data.name || '-';
       document.getElementById('profileVehicle').textContent = `${getVehicleTypeText(data.vehicle_type)} - ${data.vehicle_brand || ''}`;
-      const photo = document.getElementById('profilePhoto');
-      photo.src = data.photoURL || data.fotoProfilURL || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png';
+      document.getElementById('profilePhoto').src = data.photoURL || data.fotoProfilURL || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png';
       document.getElementById('fullName').textContent = data.name || '-';
       document.getElementById('email').textContent = data.email || '-';
       document.getElementById('phoneNumber').textContent = data.phone || '-';
@@ -311,11 +402,7 @@
         if (ordersData) {
           Object.entries(ordersData).forEach(([orderId, order]) => {
             if (order.driver_id === uid && order.status === 'completed') {
-              driverOrders.push({
-                ...order,
-                completed_at: order.completed_at || order.updated_at || order.created_at,
-                price: order.price || 0
-              });
+              driverOrders.push({ ...order, completed_at: order.completed_at || order.updated_at || order.created_at, price: order.price || 0 });
             }
           });
         }
@@ -325,14 +412,9 @@
     }
 
     function updateTodayEarnings() {
-      if (!driverOrders.length) {
-        document.getElementById('todayEarnings').textContent = 'Rp 0';
-        return;
-      }
+      if (!driverOrders.length) { document.getElementById('todayEarnings').textContent = 'Rp 0'; return; }
       const today = new Date().toISOString().split('T')[0];
-      const earnings = driverOrders
-        .filter(o => o.completed_at && o.completed_at.split('T')[0] === today)
-        .reduce((sum, o) => sum + (parseInt(o.price) || 0), 0);
+      const earnings = driverOrders.filter(o => o.completed_at && o.completed_at.split('T')[0] === today).reduce((sum, o) => sum + (parseInt(o.price) || 0), 0);
       document.getElementById('todayEarnings').textContent = formatCurrency(earnings);
     }
     function updateOrderStats() {
@@ -340,19 +422,25 @@
       document.getElementById('completedOrders').textContent = driverOrders.filter(o => o.status === 'completed').length;
     }
 
-    // ================= LOGOUT =================
+    function showDeleteWarning() {
+      let warningDiv = document.getElementById('deleteWarning');
+      if (!warningDiv) {
+        warningDiv = document.createElement('div');
+        warningDiv.id = 'deleteWarning';
+        warningDiv.className = 'delete-warning';
+        warningDiv.innerHTML = `<span>⚠️</span><span>Akun Anda sedang dalam proses penghapusan. Anda memiliki waktu 30 hari untuk membatalkan. <a href="hapus_akun.html">Lihat detail</a></span>`;
+        document.querySelector('.profile-photo-container').insertAdjacentElement('afterend', warningDiv);
+      }
+    }
+    function removeDeleteWarning() { const w = document.getElementById('deleteWarning'); if (w) w.remove(); }
+
     function logout() {
       showPopup('Konfirmasi Logout', 'Apakah Anda yakin ingin logout?', 'warning', {
         showCancel: true, confirmText: 'Ya, Logout', cancelText: 'Batal',
-        onConfirm: async () => {
-          await auth.signOut();
-          localStorage.removeItem('jego_logged_in_driver');
-          window.location.href = 'loginDriver.html';
-        }
+        onConfirm: async () => { await auth.signOut(); localStorage.removeItem('jego_logged_in_driver'); window.location.href = 'loginDriver.html'; }
       });
     }
 
-    // ================= EVENT LISTENER =================
     document.addEventListener('DOMContentLoaded', () => {
       document.querySelectorAll('.toggle-btn').forEach(btn => {
         btn.addEventListener('click', () => {
@@ -369,32 +457,16 @@
         });
       });
       document.getElementById('logoutBtn').addEventListener('click', logout);
-      document.getElementById('balanceContainer').addEventListener('click', () => {
-        window.location.href = 'payment.html';
-      });
-      document.getElementById('todayEarningsStat').addEventListener('click', () => {
-        window.location.href = 'pendapatan.html';
-      });
-      document.getElementById('ratingClickable').addEventListener('click', () => {
-        window.location.href = 'penilaianLayanan.html';
-      });
-      // EVENT UNTUK TOMBOL HAPUS AKUN
-      document.getElementById('deleteAccountBtn').addEventListener('click', () => {
-        window.location.href = 'hapus_akun.html';
-      });
+      document.getElementById('balanceContainer').addEventListener('click', () => { window.location.href = 'payment.html'; });
+      document.getElementById('todayEarningsStat').addEventListener('click', () => { window.location.href = 'pendapatan.html'; });
+      document.getElementById('ratingClickable').addEventListener('click', () => { window.location.href = 'penilaianLayanan.html'; });
+      document.getElementById('deleteAccountBtn').addEventListener('click', () => { window.location.href = 'hapus_akun.html'; });
       modalOverlay.addEventListener('click', (e) => { if (e.target === modalOverlay) hidePopup(); });
     });
 
-    // ================= AUTH STATE MONITORING =================
     auth.onAuthStateChanged(async (user) => {
-      if (user) {
-        console.log('✅ User terautentikasi:', user.uid);
-        await loadDriverData(user.uid);
-      } else {
-        console.warn('❌ Tidak ada user login, redirect ke loginDriver.html');
-        localStorage.removeItem('jego_logged_in_driver');
-        window.location.href = 'loginDriver.html';
-      }
+      if (user) { await loadDriverData(user.uid); }
+      else { localStorage.removeItem('jego_logged_in_driver'); window.location.href = 'loginDriver.html'; }
     });
   </script>
 </body>
