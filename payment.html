@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <title>Isi Saldo Deposit - JeGo Driver</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-  <!-- Firebase SDK (konsisten dengan loginDriver.html) -->
+  <!-- Firebase SDK -->
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
@@ -303,7 +303,7 @@
       <div class="form-group">
         <label class="form-label">Nominal Deposit (Rp)</label>
         <input type="number" id="depositAmount" class="form-input" placeholder="Minimal Rp 25.000" min="25000" step="1000">
-RP 10.000        <div style="font-size: 0.7rem; color: var(--gray); margin-top: 5px;">Minimal Rp 25.000</div>
+        <div style="font-size: 0.7rem; color: var(--gray); margin-top: 5px;">Minimal Rp 25.000</div>
       </div>
       <button class="btn btn-primary" id="generateBtn">
         ✨ Generate Kode Pembayaran
@@ -359,7 +359,7 @@ RP 10.000        <div style="font-size: 0.7rem; color: var(--gray); margin-top: 
   <div id="toast" class="toast">Teks berhasil disalin!</div>
 
   <script>
-    // ==================== FIREBASE CONFIG (PROJECT UTAMA JEGO) ====================
+    // ==================== FIREBASE CONFIG ====================
     const FIREBASE_CONFIG = {
       apiKey: "AIzaSyCD0pgeZio-LdKqYDtWxcdXcZwyL4ngYQI",
       authDomain: "jego-35a2b.firebaseapp.com",
@@ -377,7 +377,7 @@ RP 10.000        <div style="font-size: 0.7rem; color: var(--gray); margin-top: 
       database = firebase.database();
       auth = firebase.auth();
       isFirebaseInitialized = true;
-      console.log('✅ Firebase berhasil diinisialisasi (project utama JeGo)');
+      console.log('✅ Firebase berhasil diinisialisasi');
     } catch (error) {
       console.error('❌ Error inisialisasi Firebase:', error);
     }
@@ -395,7 +395,7 @@ RP 10.000        <div style="font-size: 0.7rem; color: var(--gray); margin-top: 
     document.addEventListener('DOMContentLoaded', async () => {
       console.log('🚀 Halaman Pembayaran dimuat');
       
-      // Cek login via localStorage (sama seperti index.html driver)
+      // Cek login via localStorage
       const loggedInDriver = localStorage.getItem('jego_logged_in_driver');
       if (!loggedInDriver) {
         alert('Anda harus login terlebih dahulu!');
@@ -405,9 +405,7 @@ RP 10.000        <div style="font-size: 0.7rem; color: var(--gray); margin-top: 
 
       try {
         driverData = JSON.parse(loggedInDriver);
-        if (!driverData.uid) {
-          throw new Error('UID tidak ditemukan');
-        }
+        if (!driverData.uid) throw new Error('UID tidak ditemukan');
         console.log('✅ Data driver dari localStorage:', driverData);
       } catch (e) {
         console.error('❌ Data driver tidak valid:', e);
@@ -417,11 +415,30 @@ RP 10.000        <div style="font-size: 0.7rem; color: var(--gray); margin-top: 
         return;
       }
 
-      // Inisialisasi tombol
-      initButtons();
-
-      // Muat data QRIS dari data-jego/payment_qris
-      await loadQrisData();
+      // Verifikasi Firebase Auth
+      auth.onAuthStateChanged(async (user) => {
+        if (!user) {
+          console.warn('⚠️ Tidak ada sesi Firebase Auth, harus login ulang');
+          alert('Sesi login habis, silakan login ulang.');
+          localStorage.removeItem('jego_logged_in_driver');
+          window.location.href = 'loginDriver.html';
+          return;
+        }
+        
+        if (user.uid !== driverData.uid) {
+          console.error('UID tidak cocok:', user.uid, driverData.uid);
+          alert('Data tidak cocok, silakan login ulang.');
+          localStorage.removeItem('jego_logged_in_driver');
+          window.location.href = 'loginDriver.html';
+          return;
+        }
+        
+        console.log('✅ Firebase Auth user terverifikasi:', user.uid);
+        
+        // Inisialisasi tombol dan muat QRIS hanya setelah auth siap
+        initButtons();
+        await loadQrisData();
+      });
     });
 
     // ==================== FUNGSI UTAMA ====================
@@ -441,20 +458,10 @@ RP 10.000        <div style="font-size: 0.7rem; color: var(--gray); margin-top: 
         const snapshot = await database.ref('data-jego/payment_qris').once('value');
         let data = snapshot.val();
         
-        // Jika data adalah string, anggap itu URL langsung
         if (typeof data === 'string') {
           qrisUrl = data;
-        }
-        // Jika data adalah objek, cari properti QrisUrl atau qris_url
-        else if (data && typeof data === 'object') {
-          if (data.QrisUrl) {
-            qrisUrl = data.QrisUrl;
-          } else if (data.qris_url) {
-            qrisUrl = data.qris_url;
-          } else {
-            console.warn('Objek payment_qris tidak memiliki properti URL, menggunakan fallback');
-            qrisUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=JEGO-DEPOSIT';
-          }
+        } else if (data && typeof data === 'object') {
+          qrisUrl = data.QrisUrl || data.qris_url || 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=JEGO-DEPOSIT';
         } else {
           console.warn('Data payment_qris tidak valid, menggunakan fallback');
           qrisUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=JEGO-DEPOSIT';
@@ -462,26 +469,22 @@ RP 10.000        <div style="font-size: 0.7rem; color: var(--gray); margin-top: 
 
         console.log('✅ QRIS URL:', qrisUrl);
         document.getElementById('loadingState').style.display = 'none';
-
-        // Inisialisasi QR Code jika paymentInfo sudah tampil (nanti dipanggil saat generate)
       } catch (error) {
         console.error('❌ Error memuat QRIS:', error);
         document.getElementById('loadingState').style.display = 'none';
         qrisUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=JEGO-DEPOSIT';
+        showToast('Gagal memuat QR Code, menggunakan default', 'warning');
       }
     }
 
     function generateQRCode() {
       const qrcodeContainer = document.getElementById('qrcode');
       qrcodeContainer.innerHTML = '';
-      
-      // Gunakan URL QRIS yang sudah dimuat
-      const qrData = qrisUrl;
       if (qrcode) {
-        qrcode.clear();
+        try { qrcode.clear(); } catch(e) {}
       }
       qrcode = new QRCode(qrcodeContainer, {
-        text: qrData,
+        text: qrisUrl,
         width: 200,
         height: 200,
         colorDark: "#000000",
@@ -506,13 +509,11 @@ RP 10.000        <div style="font-size: 0.7rem; color: var(--gray); margin-top: 
         return;
       }
 
-      // Cek koneksi Firebase
       if (!isFirebaseInitialized || !database) {
         showToast('Firebase tidak tersedia', 'error');
         return;
       }
 
-      // Nonaktifkan tombol sementara
       const generateBtn = document.getElementById('generateBtn');
       generateBtn.disabled = true;
       generateBtn.textContent = 'Memproses...';
@@ -527,34 +528,58 @@ RP 10.000        <div style="font-size: 0.7rem; color: var(--gray); margin-top: 
       document.getElementById('uniqueDigits').innerHTML = uniqueDigits;
       document.getElementById('paymentInfo').style.display = 'block';
       
-      // Generate QR Code setelah QRIS URL tersedia
       if (qrisUrl) {
         generateQRCode();
       } else {
-        // Tunggu sebentar jika QRIS belum load
-        setTimeout(() => {
-          if (qrisUrl) generateQRCode();
-          else showToast('Gagal memuat QR Code', 'error');
-        }, 500);
+        setTimeout(() => { if (qrisUrl) generateQRCode(); else showToast('Gagal memuat QR Code', 'error'); }, 500);
       }
 
-      // Simpan ke Firebase (hanya di drivers/{uid}/deposits)
-      const saved = await saveDepositToFirebase();
-      if (saved) {
-        showToast('Kode pembayaran berhasil dibuat!', 'success');
-      } else {
-        showToast('Gagal menyimpan data, tetapi kode tetap bisa digunakan', 'warning');
-      }
+      // SIMPAN KE driver_balance_logs (BARU)
+      await saveDepositRequestToBalanceLog();
+      
+      // Simpan juga ke drivers/{uid}/deposits (opsional, kompatibilitas)
+      await saveDepositToFirebase();
 
+      showToast('Kode pembayaran berhasil dibuat!', 'success');
       generateBtn.disabled = false;
       generateBtn.innerHTML = '✨ Generate Kode Pembayaran';
     }
 
-    async function saveDepositToFirebase() {
-      if (!driverData.uid) {
-        console.error('UID driver tidak ditemukan');
+    // FUNGSI BARU: simpan deposit request ke driver_balance_logs
+    async function saveDepositRequestToBalanceLog() {
+      if (!driverData.uid) return false;
+
+      const logEntry = {
+        type: 'deposit_request',
+        amount: depositAmount,
+        uniqueAmount: uniqueAmount,
+        uniqueDigits: uniqueDigits,
+        paymentId: paymentId,
+        status: 'pending',
+        old_balance: driverData.balance || 0,
+        new_balance: driverData.balance || 0,
+        note: `Permintaan deposit Rp ${depositAmount.toLocaleString('id-ID')} (kode unik: ${uniqueDigits})`,
+        driver_name: driverData.name || driverData.fullName,
+        driver_phone: driverData.phone || '-',
+        timestamp: firebase.database.ServerValue.TIMESTAMP,
+        expires_at: Date.now() + (24 * 60 * 60 * 1000)
+      };
+
+      try {
+        const newLogRef = await database.ref(`driver_balance_logs/${driverData.uid}`).push();
+        await newLogRef.set(logEntry);
+        console.log('✅ Permintaan deposit tercatat di driver_balance_logs');
+        return true;
+      } catch (error) {
+        console.error('❌ Gagal simpan ke driver_balance_logs:', error);
+        showToast('Gagal menyimpan permintaan deposit', 'error');
         return false;
       }
+    }
+
+    // Fungsi lama (tetap dipertahankan)
+    async function saveDepositToFirebase() {
+      if (!driverData.uid) return false;
 
       const depositData = {
         paymentId: paymentId,
@@ -570,12 +595,11 @@ RP 10.000        <div style="font-size: 0.7rem; color: var(--gray); margin-top: 
       };
 
       try {
-        // Simpan di path drivers/{uid}/deposits/{paymentId}
         await database.ref(`drivers/${driverData.uid}/deposits/${paymentId}`).set(depositData);
-        console.log('✅ Deposit tersimpan di:', `drivers/${driverData.uid}/deposits/${paymentId}`);
+        console.log('✅ Deposit tersimpan di drivers path');
         return true;
       } catch (error) {
-        console.error('❌ Gagal menyimpan deposit:', error);
+        console.error('❌ Gagal menyimpan deposit (drivers path):', error);
         return false;
       }
     }
@@ -589,7 +613,6 @@ RP 10.000        <div style="font-size: 0.7rem; color: var(--gray); margin-top: 
       navigator.clipboard.writeText(text)
         .then(() => showToast('Jumlah transfer disalin!', 'success'))
         .catch(() => {
-          // Fallback
           const textarea = document.createElement('textarea');
           textarea.value = text;
           document.body.appendChild(textarea);
@@ -618,15 +641,12 @@ RP 10.000        <div style="font-size: 0.7rem; color: var(--gray); margin-top: 
         timestamp: new Date().toISOString()
       };
 
-      // Kirim ke Kodular jika diperlukan
       sendToKodular(data);
 
-      // Buka WhatsApp (nomor admin, bisa diambil dari Firebase nantinya)
       const adminPhone = '6282311640444'; // Ganti dengan nomor admin sebenarnya
       const message = `Halo Admin JeGo%0A%0ASaya *${data.driverName}* (ID: ${data.driverId}) telah melakukan deposit.%0A%0A📋 Detail Pembayaran:%0A• Jumlah Deposit: Rp ${depositAmount.toLocaleString('id-ID')}%0A• Total Transfer: Rp ${uniqueAmount.toLocaleString('id-ID')}%0A• Angka Unik: ${uniqueDigits}%0A• Kode Pembayaran: ${paymentId}%0A• Waktu: ${new Date().toLocaleString('id-ID')}%0A%0AMohon segera diproses. Terima kasih.`;
       const whatsappUrl = `https://wa.me/${adminPhone}?text=${message}`;
       window.open(whatsappUrl, '_blank');
-
       showToast('Konfirmasi dikirim!', 'success');
     }
 
