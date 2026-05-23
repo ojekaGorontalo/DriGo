@@ -1,690 +1,798 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-  <meta charset="utf-8" />
-  <title>Isi Saldo Deposit - JeGo Driver</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-  <!-- Firebase SDK -->
-  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
-  <!-- QR Code Generator -->
-  <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
-  <style>
-    :root {
-      --primary: #FF9800;
-      --primary-dark: #F57C00;
-      --secondary: #FF5722;
-      --accent: #FFC107;
-      --light: #f8f9fa;
-      --dark: #1e2a3e;
-      --success: #10b981;
-      --danger: #ef4444;
-      --warning: #f59e0b;
-      --info: #3b82f6;
-      --gray: #64748b;
-      --gray-light: #e2e8f0;
-      --bg: #f1f5f9;
-    }
-
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
-
-    body {
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: var(--dark);
-      line-height: 1.5;
-      font-size: 0.875rem;
-      min-height: 100vh;
-      padding-bottom: 20px;
-    }
-
-    /* Header */
-    .header {
-      background: white;
-      padding: 16px 20px;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.05);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      position: sticky;
-      top: 0;
-      z-index: 100;
-    }
-    .back-btn {
-      background: var(--bg);
-      border: none;
-      border-radius: 40px;
-      padding: 8px 16px;
-      color: var(--dark);
-      font-weight: 600;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 0.8rem;
-      transition: 0.2s;
-    }
-    .back-btn:hover {
-      background: var(--gray-light);
-    }
-    .header-title {
-      font-size: 1.2rem;
-      font-weight: 700;
-      color: var(--primary);
-    }
-
-    /* Container */
-    .container {
-    max-width: 100%;
-    padding: 0;
-    margin: 0;
-}
-
-    /* Card */
-    .card {
-      background: white;
-      border-radius: 28px;
-      padding: 20px;
-      box-shadow: 0 4px 14px rgba(0,0,0,0.05);
-      margin-bottom: 20px;
-      border: 1px solid rgba(0,0,0,0.03);
-      transition: transform 0.2s ease, box-shadow 0.2s ease;
-    }
-    .card:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 12px 24px rgba(0,0,0,0.08);
-    }
-
-    .card-title {
-      font-size: 1rem;
-      font-weight: 700;
-      color: var(--dark);
-      margin-bottom: 16px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-    }
-
-    /* Form */
-    .form-group {
-      margin-bottom: 20px;
-    }
-    .form-label {
-      display: block;
-      margin-bottom: 8px;
-      font-weight: 600;
-      color: var(--dark);
-    }
-    .form-input {
-      width: 100%;
-      padding: 14px 16px;
-      border: 2px solid var(--gray-light);
-      border-radius: 20px;
-      font-size: 0.9rem;
-      transition: all 0.3s;
-      background: white;
-    }
-    .form-input:focus {
-      outline: none;
-      border-color: var(--primary);
-      box-shadow: 0 0 0 3px rgba(255,152,0,0.1);
-    }
-
-    /* Buttons */
-    .btn {
-      padding: 14px;
-      border-radius: 40px;
-      font-weight: 700;
-      font-size: 0.9rem;
-      cursor: pointer;
-      transition: all 0.2s;
-      border: none;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-      width: 100%;
-    }
-    .btn-primary {
-      background: linear-gradient(135deg, var(--primary), var(--primary-dark));
-      color: white;
-      box-shadow: 0 4px 10px rgba(255,152,0,0.3);
-    }
-    .btn-primary:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 8px 20px rgba(255,152,0,0.4);
-    }
-    .btn-whatsapp {
-      background: #25D366;
-      color: white;
-      box-shadow: 0 4px 10px rgba(37,211,102,0.3);
-    }
-    .btn-whatsapp:hover {
-      background: #20b859;
-      transform: translateY(-2px);
-    }
-    .btn-copy {
-      background: var(--bg);
-      color: var(--dark);
-      box-shadow: none;
-      margin-top: 12px;
-    }
-    .btn-copy:hover {
-      background: var(--gray-light);
-    }
-
-    /* Amount Display */
-    .amount-display {
-      text-align: center;
-      padding: 24px;
-      background: linear-gradient(135deg, var(--info), #1e40af);
-      color: white;
-      border-radius: 24px;
-      margin: 20px 0;
-    }
-    .amount-label {
-      font-size: 0.8rem;
-      opacity: 0.9;
-      letter-spacing: 1px;
-    }
-    .amount-value {
-      font-size: 2rem;
-      font-weight: 800;
-      margin: 8px 0;
-    }
-
-    /* QR Code */
-    .qrcode-container {
-      text-align: center;
-      padding: 20px;
-      background: white;
-      border-radius: 20px;
-      margin: 20px 0;
-    }
-    #qrcode {
-      display: flex;
-      justify-content: center;
-      margin: 10px 0;
-    }
-    canvas, #qrcode img {
-      border-radius: 16px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-    }
-
-    /* Steps */
-    .steps {
-      margin: 20px 0;
-    }
-    .step {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      margin-bottom: 16px;
-    }
-    .step-number {
-      width: 28px;
-      height: 28px;
-      background: var(--primary);
-      color: white;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-weight: bold;
-      font-size: 0.8rem;
-    }
-    .step-text {
-      font-size: 0.85rem;
-      color: var(--dark);
-    }
-
-    /* Toast */
-    .toast {
-      position: fixed;
-      bottom: 30px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: var(--dark);
-      color: white;
-      padding: 12px 24px;
-      border-radius: 40px;
-      font-size: 0.85rem;
-      z-index: 1000;
-      opacity: 0;
-      transition: opacity 0.3s;
-      pointer-events: none;
-    }
-    .toast.show {
-      opacity: 1;
-    }
-
-    /* Loading */
-    .loading {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      padding: 40px;
-      background: white;
-      border-radius: 28px;
-    }
-    .spinner {
-      width: 40px;
-      height: 40px;
-      border: 4px solid rgba(0,0,0,0.1);
-      border-top-color: var(--primary);
-      border-radius: 50%;
-      animation: spin 1s linear infinite;
-    }
-    @keyframes spin {
-      to { transform: rotate(360deg); }
-    }
-    /* Hilangkan lengkungan di semua elemen */
-.card, .amount-display, .qrcode-container, .loading, .btn, .form-input, .toast, .back-btn, .btn-copy, .info-box, .step-number {
-    border-radius: 0 !important;
-}
-#qrcode canvas, #qrcode img {
-    border-radius: 0 !important;
-}
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>JeGo Admin - Manajemen Driver & Customer</title>
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f0f2f5; padding: 20px; }
+        .container { max-width: 1400px; margin: 0 auto; background: white; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); overflow: hidden; }
+        .header { background: linear-gradient(135deg, #FF9800, #FFB74D); padding: 20px 24px; color: white; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; }
+        .header h1 { font-size: 1.6rem; display: flex; align-items: center; gap: 12px; }
+        .logout-btn { background: rgba(255,255,255,0.2); border: none; color: white; padding: 8px 18px; border-radius: 30px; cursor: pointer; font-weight: 600; font-size: 0.9rem; transition: 0.2s; }
+        .logout-btn:hover { background: rgba(255,255,255,0.35); }
+        .tabs { display: flex; background: #f8fafc; border-bottom: 1px solid #e2e8f0; padding: 0 24px; gap: 8px; overflow-x: auto; }
+        .tab-btn { padding: 12px 24px; font-size: 1rem; font-weight: 600; background: none; border: none; cursor: pointer; color: #475569; border-bottom: 3px solid transparent; transition: 0.2s; white-space: nowrap; }
+        .tab-btn i { margin-right: 8px; }
+        .tab-btn.active { color: #FF9800; border-bottom-color: #FF9800; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        .toolbar { padding: 16px 24px; background: #f8f9fa; border-bottom: 1px solid #e9ecef; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
+        .search-box { padding: 8px 14px; border: 1px solid #ddd; border-radius: 30px; width: 260px; outline: none; font-size: 0.85rem; }
+        .filter-select { padding: 8px 14px; border: 1px solid #ddd; border-radius: 30px; background: white; font-size: 0.85rem; cursor: pointer; }
+        .refresh-btn { background: #FF9800; color: white; border: none; padding: 8px 18px; border-radius: 30px; cursor: pointer; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+        .stats-badge { background: #e9ecef; padding: 5px 14px; border-radius: 30px; font-size: 0.8rem; font-weight: 500; color: #1e293b; }
+        .table-wrapper { overflow-x: auto; padding: 0 0 20px 0; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+        th, td { padding: 14px 12px; text-align: left; border-bottom: 1px solid #edf2f7; vertical-align: middle; }
+        th { background: #f8fafc; font-weight: 600; color: #1e293b; position: sticky; top: 0; }
+        tr:hover { background: #fef9e6; }
+        .user-photo, .driver-photo { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; background: #f1f5f9; border: 1px solid #e2e8f0; }
+        .status-badge { display: inline-block; padding: 4px 12px; border-radius: 30px; font-size: 0.7rem; font-weight: 600; text-align: center; min-width: 80px; }
+        .status-accepted { background: #dcfce7; color: #15803d; }
+        .status-pending { background: #fff3cd; color: #b45309; }
+        .status-rejected { background: #fee2e2; color: #b91c1c; }
+        .status-blocked { background: #f1f5f9; color: #334155; }
+        .status-select { padding: 6px 10px; border-radius: 8px; border: 1px solid #cbd5e1; background: white; font-size: 0.8rem; cursor: pointer; }
+        .reason-input { width: 160px; padding: 6px 8px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 0.75rem; margin-top: 4px; }
+        .action-buttons { display: flex; gap: 8px; flex-wrap: wrap; }
+        .update-status-btn, .edit-btn, .topup-btn, .confirm-deposit-btn { border: none; padding: 6px 12px; border-radius: 8px; cursor: pointer; font-size: 0.7rem; font-weight: 600; transition: 0.2s; }
+        .update-status-btn { background: #FF9800; color: white; }
+        .edit-btn { background: #3b82f6; color: white; }
+        .topup-btn { background: #10b981; color: white; }
+        .confirm-deposit-btn { background: #8b5cf6; color: white; }
+        .update-status-btn:disabled, .edit-btn:disabled, .topup-btn:disabled, .confirm-deposit-btn:disabled { background: #ccc; cursor: not-allowed; }
+        .toast { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); background: #1e293b; color: white; padding: 10px 20px; border-radius: 40px; font-size: 0.85rem; z-index: 1000; opacity: 0; transition: opacity 0.2s; pointer-events: none; }
+        .toast.show { opacity: 1; }
+        .loading-overlay { display: flex; justify-content: center; padding: 50px; }
+        .spinner { width: 40px; height: 40px; border: 4px solid #e2e8f0; border-top-color: #FF9800; border-radius: 50%; animation: spin 0.8s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .empty-row td { text-align: center; padding: 40px; color: #64748b; }
+        .footer-note { padding: 12px 24px; background: #f8fafc; text-align: center; font-size: 0.7rem; color: #475569; border-top: 1px solid #e2e8f0; }
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); z-index: 2000; align-items: center; justify-content: center; }
+        .modal-content { background: white; border-radius: 24px; width: 90%; max-width: 500px; max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 35px rgba(0,0,0,0.2); }
+        .modal-header { background: linear-gradient(135deg, #FF9800, #FFB74D); color: white; padding: 20px; border-radius: 24px 24px 0 0; display: flex; justify-content: space-between; align-items: center; }
+        .modal-header h2 { font-size: 1.3rem; }
+        .modal-close { background: none; border: none; font-size: 26px; cursor: pointer; color: white; }
+        .modal-body { padding: 20px; }
+        .form-group { margin-bottom: 18px; }
+        .form-group label { display: block; font-weight: 600; margin-bottom: 6px; color: #1e293b; font-size: 0.85rem; }
+        .form-group input, .form-group select { width: 100%; padding: 10px 14px; border: 1px solid #cbd5e1; border-radius: 12px; font-size: 0.9rem; }
+        .form-group .balance-preview { background: #f1f5f9; padding: 10px 14px; border-radius: 12px; font-size: 0.9rem; font-weight: 500; }
+        .modal-footer { padding: 16px 20px; border-top: 1px solid #e2e8f0; display: flex; justify-content: flex-end; gap: 12px; }
+        .modal-btn { padding: 10px 20px; border-radius: 40px; border: none; font-weight: 600; cursor: pointer; }
+        .modal-btn-cancel { background: #e2e8f0; color: #1e293b; }
+        .modal-btn-save { background: #FF9800; color: white; }
+        .small-text { font-size: 0.75rem; color: #64748b; margin-top: 5px; }
+        .debug-box { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 12px; margin-top: 16px; border-radius: 12px; font-family: monospace; font-size: 0.7rem; word-break: break-all; display: none; }
+        @media (max-width: 700px) { body { padding: 10px; } th, td { padding: 8px; font-size: 0.7rem; } .action-buttons { flex-direction: column; } }
+    </style>
 </head>
 <body>
-  <div class="header">
-    <button class="back-btn" id="backBtn">← Kembali</button>
-    <div class="header-title">💰 Isi Saldo Deposit</div>
-    <div style="width: 70px;"></div>
-  </div>
 
-  <div class="container">
-    <!-- Form Input Deposit -->
-    <div class="card">
-      <div class="card-title">
-        <span>💰 Jumlah Deposit</span>
-        <button class="btn-copy" id="historyBtn" style="width: auto; padding: 6px 12px; margin: 0;">📜 Riwayat</button>
-      </div>
-      <div class="form-group">
-        <label class="form-label">Nominal Deposit (Rp)</label>
-        <input type="number" id="depositAmount" class="form-input" placeholder="Minimal Rp 25.000" min="25000" step="1000">
-        <div style="font-size: 0.7rem; color: var(--gray); margin-top: 5px;">Minimal Rp 25.000</div>
-      </div>
-      <button class="btn btn-primary" id="generateBtn">
-        ✨ Generate Kode Pembayaran
-      </button>
+<div class="container">
+    <div class="header">
+        <h1><i class="fas fa-users"></i> Manajemen Driver & Customer</h1>
+        <button class="logout-btn" id="logoutBtn"><i class="fas fa-sign-out-alt"></i> Logout Admin</button>
+    </div>
+    <div class="tabs">
+        <button class="tab-btn active" data-tab="drivers"><i class="fas fa-taxi"></i> Data Driver</button>
+        <button class="tab-btn" data-tab="customers"><i class="fas fa-user-friends"></i> Data Customer</button>
+        <button class="tab-btn" data-tab="deposits"><i class="fas fa-money-bill-wave"></i> Permintaan Deposit</button>
     </div>
 
-    <!-- Payment Info -->
-    <div id="paymentInfo" style="display: none;">
-      <div class="card">
-        <div class="card-title">💸 Detail Pembayaran</div>
-        <div class="amount-display">
-          <div class="amount-label">Total Tagihan</div>
-          <div class="amount-value" id="paymentAmount">Rp 0</div>
-          <div id="uniqueInfo" style="font-size: 0.8rem;">Angka unik: <span id="uniqueDigits">000</span></div>
-          <button class="btn-copy" id="copyAmountBtn">📋 Salin Jumlah Transfer</button>
+    <!-- TAB DRIVER -->
+    <div id="driversTab" class="tab-content active">
+        <div class="toolbar">
+            <div style="display: flex; gap: 10px; flex-wrap: wrap; width: 100%;">
+                <input type="text" id="driverSearch" class="search-box" placeholder="Cari nama, telepon, plat...">
+                <select id="vehicleFilter" class="filter-select">
+                    <option value="all">🚗 Semua kendaraan</option>
+                </select>
+                <div style="flex:1; display: flex; justify-content: flex-end; gap: 12px;">
+                    <div class="stats-badge" id="driverStats">Menampilkan <span id="driverDisplayCount">0</span> dari <span id="driverTotalCount">0</span></div>
+                    <button class="refresh-btn" id="refreshDriversBtn"><i class="fas fa-sync-alt"></i> Refresh</button>
+                </div>
+            </div>
         </div>
-      </div>
-
-      <div class="card">
-        <div class="card-title">📱 Scan QRIS</div>
-        <div class="qrcode-container" id="qrcodeContainer">
-          <div id="qrcode"></div>
-          <p style="margin-top: 12px; color: var(--gray);">Scan QR Code menggunakan aplikasi mobile banking atau e-wallet</p>
+        <div class="table-wrapper">
+            <table id="driverTable">
+                <thead>
+                    <tr><th>Foto</th><th>Nama</th><th>Telepon</th><th>Kendaraan</th><th>Plat</th><th>Rating</th><th>Perjalanan</th><th>Saldo</th><th>Status</th><th>Alasan</th><th>Aksi</th></tr>
+                </thead>
+                <tbody id="driverTableBody"><tr class="empty-row"><td colspan="11"><div class="loading-overlay"><div class="spinner"></div></div></tr></tbody>
+            </table>
         </div>
-        <div class="steps">
-          <div class="step"><div class="step-number">1</div><div class="step-text">Buka aplikasi mobile banking atau e-wallet</div></div>
-          <div class="step"><div class="step-number">2</div><div class="step-text">Pilih menu Scan QRIS / Bayar</div></div>
-          <div class="step"><div class="step-number">3</div><div class="step-text">Scan QR Code di atas</div></div>
-          <div class="step"><div class="step-number">4</div><div class="step-text">Masukkan jumlah sesuai tagihan (termasuk angka unik)</div></div>
-          <div class="step"><div class="step-number">5</div><div class="step-text">Konfirmasi dan selesaikan pembayaran</div></div>
-        </div>
-      </div>
-
-      <div class="card">
-        <div class="card-title">✅ Konfirmasi Pembayaran</div>
-        <div class="info-box" style="background: #fef3c7; border-left: 4px solid var(--warning); padding: 16px; border-radius: 20px; margin-bottom: 16px;">
-          <strong style="color: var(--warning);">Perhatian!</strong>
-          <p style="margin-top: 8px; color: #666;">Harap transfer sesuai dengan jumlah yang tertera di atas. Pembayaran dengan jumlah yang berbeda tidak akan diproses.</p>
-        </div>
-        <button class="btn btn-whatsapp" id="whatsappBtn">
-          📱 Konfirmasi ke Admin via WhatsApp
-        </button>
-      </div>
     </div>
 
-    <!-- Loading -->
-    <div id="loadingState" class="loading" style="display: none;">
-      <div class="spinner"></div>
-      <div style="margin-top: 12px;">Memuat data pembayaran...</div>
+    <!-- TAB CUSTOMER -->
+    <div id="customersTab" class="tab-content">
+        <div class="toolbar">
+            <div style="display: flex; gap: 10px; flex-wrap: wrap; width: 100%;">
+                <input type="text" id="customerSearch" class="search-box" placeholder="Cari nama, telepon, email...">
+                <div style="flex:1; display: flex; justify-content: flex-end; gap: 12px;">
+                    <div class="stats-badge" id="customerStats">Menampilkan <span id="customerDisplayCount">0</span> dari <span id="customerTotalCount">0</span></div>
+                    <button class="refresh-btn" id="refreshCustomersBtn"><i class="fas fa-sync-alt"></i> Refresh</button>
+                </div>
+            </div>
+        </div>
+        <div class="table-wrapper">
+            <table id="customerTable">
+                <thead>
+                    <tr><th>Foto</th><th>Nama</th><th>Telepon</th><th>Email</th><th>Rating</th><th>Jumlah Rating</th><th>Aksi</th></tr>
+                </thead>
+                <tbody id="customerTableBody"><tr class="empty-row"><td colspan="7"><div class="loading-overlay"><div class="spinner"></div></div></tr></tbody>
+            </table>
+        </div>
     </div>
-  </div>
 
-  <div id="toast" class="toast">Teks berhasil disalin!</div>
+    <!-- TAB PERMINTAAN DEPOSIT -->
+    <div id="depositsTab" class="tab-content">
+        <div class="toolbar">
+            <div style="display: flex; gap: 10px; flex-wrap: wrap; width: 100%;">
+                <input type="text" id="depositSearch" class="search-box" placeholder="Cari nama driver, telepon...">
+                <div style="flex:1; display: flex; justify-content: flex-end; gap: 12px;">
+                    <div class="stats-badge" id="depositStats">Menampilkan <span id="depositCount">0</span> permintaan pending</div>
+                    <button class="refresh-btn" id="refreshDepositsBtn"><i class="fas fa-sync-alt"></i> Refresh</button>
+                </div>
+            </div>
+        </div>
+        <div class="table-wrapper">
+            <table id="depositTable">
+                <thead>
+                    <tr><th>Waktu</th><th>Driver</th><th>Telepon</th><th>Jumlah Deposit</th><th>Total Transfer</th><th>Kode Unik</th><th>Aksi</th></tr>
+                </thead>
+                <tbody id="depositTableBody"><tr class="empty-row"><td colspan="7"><div class="loading-overlay"><div class="spinner"></div></div></tr></tbody>
+            </table>
+        </div>
+    </div>
 
-  <script>
-    // ==================== FIREBASE CONFIG ====================
-    const FIREBASE_CONFIG = {
-      apiKey: "AIzaSyCD0pgeZio-LdKqYDtWxcdXcZwyL4ngYQI",
-      authDomain: "jego-35a2b.firebaseapp.com",
-      databaseURL: "https://jego-35a2b-default-rtdb.asia-southeast1.firebasedatabase.app",
-      projectId: "jego-35a2b",
-      storageBucket: "jego-35a2b.firebasestorage.app",
-      messagingSenderId: "600037007040",
-      appId: "1:600037007040:web:ac3243ad9b472647ffd725"
+    <div class="footer-note">
+        <i class="fas fa-info-circle"></i> Klik <strong>Edit Data</strong> untuk mengubah informasi driver atau customer. Klik <strong>Atur Saldo</strong> untuk menyesuaikan saldo driver. <strong>Permintaan Deposit</strong> akan otomatis menambah saldo driver dan mencatat riwayat.
+    </div>
+</div>
+
+<!-- Modal Edit Driver -->
+<div id="editDriverModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header"><h2><i class="fas fa-edit"></i> Edit Driver</h2><button class="modal-close close-driver-modal">&times;</button></div>
+        <div class="modal-body">
+            <input type="hidden" id="editDriverUid">
+            <div class="form-group"><label>Nama Lengkap</label><input type="text" id="editDriverName"></div>
+            <div class="form-group"><label>Telepon</label><input type="tel" id="editDriverPhone"></div>
+            <div class="form-group"><label>Jenis Kendaraan</label><input type="text" id="editDriverVehicleType" placeholder="motor, mobil, bentor..."></div>
+            <div class="form-group"><label>Plat Nomor</label><input type="text" id="editDriverPlate"></div>
+            <div class="form-group"><label>Rating (0-5)</label><input type="number" id="editDriverRating" step="0.1" min="0" max="5"></div>
+            <div class="form-group"><label>Perjalanan</label><input type="number" id="editDriverTrips" step="1" min="0"></div>
+            <div class="form-group"><label>Saldo (Rp)</label><input type="number" id="editDriverBalance" step="1000" min="0"></div>
+        </div>
+        <div class="modal-footer"><button class="modal-btn modal-btn-cancel close-driver-modal">Batal</button><button class="modal-btn modal-btn-save" id="saveDriverBtn">Simpan</button></div>
+    </div>
+</div>
+
+<!-- Modal Edit Customer -->
+<div id="editCustomerModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header"><h2><i class="fas fa-edit"></i> Edit Customer</h2><button class="modal-close close-customer-modal">&times;</button></div>
+        <div class="modal-body">
+            <input type="hidden" id="editCustomerUid">
+            <div class="form-group"><label>Nama Lengkap</label><input type="text" id="editCustomerName"></div>
+            <div class="form-group"><label>Telepon</label><input type="tel" id="editCustomerPhone"></div>
+            <div class="form-group"><label>Email</label><input type="email" id="editCustomerEmail"></div>
+            <div class="form-group"><label>Rating (baca saja)</label><input type="text" id="editCustomerRating" readonly style="background:#e9ecef;"></div>
+        </div>
+        <div class="modal-footer"><button class="modal-btn modal-btn-cancel close-customer-modal">Batal</button><button class="modal-btn modal-btn-save" id="saveCustomerBtn">Simpan</button></div>
+    </div>
+</div>
+
+<!-- MODAL ATUR SALDO -->
+<div id="topupModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header"><h2><i class="fas fa-wallet"></i> Atur Saldo Driver</h2><button class="modal-close close-topup-modal">&times;</button></div>
+        <div class="modal-body">
+            <input type="hidden" id="topupDriverUid">
+            <div class="form-group"><label>Nama Driver</label><input type="text" id="topupDriverName" readonly style="background:#e9ecef;"></div>
+            <div class="form-group"><label>Saldo Saat Ini (Rp)</label><input type="text" id="currentBalance" readonly style="background:#e9ecef;"></div>
+            <div class="form-group">
+                <label>Jenis Transaksi</label>
+                <select id="transactionType">
+                    <option value="add">➕ Tambah Saldo</option>
+                    <option value="subtract">➖ Kurangi Saldo</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Nominal (Rp)</label>
+                <input type="number" id="topupAmount" step="1000" min="1" placeholder="Masukkan nominal">
+                <div class="small-text">Minimal Rp1.000. Untuk kurangi saldo, pastikan saldo cukup.</div>
+            </div>
+            <div class="form-group">
+                <label>Keterangan (wajib)</label>
+                <input type="text" id="topupNote" placeholder="Contoh: Bonus referral, Penyesuaian, Potongan komisi">
+                <div class="small-text">Keterangan akan tercatat di log transaksi dan notifikasi driver.</div>
+            </div>
+            <div class="form-group">
+                <label>Saldo Setelah Transaksi</label>
+                <div class="balance-preview" id="newBalancePreview">Rp 0</div>
+            </div>
+            <div id="debugInfo" class="debug-box"></div>
+        </div>
+        <div class="modal-footer"><button class="modal-btn modal-btn-cancel close-topup-modal">Batal</button><button class="modal-btn modal-btn-save" id="confirmTopupBtn">Proses & Kirim Notifikasi</button></div>
+    </div>
+</div>
+
+<div id="toastMsg" class="toast"></div>
+
+<script>
+    const firebaseConfig = {
+        apiKey: "AIzaSyCD0pgeZio-LdKqYDtWxcdXcZwyL4ngYQI",
+        authDomain: "jego-35a2b.firebaseapp.com",
+        databaseURL: "https://jego-35a2b-default-rtdb.asia-southeast1.firebasedatabase.app",
+        projectId: "jego-35a2b",
+        storageBucket: "jego-35a2b.firebasestorage.app",
+        messagingSenderId: "600037007040",
+        appId: "1:600037007040:web:ac3243ad9b472647ffd725"
     };
+    if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const database = firebase.database();
 
-    let database, auth;
-    let isFirebaseInitialized = false;
-    try {
-      if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
-      database = firebase.database();
-      auth = firebase.auth();
-      isFirebaseInitialized = true;
-      console.log('✅ Firebase berhasil diinisialisasi');
-    } catch (error) {
-      console.error('❌ Error inisialisasi Firebase:', error);
+    let allDrivers = [];
+    let allCustomers = [];
+    let depositRequests = []; // array of { driverId, logId, ...data }
+    let onesignalApiKey = null;
+
+    // ========== ONE SIGNAL ==========
+    async function getOneSignalApiKey() {
+        if (onesignalApiKey) return onesignalApiKey;
+        try {
+            const snap = await database.ref('data-jego/PushKey').once('value');
+            onesignalApiKey = snap.val();
+            if (!onesignalApiKey) console.warn("PushKey tidak ditemukan");
+            return onesignalApiKey;
+        } catch(e) { console.error(e); return null; }
     }
 
-    // ==================== VARIABEL GLOBAL ====================
-    let depositAmount = 0;
-    let uniqueDigits = '000';
-    let uniqueAmount = 0;
-    let paymentId = '';
-    let driverData = {};
-    let qrisUrl = '';
-    let qrcode = null;
+    async function sendPushNotification(playerId, title, message, extraData = {}) {
+        if (!playerId) return false;
+        const apiKey = await getOneSignalApiKey();
+        if (!apiKey) return false;
+        try {
+            const res = await fetch("https://onesignal.com/api/v1/notifications", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "Authorization": `Basic ${apiKey}` },
+                body: JSON.stringify({
+                    app_id: "3357d683-8f6b-4558-9d42-2eeceed6204a",
+                    include_player_ids: [playerId],
+                    headings: { en: title },
+                    contents: { en: message },
+                    data: { type: "balance_update", ...extraData },
+                    priority: 10,
+                    android_priority: "high",
+                    android_channel_id: "14488f7c-4003-4699-b220-dee4451568df",
+                    small_icon: "ic_stat_onesignal_default",
+                    large_icon: "https://ojekaGorontalo.github.io/Logo/logo.png",
+                    android_sound: "default"
+                })
+            });
+            const result = await res.json();
+            if (result.errors) throw new Error(JSON.stringify(result.errors));
+            return true;
+        } catch(err) { console.error("Gagal notif:", err); return false; }
+    }
 
-    // ==================== INISIALISASI ====================
-    document.addEventListener('DOMContentLoaded', async () => {
-      console.log('🚀 Halaman Pembayaran dimuat');
-      
-      // Cek login via localStorage
-      const loggedInDriver = localStorage.getItem('jego_logged_in_driver');
-      if (!loggedInDriver) {
-        alert('Anda harus login terlebih dahulu!');
-        window.location.href = 'loginDriver.html';
-        return;
-      }
+    // ========== UTILITY ==========
+    function showToast(msg, isError = false) {
+        const toast = document.getElementById('toastMsg');
+        toast.textContent = msg;
+        toast.style.background = isError ? '#b91c1c' : '#1e293b';
+        toast.classList.add('show');
+        setTimeout(() => toast.classList.remove('show'), 3000);
+    }
 
-      try {
-        driverData = JSON.parse(loggedInDriver);
-        if (!driverData.uid) throw new Error('UID tidak ditemukan');
-        console.log('✅ Data driver dari localStorage:', driverData);
-      } catch (e) {
-        console.error('❌ Data driver tidak valid:', e);
-        alert('Data login rusak, silakan login ulang.');
-        localStorage.removeItem('jego_logged_in_driver');
-        window.location.href = 'loginDriver.html';
-        return;
-      }
+    function formatRupiah(amount) {
+        return 'Rp ' + (amount || 0).toLocaleString('id-ID');
+    }
 
-      // Verifikasi Firebase Auth
-      auth.onAuthStateChanged(async (user) => {
-        if (!user) {
-          console.warn('⚠️ Tidak ada sesi Firebase Auth, harus login ulang');
-          alert('Sesi login habis, silakan login ulang.');
-          localStorage.removeItem('jego_logged_in_driver');
-          window.location.href = 'loginDriver.html';
-          return;
+    // =============== DRIVER SECTION (sama seperti sebelumnya) ===============
+    async function loadDrivers() {
+        const tbody = document.getElementById('driverTableBody');
+        tbody.innerHTML = '<tr class="empty-row"><td colspan="11"><div class="loading-overlay"><div class="spinner"></div></div></tr>';
+        try {
+            const snapshot = await database.ref('drivers').once('value');
+            const driversObj = snapshot.val() || {};
+            const driversArray = [];
+            for (const [uid, data] of Object.entries(driversObj)) {
+                driversArray.push({
+                    uid, name: data.name || '-', phone: data.phone || data.phoneNumber || '-',
+                    vehicle_type: data.vehicle_type || data.vehicleType || '-',
+                    plate_number: data.plate_number || data.plateNumber || '-',
+                    rating: data.rating || 0, perjalanan: data.perjalanan || 0,
+                    balance: data.balance || 0, status: data.status || 'pending',
+                    ketGagal: data.ketGagal || '', photoURL: data.photoURL || ''
+                });
+            }
+            allDrivers = driversArray;
+            populateVehicleFilter();
+            applyDriverFilter();
+        } catch (err) {
+            console.error(err);
+            tbody.innerHTML = `<tr class="empty-row"><td colspan="11">⚠️ Gagal load driver: ${err.message}</td></tr>`;
+            showToast('Gagal load driver', true);
         }
-        
-        if (user.uid !== driverData.uid) {
-          console.error('UID tidak cocok:', user.uid, driverData.uid);
-          alert('Data tidak cocok, silakan login ulang.');
-          localStorage.removeItem('jego_logged_in_driver');
-          window.location.href = 'loginDriver.html';
-          return;
-        }
-        
-        console.log('✅ Firebase Auth user terverifikasi:', user.uid);
-        
-        // Inisialisasi tombol dan muat QRIS hanya setelah auth siap
-        initButtons();
-        await loadQrisData();
-      });
-    });
-
-    // ==================== FUNGSI UTAMA ====================
-    function initButtons() {
-      document.getElementById('backBtn').addEventListener('click', () => window.location.href = 'akun.html');
-      document.getElementById('historyBtn').addEventListener('click', () => window.location.href = 'historyDeposit.html');
-      document.getElementById('generateBtn').addEventListener('click', generatePaymentCode);
-      document.getElementById('copyAmountBtn').addEventListener('click', copyPaymentAmount);
-      document.getElementById('whatsappBtn').addEventListener('click', sendWhatsAppConfirmation);
     }
 
-    async function loadQrisData() {
-      console.log('🔄 Memuat data QRIS dari data-jego/payment_qris...');
-      document.getElementById('loadingState').style.display = 'flex';
-
-      try {
-        const snapshot = await database.ref('data-jego/payment_qris').once('value');
-        let data = snapshot.val();
-        
-        if (typeof data === 'string') {
-          qrisUrl = data;
-        } else if (data && typeof data === 'object') {
-          qrisUrl = data.QrisUrl || data.qris_url || 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=JEGO-DEPOSIT';
-        } else {
-          console.warn('Data payment_qris tidak valid, menggunakan fallback');
-          qrisUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=JEGO-DEPOSIT';
-        }
-
-        console.log('✅ QRIS URL:', qrisUrl);
-        document.getElementById('loadingState').style.display = 'none';
-      } catch (error) {
-        console.error('❌ Error memuat QRIS:', error);
-        document.getElementById('loadingState').style.display = 'none';
-        qrisUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=JEGO-DEPOSIT';
-        showToast('Gagal memuat QR Code, menggunakan default', 'warning');
-      }
+    function populateVehicleFilter() {
+        const vehicles = [...new Set(allDrivers.map(d => d.vehicle_type).filter(v => v && v !== '-'))];
+        const select = document.getElementById('vehicleFilter');
+        select.innerHTML = '<option value="all">🚗 Semua kendaraan</option>';
+        vehicles.forEach(v => { const opt = document.createElement('option'); opt.value = v; opt.textContent = v; select.appendChild(opt); });
     }
 
-    function generateQRCode() {
-      const qrcodeContainer = document.getElementById('qrcode');
-      qrcodeContainer.innerHTML = '';
-      if (qrcode) {
-        try { qrcode.clear(); } catch(e) {}
-      }
-      qrcode = new QRCode(qrcodeContainer, {
-        text: qrisUrl,
-        width: 200,
-        height: 200,
-        colorDark: "#000000",
-        colorLight: "#ffffff",
-        correctLevel: QRCode.CorrectLevel.H
-      });
+    function applyDriverFilter() {
+        const keyword = document.getElementById('driverSearch').value.toLowerCase();
+        const selectedVehicle = document.getElementById('vehicleFilter').value;
+        let filtered = allDrivers.filter(d => 
+            (keyword === '' || (d.name && d.name.toLowerCase().includes(keyword)) || (d.phone && d.phone.toLowerCase().includes(keyword)) || (d.plate_number && d.plate_number.toLowerCase().includes(keyword))) &&
+            (selectedVehicle === 'all' || d.vehicle_type === selectedVehicle)
+        );
+        renderDriverTable(filtered);
+        document.getElementById('driverTotalCount').innerText = allDrivers.length;
+        document.getElementById('driverDisplayCount').innerText = filtered.length;
     }
 
-    async function generatePaymentCode() {
-      const depositInput = document.getElementById('depositAmount');
-      const rawValue = depositInput.value.trim();
-      if (!rawValue) {
-        showToast('Masukkan jumlah deposit', 'warning');
-        depositInput.focus();
-        return;
-      }
+    function renderDriverTable(drivers) {
+        const tbody = document.getElementById('driverTableBody');
+        if (!drivers.length) { tbody.innerHTML = '<tr class="empty-row"><td colspan="11">Tidak ada driver</td></tr>'; return; }
+        tbody.innerHTML = '';
+        drivers.forEach(d => {
+            const row = tbody.insertRow();
+            const img = document.createElement('img');
+            img.src = d.photoURL || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png';
+            img.className = 'driver-photo';
+            img.onerror = () => img.src = 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png';
+            row.insertCell(0).appendChild(img);
+            row.insertCell(1).textContent = d.name;
+            row.insertCell(2).textContent = d.phone;
+            row.insertCell(3).textContent = d.vehicle_type;
+            row.insertCell(4).textContent = d.plate_number;
+            row.insertCell(5).textContent = d.rating.toFixed(1);
+            row.insertCell(6).textContent = d.perjalanan;
+            row.insertCell(7).innerHTML = `<strong>${formatRupiah(d.balance)}</strong>`;
+            const statusSpan = document.createElement('span');
+            statusSpan.className = `status-badge status-${d.status}`;
+            statusSpan.textContent = d.status.toUpperCase();
+            row.insertCell(8).appendChild(statusSpan);
+            const reasonInput = document.createElement('input');
+            reasonInput.type = 'text'; reasonInput.className = 'reason-input'; reasonInput.placeholder = 'Alasan';
+            reasonInput.value = d.ketGagal || '';
+            row.insertCell(9).appendChild(reasonInput);
+            const actionDiv = document.createElement('div'); actionDiv.className = 'action-buttons';
+            const statusSelect = document.createElement('select'); statusSelect.className = 'status-select';
+            ['accepted','pending','rejected','blocked'].forEach(s => {
+                const opt = document.createElement('option'); opt.value = s; opt.textContent = s.toUpperCase();
+                if (s === d.status) opt.selected = true;
+                statusSelect.appendChild(opt);
+            });
+            const updateBtn = document.createElement('button'); updateBtn.textContent = 'Update Status'; updateBtn.className = 'update-status-btn';
+            const editBtn = document.createElement('button'); editBtn.textContent = 'Edit Data'; editBtn.className = 'edit-btn';
+            const topupBtn = document.createElement('button'); topupBtn.innerHTML = '<i class="fas fa-coins"></i> Atur Saldo'; topupBtn.className = 'topup-btn';
+            actionDiv.append(statusSelect, updateBtn, editBtn, topupBtn);
+            row.insertCell(10).appendChild(actionDiv);
 
-      const amount = parseInt(rawValue);
-      if (isNaN(amount) || amount < 25000) {
-        showToast('Minimal deposit Rp 25.000', 'warning');
-        depositInput.focus();
-        return;
-      }
-
-      if (!isFirebaseInitialized || !database) {
-        showToast('Firebase tidak tersedia', 'error');
-        return;
-      }
-
-      const generateBtn = document.getElementById('generateBtn');
-      generateBtn.disabled = true;
-      generateBtn.textContent = 'Memproses...';
-
-      depositAmount = amount;
-      uniqueDigits = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
-      uniqueAmount = depositAmount + parseInt(uniqueDigits);
-      paymentId = 'DEP_' + Date.now() + '_' + Math.random().toString(36).substr(2, 8).toUpperCase();
-
-      // Update tampilan
-      document.getElementById('paymentAmount').innerHTML = formatCurrency(uniqueAmount);
-      document.getElementById('uniqueDigits').innerHTML = uniqueDigits;
-      document.getElementById('paymentInfo').style.display = 'block';
-      
-      if (qrisUrl) {
-        generateQRCode();
-      } else {
-        setTimeout(() => { if (qrisUrl) generateQRCode(); else showToast('Gagal memuat QR Code', 'error'); }, 500);
-      }
-
-      // SIMPAN KE driver_balance_logs (BARU)
-      await saveDepositRequestToBalanceLog();
-      
-      // Simpan juga ke drivers/{uid}/deposits (opsional, kompatibilitas)
-      await saveDepositToFirebase();
-
-      showToast('Kode pembayaran berhasil dibuat!', 'success');
-      generateBtn.disabled = false;
-      generateBtn.innerHTML = '✨ Generate Kode Pembayaran';
-    }
-
-    // FUNGSI BARU: simpan deposit request ke driver_balance_logs
-    async function saveDepositRequestToBalanceLog() {
-      if (!driverData.uid) return false;
-
-      const logEntry = {
-        type: 'deposit_request',
-        amount: depositAmount,
-        uniqueAmount: uniqueAmount,
-        uniqueDigits: uniqueDigits,
-        paymentId: paymentId,
-        status: 'pending',
-        old_balance: driverData.balance || 0,
-        new_balance: driverData.balance || 0,
-        note: `Permintaan deposit Rp ${depositAmount.toLocaleString('id-ID')} (kode unik: ${uniqueDigits})`,
-        driver_name: driverData.name || driverData.fullName,
-        driver_phone: driverData.phone || '-',
-        timestamp: firebase.database.ServerValue.TIMESTAMP,
-        expires_at: Date.now() + (24 * 60 * 60 * 1000)
-      };
-
-      try {
-        const newLogRef = await database.ref(`driver_balance_logs/${driverData.uid}`).push();
-        await newLogRef.set(logEntry);
-        console.log('✅ Permintaan deposit tercatat di driver_balance_logs');
-        return true;
-      } catch (error) {
-        console.error('❌ Gagal simpan ke driver_balance_logs:', error);
-        showToast('Gagal menyimpan permintaan deposit', 'error');
-        return false;
-      }
-    }
-
-    // Fungsi lama (tetap dipertahankan)
-    async function saveDepositToFirebase() {
-      if (!driverData.uid) return false;
-
-      const depositData = {
-        paymentId: paymentId,
-        driverId: driverData.uid,
-        driverName: driverData.name || driverData.fullName || 'Driver',
-        driverPhone: driverData.phone || '-',
-        depositAmount: depositAmount,
-        uniqueAmount: uniqueAmount,
-        uniqueDigits: uniqueDigits,
-        status: 'pending',
-        createdAt: new Date().toISOString(),
-        timestamp: firebase.database.ServerValue.TIMESTAMP
-      };
-
-      try {
-        await database.ref(`drivers/${driverData.uid}/deposits/${paymentId}`).set(depositData);
-        console.log('✅ Deposit tersimpan di drivers path');
-        return true;
-      } catch (error) {
-        console.error('❌ Gagal menyimpan deposit (drivers path):', error);
-        return false;
-      }
-    }
-
-    function copyPaymentAmount() {
-      if (!uniqueAmount) {
-        showToast('Generate kode pembayaran terlebih dahulu', 'warning');
-        return;
-      }
-      const text = uniqueAmount.toString();
-      navigator.clipboard.writeText(text)
-        .then(() => showToast('Jumlah transfer disalin!', 'success'))
-        .catch(() => {
-          const textarea = document.createElement('textarea');
-          textarea.value = text;
-          document.body.appendChild(textarea);
-          textarea.select();
-          document.execCommand('copy');
-          document.body.removeChild(textarea);
-          showToast('Jumlah transfer disalin!', 'success');
+            updateBtn.onclick = async () => {
+                const newStatus = statusSelect.value;
+                const newReason = reasonInput.value.trim();
+                updateBtn.disabled = true; updateBtn.textContent = '...';
+                try {
+                    const updates = {};
+                    updates[`drivers/${d.uid}/status`] = newStatus;
+                    if (newStatus === 'rejected' || newStatus === 'blocked')
+                        updates[`drivers/${d.uid}/ketGagal`] = newReason || (newStatus === 'rejected' ? 'Ditolak admin' : 'Diblokir admin');
+                    else updates[`drivers/${d.uid}/ketGagal`] = null;
+                    await database.ref().update(updates);
+                    d.status = newStatus; d.ketGagal = updates[`drivers/${d.uid}/ketGagal`] || null;
+                    applyDriverFilter();
+                    showToast(`Status driver ${d.name} diubah menjadi ${newStatus}`);
+                } catch(err) { showToast(err.message, true); } finally { updateBtn.disabled = false; updateBtn.textContent = 'Update Status'; }
+            };
+            editBtn.onclick = () => openDriverEditModal(d);
+            topupBtn.onclick = () => openTopupModal(d);
         });
     }
 
-    function sendWhatsAppConfirmation() {
-      if (!depositAmount || !uniqueAmount) {
-        showToast('Generate kode pembayaran terlebih dahulu', 'warning');
-        return;
-      }
-
-      const data = {
-        action: 'confirm_deposit',
-        driverId: driverData.uid,
-        driverName: driverData.name || driverData.fullName || 'Driver',
-        phoneNumber: driverData.phone || '-',
-        depositAmount: depositAmount,
-        uniqueAmount: uniqueAmount,
-        uniqueDigits: uniqueDigits,
-        paymentId: paymentId,
-        timestamp: new Date().toISOString()
-      };
-
-      sendToKodular(data);
-
-      const adminPhone = '6282311640444'; // Ganti dengan nomor admin sebenarnya
-      const message = `Halo Admin JeGo%0A%0ASaya *${data.driverName}* (ID: ${data.driverId}) telah melakukan deposit.%0A%0A📋 Detail Pembayaran:%0A• Jumlah Deposit: Rp ${depositAmount.toLocaleString('id-ID')}%0A• Total Transfer: Rp ${uniqueAmount.toLocaleString('id-ID')}%0A• Angka Unik: ${uniqueDigits}%0A• Kode Pembayaran: ${paymentId}%0A• Waktu: ${new Date().toLocaleString('id-ID')}%0A%0AMohon segera diproses. Terima kasih.`;
-      const whatsappUrl = `https://wa.me/${adminPhone}?text=${message}`;
-      window.open(whatsappUrl, '_blank');
-      showToast('Konfirmasi dikirim!', 'success');
+    function openDriverEditModal(driver) {
+        document.getElementById('editDriverUid').value = driver.uid;
+        document.getElementById('editDriverName').value = driver.name;
+        document.getElementById('editDriverPhone').value = driver.phone;
+        document.getElementById('editDriverVehicleType').value = driver.vehicle_type === '-' ? '' : driver.vehicle_type;
+        document.getElementById('editDriverPlate').value = driver.plate_number === '-' ? '' : driver.plate_number;
+        document.getElementById('editDriverRating').value = driver.rating;
+        document.getElementById('editDriverTrips').value = driver.perjalanan;
+        document.getElementById('editDriverBalance').value = driver.balance;
+        document.getElementById('editDriverModal').style.display = 'flex';
     }
 
-    function sendToKodular(data) {
-      const json = JSON.stringify(data);
-      if (window.AppInventor?.setWebViewString) {
-        window.AppInventor.setWebViewString(json);
-        console.log('✅ Data ke Kodular via AppInventor');
-      } else if (window.android?.receiveData) {
-        window.android.receiveData(json);
-        console.log('✅ Data ke Kodular via android');
-      } else {
-        console.warn('⚠️ Tidak ada metode Kodular');
-      }
+    async function saveDriverEdit() {
+        const uid = document.getElementById('editDriverUid').value;
+        if (!uid) return;
+        const data = {
+            name: document.getElementById('editDriverName').value.trim(),
+            phone: document.getElementById('editDriverPhone').value.trim(),
+            vehicle_type: document.getElementById('editDriverVehicleType').value.trim().toLowerCase() || 'motor',
+            plate_number: document.getElementById('editDriverPlate').value.trim().toUpperCase(),
+            rating: parseFloat(document.getElementById('editDriverRating').value) || 0,
+            perjalanan: parseInt(document.getElementById('editDriverTrips').value) || 0,
+            balance: parseInt(document.getElementById('editDriverBalance').value) || 0
+        };
+        if (!data.name || !data.phone || !data.plate_number) { showToast('Nama, telepon, dan plat harus diisi', true); return; }
+        const btn = document.getElementById('saveDriverBtn'); btn.disabled = true; btn.textContent = 'Menyimpan...';
+        try {
+            await database.ref(`drivers/${uid}`).update(data);
+            const idx = allDrivers.findIndex(d => d.uid === uid);
+            if (idx !== -1) Object.assign(allDrivers[idx], data);
+            applyDriverFilter();
+            showToast('Data driver disimpan');
+            document.getElementById('editDriverModal').style.display = 'none';
+        } catch(err) { showToast(err.message, true); } finally { btn.disabled = false; btn.textContent = 'Simpan'; }
     }
 
-    // ==================== HELPER ====================
-    function formatCurrency(amount) {
-      return 'Rp ' + (amount || 0).toLocaleString('id-ID');
+    // ========== ATUR SALDO (sama seperti sebelumnya) ==========
+    let currentDriverForTopup = null;
+    function openTopupModal(driver) {
+        currentDriverForTopup = driver;
+        document.getElementById('topupDriverUid').value = driver.uid;
+        document.getElementById('topupDriverName').value = driver.name;
+        document.getElementById('currentBalance').value = formatRupiah(driver.balance);
+        document.getElementById('topupAmount').value = '';
+        document.getElementById('topupNote').value = '';
+        document.getElementById('transactionType').value = 'add';
+        document.getElementById('debugInfo').style.display = 'none';
+        updateBalancePreview();
+        document.getElementById('topupModal').style.display = 'flex';
     }
 
-    function showToast(message, type = 'success') {
-      const toast = document.getElementById('toast');
-      toast.textContent = message;
-      toast.style.background = 
-        type === 'success' ? 'var(--success)' :
-        type === 'error' ? 'var(--danger)' :
-        type === 'warning' ? 'var(--warning)' : 'var(--info)';
-      toast.classList.add('show');
-      setTimeout(() => toast.classList.remove('show'), 3000);
+    function updateBalancePreview() {
+        const currentBalance = currentDriverForTopup ? currentDriverForTopup.balance : 0;
+        const type = document.getElementById('transactionType').value;
+        let amount = parseInt(document.getElementById('topupAmount').value);
+        if (isNaN(amount)) amount = 0;
+        let newBalance = currentBalance;
+        if (type === 'add') newBalance = currentBalance + amount;
+        else newBalance = currentBalance - amount;
+        document.getElementById('newBalancePreview').innerHTML = formatRupiah(newBalance);
+        const previewDiv = document.getElementById('newBalancePreview');
+        if (type === 'subtract' && amount > currentBalance) {
+            previewDiv.style.color = '#b91c1c';
+            previewDiv.style.fontWeight = 'bold';
+        } else {
+            previewDiv.style.color = '#1e293b';
+        }
     }
-  </script>
+
+    async function processTopup(uid, amount, note, type = 'add', fromDepositConfirm = false, depositLogId = null, depositUniqueAmount = null) {
+        // Fungsi ini dapat dipanggil dari modal manual atau dari konfirmasi deposit
+        if (!uid || !amount || amount <= 0) throw new Error('Nominal tidak valid');
+        if (!note) throw new Error('Keterangan wajib diisi');
+        const driverSnap = await database.ref(`drivers/${uid}`).once('value');
+        const driverData = driverSnap.val();
+        if (!driverData) throw new Error('Driver tidak ditemukan');
+        const oldBalance = driverData.balance || 0;
+        let newBalance = oldBalance;
+        let amountChanged = amount;
+        let transactionTypeLabel = 'topup_admin';
+        if (type === 'add') {
+            newBalance = oldBalance + amount;
+            transactionTypeLabel = 'topup_admin';
+        } else {
+            if (amount > oldBalance) throw new Error(`Saldo tidak cukup! Saldo saat ini ${formatRupiah(oldBalance)}`);
+            newBalance = oldBalance - amount;
+            amountChanged = -amount;
+            transactionTypeLabel = 'deduct_admin';
+        }
+        const currentUser = auth.currentUser;
+        if (!currentUser) throw new Error('Admin tidak login');
+        const adminCheck = await database.ref(`admins/${currentUser.uid}`).once('value');
+        if (!adminCheck.exists()) throw new Error('UID tidak terdaftar sebagai admin');
+
+        // Update saldo
+        await database.ref(`drivers/${uid}/balance`).set(newBalance);
+
+        // Tulis log transaksi
+        const logRef = database.ref(`driver_balance_logs/${uid}`).push();
+        await logRef.set({
+            type: transactionTypeLabel,
+            amount: amountChanged,
+            old_balance: oldBalance,
+            new_balance: newBalance,
+            note: note,
+            admin_id: currentUser.uid,
+            timestamp: firebase.database.ServerValue.TIMESTAMP
+        });
+
+        // Jika dari konfirmasi deposit, ubah status deposit request menjadi confirmed
+        if (fromDepositConfirm && depositLogId) {
+            await database.ref(`driver_balance_logs/${uid}/${depositLogId}/status`).set('confirmed');
+        }
+
+        // Kirim notifikasi
+        const playerIdSnap = await database.ref(`drivers/${uid}/playerId`).once('value');
+        let playerId = playerIdSnap.val();
+        if (!playerId) {
+            const locSnap = await database.ref(`driver_locations/${uid}/playerId`).once('value');
+            playerId = locSnap.val();
+        }
+        const notifTitle = type === 'add' ? "💰 Saldo Ditambahkan" : "⚠️ Saldo Dikurangi";
+        const notifMessage = `Halo ${driverData.name}, saldo Anda ${type === 'add' ? 'bertambah' : 'berkurang'} Rp ${amount.toLocaleString('id-ID')}. Saldo lama: ${formatRupiah(oldBalance)}, Saldo baru: ${formatRupiah(newBalance)}. Keterangan: ${note}`;
+        if (playerId) {
+            try {
+                await sendPushNotification(playerId, notifTitle, notifMessage, { type: transactionTypeLabel, amount, old_balance: oldBalance, new_balance: newBalance, note });
+            } catch (notifErr) { console.error('Notif gagal:', notifErr); }
+        }
+        // Refresh data driver di memori
+        const idx = allDrivers.findIndex(d => d.uid === uid);
+        if (idx !== -1) {
+            allDrivers[idx].balance = newBalance;
+            if (currentDriverForTopup && currentDriverForTopup.uid === uid) currentDriverForTopup.balance = newBalance;
+        }
+        applyDriverFilter();
+        return true;
+    }
+
+    // Handler untuk tombol Proses di modal manual
+    document.getElementById('confirmTopupBtn').onclick = async () => {
+        const uid = document.getElementById('topupDriverUid').value;
+        const amountInput = document.getElementById('topupAmount').value.trim();
+        const note = document.getElementById('topupNote').value.trim();
+        const type = document.getElementById('transactionType').value;
+        const debugDiv = document.getElementById('debugInfo');
+        debugDiv.style.display = 'block';
+        debugDiv.innerHTML = '<strong>🔍 DEBUG LOG:</strong><br>Memeriksa akses...';
+        if (!uid || !amountInput) { showToast('Nominal harus diisi', true); return; }
+        let amount = parseInt(amountInput);
+        if (isNaN(amount) || amount <= 0) { showToast('Nominal harus lebih dari 0', true); return; }
+        if (!note) { showToast('Keterangan wajib diisi', true); return; }
+        const btn = document.getElementById('confirmTopupBtn');
+        btn.disabled = true; btn.textContent = 'Memproses...';
+        try {
+            await processTopup(uid, amount, note, type, false);
+            document.getElementById('topupModal').style.display = 'none';
+            showToast(`Saldo berhasil ${type === 'add' ? 'ditambah' : 'dikurangi'} ${formatRupiah(amount)}`);
+        } catch (err) {
+            console.error(err);
+            debugDiv.innerHTML += `<br><span style="color:#b91c1c;">❌ ERROR: ${err.message}</span>`;
+            showToast(`Gagal: ${err.message}`, true);
+        } finally {
+            btn.disabled = false; btn.textContent = 'Proses & Kirim Notifikasi';
+        }
+    };
+
+    // =============== CUSTOMER SECTION (sama seperti sebelumnya) ===============
+    async function loadCustomers() {
+        const tbody = document.getElementById('customerTableBody');
+        tbody.innerHTML = '<tr class="empty-row"><td colspan="7"><div class="loading-overlay"><div class="spinner"></div></div></tr>';
+        try {
+            const snapshot = await database.ref('users').once('value');
+            const usersObj = snapshot.val() || {};
+            const customers = [];
+            for (const [uid, data] of Object.entries(usersObj)) {
+                customers.push({
+                    uid, name: data.name || data.fullName || '-', phone: data.phone || data.phoneNumber || '-',
+                    email: data.email || '-', rating: data.rating || 0, ratingCount: data.ratingCount || 0,
+                    photoURL: data.photoURL || ''
+                });
+            }
+            allCustomers = customers;
+            applyCustomerFilter();
+        } catch(err) {
+            console.error(err);
+            tbody.innerHTML = `<tr class="empty-row"><td colspan="7">⚠️ Gagal load customer: ${err.message}</td></tr>`;
+            showToast('Gagal load data customer', true);
+        }
+    }
+
+    function applyCustomerFilter() {
+        const keyword = document.getElementById('customerSearch').value.toLowerCase();
+        const filtered = allCustomers.filter(c => 
+            keyword === '' || (c.name && c.name.toLowerCase().includes(keyword)) || (c.phone && c.phone.toLowerCase().includes(keyword)) || (c.email && c.email.toLowerCase().includes(keyword))
+        );
+        renderCustomerTable(filtered);
+        document.getElementById('customerTotalCount').innerText = allCustomers.length;
+        document.getElementById('customerDisplayCount').innerText = filtered.length;
+    }
+
+    function renderCustomerTable(customers) {
+        const tbody = document.getElementById('customerTableBody');
+        if (!customers.length) { tbody.innerHTML = '<tr class="empty-row"><td colspan="7">Tidak ada customer</td></tr>'; return; }
+        tbody.innerHTML = '';
+        customers.forEach(c => {
+            const row = tbody.insertRow();
+            const img = document.createElement('img');
+            img.src = c.photoURL || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png';
+            img.className = 'user-photo'; img.onerror = () => img.src = 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png';
+            row.insertCell(0).appendChild(img);
+            row.insertCell(1).textContent = c.name;
+            row.insertCell(2).textContent = c.phone;
+            row.insertCell(3).textContent = c.email;
+            row.insertCell(4).textContent = c.rating.toFixed(1);
+            row.insertCell(5).textContent = c.ratingCount;
+            const editBtn = document.createElement('button'); editBtn.textContent = 'Edit Data'; editBtn.className = 'edit-btn';
+            const actionCell = row.insertCell(6); actionCell.appendChild(editBtn);
+            editBtn.onclick = () => openCustomerEditModal(c);
+        });
+    }
+
+    function openCustomerEditModal(customer) {
+        document.getElementById('editCustomerUid').value = customer.uid;
+        document.getElementById('editCustomerName').value = customer.name === '-' ? '' : customer.name;
+        document.getElementById('editCustomerPhone').value = customer.phone === '-' ? '' : customer.phone;
+        document.getElementById('editCustomerEmail').value = customer.email === '-' ? '' : customer.email;
+        document.getElementById('editCustomerRating').value = customer.rating.toFixed(1);
+        document.getElementById('editCustomerModal').style.display = 'flex';
+    }
+
+    async function saveCustomerEdit() {
+        const uid = document.getElementById('editCustomerUid').value;
+        if (!uid) return;
+        const name = document.getElementById('editCustomerName').value.trim();
+        const phone = document.getElementById('editCustomerPhone').value.trim();
+        const email = document.getElementById('editCustomerEmail').value.trim();
+        if (!name || !phone) { showToast('Nama dan telepon wajib diisi', true); return; }
+        const btn = document.getElementById('saveCustomerBtn'); btn.disabled = true; btn.textContent = 'Menyimpan...';
+        try {
+            await database.ref(`users/${uid}`).update({ name, phone, email });
+            const idx = allCustomers.findIndex(c => c.uid === uid);
+            if (idx !== -1) { allCustomers[idx].name = name; allCustomers[idx].phone = phone; allCustomers[idx].email = email; }
+            applyCustomerFilter();
+            showToast('Data customer disimpan');
+            document.getElementById('editCustomerModal').style.display = 'none';
+        } catch(err) { showToast(err.message, true); } finally { btn.disabled = false; btn.textContent = 'Simpan'; }
+    }
+
+    // =============== PERMINTAAN DEPOSIT ===============
+    async function loadDepositRequests() {
+        const tbody = document.getElementById('depositTableBody');
+        tbody.innerHTML = '<tr class="empty-row"><td colspan="7"><div class="loading-overlay"><div class="spinner"></div></div></tr>';
+        try {
+            const logsSnap = await database.ref('driver_balance_logs').once('value');
+            const requests = [];
+            logsSnap.forEach(driverChild => {
+                const driverId = driverChild.key;
+                driverChild.forEach(logChild => {
+                    const log = logChild.val();
+                    if (log.type === 'deposit_request' && log.status === 'pending') {
+                        requests.push({
+                            driverId: driverId,
+                            logId: logChild.key,
+                            ...log,
+                            timestamp: log.timestamp || 0
+                        });
+                    }
+                });
+            });
+            // Urutkan dari yang terbaru
+            requests.sort((a,b) => (b.timestamp || 0) - (a.timestamp || 0));
+            depositRequests = requests;
+            applyDepositFilter();
+        } catch (err) {
+            console.error(err);
+            tbody.innerHTML = `<tr class="empty-row"><td colspan="7">⚠️ Gagal load permintaan: ${err.message}</td></tr>`;
+            showToast('Gagal load permintaan deposit', true);
+        }
+    }
+
+    function applyDepositFilter() {
+        const keyword = document.getElementById('depositSearch').value.toLowerCase();
+        let filtered = depositRequests.filter(req => 
+            keyword === '' || 
+            (req.driver_name && req.driver_name.toLowerCase().includes(keyword)) ||
+            (req.driver_phone && req.driver_phone.toLowerCase().includes(keyword))
+        );
+        renderDepositTable(filtered);
+        document.getElementById('depositCount').innerText = filtered.length;
+    }
+
+    function renderDepositTable(requests) {
+        const tbody = document.getElementById('depositTableBody');
+        if (!requests.length) { tbody.innerHTML = '<tr class="empty-row"><td colspan="7">Tidak ada permintaan deposit pending</td></tr>'; return; }
+        tbody.innerHTML = '';
+        requests.forEach(req => {
+            const row = tbody.insertRow();
+            const dateStr = req.timestamp ? new Date(req.timestamp).toLocaleString('id-ID') : '-';
+            row.insertCell(0).textContent = dateStr;
+            row.insertCell(1).textContent = req.driver_name || '-';
+            row.insertCell(2).textContent = req.driver_phone || '-';
+            row.insertCell(3).innerHTML = formatRupiah(req.amount);
+            row.insertCell(4).innerHTML = formatRupiah(req.uniqueAmount);
+            row.insertCell(5).textContent = req.uniqueDigits;
+            const confirmBtn = document.createElement('button');
+            confirmBtn.textContent = '✅ Konfirmasi & Tambah Saldo';
+            confirmBtn.className = 'confirm-deposit-btn';
+            confirmBtn.onclick = async () => {
+                confirmBtn.disabled = true;
+                confirmBtn.textContent = 'Memproses...';
+                try {
+                    await processTopup(
+                        req.driverId,
+                        req.uniqueAmount,
+                        `Deposit via QRIS - ${req.note || ''} (kode unik ${req.uniqueDigits})`,
+                        'add',
+                        true,
+                        req.logId,
+                        req.uniqueAmount
+                    );
+                    // Hapus dari tampilan
+                    const index = depositRequests.findIndex(r => r.logId === req.logId && r.driverId === req.driverId);
+                    if (index !== -1) depositRequests.splice(index, 1);
+                    applyDepositFilter();
+                    showToast(`Saldo ${req.driver_name} berhasil ditambah Rp ${req.amount.toLocaleString('id-ID')}`);
+                } catch (err) {
+                    console.error(err);
+                    showToast(`Gagal konfirmasi: ${err.message}`, true);
+                } finally {
+                    confirmBtn.disabled = false;
+                    confirmBtn.textContent = '✅ Konfirmasi & Tambah Saldo';
+                }
+            };
+            row.insertCell(6).appendChild(confirmBtn);
+        });
+    }
+
+    // =============== TAB & INIT ===============
+    function setupTabs() {
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+                btn.classList.add('active');
+                const tabId = btn.getAttribute('data-tab') + 'Tab';
+                document.getElementById(tabId).classList.add('active');
+                if (btn.getAttribute('data-tab') === 'drivers') applyDriverFilter();
+                else if (btn.getAttribute('data-tab') === 'customers') applyCustomerFilter();
+                else if (btn.getAttribute('data-tab') === 'deposits') applyDepositFilter();
+            });
+        });
+    }
+
+    function closeModals() {
+        document.querySelectorAll('.close-driver-modal, .modal-close').forEach(el => el.addEventListener('click', () => document.getElementById('editDriverModal').style.display = 'none'));
+        document.querySelectorAll('.close-customer-modal').forEach(el => el.addEventListener('click', () => document.getElementById('editCustomerModal').style.display = 'none'));
+        document.querySelectorAll('.close-topup-modal').forEach(el => el.addEventListener('click', () => document.getElementById('topupModal').style.display = 'none'));
+        window.addEventListener('click', (e) => {
+            if (e.target === document.getElementById('editDriverModal')) document.getElementById('editDriverModal').style.display = 'none';
+            if (e.target === document.getElementById('editCustomerModal')) document.getElementById('editCustomerModal').style.display = 'none';
+            if (e.target === document.getElementById('topupModal')) document.getElementById('topupModal').style.display = 'none';
+        });
+    }
+
+    document.getElementById('topupAmount')?.addEventListener('input', updateBalancePreview);
+    document.getElementById('transactionType')?.addEventListener('change', updateBalancePreview);
+
+    auth.onAuthStateChanged(async (user) => {
+        if (!user) { window.location.href = 'login_admin.html'; return; }
+        const adminSnap = await database.ref(`admins/${user.uid}`).once('value');
+        if (!adminSnap.exists()) { showToast('Bukan admin', true); await auth.signOut(); setTimeout(() => window.location.href = 'login_admin.html', 1500); return; }
+        await getOneSignalApiKey();
+        await Promise.all([loadDrivers(), loadCustomers(), loadDepositRequests()]);
+        setupTabs();
+        closeModals();
+        document.getElementById('refreshDriversBtn').onclick = loadDrivers;
+        document.getElementById('refreshCustomersBtn').onclick = loadCustomers;
+        document.getElementById('refreshDepositsBtn').onclick = () => { loadDepositRequests(); };
+        document.getElementById('driverSearch').addEventListener('input', applyDriverFilter);
+        document.getElementById('customerSearch').addEventListener('input', applyCustomerFilter);
+        document.getElementById('depositSearch').addEventListener('input', applyDepositFilter);
+        document.getElementById('vehicleFilter').addEventListener('change', applyDriverFilter);
+        document.getElementById('saveDriverBtn').onclick = saveDriverEdit;
+        document.getElementById('saveCustomerBtn').onclick = saveCustomerEdit;
+        document.getElementById('logoutBtn').onclick = async () => { await auth.signOut(); window.location.href = 'login_admin.html'; };
+    });
+</script>
 </body>
 </html>
