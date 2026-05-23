@@ -82,17 +82,17 @@
   <div id="mainContent" style="display: none; flex-direction: column; flex:1; overflow: hidden;">
     <div class="map-area" id="mapSection">
       <div id="orderMap" style="height: 100%;"></div>
-      <button id="mapActionBtn" class="map-float-btn" style="display: none;">📍 Ke Jemputan</button>
+      <button id="mapActionBtn" class="map-float-btn" style="display: none;">🚗 Ke Jemputan</button>
     </div>
     <div class="scroll-content">
-      <div class="status-chip" id="statusBadge">⏳ Memuat</div>
+      <div class="status-chip" id="statusBadge">📋 Memuat</div>
       <div class="customer-card">
         <div class="profile-row">
           <div class="customer-left">
             <img id="customerPhoto" class="customer-photo" src="https://cdn-icons-png.flaticon.com/512/3135/3135715.png">
             <div class="customer-info">
               <h3 id="customerName">-</h3>
-              <div class="rating"><span class="stars" id="ratingStarsDisplay">★★★★★</span> <span id="customerRating">5.0</span></div>
+              <div class="rating"><span class="stars" id="ratingStarsDisplay">☆☆☆☆☆</span> <span id="customerRating">5.0</span></div>
               <div class="phone-action">
                 <span class="phone-number" id="customerPhone">-</span>
                 <button class="call-button" onclick="callCustomer()">📞 Hubungi</button>
@@ -112,7 +112,7 @@
         </div>
       </div>
       <div class="route-card">
-        <div class="section-title">📌 Rute Perjalanan</div>
+        <div class="section-title">📍 Rute Perjalanan</div>
         <div class="route-item">
           <div class="route-marker pickup-marker">A</div>
           <div><div class="route-address" id="pickupAddress">-</div><span style="font-size:0.7rem; color:#64748b;">Lokasi Jemput</span></div>
@@ -130,7 +130,7 @@
 </div>
 
 <!-- Modal Rating -->
-<div id="ratingModal" class="modal-overlay"><div class="modal-card"><h3>Beri Rating Customer</h3><div class="rating-stars" id="ratingStars"><span data-rating="1">☆</span><span data-rating="2">☆</span><span data-rating="3">☆</span><span data-rating="4">☆</span><span data-rating="5">☆</span></div><div id="ratingPresetsContainer"></div><textarea id="ratingComment" placeholder="Komentar (opsional)" style="width:100%; margin:12px 0; padding:8px; border-radius:16px; border:1px solid #ddd;"></textarea><div style="display:flex; gap:8px;"><button class="modal-cancel" style="flex:1; background:#e2e8f0; border:none; padding:10px; border-radius:40px;" onclick="closeRatingModal()">Batal</button><button class="modal-submit" style="flex:1; background:#FF9800; border:none; color:white; border-radius:40px;" onclick="submitRating()">Kirim</button></div></div></div>
+<div id="ratingModal" class="modal-overlay"><div class="modal-card"><h3>Beri Rating Customer</h3><div class="rating-stars" id="ratingStars"><span data-rating="1">★</span><span data-rating="2">★</span><span data-rating="3">★</span><span data-rating="4">★</span><span data-rating="5">★</span></div><div id="ratingPresetsContainer"></div><textarea id="ratingComment" placeholder="Komentar (opsional)" style="width:100%; margin:12px 0; padding:8px; border-radius:16px; border:1px solid #ddd;"></textarea><div style="display:flex; gap:8px;"><button class="modal-cancel" style="flex:1; background:#e2e8f0; border:none; padding:10px; border-radius:40px;" onclick="closeRatingModal()">Batal</button><button class="modal-submit" style="flex:1; background:#FF9800; border:none; color:white; border-radius:40px;" onclick="submitRating()">Kirim</button></div></div></div>
 
 <div id="toast" class="toast"></div>
 
@@ -158,10 +158,52 @@
   let customerId = null;
   let chatRef = null;
   let chatOpen = false;
+  let onesignalApiKey = null;
 
   function showToast(msg) { let t = document.getElementById('toast'); t.textContent = msg; t.style.opacity='1'; setTimeout(()=> t.style.opacity='0', 2500); }
   function getDriverData() { return JSON.parse(localStorage.getItem('jego_logged_in_driver') || '{}'); }
   
+  async function getOneSignalApiKey() {
+    if (onesignalApiKey) return onesignalApiKey;
+    const snap = await database.ref('data-jego/PushKey').once('value');
+    onesignalApiKey = snap.val();
+    if (!onesignalApiKey) console.warn("PushKey tidak ditemukan");
+    return onesignalApiKey;
+  }
+
+  async function sendNotificationToCustomer(title, message, extraData = {}) {
+    if (!customerId) { console.warn("customerId tidak ada"); return false; }
+    const playerSnap = await database.ref(`users/${customerId}/playerId`).once('value');
+    const playerId = playerSnap.val();
+    if (!playerId) { console.warn("Customer tidak punya playerId"); return false; }
+    const apiKey = await getOneSignalApiKey();
+    if (!apiKey) { console.warn("OneSignal API Key tidak tersedia"); return false; }
+    try {
+      const res = await fetch("https://onesignal.com/api/v1/notifications", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Basic ${apiKey}` },
+        body: JSON.stringify({
+          app_id: "3357d683-8f6b-4558-9d42-2eeceed6204a",
+          include_player_ids: [playerId],
+          headings: { en: title },
+          contents: { en: message },
+          data: { orderId: orderId, type: "driver_arrived", ...extraData },
+          priority: 10,
+          android_priority: "high",
+          android_channel_id: "14488f7c-4003-4699-b220-dee4451568df",
+          small_icon: "ic_stat_onesignal_default",
+          large_icon: "https://ojekaGorontalo.github.io/Logo/logo.png",
+          android_sound: "default",
+          android_vibration_pattern: [300, 500]
+        })
+      });
+      const result = await res.json();
+      if (result.errors) throw new Error(JSON.stringify(result.errors));
+      console.log("Notifikasi ke customer terkirim");
+      return true;
+    } catch(err) { console.error("Gagal notif customer:", err); return false; }
+  }
+
   async function getOrderId() {
     let id = new URLSearchParams(location.search).get('order_id') || new URLSearchParams(location.search).get('id');
     if (id) return id;
@@ -190,10 +232,10 @@
     const headerCancelBtn = document.getElementById('headerCancelBtn');
     if (!mapBtn) return;
     switch(currentStatus) {
-      case 'accepted': mapBtn.style.display = 'flex'; mapBtn.innerHTML = '📍 Ke Jemputan'; break;
-      case 'on_the_way': mapBtn.style.display = 'flex'; mapBtn.innerHTML = '✅ Sampai di Lokasi'; break;
+      case 'accepted': mapBtn.style.display = 'flex'; mapBtn.innerHTML = '🚗 Ke Jemputan'; break;
+      case 'on_the_way': mapBtn.style.display = 'flex'; mapBtn.innerHTML = '📍 Sampai di Lokasi'; break;
       case 'arrived': mapBtn.style.display = 'flex'; mapBtn.innerHTML = '🚀 Mulai Perjalanan'; break;
-      case 'on_trip': mapBtn.style.display = 'flex'; mapBtn.innerHTML = '🏁 Selesaikan Perjalanan'; break;
+      case 'on_trip': mapBtn.style.display = 'flex'; mapBtn.innerHTML = '✅ Selesaikan Perjalanan'; break;
       default: mapBtn.style.display = 'none';
     }
     if (headerCancelBtn) {
@@ -203,22 +245,24 @@
     }
   }
 
-  function onMapAction() {
+  async function onMapAction() {
     if (!orderData) { showToast("Data order belum siap"); return; }
     if (currentStatus === 'accepted') {
       if (openNavigation(orderData.pickup_lat, orderData.pickup_lng, "Penjemputan")) {
-        database.ref('orders/' + orderId).update({ status: 'on_the_way', updated_at: new Date().toISOString() })
-          .then(() => showToast("Menuju lokasi jemput")).catch(console.error);
+        await database.ref('orders/' + orderId).update({ status: 'on_the_way', updated_at: new Date().toISOString() });
+        showToast("Menuju lokasi jemput");
       }
     } 
     else if (currentStatus === 'on_the_way') {
-      database.ref('orders/' + orderId).update({ status: 'arrived', arrived_at: new Date().toISOString() })
-        .then(() => showToast("Anda telah tiba di lokasi jemput"));
+      await database.ref('orders/' + orderId).update({ status: 'arrived', arrived_at: new Date().toISOString() });
+      showToast("Anda telah tiba di lokasi jemput");
+      // Kirim notifikasi ke customer bahwa driver sudah tiba
+      await sendNotificationToCustomer("🚖 Driver Telah Tiba", `Driver ${getDriverData().name || 'Anda'} sudah sampai di lokasi jemput. Silakan keluar.`, { arrived: true });
     }
     else if (currentStatus === 'arrived') {
       if (openNavigation(orderData.dest_lat, orderData.dest_lng, "Tujuan")) {
-        database.ref('orders/' + orderId).update({ status: 'on_trip', trip_started_at: new Date().toISOString() })
-          .then(() => showToast("Perjalanan dimulai, navigasi menuju tujuan"));
+        await database.ref('orders/' + orderId).update({ status: 'on_trip', trip_started_at: new Date().toISOString() });
+        showToast("Perjalanan dimulai, navigasi menuju tujuan");
       }
     }
     else if (currentStatus === 'on_trip') completeTrip();
@@ -295,11 +339,11 @@
   function updateStatusDisplay(status) {
     currentStatus = status;
     const badge = document.getElementById('statusBadge');
-    if(status === 'accepted') badge.innerHTML = '📋 Order Diterima';
+    if(status === 'accepted') badge.innerHTML = '✅ Order Diterima';
     else if(status === 'on_the_way') badge.innerHTML = '🚗 Menuju Lokasi';
     else if(status === 'arrived') badge.innerHTML = '📍 Telah Tiba';
     else if(status === 'on_trip') badge.innerHTML = '🔄 Dalam Perjalanan';
-    else if(status === 'completed') badge.innerHTML = '✅ Selesai';
+    else if(status === 'completed') badge.innerHTML = '🎉 Selesai';
     else if(status === 'cancelled') {
       if(orderData?.cancelled_by === 'driver') badge.innerHTML = '❌ Anda membatalkan order';
       else if(orderData?.cancelled_by === 'customer') badge.innerHTML = '❌ Customer membatalkan order';
@@ -369,7 +413,7 @@
     orderId = await getOrderId();
     if(!orderId){
       document.getElementById('errorView').style.display='flex';
-      document.getElementById('errorMessage').innerHTML='Tidak ada order aktif untuk driver ini. <a href="daftar_order_driver.html" style="color:#FF9800;">Lihat daftar order</a>';
+      document.getElementById('errorMessage').innerHTML='Tidak ada order aktif untuk driver ini. <a href="index.html" style="color:#FF9800;">Kembali ke beranda</a>';
       return;
     }
     let snap = await database.ref('orders/'+orderId).once('value');
