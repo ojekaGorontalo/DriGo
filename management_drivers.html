@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-    <title>JeGo Admin - Manajemen Driver (Custom Kendaraan)</title>
+    <title>JeGo Admin - Manajemen Driver & Customer</title>
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-auth-compat.js"></script>
@@ -59,6 +59,37 @@
         .logout-btn:hover {
             background: rgba(255,255,255,0.35);
         }
+        .tabs {
+            display: flex;
+            background: #f8fafc;
+            border-bottom: 1px solid #e2e8f0;
+            padding: 0 24px;
+            gap: 8px;
+        }
+        .tab-btn {
+            padding: 12px 24px;
+            font-size: 1rem;
+            font-weight: 600;
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: #475569;
+            border-bottom: 3px solid transparent;
+            transition: 0.2s;
+        }
+        .tab-btn i {
+            margin-right: 8px;
+        }
+        .tab-btn.active {
+            color: #FF9800;
+            border-bottom-color: #FF9800;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
         .toolbar {
             padding: 16px 24px;
             background: #f8f9fa;
@@ -77,14 +108,13 @@
             outline: none;
             font-size: 0.85rem;
         }
-        .vehicle-filter {
+        .filter-select {
             padding: 8px 14px;
             border: 1px solid #ddd;
             border-radius: 30px;
             background: white;
             font-size: 0.85rem;
             cursor: pointer;
-            outline: none;
         }
         .refresh-btn {
             background: #FF9800;
@@ -98,14 +128,13 @@
             align-items: center;
             gap: 8px;
         }
-        .driver-stats {
+        .stats-badge {
             background: #e9ecef;
             padding: 5px 14px;
             border-radius: 30px;
             font-size: 0.8rem;
             font-weight: 500;
             color: #1e293b;
-            white-space: nowrap;
         }
         .table-wrapper {
             overflow-x: auto;
@@ -128,12 +157,11 @@
             color: #1e293b;
             position: sticky;
             top: 0;
-            border-top: 1px solid #e2e8f0;
         }
         tr:hover {
             background: #fef9e6;
         }
-        .driver-photo {
+        .user-photo, .driver-photo {
             width: 40px;
             height: 40px;
             border-radius: 50%;
@@ -154,13 +182,12 @@
         .status-pending { background: #fff3cd; color: #b45309; }
         .status-rejected { background: #fee2e2; color: #b91c1c; }
         .status-blocked { background: #f1f5f9; color: #334155; }
-        select.status-select {
+        .status-select {
             padding: 6px 10px;
             border-radius: 8px;
             border: 1px solid #cbd5e1;
             background: white;
             font-size: 0.8rem;
-            font-weight: 500;
             cursor: pointer;
         }
         .reason-input {
@@ -176,7 +203,7 @@
             gap: 8px;
             flex-wrap: wrap;
         }
-        .update-status-btn, .edit-driver-btn {
+        .update-status-btn, .edit-btn {
             border: none;
             padding: 6px 12px;
             border-radius: 8px;
@@ -189,11 +216,11 @@
             background: #FF9800;
             color: white;
         }
-        .edit-driver-btn {
+        .edit-btn {
             background: #3b82f6;
             color: white;
         }
-        .update-status-btn:disabled, .edit-driver-btn:disabled {
+        .update-status-btn:disabled, .edit-btn:disabled {
             background: #ccc;
             cursor: not-allowed;
         }
@@ -244,8 +271,7 @@
             color: #475569;
             border-top: 1px solid #e2e8f0;
         }
-
-        /* Modal edit driver */
+        /* Modal */
         .modal {
             display: none;
             position: fixed;
@@ -267,11 +293,6 @@
             max-height: 90vh;
             overflow-y: auto;
             box-shadow: 0 20px 35px rgba(0,0,0,0.2);
-            animation: fadeIn 0.2s ease;
-        }
-        @keyframes fadeIn {
-            from { opacity: 0; transform: scale(0.95); }
-            to { opacity: 1; transform: scale(1); }
         }
         .modal-header {
             background: linear-gradient(135deg, #FF9800, #FFB74D);
@@ -284,7 +305,6 @@
         }
         .modal-header h2 {
             font-size: 1.3rem;
-            margin: 0;
         }
         .modal-close {
             background: none;
@@ -312,12 +332,6 @@
             border: 1px solid #cbd5e1;
             border-radius: 12px;
             font-size: 0.9rem;
-            background: #f8fafc;
-        }
-        .form-group input:focus, .form-group select:focus {
-            outline: none;
-            border-color: #FF9800;
-            background: white;
         }
         .modal-footer {
             padding: 16px 20px;
@@ -341,16 +355,10 @@
             background: #FF9800;
             color: white;
         }
-
         @media (max-width: 700px) {
             body { padding: 10px; }
-            .header h1 { font-size: 1.2rem; }
-            th, td { padding: 10px 8px; font-size: 0.75rem; }
-            .reason-input { width: 120px; }
-            .driver-stats { font-size: 0.7rem; padding: 4px 10px; }
-            .toolbar { flex-direction: column; align-items: stretch; }
-            .search-box, .vehicle-filter, .refresh-btn { width: 100%; }
-            .action-buttons { flex-direction: column; gap: 4px; }
+            th, td { padding: 8px; font-size: 0.7rem; }
+            .action-buttons { flex-direction: column; }
         }
     </style>
 </head>
@@ -358,90 +366,99 @@
 
 <div class="container">
     <div class="header">
-        <h1><i class="fas fa-users"></i> Manajemen Driver (Custom Kendaraan)</h1>
+        <h1><i class="fas fa-users"></i> Manajemen Driver & Customer</h1>
         <button class="logout-btn" id="logoutBtn"><i class="fas fa-sign-out-alt"></i> Logout Admin</button>
     </div>
-    <div class="toolbar">
-        <div style="display: flex; gap: 10px; flex-wrap: wrap; width: 100%;">
-            <input type="text" class="search-box" id="searchInput" placeholder="Cari nama, telepon, atau plat...">
-            <select id="vehicleFilter" class="vehicle-filter">
-                <option value="all">🚗 Semua jenis kendaraan</option>
-            </select>
-            <div style="flex:1; display: flex; justify-content: flex-end; gap: 12px;">
-                <div class="driver-stats" id="driverStats">
-                    <i class="fas fa-chart-line"></i> Menampilkan <span id="displayCount">0</span> dari <span id="totalCount">0</span> driver
+    <div class="tabs">
+        <button class="tab-btn active" data-tab="drivers"><i class="fas fa-taxi"></i> Data Driver</button>
+        <button class="tab-btn" data-tab="customers"><i class="fas fa-user-friends"></i> Data Customer</button>
+    </div>
+
+    <!-- TAB DRIVER -->
+    <div id="driversTab" class="tab-content active">
+        <div class="toolbar">
+            <div style="display: flex; gap: 10px; flex-wrap: wrap; width: 100%;">
+                <input type="text" id="driverSearch" class="search-box" placeholder="Cari nama, telepon, plat...">
+                <select id="vehicleFilter" class="filter-select">
+                    <option value="all">🚗 Semua kendaraan</option>
+                </select>
+                <div style="flex:1; display: flex; justify-content: flex-end; gap: 12px;">
+                    <div class="stats-badge" id="driverStats">Menampilkan <span id="driverDisplayCount">0</span> dari <span id="driverTotalCount">0</span></div>
+                    <button class="refresh-btn" id="refreshDriversBtn"><i class="fas fa-sync-alt"></i> Refresh</button>
                 </div>
-                <button class="refresh-btn" id="refreshBtn"><i class="fas fa-sync-alt"></i> Refresh Data</button>
             </div>
         </div>
+        <div class="table-wrapper">
+            <table id="driverTable">
+                <thead>
+                    <tr><th>Foto</th><th>Nama</th><th>Telepon</th><th>Kendaraan</th><th>Plat</th><th>Rating</th><th>Perjalanan</th><th>Saldo</th><th>Status</th><th>Alasan</th><th>Aksi</th></tr>
+                </thead>
+                <tbody id="driverTableBody"><tr class="empty-row"><td colspan="11"><div class="loading-overlay"><div class="spinner"></div></div></tr></tbody>
+            </table>
+        </div>
     </div>
-    <div class="table-wrapper" id="tableWrapper">
-        <table id="driverTable">
-            <thead>
-                <tr>
-                    <th>Foto</th><th>Nama</th><th>Telepon</th><th>Kendaraan</th><th>Plat</th>
-                    <th>Rating</th><th>Perjalanan</th><th>Saldo</th><th>Status</th><th>Alasan (jika ditolak/diblokir)</th><th>Aksi</th>
-                </tr>
-            </thead>
-            <tbody id="driverTableBody">
-                <tr class="empty-row"><td colspan="11"><div class="loading-overlay"><div class="spinner"></div></div></tr>
-            </tbody>
-        </table>
+
+    <!-- TAB CUSTOMER -->
+    <div id="customersTab" class="tab-content">
+        <div class="toolbar">
+            <div style="display: flex; gap: 10px; flex-wrap: wrap; width: 100%;">
+                <input type="text" id="customerSearch" class="search-box" placeholder="Cari nama, telepon, email...">
+                <div style="flex:1; display: flex; justify-content: flex-end; gap: 12px;">
+                    <div class="stats-badge" id="customerStats">Menampilkan <span id="customerDisplayCount">0</span> dari <span id="customerTotalCount">0</span></div>
+                    <button class="refresh-btn" id="refreshCustomersBtn"><i class="fas fa-sync-alt"></i> Refresh</button>
+                </div>
+            </div>
+        </div>
+        <div class="table-wrapper">
+            <table id="customerTable">
+                <thead>
+                    <tr><th>Foto</th><th>Nama</th><th>Telepon</th><th>Email</th><th>Rating</th><th>Jumlah Rating</th><th>Aksi</th></tr>
+                </thead>
+                <tbody id="customerTableBody"><tr class="empty-row"><td colspan="7"><div class="loading-overlay"><div class="spinner"></div></div></tr></tbody>
+            </table>
+        </div>
     </div>
     <div class="footer-note">
-        <i class="fas fa-info-circle"></i> Klik <strong>Edit Data</strong> untuk mengubah informasi driver. <strong>Jenis kendaraan</strong> dapat diisi bebas (contoh: motor, bentor, mobil, motor listrik) dan akan otomatis disimpan dalam huruf kecil.
+        <i class="fas fa-info-circle"></i> Klik <strong>Edit Data</strong> untuk mengubah informasi driver atau customer.
     </div>
 </div>
 
 <!-- Modal Edit Driver -->
-<div id="editModal" class="modal">
+<div id="editDriverModal" class="modal">
     <div class="modal-content">
-        <div class="modal-header">
-            <h2><i class="fas fa-edit"></i> Edit Data Driver</h2>
-            <button class="modal-close" id="closeModalBtn">&times;</button>
-        </div>
+        <div class="modal-header"><h2><i class="fas fa-edit"></i> Edit Driver</h2><button class="modal-close close-driver-modal">&times;</button></div>
         <div class="modal-body">
             <input type="hidden" id="editDriverUid">
-            <div class="form-group">
-                <label>Nama Lengkap</label>
-                <input type="text" id="editName" placeholder="Nama driver">
-            </div>
-            <div class="form-group">
-                <label>Nomor Telepon / WhatsApp</label>
-                <input type="tel" id="editPhone" placeholder="+62xxx">
-            </div>
-            <div class="form-group">
-                <label>Jenis Kendaraan (bisa diisi custom, otomatis lowercase)</label>
-                <input type="text" id="editVehicleType" placeholder="Contoh: motor, bentor, mobil, motor listrik">
-            </div>
-            <div class="form-group">
-                <label>Plat Nomor</label>
-                <input type="text" id="editPlateNumber" placeholder="DM 1234 AB">
-            </div>
-            <div class="form-group">
-                <label>Rating (0-5)</label>
-                <input type="number" id="editRating" step="0.1" min="0" max="5" placeholder="5.0">
-            </div>
-            <div class="form-group">
-                <label>Jumlah Perjalanan</label>
-                <input type="number" id="editPerjalanan" step="1" min="0" placeholder="0">
-            </div>
-            <div class="form-group">
-                <label>Saldo (Rp)</label>
-                <input type="number" id="editBalance" step="1000" min="0" placeholder="0">
-            </div>
+            <div class="form-group"><label>Nama Lengkap</label><input type="text" id="editDriverName"></div>
+            <div class="form-group"><label>Telepon</label><input type="tel" id="editDriverPhone"></div>
+            <div class="form-group"><label>Jenis Kendaraan</label><input type="text" id="editDriverVehicleType" placeholder="motor, mobil, bentor..."></div>
+            <div class="form-group"><label>Plat Nomor</label><input type="text" id="editDriverPlate"></div>
+            <div class="form-group"><label>Rating (0-5)</label><input type="number" id="editDriverRating" step="0.1" min="0" max="5"></div>
+            <div class="form-group"><label>Perjalanan</label><input type="number" id="editDriverTrips" step="1" min="0"></div>
+            <div class="form-group"><label>Saldo (Rp)</label><input type="number" id="editDriverBalance" step="1000" min="0"></div>
         </div>
-        <div class="modal-footer">
-            <button class="modal-btn modal-btn-cancel" id="cancelEditBtn">Batal</button>
-            <button class="modal-btn modal-btn-save" id="saveEditBtn">Simpan Perubahan</button>
+        <div class="modal-footer"><button class="modal-btn modal-btn-cancel close-driver-modal">Batal</button><button class="modal-btn modal-btn-save" id="saveDriverBtn">Simpan</button></div>
+    </div>
+</div>
+
+<!-- Modal Edit Customer -->
+<div id="editCustomerModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header"><h2><i class="fas fa-edit"></i> Edit Customer</h2><button class="modal-close close-customer-modal">&times;</button></div>
+        <div class="modal-body">
+            <input type="hidden" id="editCustomerUid">
+            <div class="form-group"><label>Nama Lengkap</label><input type="text" id="editCustomerName"></div>
+            <div class="form-group"><label>Telepon</label><input type="tel" id="editCustomerPhone"></div>
+            <div class="form-group"><label>Email</label><input type="email" id="editCustomerEmail"></div>
+            <div class="form-group"><label>Rating (baca saja)</label><input type="text" id="editCustomerRating" readonly style="background:#e9ecef;"></div>
         </div>
+        <div class="modal-footer"><button class="modal-btn modal-btn-cancel close-customer-modal">Batal</button><button class="modal-btn modal-btn-save" id="saveCustomerBtn">Simpan</button></div>
     </div>
 </div>
 
 <div id="toastMsg" class="toast"></div>
 
 <script>
-    // ==================== KONFIGURASI FIREBASE ====================
     const firebaseConfig = {
         apiKey: "AIzaSyCD0pgeZio-LdKqYDtWxcdXcZwyL4ngYQI",
         authDomain: "jego-35a2b.firebaseapp.com",
@@ -451,386 +468,284 @@
         messagingSenderId: "600037007040",
         appId: "1:600037007040:web:ac3243ad9b472647ffd725"
     };
-
     if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
     const auth = firebase.auth();
     const database = firebase.database();
 
     let allDrivers = [];
-    let currentAdminUid = null;
+    let allCustomers = [];
 
-    function showToast(message, isError = false) {
+    function showToast(msg, isError = false) {
         const toast = document.getElementById('toastMsg');
-        toast.textContent = message;
+        toast.textContent = msg;
         toast.style.background = isError ? '#b91c1c' : '#1e293b';
         toast.classList.add('show');
         setTimeout(() => toast.classList.remove('show'), 3000);
     }
 
-    // Populate dropdown filter berdasarkan data vehicle_type yang sudah lowercase
-    function populateVehicleFilter() {
-        const vehicleSet = new Set();
-        allDrivers.forEach(driver => {
-            if (driver.vehicle_type && driver.vehicle_type.trim()) vehicleSet.add(driver.vehicle_type.trim());
-        });
-        const vehicleTypes = Array.from(vehicleSet).sort();
-        const select = document.getElementById('vehicleFilter');
-        const currentVal = select.value;
-        select.innerHTML = '<option value="all">🚗 Semua jenis kendaraan</option>';
-        vehicleTypes.forEach(vtype => {
-            const option = document.createElement('option');
-            option.value = vtype;
-            option.textContent = vtype;
-            select.appendChild(option);
-        });
-        if (currentVal !== 'all' && vehicleTypes.includes(currentVal)) select.value = currentVal;
-        else select.value = 'all';
-    }
-
-    function applyFilterAndRender() {
-        const keyword = document.getElementById('searchInput').value.toLowerCase();
-        const selectedVehicle = document.getElementById('vehicleFilter').value;
-        let filtered = allDrivers;
-        if (keyword) {
-            filtered = filtered.filter(d => 
-                (d.name && d.name.toLowerCase().includes(keyword)) ||
-                (d.phone && d.phone.toLowerCase().includes(keyword)) ||
-                (d.plate_number && d.plate_number.toLowerCase().includes(keyword))
-            );
-        }
-        if (selectedVehicle !== 'all') {
-            filtered = filtered.filter(d => (d.vehicle_type || '') === selectedVehicle);
-        }
-        renderDriverTable(filtered);
-    }
-
-    function renderDriverTable(driversArray) {
+    // =============== DRIVER SECTION ===============
+    async function loadDrivers() {
         const tbody = document.getElementById('driverTableBody');
-        const displaySpan = document.getElementById('displayCount');
-        const totalSpan = document.getElementById('totalCount');
-        totalSpan.textContent = allDrivers.length;
-        displaySpan.textContent = driversArray.length;
-
-        if (!driversArray.length) {
-            tbody.innerHTML = '<tr class="empty-row"><td colspan="11">📭 Tidak ada driver dengan kriteria tersebut</td></tr>';
-            return;
+        tbody.innerHTML = '<tr class="empty-row"><td colspan="11"><div class="loading-overlay"><div class="spinner"></div></div></tr>';
+        try {
+            const snapshot = await database.ref('drivers').once('value');
+            const driversObj = snapshot.val() || {};
+            const driversArray = [];
+            for (const [uid, data] of Object.entries(driversObj)) {
+                driversArray.push({
+                    uid, name: data.name || '-', phone: data.phone || data.phoneNumber || '-',
+                    vehicle_type: data.vehicle_type || data.vehicleType || '-',
+                    plate_number: data.plate_number || data.plateNumber || '-',
+                    rating: data.rating || 0, perjalanan: data.perjalanan || 0,
+                    balance: data.balance || 0, status: data.status || 'pending',
+                    ketGagal: data.ketGagal || '', photoURL: data.photoURL || ''
+                });
+            }
+            allDrivers = driversArray;
+            populateVehicleFilter();
+            applyDriverFilter();
+        } catch (err) {
+            console.error(err);
+            tbody.innerHTML = `<tr class="empty-row"><td colspan="11">⚠️ Gagal load driver: ${err.message}</td></tr>`;
+            showToast('Gagal load driver', true);
         }
+    }
 
+    function populateVehicleFilter() {
+        const vehicles = [...new Set(allDrivers.map(d => d.vehicle_type).filter(v => v && v !== '-'))];
+        const select = document.getElementById('vehicleFilter');
+        select.innerHTML = '<option value="all">🚗 Semua kendaraan</option>';
+        vehicles.forEach(v => { const opt = document.createElement('option'); opt.value = v; opt.textContent = v; select.appendChild(opt); });
+    }
+
+    function applyDriverFilter() {
+        const keyword = document.getElementById('driverSearch').value.toLowerCase();
+        const selectedVehicle = document.getElementById('vehicleFilter').value;
+        let filtered = allDrivers.filter(d => 
+            (keyword === '' || (d.name && d.name.toLowerCase().includes(keyword)) || (d.phone && d.phone.toLowerCase().includes(keyword)) || (d.plate_number && d.plate_number.toLowerCase().includes(keyword))) &&
+            (selectedVehicle === 'all' || d.vehicle_type === selectedVehicle)
+        );
+        renderDriverTable(filtered);
+        document.getElementById('driverTotalCount').innerText = allDrivers.length;
+        document.getElementById('driverDisplayCount').innerText = filtered.length;
+    }
+
+    function renderDriverTable(drivers) {
+        const tbody = document.getElementById('driverTableBody');
+        if (!drivers.length) { tbody.innerHTML = '<tr class="empty-row"><td colspan="11">Tidak ada driver</td></tr>'; return; }
         tbody.innerHTML = '';
-        driversArray.forEach(driver => {
+        drivers.forEach(d => {
             const row = tbody.insertRow();
             // Foto
-            const fotoCell = row.insertCell(0);
             const img = document.createElement('img');
-            img.src = driver.photoURL || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png';
+            img.src = d.photoURL || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png';
             img.className = 'driver-photo';
-            img.onerror = () => { img.src = 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png'; };
-            fotoCell.appendChild(img);
-            
-            row.insertCell(1).textContent = driver.name || '-';
-            row.insertCell(2).textContent = driver.phone || '-';
-            row.insertCell(3).textContent = driver.vehicle_type || '-';
-            row.insertCell(4).textContent = driver.plate_number || '-';
-            row.insertCell(5).textContent = driver.rating ? driver.rating.toFixed(1) : '0';
-            row.insertCell(6).textContent = driver.perjalanan || 0;
-            row.insertCell(7).textContent = `Rp ${(driver.balance || 0).toLocaleString('id-ID')}`;
-            
+            img.onerror = () => img.src = 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png';
+            row.insertCell(0).appendChild(img);
+            row.insertCell(1).textContent = d.name;
+            row.insertCell(2).textContent = d.phone;
+            row.insertCell(3).textContent = d.vehicle_type;
+            row.insertCell(4).textContent = d.plate_number;
+            row.insertCell(5).textContent = d.rating.toFixed(1);
+            row.insertCell(6).textContent = d.perjalanan;
+            row.insertCell(7).textContent = `Rp ${d.balance.toLocaleString('id-ID')}`;
             // Status badge
-            const statusCell = row.insertCell(8);
-            const currentStatus = driver.status || 'pending';
-            const statusBadge = document.createElement('span');
-            statusBadge.className = `status-badge status-${currentStatus}`;
-            statusBadge.textContent = currentStatus.toUpperCase();
-            statusCell.appendChild(statusBadge);
-            
-            // Alasan (input text)
-            const reasonCell = row.insertCell(9);
+            const statusSpan = document.createElement('span');
+            statusSpan.className = `status-badge status-${d.status}`;
+            statusSpan.textContent = d.status.toUpperCase();
+            row.insertCell(8).appendChild(statusSpan);
+            // Alasan input
             const reasonInput = document.createElement('input');
-            reasonInput.type = 'text';
-            reasonInput.className = 'reason-input';
-            reasonInput.placeholder = 'Alasan (opsional)';
-            reasonInput.value = driver.ketGagal || '';
-            reasonCell.appendChild(reasonInput);
-            
+            reasonInput.type = 'text'; reasonInput.className = 'reason-input'; reasonInput.placeholder = 'Alasan';
+            reasonInput.value = d.ketGagal || '';
+            row.insertCell(9).appendChild(reasonInput);
             // Aksi
-            const actionCell = row.insertCell(10);
-            const actionDiv = document.createElement('div');
-            actionDiv.className = 'action-buttons';
-            
-            // Dropdown status
-            const select = document.createElement('select');
-            select.className = 'status-select';
-            const statusOptions = [
-                { value: 'accepted', label: '✅ Accepted' },
-                { value: 'pending', label: '⏳ Pending' },
-                { value: 'rejected', label: '❌ Rejected' },
-                { value: 'blocked', label: '🚫 Blocked' }
-            ];
-            statusOptions.forEach(opt => {
-                const option = document.createElement('option');
-                option.value = opt.value;
-                option.textContent = opt.label;
-                if (opt.value === currentStatus) option.selected = true;
-                select.appendChild(option);
+            const actionDiv = document.createElement('div'); actionDiv.className = 'action-buttons';
+            const statusSelect = document.createElement('select'); statusSelect.className = 'status-select';
+            ['accepted','pending','rejected','blocked'].forEach(s => {
+                const opt = document.createElement('option'); opt.value = s; opt.textContent = s.toUpperCase();
+                if (s === d.status) opt.selected = true;
+                statusSelect.appendChild(opt);
             });
-            
-            const updateStatusBtn = document.createElement('button');
-            updateStatusBtn.textContent = 'Update Status';
-            updateStatusBtn.className = 'update-status-btn';
-            
-            const editBtn = document.createElement('button');
-            editBtn.textContent = 'Edit Data';
-            editBtn.className = 'edit-driver-btn';
-            
-            actionDiv.appendChild(select);
-            actionDiv.appendChild(updateStatusBtn);
-            actionDiv.appendChild(editBtn);
-            actionCell.appendChild(actionDiv);
-            
-            // Event Update Status
-            updateStatusBtn.onclick = async () => {
-                const newStatus = select.value;
-                const reasonText = reasonInput.value.trim();
-                if (newStatus === currentStatus && reasonText === (driver.ketGagal || '')) {
-                    showToast('Tidak ada perubahan status atau alasan.', false);
-                    return;
-                }
-                updateStatusBtn.disabled = true;
-                updateStatusBtn.textContent = '...';
+            const updateBtn = document.createElement('button'); updateBtn.textContent = 'Update Status'; updateBtn.className = 'update-status-btn';
+            const editBtn = document.createElement('button'); editBtn.textContent = 'Edit Data'; editBtn.className = 'edit-btn';
+            actionDiv.append(statusSelect, updateBtn, editBtn);
+            row.insertCell(10).appendChild(actionDiv);
+
+            updateBtn.onclick = async () => {
+                const newStatus = statusSelect.value;
+                const newReason = reasonInput.value.trim();
+                updateBtn.disabled = true; updateBtn.textContent = '...';
                 try {
                     const updates = {};
-                    updates[`drivers/${driver.uid}/status`] = newStatus;
-                    if (newStatus === 'rejected' || newStatus === 'blocked') {
-                        updates[`drivers/${driver.uid}/ketGagal`] = reasonText || (newStatus === 'rejected' ? 'Pendaftaran ditolak oleh admin.' : 'Akun diblokir oleh admin.');
-                    } else {
-                        updates[`drivers/${driver.uid}/ketGagal`] = null;
-                    }
+                    updates[`drivers/${d.uid}/status`] = newStatus;
+                    if (newStatus === 'rejected' || newStatus === 'blocked')
+                        updates[`drivers/${d.uid}/ketGagal`] = newReason || (newStatus === 'rejected' ? 'Ditolak admin' : 'Diblokir admin');
+                    else updates[`drivers/${d.uid}/ketGagal`] = null;
                     await database.ref().update(updates);
-                    driver.status = newStatus;
-                    driver.ketGagal = updates[`drivers/${driver.uid}/ketGagal`] || null;
-                    applyFilterAndRender();
-                    showToast(`Status driver ${driver.name} diubah menjadi ${newStatus}`, false);
-                    
-                    const playerIdSnap = await database.ref(`drivers/${driver.uid}/playerId`).once('value');
-                    if (playerIdSnap.val()) {
-                        sendPushNotifIfPossible(playerIdSnap.val(), 'Status Akun Diubah', `Halo ${driver.name}, status Anda sekarang: ${newStatus.toUpperCase()}. ${reasonText ? 'Alasan: ' + reasonText : ''}`);
-                    }
-                } catch (err) {
-                    showToast('Gagal update status: ' + err.message, true);
-                } finally {
-                    updateStatusBtn.disabled = false;
-                    updateStatusBtn.textContent = 'Update Status';
-                }
+                    d.status = newStatus; d.ketGagal = updates[`drivers/${d.uid}/ketGagal`] || null;
+                    applyDriverFilter();
+                    showToast(`Status driver ${d.name} diubah menjadi ${newStatus}`);
+                } catch(err) { showToast(err.message, true); } finally { updateBtn.disabled = false; updateBtn.textContent = 'Update Status'; }
             };
-            
-            // Event Edit Data
-            editBtn.onclick = () => {
-                openEditModal(driver);
-            };
+            editBtn.onclick = () => openDriverEditModal(d);
         });
     }
-    
-    function openEditModal(driver) {
+
+    function openDriverEditModal(driver) {
         document.getElementById('editDriverUid').value = driver.uid;
-        document.getElementById('editName').value = driver.name || '';
-        document.getElementById('editPhone').value = driver.phone || '';
-        document.getElementById('editVehicleType').value = driver.vehicle_type || '';
-        document.getElementById('editPlateNumber').value = driver.plate_number || '';
-        document.getElementById('editRating').value = driver.rating || 0;
-        document.getElementById('editPerjalanan').value = driver.perjalanan || 0;
-        document.getElementById('editBalance').value = driver.balance || 0;
-        document.getElementById('editModal').style.display = 'flex';
+        document.getElementById('editDriverName').value = driver.name;
+        document.getElementById('editDriverPhone').value = driver.phone;
+        document.getElementById('editDriverVehicleType').value = driver.vehicle_type === '-' ? '' : driver.vehicle_type;
+        document.getElementById('editDriverPlate').value = driver.plate_number === '-' ? '' : driver.plate_number;
+        document.getElementById('editDriverRating').value = driver.rating;
+        document.getElementById('editDriverTrips').value = driver.perjalanan;
+        document.getElementById('editDriverBalance').value = driver.balance;
+        document.getElementById('editDriverModal').style.display = 'flex';
     }
-    
+
     async function saveDriverEdit() {
-    const uid = document.getElementById('editDriverUid').value;
-    if (!uid) return;
-
-    let vehicleTypeRaw = document.getElementById('editVehicleType').value.trim();
-    let vehicleTypeLower = vehicleTypeRaw ? vehicleTypeRaw.toLowerCase() : 'motor';
-
-    const updatedData = {
-        name: document.getElementById('editName').value.trim(),
-        phone: document.getElementById('editPhone').value.trim(),
-        vehicle_type: vehicleTypeLower,
-        plate_number: document.getElementById('editPlateNumber').value.trim().toUpperCase(),
-        rating: parseFloat(document.getElementById('editRating').value) || 0,
-        perjalanan: parseInt(document.getElementById('editPerjalanan').value) || 0,
-        balance: parseInt(document.getElementById('editBalance').value) || 0
-    };
-
-    if (!updatedData.name) {
-        showToast('Nama driver tidak boleh kosong', true);
-        return;
-    }
-    if (!updatedData.phone) {
-        showToast('Nomor telepon tidak boleh kosong', true);
-        return;
-    }
-    if (!updatedData.plate_number) {
-        showToast('Plat nomor tidak boleh kosong', true);
-        return;
-    }
-
-    const saveBtn = document.getElementById('saveEditBtn');
-    saveBtn.disabled = true;
-    saveBtn.textContent = 'Menyimpan...';
-    try {
-        const updateRef = {};
-        // Hanya update field yang diizinkan rules
-        updateRef[`drivers/${uid}/name`] = updatedData.name;
-        updateRef[`drivers/${uid}/phone`] = updatedData.phone;
-        // HAPUS update ke phoneNumber (tidak diizinkan)
-        updateRef[`drivers/${uid}/vehicle_type`] = updatedData.vehicle_type;
-        // HAPUS update ke vehicleType (tidak diizinkan)
-        updateRef[`drivers/${uid}/plate_number`] = updatedData.plate_number;
-        // HAPUS update ke plateNumber (tidak diizinkan)
-        updateRef[`drivers/${uid}/rating`] = updatedData.rating;
-        updateRef[`drivers/${uid}/perjalanan`] = updatedData.perjalanan;
-        updateRef[`drivers/${uid}/balance`] = updatedData.balance;
-        // updateRef[`drivers/${uid}/updated_at`] = new Date().toISOString();
-
-        await database.ref().update(updateRef);
-
-        // Update local allDrivers
-        const driverIndex = allDrivers.findIndex(d => d.uid === uid);
-        if (driverIndex !== -1) {
-            allDrivers[driverIndex].name = updatedData.name;
-            allDrivers[driverIndex].phone = updatedData.phone;
-            allDrivers[driverIndex].vehicle_type = updatedData.vehicle_type;
-            allDrivers[driverIndex].plate_number = updatedData.plate_number;
-            allDrivers[driverIndex].rating = updatedData.rating;
-            allDrivers[driverIndex].perjalanan = updatedData.perjalanan;
-            allDrivers[driverIndex].balance = updatedData.balance;
-        }
-        populateVehicleFilter();
-        applyFilterAndRender();
-        showToast('Data driver berhasil diperbarui', false);
-        closeEditModal();
-    } catch (err) {
-        console.error(err);
-        showToast('Gagal menyimpan: ' + err.message, true);
-    } finally {
-        saveBtn.disabled = false;
-        saveBtn.textContent = 'Simpan Perubahan';
-    }
-}
-    
-    function closeEditModal() {
-        document.getElementById('editModal').style.display = 'none';
-        document.getElementById('editDriverUid').value = '';
-    }
-    
-    async function sendPushNotifIfPossible(playerId, title, message) {
+        const uid = document.getElementById('editDriverUid').value;
+        if (!uid) return;
+        const data = {
+            name: document.getElementById('editDriverName').value.trim(),
+            phone: document.getElementById('editDriverPhone').value.trim(),
+            vehicle_type: document.getElementById('editDriverVehicleType').value.trim().toLowerCase() || 'motor',
+            plate_number: document.getElementById('editDriverPlate').value.trim().toUpperCase(),
+            rating: parseFloat(document.getElementById('editDriverRating').value) || 0,
+            perjalanan: parseInt(document.getElementById('editDriverTrips').value) || 0,
+            balance: parseInt(document.getElementById('editDriverBalance').value) || 0
+        };
+        if (!data.name || !data.phone || !data.plate_number) { showToast('Nama, telepon, dan plat harus diisi', true); return; }
+        const btn = document.getElementById('saveDriverBtn'); btn.disabled = true; btn.textContent = 'Menyimpan...';
         try {
-            const keySnap = await database.ref('data-jego/PushKey').once('value');
-            const apiKey = keySnap.val();
-            if (!apiKey || !playerId) return;
-            const ONESIGNAL_APP_ID = "3357d683-8f6b-4558-9d42-2eeceed6204a";
-            await fetch("https://onesignal.com/api/v1/notifications", {
-                method: "POST",
-                headers: { "Content-Type": "application/json", "Authorization": `Basic ${apiKey}` },
-                body: JSON.stringify({
-                    app_id: ONESIGNAL_APP_ID,
-                    include_player_ids: [playerId],
-                    headings: { en: title },
-                    contents: { en: message },
-                    priority: 10
-                })
-            });
-        } catch (e) { console.warn("Notif gagal:", e); }
+            await database.ref(`drivers/${uid}`).update(data);
+            const idx = allDrivers.findIndex(d => d.uid === uid);
+            if (idx !== -1) Object.assign(allDrivers[idx], data);
+            applyDriverFilter();
+            showToast('Data driver disimpan');
+            document.getElementById('editDriverModal').style.display = 'none';
+        } catch(err) { showToast(err.message, true); } finally { btn.disabled = false; btn.textContent = 'Simpan'; }
     }
-    
-    // Ganti fungsi loadAllDrivers dengan ini
-async function loadAllDrivers() {
-    const tbody = document.getElementById('driverTableBody');
-    tbody.innerHTML = '<tr class="empty-row"><td colspan="11"><div class="loading-overlay"><div class="spinner"></div></div></tr>';
-    try {
-        // Coba baca dari node drivers
-        const snapshot = await database.ref('drivers').once('value');
-        const driversObj = snapshot.val() || {};
-        
-        if (Object.keys(driversObj).length === 0) {
-            // Mungkin permission denied atau memang kosong
-            tbody.innerHTML = '<tr class="empty-row"><td colspan="11">⚠️ Tidak ada data driver atau akses ditolak. Pastikan Anda login sebagai admin.</td></tr>';
-            return;
+
+    // =============== CUSTOMER SECTION ===============
+    async function loadCustomers() {
+        const tbody = document.getElementById('customerTableBody');
+        tbody.innerHTML = '<tr class="empty-row"><td colspan="7"><div class="loading-overlay"><div class="spinner"></div></div></tr>';
+        try {
+            const snapshot = await database.ref('users').once('value');
+            const usersObj = snapshot.val() || {};
+            const customers = [];
+            for (const [uid, data] of Object.entries(usersObj)) {
+                customers.push({
+                    uid, name: data.name || data.fullName || '-', phone: data.phone || data.phoneNumber || '-',
+                    email: data.email || '-', rating: data.rating || 0, ratingCount: data.ratingCount || 0,
+                    photoURL: data.photoURL || ''
+                });
+            }
+            allCustomers = customers;
+            applyCustomerFilter();
+        } catch(err) {
+            console.error(err);
+            tbody.innerHTML = `<tr class="empty-row"><td colspan="7">⚠️ Gagal load customer: ${err.message}</td></tr>`;
+            showToast('Gagal load data customer', true);
         }
-        
-        // Proses data seperti biasa...
-        const driversArray = [];
-        for (const [uid, data] of Object.entries(driversObj)) {
-            if (!data.name && !data.phone) continue;
-            driversArray.push({
-                uid: uid,
-                name: data.name || 'Tidak diketahui',
-                phone: data.phone || data.phoneNumber || '-',
-                vehicle_type: data.vehicle_type || data.vehicleType || '-',
-                plate_number: data.plate_number || data.plateNumber || '-',
-                rating: data.rating || 0,
-                perjalanan: data.perjalanan || 0,
-                balance: data.balance || 0,
-                status: data.status || 'pending',
-                ketGagal: data.ketGagal || '',
-                photoURL: data.photoURL || data.profilePhotoUrl || ''
-            });
-        }
-        driversArray.sort((a,b) => (a.name || '').localeCompare(b.name || ''));
-        allDrivers = driversArray;
-        populateVehicleFilter();
-        applyFilterAndRender();
-        
-    } catch (err) {
-        console.error(err);
-        if (err.code === 'PERMISSION_DENIED') {
-            tbody.innerHTML = `<tr class="empty-row"><td colspan="11">
-                <div style="color: #d32f2f; padding: 30px; text-align: center;">
-                    <i class="fas fa-lock" style="font-size: 48px;"></i><br>
-                    <strong>Akses Ditolak (Permission Denied)</strong><br>
-                    Admin tidak memiliki izin baca ke node "drivers".<br>
-                    Silakan hubungi pemilik Firebase untuk menambahkan aturan:<br>
-                    <code style="background:#f5f5f5; display:inline-block; margin-top:10px; padding:8px; border-radius:6px;">
-                    "drivers": { ".read": "auth != null" }
-                    </code>
-                </div>
-            </td></tr>`;
-        } else {
-            tbody.innerHTML = `<tr class="empty-row"><td colspan="11">⚠️ Error: ${err.message}</td></tr>`;
-        }
-        showToast('Gagal mengambil data driver: ' + (err.code === 'PERMISSION_DENIED' ? 'Permission Denied' : err.message), true);
     }
-}
-    
-    function setupEventListeners() {
-        document.getElementById('searchInput').addEventListener('input', () => applyFilterAndRender());
-        document.getElementById('vehicleFilter').addEventListener('change', () => applyFilterAndRender());
-        document.getElementById('refreshBtn').addEventListener('click', () => loadAllDrivers());
-        document.getElementById('logoutBtn').addEventListener('click', async () => {
-            await auth.signOut();
-            window.location.href = 'login_admin.html';
-        });
-        document.getElementById('closeModalBtn').addEventListener('click', closeEditModal);
-        document.getElementById('cancelEditBtn').addEventListener('click', closeEditModal);
-        document.getElementById('saveEditBtn').addEventListener('click', saveDriverEdit);
-        window.addEventListener('click', (e) => {
-            if (e.target === document.getElementById('editModal')) closeEditModal();
+
+    function applyCustomerFilter() {
+        const keyword = document.getElementById('customerSearch').value.toLowerCase();
+        const filtered = allCustomers.filter(c => 
+            keyword === '' || (c.name && c.name.toLowerCase().includes(keyword)) || (c.phone && c.phone.toLowerCase().includes(keyword)) || (c.email && c.email.toLowerCase().includes(keyword))
+        );
+        renderCustomerTable(filtered);
+        document.getElementById('customerTotalCount').innerText = allCustomers.length;
+        document.getElementById('customerDisplayCount').innerText = filtered.length;
+    }
+
+    function renderCustomerTable(customers) {
+        const tbody = document.getElementById('customerTableBody');
+        if (!customers.length) { tbody.innerHTML = '<tr class="empty-row"><td colspan="7">Tidak ada customer</td></tr>'; return; }
+        tbody.innerHTML = '';
+        customers.forEach(c => {
+            const row = tbody.insertRow();
+            const img = document.createElement('img');
+            img.src = c.photoURL || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png';
+            img.className = 'user-photo'; img.onerror = () => img.src = 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png';
+            row.insertCell(0).appendChild(img);
+            row.insertCell(1).textContent = c.name;
+            row.insertCell(2).textContent = c.phone;
+            row.insertCell(3).textContent = c.email;
+            row.insertCell(4).textContent = c.rating.toFixed(1);
+            row.insertCell(5).textContent = c.ratingCount;
+            const editBtn = document.createElement('button'); editBtn.textContent = 'Edit Data'; editBtn.className = 'edit-btn';
+            const actionCell = row.insertCell(6); actionCell.appendChild(editBtn);
+            editBtn.onclick = () => openCustomerEditModal(c);
         });
     }
-    
+
+    function openCustomerEditModal(customer) {
+        document.getElementById('editCustomerUid').value = customer.uid;
+        document.getElementById('editCustomerName').value = customer.name === '-' ? '' : customer.name;
+        document.getElementById('editCustomerPhone').value = customer.phone === '-' ? '' : customer.phone;
+        document.getElementById('editCustomerEmail').value = customer.email === '-' ? '' : customer.email;
+        document.getElementById('editCustomerRating').value = customer.rating.toFixed(1);
+        document.getElementById('editCustomerModal').style.display = 'flex';
+    }
+
+    async function saveCustomerEdit() {
+        const uid = document.getElementById('editCustomerUid').value;
+        if (!uid) return;
+        const name = document.getElementById('editCustomerName').value.trim();
+        const phone = document.getElementById('editCustomerPhone').value.trim();
+        const email = document.getElementById('editCustomerEmail').value.trim();
+        if (!name || !phone) { showToast('Nama dan telepon wajib diisi', true); return; }
+        const btn = document.getElementById('saveCustomerBtn'); btn.disabled = true; btn.textContent = 'Menyimpan...';
+        try {
+            await database.ref(`users/${uid}`).update({ name, phone, email });
+            const idx = allCustomers.findIndex(c => c.uid === uid);
+            if (idx !== -1) { allCustomers[idx].name = name; allCustomers[idx].phone = phone; allCustomers[idx].email = email; }
+            applyCustomerFilter();
+            showToast('Data customer disimpan');
+            document.getElementById('editCustomerModal').style.display = 'none';
+        } catch(err) { showToast(err.message, true); } finally { btn.disabled = false; btn.textContent = 'Simpan'; }
+    }
+
+    // =============== TAB & INIT ===============
+    function setupTabs() {
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+                btn.classList.add('active');
+                const tabId = btn.getAttribute('data-tab') + 'Tab';
+                document.getElementById(tabId).classList.add('active');
+                if (btn.getAttribute('data-tab') === 'drivers') applyDriverFilter();
+                else applyCustomerFilter();
+            });
+        });
+    }
+
+    function closeModals() {
+        document.querySelectorAll('.close-driver-modal, .modal-close').forEach(el => el.addEventListener('click', () => document.getElementById('editDriverModal').style.display = 'none'));
+        document.querySelectorAll('.close-customer-modal').forEach(el => el.addEventListener('click', () => document.getElementById('editCustomerModal').style.display = 'none'));
+        window.addEventListener('click', (e) => { if (e.target === document.getElementById('editDriverModal')) document.getElementById('editDriverModal').style.display = 'none'; if (e.target === document.getElementById('editCustomerModal')) document.getElementById('editCustomerModal').style.display = 'none'; });
+    }
+
     auth.onAuthStateChanged(async (user) => {
-        if (!user) {
-            window.location.href = 'login_admin.html';
-            return;
-        }
+        if (!user) { window.location.href = 'login_admin.html'; return; }
         const adminSnap = await database.ref(`admins/${user.uid}`).once('value');
-        if (!adminSnap.exists()) {
-            showToast('Anda tidak memiliki akses admin!', true);
-            await auth.signOut();
-            setTimeout(() => { window.location.href = 'login_admin.html'; }, 1500);
-            return;
-        }
-        currentAdminUid = user.uid;
-        await loadAllDrivers();
-        setupEventListeners();
+        if (!adminSnap.exists()) { showToast('Bukan admin', true); await auth.signOut(); setTimeout(() => window.location.href = 'login_admin.html', 1500); return; }
+        await Promise.all([loadDrivers(), loadCustomers()]);
+        setupTabs();
+        closeModals();
+        document.getElementById('refreshDriversBtn').onclick = loadDrivers;
+        document.getElementById('refreshCustomersBtn').onclick = loadCustomers;
+        document.getElementById('driverSearch').addEventListener('input', applyDriverFilter);
+        document.getElementById('customerSearch').addEventListener('input', applyCustomerFilter);
+        document.getElementById('vehicleFilter').addEventListener('change', applyDriverFilter);
+        document.getElementById('saveDriverBtn').onclick = saveDriverEdit;
+        document.getElementById('saveCustomerBtn').onclick = saveCustomerEdit;
+        document.getElementById('logoutBtn').onclick = async () => { await auth.signOut(); window.location.href = 'login_admin.html'; };
     });
 </script>
 </body>
