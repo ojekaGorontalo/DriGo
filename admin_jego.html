@@ -189,11 +189,12 @@
             flex-wrap: wrap;
             align-items: flex-end;
         }
-        .inline-form select, .inline-form button {
+        .inline-form select, .inline-form button, .inline-form input, .inline-form textarea {
             padding: 8px 12px;
             border-radius: 6px;
             border: 1px solid #ccc;
         }
+        .inline-form textarea { width: 100%; min-width: 200px; }
         .compact-log {
             background: #1e1e2f;
             color: #eee;
@@ -208,6 +209,36 @@
         .compact-log .log-entry {
             border-bottom: 1px solid #444;
             padding: 3px 0;
+        }
+        .notif-form-card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            margin: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .notif-form-card h3 {
+            margin-bottom: 15px;
+            color: #FF9800;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .form-group label {
+            font-weight: 600;
+            display: block;
+            margin-bottom: 5px;
+        }
+        .form-group input, .form-group textarea, .form-group select {
+            width: 100%;
+            padding: 10px;
+            border-radius: 8px;
+            border: 1px solid #ccc;
+        }
+        .radio-group {
+            display: flex;
+            gap: 20px;
+            align-items: center;
         }
     </style>
 </head>
@@ -228,6 +259,7 @@
             <div class="menu-item" data-view="fallback_log"><i class="fas fa-history"></i> <span>Fallback Log</span></div>
             <div class="menu-item" data-view="realtime_log"><i class="fas fa-terminal"></i> <span>Real-time Log</span></div>
             <div class="menu-item" data-view="tools"><i class="fas fa-tools"></i> <span>Tools</span></div>
+            <div class="menu-item" data-view="send_notif_customer"><i class="fas fa-bell"></i> <span>Notifikasi Customer</span></div>
         </div>
         <div style="padding: 20px;">
             <button id="sidebarLogout" class="action-btn" style="background:#f44336; width:100%"><i class="fas fa-sign-out-alt"></i> Logout</button>
@@ -310,7 +342,7 @@
         }
     }
 
-    async function sendPushNotification(playerId, title, message, orderId = null, extraData = {}) {
+    async function sendPushNotification(playerId, title, message, extraData = {}) {
         if (!playerId || !ONESIGNAL_API_KEY) return false;
         try {
             const res = await fetch("https://onesignal.com/api/v1/notifications", {
@@ -324,15 +356,14 @@
                     include_player_ids: [playerId],
                     headings: { en: title },
                     contents: { en: message },
-                    data: { orderId: orderId, type: "offer_from_admin", ...extraData },
+                    data: { type: "admin_broadcast", ...extraData },
                     priority: 10,
                     android_priority: "high",
                     android_channel_id: "14488f7c-4003-4699-b220-dee4451568df",
                     small_icon: "ic_stat_onesignal_default",
                     large_icon: "https://ojekaGorontalo.github.io/Logo/logo.png",
-                    android_sound: "audioautobid",
-                    android_vibration_pattern: [300, 500, 300, 500],
-                    android_visibility: 1
+                    android_sound: "default",
+                    android_vibration_pattern: [300, 500]
                 })
             });
             const result = await res.json();
@@ -340,27 +371,13 @@
                 addLog(`Gagal notif: ${JSON.stringify(result.errors)}`, "error");
                 return false;
             } else {
-                addLog(`✅ Notif ke driver (${playerId.substring(0,8)}...)`, "success");
+                addLog(`✅ Notif terkirim ke ${playerId.substring(0,8)}...`, "success");
                 return true;
             }
         } catch(err) {
             addLog(`Error API: ${err.message}`, "error");
             return false;
         }
-    }
-
-    async function sendManualPushToDriver(driverId, title, message, orderId = null) {
-        if (!ONESIGNAL_API_KEY) {
-            addLog("❌ OneSignal API Key belum tersedia", "error");
-            return false;
-        }
-        const locSnap = await database.ref(`driver_locations/${driverId}/playerId`).once('value');
-        const playerId = locSnap.val();
-        if (!playerId) {
-            addLog(`⚠️ Driver ${driverId} tidak punya playerId`, "warning");
-            return false;
-        }
-        return sendPushNotification(playerId, title, message, orderId);
     }
 
     // ========== FUNGSI JARAK ==========
@@ -418,9 +435,8 @@
         return activeDrivers;
     }
 
-    // ========== FUNGSI AUTO FALLBACK (dengan pengecualian kurir) ==========
+    // ========== FUNGSI AUTO FALLBACK ==========
     async function sendFallbackOffer(orderId, orderData) {
-        // Jangan fallback untuk order Kurir
         if (isKurirOrder(orderData)) {
             addLog(`🚫 Fallback dibatalkan untuk order Kurir ${orderId.substring(0,8)}`, "warning");
             return false;
@@ -485,7 +501,7 @@
             if (selectedDriver.playerId) {
                 const title = "🚖 Order Baru (Auto Offer dari Admin)";
                 const message = `Halo ${selectedDriver.data.name}, admin mengirim penawaran order dari ${order.customer_name || 'Customer'} (Rp ${order.price?.toLocaleString()}) karena tidak ada driver merespon.`;
-                await sendPushNotification(selectedDriver.playerId, title, message, orderId, { auto_fallback: true });
+                await sendPushNotification(selectedDriver.playerId, title, message, { auto_fallback: true, orderId });
             }
             return true;
         } catch(err) {
@@ -494,7 +510,7 @@
         }
     }
 
-    // ========== PROSES ORDER BARU (dengan pengecualian kurir) ==========
+    // ========== PROSES ORDER BARU ==========
     async function processNewOrder(orderId, orderData) {
         if (processedOrderIds.has(orderId)) return;
         if (orderData.status !== "waiting" && orderData.status !== "searching") return;
@@ -514,10 +530,9 @@
             if (dist < 3) {
                 const cust = orderData.customer_name || "Customer";
                 const harga = orderData.price || 0;
-                await sendPushNotification(driver.playerId, "🚖 Order Baru Dekat Anda!", `${cust} Rp ${harga.toLocaleString()} jarak ${dist.toFixed(1)}km`, orderId);
+                await sendPushNotification(driver.playerId, "🚖 Order Baru Dekat Anda!", `${cust} Rp ${harga.toLocaleString()} jarak ${dist.toFixed(1)}km`, { orderId });
                 notifiedCount++;
 
-                // Auto offer hanya jika driver autobid ON dan order BUKAN kurir
                 if (driver.autobid_enabled && !isKurir) {
                     const driverSnap = await database.ref(`drivers/${driver.uid}`).once('value');
                     const driverData = driverSnap.val();
@@ -551,7 +566,6 @@
         }
         addLog(`✅ Order ${orderId.substring(0,8)}: notif ke ${notifiedCount} driver, auto offer ke ${autoOfferCount} driver`, "success");
 
-        // Fallback hanya untuk order NON-KURIR
         if (!isKurir && !fallbackProcessed.has(orderId)) {
             if (fallbackTimers.has(orderId)) clearTimeout(fallbackTimers.get(orderId));
             const timer = setTimeout(async () => {
@@ -753,7 +767,6 @@
             if (order.status === 'on_trip') await autoDeductOnTrip(id, order);
             if (order.status === 'accepted' && order.driver_id) {
                 addLog(`🎉 Order ${id} diterima driver ${order.driver_id}`, "success");
-                await sendManualPushToDriver(order.driver_id, "🎉 Penawaran Diterima!", `Order ${id.substring(0,8)} diterima customer. Segera proses.`, id);
             }
             if (order.status === 'completed' && order.driver_id) await updateDriverStats(order.driver_id);
             if (currentView === 'dashboard') refreshDashboardOrders();
@@ -813,7 +826,7 @@
                             <th data-col="pickup">Alamat Jemput</th><th data-col="destination">Tujuan</th>
                             <th data-col="price">Harga</th><th data-col="status">Status</th>
                             <th data-col="driver">Driver</th><th data-col="created_at">Dibuat</th>
-                         </tr>
+                          </tr>
                     </thead>
                     <tbody>${orders.map(order => {
                         let statusClass = '';
@@ -836,9 +849,9 @@
                             <td><strong>${order.status}</strong></td>
                             <td>${order.driver}</td>
                             <td>${order.created_at}</td>
-                          </tr>`;
+                           </tr>`;
                     }).join('')}</tbody>
-                 </table>
+                  </table>
             </div>
         </div>`;
         container.innerHTML = html;
@@ -977,6 +990,132 @@
         });
     }
 
+    // ========== KIRIM NOTIFIKASI KE CUSTOMER ==========
+    async function loadCustomersForNotif() {
+        const snap = await database.ref('users').once('value');
+        const users = snap.val() || {};
+        const customers = [];
+        for (const [uid, data] of Object.entries(users)) {
+            if (data.role !== 'admin') { // asumsi customer tidak punya role admin
+                customers.push({
+                    uid: uid,
+                    name: data.name || data.fullName || 'Unknown',
+                    phone: data.phone || '-',
+                    playerId: data.playerId || null
+                });
+            }
+        }
+        return customers;
+    }
+
+    async function renderSendNotifCustomer() {
+        const customers = await loadCustomersForNotif();
+        const container = document.getElementById('viewContainer');
+        let html = `
+            <div class="notif-form-card">
+                <h3><i class="fas fa-bell"></i> Kirim Notifikasi ke Customer</h3>
+                <div class="form-group">
+                    <label>Pilih Penerima</label>
+                    <select id="notifCustomerSelect">
+                        <option value="all">📢 SEMUA CUSTOMER (Broadcast)</option>
+                        ${customers.map(c => `<option value="${c.uid}" ${!c.playerId ? 'disabled' : ''}>${escapeHtml(c.name)} (${c.phone}) ${!c.playerId ? '❌ no playerId' : '✅'}</option>`).join('')}
+                    </select>
+                    <small style="color:gray;">Customer yang tidak memiliki playerId tidak dapat dikirimi notifikasi.</small>
+                </div>
+                <div class="form-group">
+                    <label>Judul Notifikasi</label>
+                    <input type="text" id="notifTitle" placeholder="Contoh: Promo Spesial Akhir Pekan" value="📢 Pengumuman dari JeGo">
+                </div>
+                <div class="form-group">
+                    <label>Pesan</label>
+                    <textarea id="notifMessage" rows="3" placeholder="Tulis pesan promosi atau informasi..."></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Data Tambahan (opsional)</label>
+                    <input type="text" id="notifData" placeholder='{"promo_code": "JEGO10"}' value="">
+                </div>
+                <button id="sendNotifBtn" class="action-btn" style="background:#4CAF50;"><i class="fas fa-paper-plane"></i> Kirim Notifikasi</button>
+                <div id="notifResult" style="margin-top: 15px; padding: 10px; border-radius: 8px; background: #f0f0f0;"></div>
+            </div>
+            <div class="table-container">
+                <div class="table-toolbar">
+                    <span>Daftar Customer Terdaftar</span>
+                    <input type="text" id="searchCustomer" class="search-box" placeholder="Cari customer...">
+                </div>
+                <div class="table-wrapper">
+                    <table id="customerTable">
+                        <thead><tr><th>Nama</th><th>Telepon</th><th>Player ID</th><th>Status</th></tr></thead>
+                        <tbody>
+                            ${customers.map(c => `<tr>
+                                <td>${escapeHtml(c.name)}</td>
+                                <td>${c.phone}</td>
+                                <td>${c.playerId ? c.playerId.substring(0,15)+'...' : '-'}</td>
+                                <td>${c.playerId ? '<span style="color:green;">✅ Siap notif</span>' : '<span style="color:red;">❌ Tidak ada</span>'}</td>
+                            </tr>`).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        `;
+        container.innerHTML = html;
+        document.getElementById('sendNotifBtn').onclick = async () => {
+            const target = document.getElementById('notifCustomerSelect').value;
+            const title = document.getElementById('notifTitle').value.trim();
+            const message = document.getElementById('notifMessage').value.trim();
+            const extraDataRaw = document.getElementById('notifData').value.trim();
+            let extraData = {};
+            if (extraDataRaw) {
+                try { extraData = JSON.parse(extraDataRaw); } catch(e) { addLog("Data tambahan tidak valid JSON", "error"); }
+            }
+            if (!title || !message) {
+                alert("Judul dan pesan harus diisi");
+                return;
+            }
+            const resultDiv = document.getElementById('notifResult');
+            resultDiv.innerHTML = '<span>Mengirim...</span>';
+            if (target === 'all') {
+                // broadcast ke semua customer yang punya playerId
+                const customersWithId = customers.filter(c => c.playerId);
+                if (customersWithId.length === 0) {
+                    resultDiv.innerHTML = '<span style="color:red;">Tidak ada customer dengan playerId</span>';
+                    return;
+                }
+                let successCount = 0;
+                for (const cust of customersWithId) {
+                    const sent = await sendPushNotification(cust.playerId, title, message, { ...extraData, broadcast: true });
+                    if (sent) successCount++;
+                    await new Promise(r => setTimeout(r, 200));
+                }
+                resultDiv.innerHTML = `<span style="color:green;">✅ Broadcast terkirim ke ${successCount} dari ${customersWithId.length} customer.</span>`;
+                addLog(`Broadcast notifikasi ke ${successCount} customer`, "success");
+            } else {
+                const customer = customers.find(c => c.uid === target);
+                if (!customer || !customer.playerId) {
+                    resultDiv.innerHTML = '<span style="color:red;">Customer tidak memiliki playerId</span>';
+                    return;
+                }
+                const sent = await sendPushNotification(customer.playerId, title, message, { ...extraData, customer_id: target });
+                if (sent) {
+                    resultDiv.innerHTML = `<span style="color:green;">✅ Notifikasi terkirim ke ${customer.name}</span>`;
+                    addLog(`Notifikasi manual ke customer ${customer.name}`, "success");
+                } else {
+                    resultDiv.innerHTML = `<span style="color:red;">❌ Gagal mengirim notifikasi</span>`;
+                }
+            }
+        };
+        const searchInput = document.getElementById('searchCustomer');
+        if (searchInput) {
+            searchInput.addEventListener('input', (e) => {
+                const keyword = e.target.value.toLowerCase();
+                const rows = document.querySelectorAll('#customerTable tbody tr');
+                rows.forEach(row => {
+                    const text = row.innerText.toLowerCase();
+                    row.style.display = text.includes(keyword) ? '' : 'none';
+                });
+            });
+        }
+    }
+
     // ========== VIEW HANDLER ==========
     async function showView(view) {
         currentView = view;
@@ -990,7 +1129,8 @@
             statistik_driver: 'Statistik Rating & Perjalanan',
             fallback_log: 'Log Auto Fallback (Aktif di background)',
             realtime_log: 'Real-time Log',
-            tools: 'Tools & Utilitas'
+            tools: 'Tools & Utilitas',
+            send_notif_customer: 'Kirim Notifikasi ke Customer'
         };
         document.getElementById('pageTitle').innerText = titleMap[view] || 'Admin';
 
@@ -1096,7 +1236,9 @@
                     await database.ref(`orders/${orderId}/driver_offers/${driverId}`).set(offerData);
                     resultDiv.innerHTML = `<span style="color:#66ff66;">✅ Penawaran dikirim ke ${driver.name} (saldo cukup)</span>`;
                     addLog(`Admin MANUAL offer ke ${driver.name} untuk order ${orderId.substring(0,8)} (saldo cukup)`, "success");
-                    await sendManualPushToDriver(driverId, "📢 Penawaran Dikirim oleh Admin", `Halo ${driver.name}, admin mengirim penawaran untuk order dari ${order.customer_name || 'customer'}. Segera cek aplikasi.`, orderId);
+                    if (loc.playerId) {
+                        await sendPushNotification(loc.playerId, "📢 Penawaran Dikirim oleh Admin", `Halo ${driver.name}, admin mengirim penawaran untuk order dari ${order.customer_name || 'customer'}. Segera cek aplikasi.`, { orderId });
+                    }
                 } catch(e) {
                     resultDiv.innerHTML = `<span style="color:#ff6666;">❌ Gagal: ${e.message}</span>`;
                     addLog(`Gagal kirim offer admin: ${e.message}`, "error");
@@ -1144,6 +1286,8 @@
                 if (source) source.innerHTML = '';
                 addLog("Log dibersihkan", "info");
             });
+        } else if (view === 'send_notif_customer') {
+            await renderSendNotifCustomer();
         }
     }
 
