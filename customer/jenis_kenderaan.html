@@ -70,7 +70,6 @@
             gap: 12px;
         }
 
-        /* tombol hamburger menu */
         .menu-button {
             background: rgba(255,255,255,0.2);
             width: 40px;
@@ -148,16 +147,14 @@
             background: rgba(255,255,255,0.4);
         }
 
-        /* ===== MAIN CONTAINER (mobile friendly) ===== */
         .main-container {
             flex: 1;
-            padding: 20px 16px 80px; /* tambah padding bottom untuk bottom nav */
+            padding: 20px 16px 80px;
             max-width: 600px;
             margin: 0 auto;
             width: 100%;
         }
 
-        /* Welcome Card */
         .welcome-card {
             background: var(--white);
             border-radius: 28px;
@@ -180,7 +177,6 @@
             line-height: 1.4;
         }
 
-        /* Section Title */
         .section-title {
             font-size: 1.2rem;
             font-weight: 700;
@@ -199,7 +195,6 @@
             display: inline-block;
         }
 
-        /* Grid Kendaraan (modern card) */
         .transport-grid {
             display: flex;
             flex-direction: column;
@@ -283,7 +278,6 @@
             font-weight: 300;
         }
 
-        /* Loading Spinner */
         .loading-container {
             display: flex;
             justify-content: center;
@@ -304,7 +298,6 @@
             to { transform: rotate(360deg); }
         }
 
-        /* Login Required Card */
         .login-card {
             background: var(--white);
             border-radius: 32px;
@@ -338,7 +331,6 @@
             box-shadow: 0 4px 10px rgba(0,0,0,0.1);
         }
 
-        /* Alert */
         .alert {
             padding: 14px 18px;
             border-radius: 20px;
@@ -359,7 +351,6 @@
             border-left: 5px solid var(--danger);
         }
 
-        /* Global Loading Overlay */
         .global-loading {
             position: fixed;
             top: 0;
@@ -385,7 +376,6 @@
             font-weight: 500;
         }
 
-        /* MODAL MODERN (kurir) */
         .modal {
             display: none;
             position: fixed;
@@ -533,7 +523,6 @@
             border: 1px solid var(--gray-light);
         }
         
-        /* ===== BOTTOM NAVIGATION BAR ===== */
         .bottom-nav {
             position: fixed;
             bottom: 0;
@@ -573,7 +562,6 @@
             background: rgba(0,0,0,0.05);
         }
 
-        /* ===== SIDEBAR (OFF-CANVAS) ===== */
         .sidebar-overlay {
             position: fixed;
             top: 0;
@@ -643,7 +631,64 @@
             color: white;
             z-index: 1002;
         }
-        
+
+        /* MODAL NOTIFIKASI CUSTOMER */
+        .notif-prompt-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.7);
+            z-index: 2100;
+            align-items: center;
+            justify-content: center;
+        }
+        .notif-prompt-content {
+            background: white;
+            border-radius: 16px;
+            width: 85%;
+            max-width: 320px;
+            text-align: center;
+            padding: 20px;
+        }
+        .notif-prompt-icon {
+            font-size: 48px;
+            margin-bottom: 12px;
+        }
+        .notif-prompt-title {
+            font-size: 1.2rem;
+            font-weight: bold;
+            margin-bottom: 8px;
+            color: var(--primary);
+        }
+        .notif-prompt-message {
+            font-size: 0.85rem;
+            color: #666;
+            margin-bottom: 20px;
+        }
+        .notif-prompt-buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+        .notif-prompt-buttons button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .btn-allow {
+            background: var(--primary);
+            color: white;
+        }
+        .btn-later {
+            background: #e0e0e0;
+            color: #333;
+        }
+
         @media (max-width: 480px) {
             .app-bar-title {
                 font-size: 1.2rem;
@@ -667,6 +712,19 @@
 <div class="global-loading" id="globalLoading">
     <div class="spinner"></div>
     <p>Memproses...</p>
+</div>
+
+<!-- MODAL PROMPT NOTIFIKASI UNTUK CUSTOMER -->
+<div id="notifPromptModalCustomer" class="notif-prompt-modal">
+    <div class="notif-prompt-content">
+        <div class="notif-prompt-icon">🔔</div>
+        <div class="notif-prompt-title">Aktifkan Notifikasi</div>
+        <div class="notif-prompt-message">Aktifkan notifikasi untuk mendapatkan update pesanan dan promo terbaru.</div>
+        <div class="notif-prompt-buttons">
+            <button id="promptAllowBtnCustomer" class="btn-allow">Aktifkan</button>
+            <button id="promptLaterBtnCustomer" class="btn-later">Nanti</button>
+        </div>
+    </div>
 </div>
 
 <!-- Android Native Style App Bar -->
@@ -699,7 +757,6 @@
         <div class="sidebar-item" data-link="about">
             <span class="icon">ℹ️</span> Tentang JeGo
         </div>
-        <!-- Tombol Bagikan ke teman (WhatsApp) -->
         <div class="sidebar-item" id="shareToFriend">
             <span class="icon">📤</span> Bagikan ke teman
         </div>
@@ -828,6 +885,63 @@
         'Kurir Bentor': 'kurir_bentor'
     };
 
+    // ==================== ONE SIGNAL UNTUK CUSTOMER ====================
+    async function initOneSignalForCustomer() {
+        if (typeof median === 'undefined' || !median.onesignal) {
+            console.warn("⚠️ Median OneSignal tidak tersedia");
+            showToastCustomer("OneSignal tidak tersedia.", "warning");
+            return false;
+        }
+        try {
+            if (median.onesignal.setConsentGiven) await median.onesignal.setConsentGiven(true);
+            await median.onesignal.register();
+            if (median.onesignal.promptForPushNotificationsWithUserResponse) {
+                await median.onesignal.promptForPushNotificationsWithUserResponse();
+            }
+            await new Promise(r => setTimeout(r, 8000));
+            let playerId = null;
+            for (let i = 0; i < 3; i++) {
+                const info = await median.onesignal.onesignalInfo();
+                playerId = info?.userId || info?.oneSignalUserId || info?.subscription?.id;
+                if (playerId) break;
+                await new Promise(r => setTimeout(r, 5000));
+            }
+            if (playerId && currentUser && currentUser.uid) {
+                await firebaseDatabase.ref(`users/${currentUser.uid}`).update({ 
+                    playerId, 
+                    last_playerid_update: new Date().toISOString() 
+                });
+                showToastCustomer("Notifikasi Aktif", "success");
+                return true;
+            }
+            return false;
+        } catch (err) {
+            console.error("OneSignal error:", err);
+            return false;
+        }
+    }
+
+    async function checkPlayerIdAndPromptForCustomer() {
+        if (!currentUser || !currentUser.uid) return;
+        try {
+            const snap = await firebaseDatabase.ref(`users/${currentUser.uid}/playerId`).once('value');
+            if (!snap.val()) {
+                document.getElementById('notifPromptModalCustomer').style.display = 'flex';
+            }
+        } catch (err) {
+            console.warn("Gagal cek playerId:", err);
+        }
+    }
+
+    function closeNotifPromptCustomer() {
+        document.getElementById('notifPromptModalCustomer').style.display = 'none';
+    }
+
+    function showToastCustomer(message, type) {
+        // Bisa diganti dengan alert atau toast kustom
+        alert(message);
+    }
+
     // ==================== SIDEBAR & BOTTOM NAV ====================
     function toggleSidebar(open) {
         const sidebar = document.getElementById('sidebar');
@@ -841,24 +955,20 @@
         }
     }
 
-    // Fungsi untuk membagikan ke WhatsApp
     function shareToWhatsApp() {
         const downloadLink = "https://apkpure.com/p/co.median.android.krxxxkl";
         const message = `Halo! Yuk coba aplikasi JeGo - Transportasi & Ekspedisi mudah dan cepat. Download di sini: ${downloadLink}`;
         const encodedMessage = encodeURIComponent(message);
-        // Menggunakan URL WhatsApp (bisa pakai api.whatsapp.com agar support web dan mobile)
         const whatsappUrl = `https://api.whatsapp.com/send?text=${encodedMessage}`;
         window.open(whatsappUrl, '_blank');
     }
 
-    // navigasi bottom bar
     function setupBottomNav() {
         const currentPath = window.location.pathname.split('/').pop();
         const navHome = document.getElementById('navHome');
         const navAccount = document.getElementById('navAccount');
         const navHistory = document.getElementById('navHistory');
         
-        // active state
         if (currentPath === 'jenis_kenderaan.html' || currentPath === '') {
             navHome.classList.add('active');
         } else {
@@ -869,7 +979,6 @@
             if (currentPath !== 'jenis_kenderaan.html' && currentPath !== '') {
                 window.location.href = 'jenis_kenderaan.html';
             }
-            // jika sudah di halaman ini, tidak melakukan apa-apa
         });
         navAccount.addEventListener('click', () => {
             window.location.href = 'userAccount.html';
@@ -879,13 +988,11 @@
         });
     }
 
-    // menu sidebar actions
     function setupSidebarActions() {
         const menuItems = document.querySelectorAll('.sidebar-item');
         menuItems.forEach(item => {
             item.addEventListener('click', async (e) => {
                 const link = item.getAttribute('data-link');
-                // Jika item adalah tombol share (id shareToFriend) tanpa data-link
                 if (item.id === 'shareToFriend') {
                     toggleSidebar(false);
                     shareToWhatsApp();
@@ -893,14 +1000,12 @@
                 }
                 toggleSidebar(false);
                 if (link === 'profile') {
-                    // bisa redirect ke halaman profil (belum ada, kita arahkan ke userAccount dulu)
                     window.location.href = 'userAccount.html';
                 } else if (link === 'help') {
                     alert('💬 Bantuan: Hubungi customer service di 0812-3456-7890 atau email help@jego.com');
                 } else if (link === 'about') {
                     alert('JeGo v1.0 - Aplikasi transportasi & ekspedisi.');
                 } else if (link === 'logout') {
-                    // logout logic
                     if (firebaseAuth) {
                         await firebaseAuth.signOut();
                     }
@@ -1014,6 +1119,15 @@
                 const orderAktif = await cekOrderAktifDanRedirect();
                 if (orderAktif) return true;
                 await fetchTransportData();
+                
+                // ========== PANGGIL NOTIFIKASI UNTUK CUSTOMER ==========
+                checkPlayerIdAndPromptForCustomer();
+                document.getElementById('promptAllowBtnCustomer')?.addEventListener('click', async () => {
+                    closeNotifPromptCustomer();
+                    await initOneSignalForCustomer();
+                });
+                document.getElementById('promptLaterBtnCustomer')?.addEventListener('click', closeNotifPromptCustomer);
+                
                 return true;
             } catch (error) {
                 console.error(error);
