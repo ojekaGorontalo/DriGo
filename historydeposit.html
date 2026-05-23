@@ -1,241 +1,115 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-  <meta charset="utf-8" />
-  <title>Riwayat Deposit - JeGo Driver</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-  <!-- Firebase SDK -->
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+  <title>Riwayat Transaksi Saldo - JeGo Driver</title>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
   <style>
-    :root {
-      --primary: #FF9800;
-      --primary-dark: #F57C00;
-      --secondary: #FF5722;
-      --accent: #FFC107;
-      --light: #f8f9fa;
-      --dark: #1e2a3e;
-      --success: #10b981;
-      --danger: #ef4444;
-      --warning: #f59e0b;
-      --info: #3b82f6;
-      --gray: #64748b;
-      --gray-light: #e2e8f0;
-      --bg: #f1f5f9;
-    }
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: var(--dark);
-      line-height: 1.5;
-      font-size: 0.875rem;
-      min-height: 100vh;
-      padding-bottom: 20px;
+      background: #f1f5f9;
+      padding: 16px;
+      padding-bottom: 30px;
     }
     .header {
       background: white;
       padding: 16px 20px;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+      border-radius: 28px;
       display: flex;
       align-items: center;
-      justify-content: space-between;
-      position: sticky;
-      top: 0;
-      z-index: 100;
+      gap: 12px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
     }
     .back-btn {
-      background: var(--bg);
+      background: #e2e8f0;
       border: none;
       border-radius: 40px;
       padding: 8px 16px;
-      color: var(--dark);
       font-weight: 600;
       cursor: pointer;
-      display: flex;
-      align-items: center;
-      gap: 6px;
       font-size: 0.8rem;
-      transition: 0.2s;
     }
-    .back-btn:hover {
-      background: var(--gray-light);
-    }
-    .header-title {
+    .title {
       font-size: 1.2rem;
       font-weight: 700;
-      color: var(--primary);
+      color: #FF9800;
+      flex: 1;
     }
     .container {
-      max-width: 640px;
+      max-width: 800px;
       margin: 0 auto;
-      padding: 16px;
     }
     .card {
       background: white;
-      border-radius: 28px;
+      border-radius: 24px;
       padding: 20px;
-      box-shadow: 0 4px 14px rgba(0,0,0,0.05);
-      margin-bottom: 20px;
-      border: 1px solid rgba(0,0,0,0.03);
-    }
-    .card-title {
-      font-size: 1rem;
-      font-weight: 700;
-      color: var(--dark);
       margin-bottom: 16px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      border-bottom: 2px solid var(--gray-light);
-      padding-bottom: 8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.03);
     }
-    .history-list {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-    }
-    .history-item {
-      background: var(--light);
-      border-radius: 20px;
-      padding: 14px;
-      transition: 0.2s;
-      border-left: 4px solid var(--primary);
-    }
-    .history-header {
+    .transaction-item {
+      border-bottom: 1px solid #e2e8f0;
+      padding: 16px 0;
       display: flex;
       justify-content: space-between;
-      align-items: center;
-      margin-bottom: 8px;
+      align-items: flex-start;
       flex-wrap: wrap;
+      gap: 8px;
     }
-    .history-date {
-      font-size: 0.7rem;
-      color: var(--gray);
-    }
-    .status-badge {
+    .transaction-item:last-child { border-bottom: none; }
+    .transaction-type {
+      display: inline-block;
       padding: 4px 10px;
       border-radius: 30px;
       font-size: 0.7rem;
-      font-weight: 600;
+      font-weight: 700;
     }
-    .status-pending {
-      background: #fef3c7;
-      color: var(--warning);
-    }
-    .status-confirmed {
-      background: #d1fae5;
-      color: var(--success);
-    }
-    .status-rejected {
-      background: #fee2e2;
-      color: var(--danger);
-    }
-    .history-details {
-      display: flex;
-      justify-content: space-between;
-      gap: 12px;
-      flex-wrap: wrap;
-      margin-top: 8px;
-    }
-    .detail-block {
-      background: white;
-      padding: 6px 12px;
-      border-radius: 16px;
-      font-size: 0.75rem;
-      font-weight: 600;
-      color: var(--dark);
-    }
-    .empty-state {
+    .type-add { background: #dcfce7; color: #15803d; }
+    .type-deduct { background: #fee2e2; color: #b91c1c; }
+    .type-pending { background: #fff3cd; color: #b45309; }
+    .amount { font-weight: 800; font-size: 1rem; }
+    .amount.plus { color: #15803d; }
+    .amount.minus { color: #b91c1c; }
+    .amount.pending { color: #b45309; }
+    .meta { font-size: 0.7rem; color: #64748b; margin-top: 4px; }
+    .balance-info { font-size: 0.75rem; background: #f8fafc; padding: 6px 10px; border-radius: 16px; }
+    .empty-history {
       text-align: center;
-      padding: 40px 20px;
-      color: var(--gray);
+      padding: 40px;
+      color: #64748b;
     }
     .loading {
       display: flex;
-      flex-direction: column;
-      align-items: center;
       justify-content: center;
       padding: 40px;
-      background: white;
-      border-radius: 28px;
     }
     .spinner {
-      width: 40px;
-      height: 40px;
-      border: 4px solid rgba(0,0,0,0.1);
-      border-top-color: var(--primary);
+      width: 32px;
+      height: 32px;
+      border: 3px solid #e2e8f0;
+      border-top-color: #FF9800;
       border-radius: 50%;
-      animation: spin 1s linear infinite;
+      animation: spin 0.8s linear infinite;
     }
-    @keyframes spin {
-      to { transform: rotate(360deg); }
-    }
-    .refresh-btn {
-      background: var(--primary);
-      color: white;
-      border: none;
-      border-radius: 40px;
-      padding: 8px 16px;
-      font-weight: 600;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-    .total-box {
-      background: linear-gradient(135deg, var(--primary), var(--primary-dark));
-      color: white;
-      border-radius: 20px;
-      padding: 16px;
-      text-align: center;
-      margin-bottom: 20px;
-    }
-    .total-label {
-      font-size: 0.8rem;
-      opacity: 0.9;
-    }
-    .total-value {
-      font-size: 1.5rem;
-      font-weight: 800;
-    }
+    @keyframes spin { to { transform: rotate(360deg); } }
   </style>
 </head>
 <body>
-<div class="header">
-  <button class="back-btn" id="backBtn">← Kembali</button>
-  <div class="header-title">📜 Riwayat Deposit</div>
-  <button class="refresh-btn" id="refreshBtn" style="background: var(--bg); color: var(--dark);">↻ Muat Ulang</button>
-</div>
-
 <div class="container">
-  <div id="loadingState" class="loading">
-    <div class="spinner"></div>
-    <div style="margin-top: 12px;">Memuat riwayat deposit...</div>
+  <div class="header">
+    <button class="back-btn" onclick="window.location.href='payment.html'">← Kembali</button>
+    <div class="title">📜 Riwayat Mutasi Saldo</div>
   </div>
-  <div id="contentArea" style="display: none;">
-    <div class="total-box" id="totalBox">
-      <div class="total-label">💰 Total Deposit (Sudah Dikonfirmasi)</div>
-      <div class="total-value" id="totalConfirmedDeposit">Rp 0</div>
-    </div>
-    <div class="card">
-      <div class="card-title">
-        <span>🗂️ Semua Transaksi Deposit</span>
-      </div>
-      <div id="historyList" class="history-list">
-        <!-- dynamic items -->
-      </div>
-    </div>
+  <div class="card" id="historyContainer">
+    <div class="loading"><div class="spinner"></div></div>
   </div>
 </div>
 
 <script>
-  // ==================== FIREBASE CONFIG ====================
   const FIREBASE_CONFIG = {
     apiKey: "AIzaSyCD0pgeZio-LdKqYDtWxcdXcZwyL4ngYQI",
     authDomain: "jego-35a2b.firebaseapp.com",
@@ -245,138 +119,116 @@
     messagingSenderId: "600037007040",
     appId: "1:600037007040:web:ac3243ad9b472647ffd725"
   };
+  if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
+  const database = firebase.database();
+  const auth = firebase.auth();
 
-  let database, auth;
-  let currentDriverUid = null;
-
+  // Cek login di localStorage dan auth state
+  const loggedInDriver = localStorage.getItem('jego_logged_in_driver');
+  if (!loggedInDriver) {
+    alert('Anda harus login terlebih dahulu!');
+    window.location.href = 'loginDriver.html';
+  }
+  let driverUid = null;
+  let driverData = null;
   try {
-    if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
-    database = firebase.database();
-    auth = firebase.auth();
-    console.log('✅ Firebase (history deposit) terhubung');
-  } catch (error) {
-    console.error('❌ Firebase init error:', error);
+    driverData = JSON.parse(loggedInDriver);
+    driverUid = driverData.uid;
+    if (!driverUid) throw new Error();
+  } catch(e) {
+    alert('Data login rusak, silakan login ulang');
+    localStorage.removeItem('jego_logged_in_driver');
+    window.location.href = 'loginDriver.html';
   }
 
-  // ==================== HELPER ====================
-  function formatRupiah(amount) {
-    return 'Rp ' + (amount || 0).toLocaleString('id-ID');
-  }
-
-  function formatDate(timestamp) {
-    if (!timestamp) return 'Tanggal tidak diketahui';
-    try {
-      let date;
-      if (typeof timestamp === 'number') {
-        date = new Date(timestamp);
-      } else if (typeof timestamp === 'string') {
-        date = new Date(timestamp);
-      } else {
-        return 'Tanggal tidak valid';
-      }
-      return date.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-    } catch(e) {
-      return 'Tanggal tidak valid';
-    }
-  }
-
-  // ==================== LOAD DATA ====================
-  async function loadDepositHistory() {
-    // Ambil driver dari localStorage
-    const driverRaw = localStorage.getItem('jego_logged_in_driver');
-    if (!driverRaw) {
-      window.location.href = 'loginDriver.html';
-      return;
-    }
-    let driver;
-    try {
-      driver = JSON.parse(driverRaw);
-      currentDriverUid = driver.uid || driver.driverId;
-      if (!currentDriverUid) throw new Error('UID tidak ada');
-    } catch(e) {
-      alert('Data login tidak valid. Silakan login ulang.');
+  auth.onAuthStateChanged(async (user) => {
+    if (!user || user.uid !== driverUid) {
+      alert('Sesi login tidak valid, silakan login ulang');
       localStorage.removeItem('jego_logged_in_driver');
       window.location.href = 'loginDriver.html';
       return;
     }
+    await loadHistory();
+  });
 
-    document.getElementById('loadingState').style.display = 'flex';
-    document.getElementById('contentArea').style.display = 'none';
-
+  async function loadHistory() {
+    const container = document.getElementById('historyContainer');
+    container.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
     try {
-      const depositsRef = database.ref(`drivers/${currentDriverUid}/deposits`);
-      const snapshot = await depositsRef.once('value');
-      const deposits = snapshot.val();
-      
-      let historyItems = [];
-      let totalConfirmed = 0;
+      const logsRef = database.ref(`driver_balance_logs/${driverUid}`);
+      const snapshot = await logsRef.orderByChild('timestamp').once('value');
+      const logs = snapshot.val();
+      if (!logs) {
+        container.innerHTML = '<div class="empty-history">✨ Belum ada riwayat transaksi saldo</div>';
+        return;
+      }
 
-      if (deposits) {
-        for (let paymentId in deposits) {
-          const dep = deposits[paymentId];
-          if (dep.status === 'confirmed') {
-            totalConfirmed += (dep.depositAmount || 0);
-          }
-          historyItems.push({
-            id: paymentId,
-            ...dep
-          });
+      let items = Object.entries(logs).map(([key, val]) => ({ id: key, ...val }));
+      items.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+
+      let html = '';
+      for (const item of items) {
+        let typeLabel = '', typeClass = '', amountClass = '', amountValue = 0;
+        let extraInfo = '';
+
+        if (item.type === 'deposit_request') {
+          typeLabel = item.status === 'confirmed' ? '✅ Deposit Dikonfirmasi' : '⏳ Permintaan Deposit (Pending)';
+          typeClass = 'type-pending';
+          amountClass = 'pending';
+          amountValue = item.amount;
+          extraInfo = `<div class="meta">🧾 Total harus transfer: ${formatRupiah(item.uniqueAmount)} (kode unik ${item.uniqueDigits})</div>`;
+        } 
+        else if (item.type === 'topup_admin' || item.amount > 0) {
+          typeLabel = '➕ Tambah Saldo';
+          typeClass = 'type-add';
+          amountClass = 'plus';
+          amountValue = Math.abs(item.amount);
+        } 
+        else {
+          typeLabel = '➖ Kurangi Saldo';
+          typeClass = 'type-deduct';
+          amountClass = 'minus';
+          amountValue = Math.abs(item.amount);
         }
-      }
-      // Urutkan dari terbaru (berdasarkan createdAt)
-      historyItems.sort((a,b) => {
-        const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-        const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-        return bTime - aTime;
-      });
 
-      // Update total confirmed
-      document.getElementById('totalConfirmedDeposit').innerHTML = formatRupiah(totalConfirmed);
-
-      // Render history
-      const historyContainer = document.getElementById('historyList');
-      if (historyItems.length === 0) {
-        historyContainer.innerHTML = '<div class="empty-state">📭 Belum ada riwayat deposit</div>';
-      } else {
-        historyContainer.innerHTML = '';
-        historyItems.forEach(item => {
-          const statusClass = item.status === 'confirmed' ? 'status-confirmed' : 
-                              (item.status === 'rejected' ? 'status-rejected' : 'status-pending');
-          const statusText = item.status === 'confirmed' ? 'Dikonfirmasi' :
-                             (item.status === 'rejected' ? 'Ditolak' : 'Pending');
-          
-          const itemDiv = document.createElement('div');
-          itemDiv.className = 'history-item';
-          itemDiv.innerHTML = `
-            <div class="history-header">
-              <span class="history-date">${formatDate(item.createdAt)}</span>
-              <span class="status-badge ${statusClass}">${statusText}</span>
+        const dateStr = item.timestamp ? new Date(item.timestamp).toLocaleString('id-ID') : '-';
+        const noteHtml = item.note ? `<div class="meta">📝 ${escapeHtml(item.note)}</div>` : '';
+        
+        html += `
+          <div class="transaction-item">
+            <div>
+              <span class="transaction-type ${typeClass}">${typeLabel}</span>
+              <div class="meta">${dateStr}</div>
+              ${noteHtml}
+              ${extraInfo}
             </div>
-            <div class="history-details">
-              <div class="detail-block">💰 Deposit: ${formatRupiah(item.depositAmount)}</div>
-              <div class="detail-block">💸 Total Transfer: ${formatRupiah(item.uniqueAmount)}</div>
-              <div class="detail-block">🔢 Kode: ${item.paymentId || '-'}</div>
+            <div style="text-align: right;">
+              <div class="amount ${amountClass}">${formatRupiah(amountValue)}</div>
+              ${item.new_balance !== undefined ? `<div class="balance-info">Saldo akhir: ${formatRupiah(item.new_balance)}</div>` : ''}
             </div>
-          `;
-          historyContainer.appendChild(itemDiv);
-        });
+          </div>
+        `;
       }
-
-      document.getElementById('loadingState').style.display = 'none';
-      document.getElementById('contentArea').style.display = 'block';
+      container.innerHTML = html;
     } catch (err) {
       console.error(err);
-      document.getElementById('loadingState').innerHTML = `<div class="loading"><div>⚠️ Gagal memuat data: ${err.message}</div><button id="retryBtn" class="refresh-btn" style="margin-top: 12px;">Coba Lagi</button></div>`;
-      document.getElementById('retryBtn')?.addEventListener('click', () => location.reload());
+      container.innerHTML = `<div class="empty-history">❌ Gagal memuat riwayat: ${err.message}</div>`;
     }
   }
 
-  // ==================== INITIALIZE ====================
-  document.addEventListener('DOMContentLoaded', () => {
-    document.getElementById('backBtn').addEventListener('click', () => window.location.href = 'akun.html');
-    document.getElementById('refreshBtn').addEventListener('click', () => loadDepositHistory());
-    loadDepositHistory();
-  });
+  function formatRupiah(amount) {
+    return 'Rp ' + (amount || 0).toLocaleString('id-ID');
+  }
+
+  function escapeHtml(str) {
+    if (!str) return '';
+    return str.replace(/[&<>]/g, function(m) {
+      if (m === '&') return '&amp;';
+      if (m === '<') return '&lt;';
+      if (m === '>') return '&gt;';
+      return m;
+    });
+  }
 </script>
 </body>
 </html>
