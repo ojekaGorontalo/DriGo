@@ -245,10 +245,11 @@
 
     let allDrivers = [];
     let allCustomers = [];
-    let depositRequests = []; // array of { driverId, logId, ...data }
+    let depositRequests = [];
     let onesignalApiKey = null;
+    let currentDriverForTopup = null;
 
-    // ========== ONE SIGNAL ==========
+    // ========== ONE SIGNAL & DATABASE NOTIF ==========
     async function getOneSignalApiKey() {
         if (onesignalApiKey) return onesignalApiKey;
         try {
@@ -287,6 +288,23 @@
         } catch(err) { console.error("Gagal notif:", err); return false; }
     }
 
+    async function saveDriverNotification(driverId, title, message, type = 'info') {
+        if (!driverId) return;
+        try {
+            const notifRef = database.ref(`driver_notifications/${driverId}`).push();
+            await notifRef.set({
+                title: title,
+                message: message,
+                timestamp: firebase.database.ServerValue.TIMESTAMP,
+                read: false,
+                type: type
+            });
+            console.log(`✅ Notifikasi database terkirim ke driver ${driverId}`);
+        } catch (err) {
+            console.error("❌ Gagal simpan notifikasi database:", err);
+        }
+    }
+
     // ========== UTILITY ==========
     function showToast(msg, isError = false) {
         const toast = document.getElementById('toastMsg');
@@ -300,7 +318,7 @@
         return 'Rp ' + (amount || 0).toLocaleString('id-ID');
     }
 
-    // =============== DRIVER SECTION (sama seperti sebelumnya) ===============
+    // =============== DRIVER SECTION ===============
     async function loadDrivers() {
         const tbody = document.getElementById('driverTableBody');
         tbody.innerHTML = '<tr class="empty-row"><td colspan="11"><div class="loading-overlay"><div class="spinner"></div></div></tr>';
@@ -386,6 +404,7 @@
             actionDiv.append(statusSelect, updateBtn, editBtn, topupBtn);
             row.insertCell(10).appendChild(actionDiv);
 
+            // Update Status Driver
             updateBtn.onclick = async () => {
                 const newStatus = statusSelect.value;
                 const newReason = reasonInput.value.trim();
@@ -397,6 +416,15 @@
                         updates[`drivers/${d.uid}/ketGagal`] = newReason || (newStatus === 'rejected' ? 'Ditolak admin' : 'Diblokir admin');
                     else updates[`drivers/${d.uid}/ketGagal`] = null;
                     await database.ref().update(updates);
+
+                    // Kirim notifikasi database
+                    let statusMessage = '';
+                    if (newStatus === 'accepted') statusMessage = '✅ Akun driver Anda telah disetujui. Silakan login dan mulai bekerja.';
+                    else if (newStatus === 'rejected') statusMessage = `❌ Pendaftaran Anda ditolak. Alasan: ${newReason || 'Tidak ada keterangan'}`;
+                    else if (newStatus === 'blocked') statusMessage = `⛔ Akun Anda diblokir. Alasan: ${newReason || 'Tidak ada keterangan'}`;
+                    else statusMessage = `ℹ️ Status akun Anda diubah menjadi ${newStatus.toUpperCase()}.`;
+                    await saveDriverNotification(d.uid, 'Status Akun Diubah', statusMessage, 'status');
+
                     d.status = newStatus; d.ketGagal = updates[`drivers/${d.uid}/ketGagal`] || null;
                     applyDriverFilter();
                     showToast(`Status driver ${d.name} diubah menjadi ${newStatus}`);
@@ -437,14 +465,15 @@
             await database.ref(`drivers/${uid}`).update(data);
             const idx = allDrivers.findIndex(d => d.uid === uid);
             if (idx !== -1) Object.assign(allDrivers[idx], data);
+            // Kirim notifikasi database
+            await saveDriverNotification(uid, 'Data Driver Diubah', `Data Anda telah diperbarui oleh admin. Periksa kembali profil Anda.`, 'edit');
             applyDriverFilter();
             showToast('Data driver disimpan');
             document.getElementById('editDriverModal').style.display = 'none';
         } catch(err) { showToast(err.message, true); } finally { btn.disabled = false; btn.textContent = 'Simpan'; }
     }
 
-    // ========== ATUR SALDO (sama seperti sebelumnya) ==========
-    let currentDriverForTopup = null;
+    // ========== ATUR SALDO ==========
     function openTopupModal(driver) {
         currentDriverForTopup = driver;
         document.getElementById('topupDriverUid').value = driver.uid;
@@ -476,8 +505,7 @@
         }
     }
 
-    async function processTopup(uid, amount, note, type = 'add', fromDepositConfirm = false, depositLogId = null, depositUniqueAmount = null) {
-        // Fungsi ini dapat dipanggil dari modal manual atau dari konfirmasi deposit
+    async function processTopup(uid, amount, note, type = 'add', fromDepositConfirm = false, depositLogId = null) {
         if (!uid || !amount || amount <= 0) throw new Error('Nominal tidak valid');
         if (!note) throw new Error('Keterangan wajib diisi');
         const driverSnap = await database.ref(`drivers/${uid}`).once('value');
@@ -501,6 +529,11 @@
         const adminCheck = await database.ref(`admins/${currentUser.uid}`).once('value');
         if (!adminCheck.exists()) throw new Error('UID tidak terdaftar sebagai admin');
 
+        // Notifikasi database
+        const notifTitle = type === 'add' ? "💰 Saldo Ditambahkan" : "⚠️ Saldo Dikurangi";
+        const notifMessage = `Halo ${driverData.name}, saldo Anda ${type === 'add' ? 'bertambah' : 'berkurang'} Rp ${amount.toLocaleString('id-ID')}. Saldo lama: ${formatRupiah(oldBalance)}, Saldo baru: ${formatRupiah(newBalance)}. Keterangan: ${note}`;
+        await saveDriverNotification(uid, notifTitle, notifMessage, transactionTypeLabel);
+
         // Update saldo
         await database.ref(`drivers/${uid}/balance`).set(newBalance);
 
@@ -516,20 +549,17 @@
             timestamp: firebase.database.ServerValue.TIMESTAMP
         });
 
-        // Jika dari konfirmasi deposit, ubah status deposit request menjadi confirmed
         if (fromDepositConfirm && depositLogId) {
             await database.ref(`driver_balance_logs/${uid}/${depositLogId}/status`).set('confirmed');
         }
 
-        // Kirim notifikasi
+        // Kirim push notification via OneSignal
         const playerIdSnap = await database.ref(`drivers/${uid}/playerId`).once('value');
         let playerId = playerIdSnap.val();
         if (!playerId) {
             const locSnap = await database.ref(`driver_locations/${uid}/playerId`).once('value');
             playerId = locSnap.val();
         }
-        const notifTitle = type === 'add' ? "💰 Saldo Ditambahkan" : "⚠️ Saldo Dikurangi";
-        const notifMessage = `Halo ${driverData.name}, saldo Anda ${type === 'add' ? 'bertambah' : 'berkurang'} Rp ${amount.toLocaleString('id-ID')}. Saldo lama: ${formatRupiah(oldBalance)}, Saldo baru: ${formatRupiah(newBalance)}. Keterangan: ${note}`;
         if (playerId) {
             try {
                 await sendPushNotification(playerId, notifTitle, notifMessage, { type: transactionTypeLabel, amount, old_balance: oldBalance, new_balance: newBalance, note });
@@ -545,7 +575,7 @@
         return true;
     }
 
-    // Handler untuk tombol Proses di modal manual
+    // Handler tombol Proses di modal atur saldo
     document.getElementById('confirmTopupBtn').onclick = async () => {
         const uid = document.getElementById('topupDriverUid').value;
         const amountInput = document.getElementById('topupAmount').value.trim();
@@ -573,7 +603,7 @@
         }
     };
 
-    // =============== CUSTOMER SECTION (sama seperti sebelumnya) ===============
+    // =============== CUSTOMER SECTION ===============
     async function loadCustomers() {
         const tbody = document.getElementById('customerTableBody');
         tbody.innerHTML = '<tr class="empty-row"><td colspan="7"><div class="loading-overlay"><div class="spinner"></div></div></tr>';
@@ -676,7 +706,6 @@
                     }
                 });
             });
-            // Urutkan dari yang terbaru
             requests.sort((a,b) => (b.timestamp || 0) - (a.timestamp || 0));
             depositRequests = requests;
             applyDepositFilter();
@@ -724,10 +753,8 @@
                         `Deposit via QRIS - ${req.note || ''} (kode unik ${req.uniqueDigits})`,
                         'add',
                         true,
-                        req.logId,
-                        req.uniqueAmount
+                        req.logId
                     );
-                    // Hapus dari tampilan
                     const index = depositRequests.findIndex(r => r.logId === req.logId && r.driverId === req.driverId);
                     if (index !== -1) depositRequests.splice(index, 1);
                     applyDepositFilter();
