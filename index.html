@@ -209,6 +209,12 @@
     cursor: pointer; font-weight: 600; display: flex; align-items: center; gap: 5px;
     transition: all 0.2s ease;
   }
+  .right-controls {
+  display: flex;
+  flex-direction: row;
+  gap: 8px;
+  align-items: center;
+}
   .location-toggle-btn.active, .autobid-btn.active {
     background: #42E129; color: white; box-shadow: 0 1px 3px rgba(0,0,0,0.2);
   }
@@ -428,6 +434,29 @@
   }
   
   #loadingOverlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.95); display: none; flex-direction: column; justify-content: center; align-items: center; z-index: 3000; }
+  
+  /* Badge notifikasi */
+#notifBtn {
+  position: relative;
+}
+.notif-badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  background: #f44336;
+  color: white;
+  border-radius: 50%;
+  padding: 2px 6px;
+  font-size: 0.6rem;
+  font-weight: bold;
+  min-width: 18px;
+  text-align: center;
+}
+/* Pesan belum dibaca */
+.notif-item.unread {
+  background: #fff9e6;
+  border-left: 3px solid var(--primary);
+}
   </style>
 </head>
 <body>
@@ -443,11 +472,12 @@
   </div>
   <div class="center-controls">
     <button class="location-toggle-btn" id="locationToggleBtn">📍 OFF</button>
-    <button class="autobid-btn" id="autobidBtn">Autobid: OFF</button>
+    
   </div>
   <div class="right-controls">
-    <button class="refresh-btn" id="refreshBtn" title="Refresh">↻</button>
-  </div>
+  <button class="refresh-btn" id="refreshBtn" title="Refresh">↻</button>
+  <button class="refresh-btn" id="notifBtn" title="Notifikasi">🔔</button>
+</div>
 </div>
 
 <!-- RADAR FULLSCREEN -->
@@ -499,6 +529,19 @@
   </div>
 </div>
 
+<!-- MODAL DAFTAR NOTIFIKASI (dipindahkan ke luar dari orderModal) -->
+<div id="notifModal" class="modal" style="z-index: 1200;">
+  <div class="modal-content" style="max-width: 500px;">
+    <div class="modal-header-with-customer">
+      <h3 class="modal-title">📬 Pesan Masuk</h3>
+      <button class="close-btn" id="closeNotifModal">&times;</button>
+    </div>
+    <div class="modal-body" id="notifListBody" style="max-height: 60vh; overflow-y: auto;">
+      <div class="loading">Memuat...</div>
+    </div>
+  </div>
+</div>
+
 <div class="sidebar" id="sidebar">
   <div class="sidebar-overlay" id="sidebarOverlay"></div>
   <div class="sidebar-content">
@@ -517,6 +560,13 @@
 </div>
       <div class="menu-section"><h4>Preferensi Order</h4>
         <div class="menu-item"><span>Terima Kurir</span><label class="toggle-switch"><input type="checkbox" id="acceptKurirToggle"><span class="toggle-slider"></span></label></div>
+        <div class="menu-item">
+  <span>🤖 Autobid (Otomatis ambil order)</span>
+  <label class="toggle-switch">
+    <input type="checkbox" id="autobidToggle">
+    <span class="toggle-slider"></span>
+  </label>
+</div>
       </div>
       <div class="menu-section"><h4>Statistik</h4>
         <div class="status-info">
@@ -685,9 +735,8 @@ function updateTrackingButton() {
   else { btn.innerHTML = '📍 OFF'; btn.classList.remove('active'); }
 }
 function updateAutobidButton() {
-  const btn = document.getElementById('autobidBtn');
-  if (autobidEnabled) { btn.innerHTML = 'Autobid: ON'; btn.classList.add('active'); }
-  else { btn.innerHTML = 'Autobid: OFF'; btn.classList.remove('active'); }
+  const toggle = document.getElementById('autobidToggle');
+  if (toggle) toggle.checked = autobidEnabled;
 }
 function updateAcceptKurirSetting() {
   acceptKurirEnabled = document.getElementById('acceptKurirToggle').checked;
@@ -1586,12 +1635,81 @@ async function checkDriverActiveOrder() {
   }
   return false;
 }
+let notifListenerRef = null;
+let notifListener = null;
+
+function loadDriverNotifications() {
+  if (!globalCurrentUid) return;
+  const container = document.getElementById('notifListBody');
+  if (!container) return;
+
+  if (notifListener && notifListenerRef) {
+    notifListenerRef.off('value', notifListener);
+  }
+  notifListenerRef = database.ref(`driver_notifications/${globalCurrentUid}`);
+  notifListener = notifListenerRef.on('value', (snap) => {
+    const notifs = [];
+    snap.forEach(child => {
+      notifs.push({ id: child.key, ...child.val() });
+    });
+    // urut dari terbaru
+    notifs.sort((a,b) => (b.timestamp||0) - (a.timestamp||0));
+    renderNotificationList(notifs);
+    const unreadCount = notifs.filter(n => !n.read).length;
+    updateNotifBadge(unreadCount);
+  });
+}
+
+function renderNotificationList(notifs) {
+  const container = document.getElementById('notifListBody');
+  if (!container) return;
+  if (!notifs.length) {
+    container.innerHTML = '<div class="empty-state">📭 Belum ada pesan</div>';
+    return;
+  }
+  container.innerHTML = '';
+  notifs.forEach(notif => {
+    const div = document.createElement('div');
+    div.className = `notif-item ${!notif.read ? 'unread' : ''}`;
+    div.style.padding = '12px';
+    div.style.borderBottom = '1px solid #eee';
+    div.style.cursor = 'pointer';
+    div.innerHTML = `
+      <div style="display:flex; justify-content:space-between;">
+        <strong>${escapeHtml(notif.title)}</strong>
+        <small>${new Date(notif.timestamp).toLocaleString('id-ID')}</small>
+      </div>
+      <div style="margin-top:6px; font-size:0.75rem;">${escapeHtml(notif.message)}</div>
+    `;
+    div.onclick = async () => {
+      if (!notif.read) {
+        await database.ref(`driver_notifications/${globalCurrentUid}/${notif.id}/read`).set(true);
+      }
+    };
+    container.appendChild(div);
+  });
+}
+
+function updateNotifBadge(count) {
+  const btn = document.getElementById('notifBtn');
+  if (!btn) return;
+  const existingBadge = btn.querySelector('.notif-badge');
+  if (existingBadge) existingBadge.remove();
+  if (count > 0) {
+    const badge = document.createElement('span');
+    badge.className = 'notif-badge';
+    badge.textContent = count > 99 ? '99+' : count;
+    btn.style.position = 'relative';
+    btn.appendChild(badge);
+  }
+}
 
 document.addEventListener('DOMContentLoaded', async () => {
   auth.onAuthStateChanged(async (user) => {
   if (user) {
     console.log('🔐 Driver terautentikasi dengan UID:', user.uid);
     globalCurrentUid = user.uid;
+    loadDriverNotifications();
 
     const driverSnapshot = await database.ref(`drivers/${user.uid}`).once('value');
     const driverDataDB = driverSnapshot.val();
@@ -1611,6 +1729,29 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
       }
     }
+    // Tombol notifikasi di header
+const notifBtn = document.getElementById('notifBtn');
+if (notifBtn) {
+  notifBtn.addEventListener('click', () => {
+    const modal = document.getElementById('notifModal');
+    if (modal) {
+      modal.style.display = 'flex';
+      loadDriverNotifications(); // refresh manual
+    }
+  });
+}
+// Tombol tutup modal notifikasi
+const closeNotifModal = document.getElementById('closeNotifModal');
+if (closeNotifModal) {
+  closeNotifModal.addEventListener('click', () => {
+    document.getElementById('notifModal').style.display = 'none';
+  });
+}
+// Tutup modal jika klik overlay
+window.addEventListener('click', (e) => {
+  const modal = document.getElementById('notifModal');
+  if (e.target === modal) modal.style.display = 'none';
+});
 
     if (await checkDriverActiveOrder()) return;
     if (!checkDriverData()) {
@@ -1655,7 +1796,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('refreshBtn').addEventListener('click', refreshData);
   document.getElementById('closeModal').addEventListener('click', closeModal);
   document.getElementById('ambilBtn').addEventListener('click', () => sendDriverOffer(false));
-  document.getElementById('autobidBtn').addEventListener('click', toggleAutobid);
+  document.getElementById('autobidToggle').addEventListener('change', toggleAutobid);
   document.getElementById('orderModal').addEventListener('click', e => { if (e.target === document.getElementById('orderModal') && !countdownInterval) closeModal(); });
 
   document.getElementById('acceptKurirToggle').addEventListener('change', updateAcceptKurirSetting);
