@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+  <title>Webhook Viewer - JeGo (Real-time)</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #f0f2f5;
+      padding: 16px;
+      padding-bottom: 80px;
+    }
+    .header {
+      background: linear-gradient(135deg, #FF9800, #FFB74D);
+      color: white;
+      padding: 16px;
+      border-radius: 12px;
+      margin-bottom: 16px;
+    }
+    .header h1 { font-size: 1.2rem; margin-bottom: 4px; }
+    .stats {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .stat-card {
+      background: white;
+      padding: 12px 16px;
+      border-radius: 12px;
+      flex: 1;
+      text-align: center;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    .stat-card .number { font-size: 1.5rem; font-weight: bold; color: #FF9800; }
+    .stat-card .label { font-size: 0.7rem; color: #666; }
+    .log-list {
+      background: white;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    .log-item {
+      border-bottom: 1px solid #eee;
+      padding: 12px;
+      cursor: pointer;
+    }
+    .log-item.unread {
+      border-left: 3px solid #FF9800;
+      background: #fff9e6;
+    }
+    .log-time {
+      font-size: 0.6rem;
+      color: #999;
+      margin-bottom: 6px;
+    }
+    .log-title {
+      font-weight: bold;
+      font-size: 0.8rem;
+      margin-bottom: 6px;
+      word-break: break-all;
+    }
+    .log-data {
+      font-size: 0.7rem;
+      color: #555;
+      background: #f5f5f5;
+      padding: 8px;
+      border-radius: 8px;
+      font-family: monospace;
+      word-break: break-all;
+      margin-top: 6px;
+      display: none;
+    }
+    .log-data.show { display: block; }
+    .btn {
+      background: #FF9800;
+      border: none;
+      color: white;
+      padding: 8px 16px;
+      border-radius: 30px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .btn-outline {
+      background: transparent;
+      border: 1px solid #FF9800;
+      color: #FF9800;
+    }
+    .flex {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    .empty-state {
+      text-align: center;
+      padding: 40px;
+      color: #999;
+    }
+    .footer {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: white;
+      padding: 12px;
+      box-shadow: 0 -2px 10px rgba(0,0,0,0.05);
+      display: flex;
+      gap: 8px;
+      justify-content: center;
+    }
+  </style>
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+</head>
+<body>
+  <div class="header">
+    <h1>📬 Webhook Notifikasi (Merchant BCA)</h1>
+    <small>Data muncul otomatis saat ada transaksi</small>
+  </div>
+
+  <div class="stats">
+    <div class="stat-card"><div class="number" id="totalCount">0</div><div class="label">Total</div></div>
+    <div class="stat-card"><div class="number" id="unreadCount">0</div><div class="label">Belum Dibaca</div></div>
+  </div>
+
+  <div class="flex">
+    <span style="font-weight: 600;">📋 Riwayat</span>
+    <button class="btn-outline btn" id="clearBtn" style="background: transparent; padding: 6px 12px;">Hapus Semua</button>
+  </div>
+
+  <div class="log-list" id="logList"><div class="empty-state">Memuat...</div></div>
+
+  <div class="footer">
+    <button class="btn-outline btn" id="testBtn">🧪 Test Simulasi</button>
+  </div>
+
+  <script>
+    // Konfigurasi Firebase (sama dengan aplikasi utama)
+    const firebaseConfig = {
+      apiKey: "AIzaSyCD0pgeZio-LdKqYDtWxcdXcZwyL4ngYQI",
+      authDomain: "jego-35a2b.firebaseapp.com",
+      databaseURL: "https://jego-35a2b-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "jego-35a2b",
+      storageBucket: "jego-35a2b.firebasestorage.app",
+      messagingSenderId: "600037007040",
+      appId: "1:600037007040:web:ac3243ad9b472647ffd725"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const database = firebase.database();
+
+    let notifList = [];
+
+    // Fungsi render
+    function render() {
+      const container = document.getElementById('logList');
+      const totalCount = document.getElementById('totalCount');
+      const unreadCount = document.getElementById('unreadCount');
+      totalCount.innerText = notifList.length;
+      unreadCount.innerText = notifList.filter(n => !n.read).length;
+      if (!notifList.length) {
+        container.innerHTML = '<div class="empty-state">📭 Belum ada notifikasi. Tunggu transaksi QRIS...</div>';
+        return;
+      }
+      container.innerHTML = '';
+      notifList.forEach(n => {
+        const div = document.createElement('div');
+        div.className = `log-item ${!n.read ? 'unread' : ''}`;
+        const date = new Date(n.timestamp);
+        const timeStr = date.toLocaleTimeString('id-ID') + ' ' + date.toLocaleDateString('id-ID');
+        let title = n.text || n.title || 'Notifikasi';
+        if (title.length > 80) title = title.substring(0, 80) + '...';
+        div.innerHTML = `
+          <div class="log-time">📅 ${timeStr}</div>
+          <div class="log-title">${escapeHtml(title)}</div>
+          <button class="btn-outline btn" data-id="${n.firebaseId}" style="background:transparent; padding:4px 12px;">📄 Detail</button>
+          <div class="log-data" id="data-${n.firebaseId}">${escapeHtml(JSON.stringify(n, null, 2))}</div>
+        `;
+        const btn = div.querySelector('.btn-outline');
+        const dataDiv = div.querySelector('.log-data');
+        btn.onclick = (e) => { e.stopPropagation(); dataDiv.classList.toggle('show'); };
+        div.onclick = () => { if (!n.read) markRead(n.firebaseId); };
+        container.appendChild(div);
+      });
+    }
+
+    function markRead(id) {
+      database.ref(`webhook_notifications/${id}/read`).set(true);
+    }
+
+    function clearAll() {
+      if (confirm('Hapus semua notifikasi?')) {
+        database.ref('webhook_notifications').remove();
+      }
+    }
+
+    // Listener realtime
+    const notifRef = database.ref('webhook_notifications');
+    notifRef.on('value', (snap) => {
+      const data = snap.val();
+      if (data) {
+        notifList = Object.entries(data).map(([id, val]) => ({ firebaseId: id, ...val }));
+        notifList.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+      } else {
+        notifList = [];
+      }
+      render();
+    });
+
+    function escapeHtml(s) {
+      if (!s) return '';
+      return s.replace(/[&<>]/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[m]));
+    }
+
+    document.getElementById('clearBtn').onclick = clearAll;
+    document.getElementById('testBtn').onclick = () => {
+      // Simulasi: tambah notifikasi palsu ke Firebase
+      const testData = {
+        timestamp: Date.now(),
+        title: 'TEST SIMULASI',
+        text: 'Transfer Rp 50.000 dari driver test (simulasi)',
+        subtext: 'BCA',
+        amount: 50000,
+        read: false
+      };
+      database.ref('webhook_notifications').push(testData);
+    };
+  </script>
+</body>
+</html>
