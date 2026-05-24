@@ -1,108 +1,77 @@
-// netlify/functions/qris.js
-exports.handler = async (event, context) => {
-  const headers = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type',
-    'Content-Type': 'application/json'
-  };
+// netlify/functions/notifbca.js
+const FIREBASE_DATABASE_URL = 'https://jego-35a2b-default-rtdb.asia-southeast1.firebasedatabase.app';
 
-  if (event.httpMethod === 'OPTIONS') {
-    return { statusCode: 204, headers, body: '' };
+exports.handler = async (event) => {
+  // Hanya menerima method POST
+  if (event.httpMethod !== 'POST') {
+    return { statusCode: 405, body: 'Method Not Allowed' };
   }
-
-  // Ambil parameter dari GET atau POST
-  let amount, fee, qrisCode;
-  if (event.httpMethod === 'GET') {
-    amount = event.queryStringParameters.amount;
-    fee = event.queryStringParameters.fee || '0';
-    qrisCode = event.queryStringParameters.codeqr;
-  } else {
-    try {
-      const body = JSON.parse(event.body);
-      amount = body.amount;
-      fee = body.fee || 0;
-      qrisCode = body.codeqr;
-    } catch (e) {
-      return { statusCode: 400, headers, body: JSON.stringify({ error: 'Body tidak valid' }) };
-    }
-  }
-
-  if (!amount || !qrisCode) {
-    return { statusCode: 400, headers, body: JSON.stringify({ error: 'Parameter amount dan codeqr wajib diisi' }) };
-  }
-
-  const nominal = parseInt(amount);
-  const biayaAdmin = parseInt(fee);
-  if (isNaN(nominal) || nominal <= 0) {
-    return { statusCode: 400, headers, body: JSON.stringify({ error: 'Nominal tidak valid' }) };
-  }
-
-  const totalAmount = nominal + biayaAdmin;
 
   try {
-    const dynamicQR = convertStaticToDynamic(qrisCode, totalAmount);
+    // Parsing data dari Merchant BCA (application/x-www-form-urlencoded)
+    let params;
+    if (event.headers['content-type'] === 'application/x-www-form-urlencoded') {
+      params = new URLSearchParams(event.body);
+    } else {
+      params = new URLSearchParams(event.body);
+    }
+
+    // Ambil field yang dikirim
+    const title = params.get('title') || '';
+    const text = params.get('text') || '';
+    const subtext = params.get('subtext') || '';
+    const bigtext = params.get('bigtext') || '';
+    const infotext = params.get('infotext') || '';
+    const pkg = params.get('pkg') || '';
+
+    // Gabungkan semua teks untuk mencari nominal
+    const fullText = `${title} ${text} ${subtext} ${bigtext} ${infotext}`;
+
+    // Regex untuk ekstrak nominal (contoh: Rp50.000 atau Rp 50,000)
+    const nominalRegex = /Rp\s?([\d\.,]+)/i;
+    const matchNominal = fullText.match(nominalRegex);
+    let amount = 0;
+    if (matchNominal) {
+      let rawNominal = matchNominal[1].replace(/\./g, '').replace(/,/g, '');
+      amount = parseInt(rawNominal);
+    }
+
+    // Siapkan data untuk disimpan ke Firebase
+    const notifData = {
+      timestamp: Date.now(),
+      title,
+      text,
+      subtext,
+      bigtext,
+      infotext,
+      pkg,
+      amount,
+      rawFull: fullText,
+      read: false
+    };
+
+    // Simpan ke Firebase Realtime Database (path /webhook_notifications)
+    const saveResponse = await fetch(`${FIREBASE_DATABASE_URL}/webhook_notifications.json`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(notifData)
+    });
+
+    if (!saveResponse.ok) {
+      throw new Error('Gagal menyimpan ke Firebase');
+    }
+
+    console.log('✅ Notifikasi berhasil disimpan ke Firebase:', notifData);
+
     return {
       statusCode: 200,
-      headers,
-      body: JSON.stringify({
-        status: true,
-        qr: dynamicQR,
-        amount: nominal,
-        fee: biayaAdmin,
-        total: totalAmount,
-        merchant: extractMerchantName(qrisCode)
-      })
+      body: JSON.stringify({ message: 'Notifikasi diterima' })
     };
-  } catch (err) {
-    return { statusCode: 500, headers, body: JSON.stringify({ error: err.message }) };
+  } catch (error) {
+    console.error('❌ Error:', error);
+    return {
+      statusCode: 500,
+      body: JSON.stringify({ error: error.message })
+    };
   }
 };
-
-// Fungsi konversi QRIS statis ke dinamis (dengan update CRC)
-function convertStaticToDynamic(qrString, amount) {
-  let cleanQR = qrString.replace(/\s/g, '');
-  if (cleanQR.length < 4) throw new Error('QR string terlalu pendek');
-  
-  const oldChecksum = cleanQR.slice(-4);
-  let withoutChecksum = cleanQR.slice(0, -4);
-  
-  const amountValue = amount.toString();
-  const amountField = `54${amountValue.length.toString().padStart(2, '0')}${amountValue}`;
-  const amountRegex = /54\d{2}\d+/;
-  
-  if (amountRegex.test(withoutChecksum)) {
-    withoutChecksum = withoutChecksum.replace(amountRegex, amountField);
-  } else {
-    withoutChecksum = withoutChecksum + amountField;
-  }
-  
-  const newCRC = calculateCRC16(withoutChecksum);
-  const newChecksum = newCRC.toString(16).toUpperCase().padStart(4, '0');
-  return withoutChecksum + newChecksum;
-}
-
-function calculateCRC16(data) {
-  let crc = 0xFFFF;
-  for (let i = 0; i < data.length; i++) {
-    crc ^= data.charCodeAt(i) << 8;
-    for (let j = 0; j < 8; j++) {
-      if (crc & 0x8000) {
-        crc = (crc << 1) ^ 0x1021;
-      } else {
-        crc = crc << 1;
-      }
-      crc &= 0xFFFF;
-    }
-  }
-  return crc;
-}
-
-function extractMerchantName(qrString) {
-  const merchantRegex = /59(\d{2})([A-Za-z0-9\s]+)/;
-  const match = qrString.match(merchantRegex);
-  if (match && match[2]) {
-    const length = parseInt(match[1]);
-    return match[2].substring(0, length);
-  }
-  return 'Merchant QRIS';
-}
