@@ -751,6 +751,9 @@
         <div class="sidebar-item" data-link="profile">
             <span class="icon">👤</span> Profil Saya
         </div>
+        <div class="sidebar-item" data-link="referral">   <!-- BARIS INI DITAMBAH -->
+        <span class="icon">🎁</span> Referral
+    </div>
         <div class="sidebar-item" data-link="help">
             <span class="icon">❓</span> Bantuan & Dukungan
         </div>
@@ -1001,7 +1004,10 @@
                 toggleSidebar(false);
                 if (link === 'profile') {
                     window.location.href = 'userAccount.html';
-                } else if (link === 'help') {
+                }
+else if (link === 'referral') {          // TAMBAHKAN BLOK INI
+    window.location.href = 'programReferral.html';
+} else if (link === 'help') {
                     alert('💬 Bantuan: Hubungi customer service di 0812-3456-7890 atau email help@jego.com');
                 } else if (link === 'about') {
                     alert('JeGo v1.0 - Aplikasi transportasi & ekspedisi.');
@@ -1061,29 +1067,36 @@
         }
     }
 
-    function waitForFirebaseAuth(maxWait = 5000) {
-        return new Promise((resolve) => {
-            if (!firebaseAuth) {
-                resolve(null);
-                return;
-            }
-            let resolved = false;
-            const unsubscribe = firebaseAuth.onAuthStateChanged((user) => {
-                if (!resolved) {
-                    resolved = true;
-                    unsubscribe();
-                    resolve(user);
-                }
-            });
-            setTimeout(() => {
-                if (!resolved) {
-                    resolved = true;
-                    unsubscribe();
-                    resolve(null);
-                }
-            }, maxWait);
-        });
+    function waitForFirebaseAuth(maxWait = 10000) {
+  return new Promise((resolve) => {
+    if (!firebaseAuth) {
+      resolve(null);
+      return;
     }
+    // Jika sudah ada user, langsung resolve
+    if (firebaseAuth.currentUser) {
+      resolve(firebaseAuth.currentUser);
+      return;
+    }
+    let resolved = false;
+    const unsubscribe = firebaseAuth.onAuthStateChanged((user) => {
+      if (!resolved) {
+        resolved = true;
+        unsubscribe();
+        resolve(user);
+      }
+    });
+    setTimeout(() => {
+      if (!resolved) {
+        resolved = true;
+        unsubscribe();
+        // Coba refresh token sekali lagi
+        firebaseAuth.currentUser?.reload().catch(() => {});
+        resolve(firebaseAuth.currentUser || null);
+      }
+    }, maxWait);
+  });
+}
 
     async function checkLogin() {
         const loggedInUser = localStorage.getItem('jego_logged_in_user');
@@ -1103,8 +1116,14 @@
                     showAlert('❌ Gagal koneksi Firebase', 'error');
                     return false;
                 }
-                let firebaseUser = await waitForFirebaseAuth(5000);
-                if (!firebaseUser) firebaseUser = await waitForFirebaseAuth(3000);
+                let firebaseUser = await waitForFirebaseAuth(10000);
+if (!firebaseUser) {
+  console.warn('Firebase user still null, trying to force refresh...');
+  try {
+    await firebaseAuth.currentUser?.reload();
+    firebaseUser = firebaseAuth.currentUser;
+  } catch(e) {}
+}
                 if (!firebaseUser) {
                     showAlert('⚠️ Sesi tidak valid, silakan login ulang', 'error');
                     setTimeout(() => window.location.href = 'loginUser.html', 2000);
