@@ -1328,17 +1328,30 @@
           }
         }
         if (previousStatus !== 'completed' && currentStatus === 'completed') {
-          const userId = auth.currentUser?.uid;
-          const orderPrice = newOrder.price || newOrder.totalPrice || 0;
-          const transportType = newOrder.transport_type || '';
-          const isTransport = transportType && !transportType.includes('kurir');
-          if (userId && orderPrice > 0 && isTransport) {
-            await giveReferralBonusIfFirstOrder(userId, orderPrice, orderId);
-          }
-          if (!isRatingSubmitted) {
-            setTimeout(() => showRatingModal(), 1000);
-          }
-        }
+  const userId = auth.currentUser?.uid;
+  const orderPrice = newOrder.price || newOrder.totalPrice || 0;
+  const transportType = newOrder.transport_type || '';
+  const isTransport = transportType && !transportType.includes('kurir');
+  
+  // 🆕 TAMBAHAN: Update jumlah perjalanan customer
+  if (userId) {
+    const userRef = database.ref(`users/${userId}`);
+    await userRef.transaction(currentData => {
+      if (currentData) {
+        currentData.perjalanan = (currentData.perjalanan || 0) + 1;
+      }
+      return currentData;
+    });
+    console.log(`✅ Perjalanan customer ${userId} bertambah menjadi ${(await userRef.once('value')).val().perjalanan}`);
+  }
+  
+  if (userId && orderPrice > 0 && isTransport) {
+    await giveReferralBonusIfFirstOrder(userId, orderPrice, orderId);
+  }
+  if (!isRatingSubmitted) {
+    setTimeout(() => showRatingModal(), 1000);
+  }
+}
         previousStatus = currentStatus;
       }
     });
