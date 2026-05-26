@@ -25,22 +25,29 @@
       --card-border: rgba(0,0,0,0.05);
     }
     body {
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      background: linear-gradient(135deg, var(--primary), var(--secondary));
-      height: 100vh;
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-    }
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background: linear-gradient(135deg, var(--primary), var(--secondary));
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  overscroll-behavior: contain;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  touch-action: pan-y;
+}
     .container {
-      background: white;
-      height: 100vh;
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-      position: relative;
-      box-shadow: 0 0 20px rgba(0,0,0,0.1);
-    }
+  background: white;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+  box-shadow: 0 0 20px rgba(0,0,0,0.1);
+}
     .header {
       background: white;
       padding: 15px 20px;
@@ -64,7 +71,7 @@
       visibility: hidden;
     }
     .map-section {
-      height: 45vh;
+      height: 40vh;
       min-height: 250px;
       width: 100%;
       background: #e2e8f0;
@@ -94,14 +101,17 @@
       border: 1px solid rgba(255,255,255,0.2);
     }
     .content-wrapper {
-      flex: 1;
-      overflow-y: auto;
-      padding: 16px;
-      padding-bottom: 80px;
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-    }
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 16px;
+    padding-bottom: 140px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    min-height: 0;
+    -webkit-overflow-scrolling: touch;
+}
     .status-card, .driver-card, .route-card, .info-card {
       background: white;
       border-radius: 20px;
@@ -223,18 +233,18 @@
       font-size: 0.85rem;
     }
     .actions-section {
-      position: fixed;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      padding: 12px 16px;
-      background: white;
-      border-top: 1px solid #eee;
-      display: flex;
-      gap: 12px;
-      z-index: 100;
-      box-shadow: 0 -2px 10px rgba(0,0,0,0.05);
-    }
+  position: sticky;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 12px 16px;
+  background: white;
+  border-top: 1px solid #eee;
+  display: flex;
+  gap: 12px;
+  z-index: 100;
+  box-shadow: 0 -2px 10px rgba(0,0,0,0.05);
+}
     .action-btn {
       flex: 1;
       padding: 12px;
@@ -497,6 +507,61 @@
       border-color: var(--primary);
       transform: translateY(-1px);
     }
+    /* Bonus section inside info-card */
+    .bonus-row {
+      margin-top: 16px;
+      padding-top: 12px;
+      border-top: 1px dashed #ddd;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .bonus-info {
+      display: flex;
+      flex-direction: column;
+    }
+    .bonus-label {
+      font-size: 0.7rem;
+      color: var(--gray-text);
+    }
+    .bonus-amount {
+      font-size: 1.2rem;
+      font-weight: 800;
+      color: #2E7D32;
+    }
+    .bonus-input-group {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .bonus-input {
+      padding: 8px 12px;
+      border-radius: 30px;
+      border: 1px solid #ccc;
+      width: 120px;
+    }
+    .apply-bonus-btn {
+      background: #4CAF50;
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 30px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    .apply-bonus-btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+    .bonus-message {
+      font-size: 0.7rem;
+      color: #555;
+      margin-top: 6px;
+      text-align: center;
+    }
+    
   </style>
 </head>
 <body>
@@ -555,13 +620,27 @@
           </div>
         </div>
       </div>
-      <div class="info-card">
+
+      <!-- INFO CARD + BONUS INTEGRATED -->
+      <div class="info-card" id="infoCard">
         <div class="info-grid">
           <div class="info-item"><div class="info-label">Jarak</div><div class="info-value" id="distance">-</div></div>
           <div class="info-item"><div class="info-label">Durasi</div><div class="info-value" id="duration">-</div></div>
           <div class="info-item"><div class="info-label">Biaya</div><div class="info-value price" id="price">-</div></div>
           <div class="info-item"><div class="info-label">Status</div><div class="info-value" id="orderStatus">-</div></div>
         </div>
+        <!-- BONUS SECTION INSIDE INFO CARD -->
+        <div class="bonus-row" id="bonusRow">
+          <div class="bonus-info">
+            <div class="bonus-label">💰 Saldo Bonus Anda</div>
+            <div class="bonus-amount" id="userBonusAmount">Rp 0</div>
+          </div>
+          <div class="bonus-input-group" id="bonusActionDiv">
+            <input type="number" id="bonusInput" class="bonus-input" placeholder="Nominal" min="0" step="1000">
+            <button id="applyBonusBtn" class="apply-bonus-btn">Gunakan</button>
+          </div>
+        </div>
+        <div id="bonusMessage" class="bonus-message"></div>
       </div>
     </div>
     <div class="actions-section">
@@ -571,6 +650,7 @@
   </div>
 </div>
 
+<!-- Chat Overlay -->
 <div id="chatOverlay" class="chat-overlay">
   <div class="chat-header">
     <span>💬 Chat dengan Driver</span>
@@ -625,6 +705,12 @@
   let isRatingSubmitted = false;
   let selectedRating = 0;
   let driverIdForRating = null;
+
+  // Variabel untuk bonus
+  let currentUserBonus = 0;
+  let currentOrderPrice = 0;
+  let bonusApplied = 0;
+  const activeStatuses = ['accepted', 'on_the_way', 'arrived', 'on_trip'];
 
   function formatRupiah(num) { return 'Rp ' + (num || 0).toLocaleString('id-ID'); }
 
@@ -723,7 +809,7 @@
     }
   }
 
-  // ========== FUNGSI BONUS REFERRAL (20% dari order pertama) ==========
+  // ========== FUNGSI BONUS REFERRAL (0.5% setiap order, tanpa batasan) ==========
   async function giveReferralBonusIfFirstOrder(customerUid, orderPrice, orderId) {
     console.log("🔍 [Bonus] Mengecek referral untuk customer:", customerUid);
     if (!customerUid || !orderPrice) return;
@@ -734,38 +820,28 @@
         console.log("ℹ️ [Bonus] Customer tidak direfer oleh siapa pun");
         return;
       }
-      const bonusGivenSnap = await database.ref(`referralUsage/${referrerUid}/${customerUid}/bonusGiven`).once('value');
-      if (bonusGivenSnap.val() === true) {
-        console.log("⚠️ [Bonus] Bonus sudah pernah diberikan untuk customer ini");
-        return;
-      }
-      const bonus = Math.floor(orderPrice * 0.2);
+      // Bonus 0.5% (dibulatkan ke bawah)
+      const bonus = Math.floor(orderPrice * 0.005);
       if (bonus <= 0) {
         console.log("⚠️ [Bonus] Bonus 0, tidak perlu ditambahkan");
         return;
       }
-      console.log(`💰 [Bonus] Menambahkan bonus Rp${bonus} ke referrer ${referrerUid}`);
+      console.log(`💰 [Bonus] Menambahkan bonus Rp${bonus} ke referrer ${referrerUid} untuk order ${orderId}`);
       
-      // Update referral_bonus_total referrer
       const referrerRef = database.ref(`users/${referrerUid}/referral_bonus_total`);
       await referrerRef.transaction(current => (current || 0) + bonus);
       
-      // Tandai bonus sudah diberikan
-      await database.ref(`referralUsage/${referrerUid}/${customerUid}/bonusGiven`).set(true);
-      await database.ref(`referralUsage/${referrerUid}/${customerUid}/bonusAmount`).set(bonus);
-      await database.ref(`referralUsage/${referrerUid}/${customerUid}/orderId`).set(orderId);
-      await database.ref(`referralUsage/${referrerUid}/${customerUid}/givenAt`).set(new Date().toISOString());
-      
-      // Catat histori bonus
-      await database.ref(`referralBonusHistory/${referrerUid}/${customerUid}`).set({
+      await database.ref(`referralBonusHistory/${referrerUid}/${customerUid}/${orderId}`).set({
         amount: bonus,
         orderId: orderId,
         orderPrice: orderPrice,
         givenAt: new Date().toISOString()
       });
       
+      await database.ref(`referralUsage/${referrerUid}/${customerUid}/lastBonusAt`).set(new Date().toISOString());
+      await database.ref(`referralUsage/${referrerUid}/${customerUid}/totalBonusAccumulated`).transaction(current => (current || 0) + bonus);
+      
       console.log("✅ [Bonus] Selesai, bonus telah ditambahkan ke referrer");
-      // Tampilkan notifikasi ke customer yang sedang aktif (opsional)
       showToast(`🎉 Bonus referral Rp${bonus.toLocaleString('id-ID')} telah diberikan kepada pengguna yang mengajak Anda!`);
     } catch (err) {
       console.error("❌ [Bonus] Gagal memberikan bonus:", err);
@@ -793,6 +869,90 @@
       toast.style.opacity = '0';
       setTimeout(() => toast.remove(), 300);
     }, 3000);
+  }
+
+  // ========== FUNGSI PENGGUNAAN BONUS OLEH CUSTOMER ==========
+  async function loadUserBonus() {
+    const user = auth.currentUser;
+    if (!user) return;
+    try {
+      const snap = await database.ref(`users/${user.uid}/referral_bonus_total`).once('value');
+      currentUserBonus = snap.val() || 0;
+      document.getElementById('userBonusAmount').innerText = formatRupiah(currentUserBonus);
+    } catch(e) { console.error(e); }
+  }
+
+  async function checkBonusAlreadyApplied() {
+    if (!orderId) return;
+    const snap = await database.ref(`orders/${orderId}/bonus_used`).once('value');
+    const used = snap.val() || 0;
+    bonusApplied = used;
+    if (bonusApplied > 0) {
+      const applyBtn = document.getElementById('applyBonusBtn');
+      if (applyBtn) {
+        applyBtn.disabled = true;
+        applyBtn.style.opacity = '0.6';
+        applyBtn.innerText = 'Digunakan';
+      }
+      document.getElementById('bonusInput').disabled = true;
+      const finalPrice = currentOrderPrice - bonusApplied;
+      document.getElementById('priceDisplay').innerHTML = `${formatRupiah(finalPrice)} <small>total (sudah pakai bonus)</small>`;
+      document.getElementById('price').innerHTML = formatRupiah(finalPrice);
+      document.getElementById('bonusMessage').innerHTML = `✅ Bonus Rp ${bonusApplied.toLocaleString()} sudah digunakan. Anda bayar ${formatRupiah(finalPrice)} ke driver.`;
+    } else {
+      document.getElementById('priceDisplay').innerHTML = `${formatRupiah(currentOrderPrice)} <small>total</small>`;
+      document.getElementById('price').innerHTML = formatRupiah(currentOrderPrice);
+      document.getElementById('bonusMessage').innerHTML = '';
+    }
+  }
+
+  async function applyBonus() {
+    const bonusInput = document.getElementById('bonusInput');
+    let bonusValue = parseInt(bonusInput.value);
+    if (isNaN(bonusValue) || bonusValue <= 0) {
+      alert('Masukkan nominal bonus yang valid');
+      return;
+    }
+    if (bonusValue > currentUserBonus) {
+      alert('Saldo bonus tidak mencukupi');
+      return;
+    }
+    if (bonusValue > currentOrderPrice) {
+      alert('Bonus tidak boleh melebihi harga order');
+      return;
+    }
+    if (bonusApplied > 0) {
+      alert('Bonus sudah pernah digunakan untuk order ini');
+      return;
+    }
+    const user = auth.currentUser;
+    if (!user) return;
+    const confirmMsg = `Gunakan bonus Rp ${bonusValue.toLocaleString()} untuk order ini?\nHarga awal: ${formatRupiah(currentOrderPrice)}\nAnda cukup bayar: ${formatRupiah(currentOrderPrice - bonusValue)}\nSaldo bonus akan berkurang.`;
+    if (!confirm(confirmMsg)) return;
+    try {
+      await database.ref(`users/${user.uid}/referral_bonus_total`).transaction(cur => (cur || 0) - bonusValue);
+      await database.ref(`orders/${orderId}`).update({
+        bonus_used: bonusValue,
+        price_after_bonus: currentOrderPrice - bonusValue,
+        bonus_applied_at: new Date().toISOString()
+      });
+      currentUserBonus -= bonusValue;
+      bonusApplied = bonusValue;
+      document.getElementById('userBonusAmount').innerText = formatRupiah(currentUserBonus);
+      document.getElementById('priceDisplay').innerHTML = `${formatRupiah(currentOrderPrice - bonusValue)} <small>total (sudah pakai bonus)</small>`;
+      document.getElementById('price').innerHTML = formatRupiah(currentOrderPrice - bonusValue);
+      document.getElementById('bonusMessage').innerHTML = `✅ Bonus Rp ${bonusValue.toLocaleString()} berhasil digunakan. Anda bayar ${formatRupiah(currentOrderPrice - bonusValue)} ke driver.`;
+      const applyBtn = document.getElementById('applyBonusBtn');
+      if (applyBtn) {
+        applyBtn.disabled = true;
+        applyBtn.style.opacity = '0.6';
+        applyBtn.innerText = 'Digunakan';
+      }
+      document.getElementById('bonusInput').disabled = true;
+    } catch(err) {
+      console.error(err);
+      alert('Gagal menggunakan bonus: ' + err.message);
+    }
   }
 
   // ========== RATING MODAL FUNCTIONS ==========
@@ -899,9 +1059,12 @@
       const order = orderSnap.val();
       if (!order) throw new Error(`Order ${orderId} tidak ditemukan.`);
       orderData = order;
-      const tripPrice = order.price || 0;
-      document.getElementById('priceDisplay').innerHTML = `${formatRupiah(tripPrice)} <small>total</small>`;
-      document.getElementById('price').innerHTML = formatRupiah(tripPrice);
+      currentOrderPrice = order.price || 0;
+      await loadUserBonus();
+      await checkBonusAlreadyApplied();
+
+      document.getElementById('priceDisplay').innerHTML = `${formatRupiah(currentOrderPrice)} <small>total</small>`;
+      document.getElementById('price').innerHTML = formatRupiah(currentOrderPrice);
       let driverId = order.driver_id;
       if (!driverId && order.driver_offers) {
         for (let did in order.driver_offers) {
@@ -970,6 +1133,20 @@
     }
     document.getElementById('orderStatus').innerText = info.text;
     if (status === 'arrived' && !isArrivedAlertShowing) showArrivedAlert();
+
+    // Kontrol tombol bonus berdasarkan status aktif
+    const isActive = activeStatuses.includes(status);
+    const applyBtn = document.getElementById('applyBonusBtn');
+    const bonusInput = document.getElementById('bonusInput');
+    if (!isActive && applyBtn) {
+      applyBtn.disabled = true;
+      applyBtn.style.opacity = '0.6';
+      if (bonusInput) bonusInput.disabled = true;
+    } else if (isActive && bonusApplied === 0 && applyBtn) {
+      applyBtn.disabled = false;
+      applyBtn.style.opacity = '1';
+      if (bonusInput) bonusInput.disabled = false;
+    }
   }
 
   function initMap(order) {
@@ -1026,14 +1203,23 @@
           if (d.driver_photo) document.getElementById('driverPhoto').src = d.driver_photo;
         }
         if (newOrder.price) {
-          document.getElementById('priceDisplay').innerHTML = `${formatRupiah(newOrder.price)} <small>total</small>`;
-          document.getElementById('price').innerHTML = formatRupiah(newOrder.price);
+          currentOrderPrice = newOrder.price;
+          if (!bonusApplied) {
+            document.getElementById('priceDisplay').innerHTML = `${formatRupiah(currentOrderPrice)} <small>total</small>`;
+            document.getElementById('price').innerHTML = formatRupiah(currentOrderPrice);
+          } else {
+            const finalPrice = currentOrderPrice - bonusApplied;
+            document.getElementById('priceDisplay').innerHTML = `${formatRupiah(finalPrice)} <small>total (sudah pakai bonus)</small>`;
+            document.getElementById('price').innerHTML = formatRupiah(finalPrice);
+          }
         }
         // ========== CEK JIKA STATUS BERUBAH MENJADI COMPLETED ==========
         if (previousStatus !== 'completed' && currentStatus === 'completed') {
           const userId = auth.currentUser?.uid;
           const orderPrice = newOrder.price || newOrder.totalPrice || 0;
-          if (userId && orderPrice > 0) {
+          const transportType = newOrder.transport_type || '';
+          const isTransport = transportType && !transportType.includes('kurir');
+          if (userId && orderPrice > 0 && isTransport) {
             await giveReferralBonusIfFirstOrder(userId, orderPrice, orderId);
           }
           if (!isRatingSubmitted) {
@@ -1138,6 +1324,7 @@
     document.getElementById('sendChatBtn').onclick = sendChatMessage;
     document.getElementById('cancelBtn').onclick = cancelOrder;
     document.getElementById('retryBtn')?.addEventListener('click', () => window.location.reload());
+    document.getElementById('applyBonusBtn')?.addEventListener('click', applyBonus);
   });
 </script>
 </body>
