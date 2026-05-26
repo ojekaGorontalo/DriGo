@@ -171,8 +171,46 @@
   let chatOpen = false;
   let onesignalApiKey = null;
 
+// ==================== REFUND BONUS JIKA DRIVER BATAL ====================
+async function refundCustomerBonusIfDriverCancels(orderId, bonusUsed, driverId, customerId) {
+  if (!bonusUsed || bonusUsed <= 0) return false;
+  try {
+    // 1. Kembalikan saldo bonus customer
+    const customerBonusRef = database.ref(`users/${customerId}/referral_bonus_total`);
+    await customerBonusRef.transaction(current => (current || 0) + bonusUsed);
+    
+    // 2. Update status bonus driver menjadi 'refunded' (tidak bisa diklaim)
+    const snapshot = await database.ref(`driver_bonus/${driverId}`).orderByChild('orderId').equalTo(orderId).once('value');
+    const updates = {};
+    snapshot.forEach(child => {
+      updates[`${child.key}/status`] = 'refunded';
+    });
+    if (Object.keys(updates).length) {
+      await database.ref(`driver_bonus/${driverId}`).update(updates);
+    }
+    
+    // 3. Catat history refund (opsional)
+    await database.ref(`bonus_refunds/${orderId}`).set({
+      orderId: orderId,
+      customerId: customerId,
+      driverId: driverId,
+      amount: bonusUsed,
+      refundedAt: new Date().toISOString(),
+      reason: 'driver_cancelled'
+    });
+    
+    console.log(`✅ Bonus Rp ${bonusUsed} dikembalikan ke customer ${customerId} karena driver membatalkan order.`);
+    return true;
+  } catch (err) {
+    console.error('Gagal refund bonus:', err);
+    return false;
+  }
+}
+
   function showToast(msg) { let t = document.getElementById('toast'); t.textContent = msg; t.style.opacity='1'; setTimeout(()=> t.style.opacity='0', 2500); }
-  function getDriverData() { return JSON.parse(localStorage.getItem('jego_logged_in_driver') || '{}'); }
+  function getDriverData() { 
+  return JSON.parse(localStorage.getItem('jego_logged_in_driver') || '{}'); 
+}
   
   async function getOneSignalApiKey() {
     if (onesignalApiKey) return onesignalApiKey;
@@ -287,12 +325,42 @@
     }
   }
 
-  function cancelTrip() {
-    if (currentStatus === 'on_trip') { showToast("Tidak dapat membatalkan perjalanan berlangsung"); return; }
-    if (confirm("Batalkan perjalanan?")) {
-      database.ref('orders/' + orderId).update({ status: 'cancelled', cancelled_by: 'driver', cancelled_at: new Date().toISOString() });
-    }
+  async function cancelTrip() {
+  if (currentStatus === 'on_trip') { 
+    showToast("Tidak dapat membatalkan perjalanan berlangsung"); 
+    return; 
   }
+  if (!confirm("Batalkan perjalanan? Perhatian: Jika Anda batalkan, bonus customer akan dikembalikan ke saldo mereka.")) return;
+  
+  try {
+    // Ambil data bonus yang sudah digunakan dari orderData
+    const bonusUsed = orderData.bonus_used || 0;
+    const customerId = orderData.user_id; // pastikan orderData memiliki field user_id
+    const driver = getDriverData();
+    
+    // Jika ada bonus yang digunakan, lakukan refund ke customer
+    if (bonusUsed > 0 && customerId) {
+      const refundSuccess = await refundCustomerBonusIfDriverCancels(orderId, bonusUsed, driver.uid, customerId);
+      if (!refundSuccess) {
+        showToast("Gagal mengembalikan bonus, tetapi order tetap dibatalkan.");
+      } else {
+        showToast("Bonus customer telah dikembalikan.");
+      }
+    }
+    
+    // Batalkan order
+    await database.ref('orders/' + orderId).update({ 
+      status: 'cancelled', 
+      cancelled_by: 'driver', 
+      cancelled_at: new Date().toISOString() 
+    });
+    
+    showToast("Perjalanan dibatalkan.");
+  } catch (err) {
+    console.error(err);
+    showToast("Gagal membatalkan: " + err.message);
+  }
+}
 
   // Menampilkan informasi bonus jika ada
   function updateBonusDisplay() {
