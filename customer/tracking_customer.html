@@ -271,7 +271,6 @@
       margin-bottom: 16px;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
-    /* Chat Overlay */
     .chat-overlay {
       position: fixed;
       top: 0;
@@ -411,7 +410,6 @@
       font-size: 16px;
       cursor: pointer;
     }
-    /* Rating Modal */
     .rating-modal, .confirmation-modal, .info-modal {
       display: none;
       position: fixed;
@@ -638,7 +636,6 @@
     console.error(msg);
   }
 
-  // ========== Fungsi untuk mendapatkan orderId dari URL atau localStorage ==========
   function getOrderId() {
     const urlParams = new URLSearchParams(window.location.search);
     let id = urlParams.get('order_id') || urlParams.get('id');
@@ -647,13 +644,9 @@
   }
 
   function getCancelledMessage(cancelledBy) {
-    if (cancelledBy === 'customer') {
-      return "⚠️ Anda telah membatalkan perjalanan ini.";
-    } else if (cancelledBy === 'driver') {
-      return "⚠️ Driver telah membatalkan perjalanan ini.";
-    } else {
-      return "⚠️ Perjalanan telah dibatalkan oleh sistem.";
-    }
+    if (cancelledBy === 'customer') return "⚠️ Anda telah membatalkan perjalanan ini.";
+    else if (cancelledBy === 'driver') return "⚠️ Driver telah membatalkan perjalanan ini.";
+    else return "⚠️ Perjalanan telah dibatalkan oleh sistem.";
   }
 
   function showCancelledWarning() {
@@ -730,7 +723,79 @@
     }
   }
 
-  // ========== RATING MODAL FUNCTIONS (untuk customer menilai driver) ==========
+  // ========== FUNGSI BONUS REFERRAL (20% dari order pertama) ==========
+  async function giveReferralBonusIfFirstOrder(customerUid, orderPrice, orderId) {
+    console.log("🔍 [Bonus] Mengecek referral untuk customer:", customerUid);
+    if (!customerUid || !orderPrice) return;
+    try {
+      const referredBySnap = await database.ref(`users/${customerUid}/referred_by`).once('value');
+      const referrerUid = referredBySnap.val();
+      if (!referrerUid) {
+        console.log("ℹ️ [Bonus] Customer tidak direfer oleh siapa pun");
+        return;
+      }
+      const bonusGivenSnap = await database.ref(`referralUsage/${referrerUid}/${customerUid}/bonusGiven`).once('value');
+      if (bonusGivenSnap.val() === true) {
+        console.log("⚠️ [Bonus] Bonus sudah pernah diberikan untuk customer ini");
+        return;
+      }
+      const bonus = Math.floor(orderPrice * 0.2);
+      if (bonus <= 0) {
+        console.log("⚠️ [Bonus] Bonus 0, tidak perlu ditambahkan");
+        return;
+      }
+      console.log(`💰 [Bonus] Menambahkan bonus Rp${bonus} ke referrer ${referrerUid}`);
+      
+      // Update referral_bonus_total referrer
+      const referrerRef = database.ref(`users/${referrerUid}/referral_bonus_total`);
+      await referrerRef.transaction(current => (current || 0) + bonus);
+      
+      // Tandai bonus sudah diberikan
+      await database.ref(`referralUsage/${referrerUid}/${customerUid}/bonusGiven`).set(true);
+      await database.ref(`referralUsage/${referrerUid}/${customerUid}/bonusAmount`).set(bonus);
+      await database.ref(`referralUsage/${referrerUid}/${customerUid}/orderId`).set(orderId);
+      await database.ref(`referralUsage/${referrerUid}/${customerUid}/givenAt`).set(new Date().toISOString());
+      
+      // Catat histori bonus
+      await database.ref(`referralBonusHistory/${referrerUid}/${customerUid}`).set({
+        amount: bonus,
+        orderId: orderId,
+        orderPrice: orderPrice,
+        givenAt: new Date().toISOString()
+      });
+      
+      console.log("✅ [Bonus] Selesai, bonus telah ditambahkan ke referrer");
+      // Tampilkan notifikasi ke customer yang sedang aktif (opsional)
+      showToast(`🎉 Bonus referral Rp${bonus.toLocaleString('id-ID')} telah diberikan kepada pengguna yang mengajak Anda!`);
+    } catch (err) {
+      console.error("❌ [Bonus] Gagal memberikan bonus:", err);
+    }
+  }
+
+  function showToast(msg) {
+    const toast = document.createElement('div');
+    toast.style.position = 'fixed';
+    toast.style.bottom = '80px';
+    toast.style.left = '20px';
+    toast.style.right = '20px';
+    toast.style.backgroundColor = '#1E293B';
+    toast.style.color = 'white';
+    toast.style.textAlign = 'center';
+    toast.style.padding = '12px';
+    toast.style.borderRadius = '40px';
+    toast.style.zIndex = '1100';
+    toast.style.opacity = '0';
+    toast.style.transition = 'opacity 0.2s';
+    toast.innerText = msg;
+    document.body.appendChild(toast);
+    setTimeout(() => { toast.style.opacity = '1'; }, 10);
+    setTimeout(() => {
+      toast.style.opacity = '0';
+      setTimeout(() => toast.remove(), 300);
+    }, 3000);
+  }
+
+  // ========== RATING MODAL FUNCTIONS ==========
   function showRatingModal() {
     if (isRatingSubmitted) return;
     selectedRating = 0;
@@ -748,7 +813,6 @@
     const newContainer = container.cloneNode(true);
     container.parentNode.replaceChild(newContainer, container);
     const stars = newContainer.querySelectorAll('.rating-star');
-    
     const ratingPresets = {
         1: ["Driver tidak sopan", "Perilaku tidak menyenangkan", "Tidak tepat waktu", "Membatalkan order mendadak", "Kendaraan tidak sesuai"],
         2: ["Driver kurang ramah", "Komunikasi sulit", "Sedikit terlambat", "Perjalanan tidak mulus"],
@@ -756,17 +820,16 @@
         4: ["Driver ramah", "Komunikasi baik", "Tepat waktu", "Kendaraan bersih"],
         5: ["Driver sangat ramah", "Komunikasi lancar", "Tepat waktu sekali", "Perjalanan nyaman", "Sangat profesional"]
     };
-
     newContainer.addEventListener('click', (e) => {
-        if (e.target.classList.contains('rating-star')) {
-            const rating = parseInt(e.target.dataset.rating);
-            selectedRating = rating;
-            stars.forEach((s, idx) => {
-                s.textContent = idx < rating ? '★' : '☆';
-                s.classList.toggle('active', idx < rating);
-            });
-            generatePresetButtons(rating, ratingPresets);
-        }
+      if (e.target.classList.contains('rating-star')) {
+        const rating = parseInt(e.target.dataset.rating);
+        selectedRating = rating;
+        stars.forEach((s, idx) => {
+          s.textContent = idx < rating ? '★' : '☆';
+          s.classList.toggle('active', idx < rating);
+        });
+        generatePresetButtons(rating, ratingPresets);
+      }
     });
   }
 
@@ -776,31 +839,27 @@
     container.innerHTML = '';
     const presets = ratingPresets[rating];
     if (!presets) return;
-    
     presets.forEach(text => {
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'preset-btn';
-        btn.textContent = text;
-        btn.addEventListener('click', () => {
-            const textarea = document.getElementById('ratingComment');
-            if (textarea.value.trim() === '') {
-                textarea.value = text;
-            } else {
-                textarea.value += ', ' + text;
-            }
-        });
-        container.appendChild(btn);
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'preset-btn';
+      btn.textContent = text;
+      btn.addEventListener('click', () => {
+        const textarea = document.getElementById('ratingComment');
+        if (textarea.value.trim() === '') {
+          textarea.value = text;
+        } else {
+          textarea.value += ', ' + text;
+        }
+      });
+      container.appendChild(btn);
     });
   }
 
   function closeRatingModal() { document.getElementById('ratingModal').style.display = 'none'; }
 
   async function submitRating() {
-    if (selectedRating === 0) {
-      alert('Pilih rating terlebih dahulu');
-      return;
-    }
+    if (selectedRating === 0) { alert('Pilih rating terlebih dahulu'); return; }
     const comment = document.getElementById('ratingComment').value.trim();
     const btn = document.querySelector('#ratingModal .modal-submit');
     btn.disabled = true;
@@ -808,14 +867,13 @@
     try {
       const user = auth.currentUser;
       if (!user) throw new Error('User tidak login');
-      const driverId = driverIdForRating;
-      if (!driverId) throw new Error('Driver ID tidak ditemukan');
+      if (!driverIdForRating) throw new Error('Driver ID tidak ditemukan');
       const ratingData = {
         rating: selectedRating,
         customer_id: user.uid,
         customer_name: orderData?.customer_name || 'Customer',
         order_id: orderId,
-        driver_id: driverId,
+        driver_id: driverIdForRating,
         comment: comment,
         created_at: new Date().toISOString(),
         timestamp: Date.now()
@@ -850,7 +908,7 @@
           if (order.driver_offers[did].status === 'accepted') { driverId = did; break; }
         }
       }
-      driverIdForRating = driverId; // simpan untuk rating
+      driverIdForRating = driverId;
       let driverInfo = null;
       if (driverId) driverInfo = extractDriverFromOrder(order, driverId);
       document.getElementById('loadingScreen').style.display = 'none';
@@ -873,7 +931,6 @@
       startRealtimeUpdates(orderId);
       initChat(orderId);
       if (order.status === 'arrived') showArrivedAlert();
-      // Jika order sudah completed dan belum dirating, tampilkan modal
       if (order.status === 'completed' && !isRatingSubmitted) {
         setTimeout(() => showRatingModal(), 1500);
       }
@@ -899,7 +956,6 @@
     const info = statusMap[status] || statusMap.waiting;
     badge.innerText = info.text;
     msgDiv.innerText = info.msg;
-
     if (status === 'cancelled') {
       const cancelMessage = getCancelledMessage(cancelledBy);
       cancelledDiv.innerText = cancelMessage;
@@ -907,7 +963,6 @@
     } else {
       cancelledDiv.style.display = 'none';
     }
-
     if (status === 'completed' || status === 'cancelled') {
       document.getElementById('cancelBtn').style.display = 'none';
     } else {
@@ -948,11 +1003,13 @@
 
   function startRealtimeUpdates(orderId) {
     orderRef = database.ref(`orders/${orderId}`);
-    orderRef.on('value', (snap) => {
+    let previousStatus = null;
+    orderRef.on('value', async (snap) => {
       const newOrder = snap.val();
       if (newOrder) {
+        const currentStatus = newOrder.status;
         orderData = newOrder;
-        updateStatusUI(newOrder.status, newOrder.cancelled_by);
+        updateStatusUI(currentStatus, newOrder.cancelled_by);
         let driverId = newOrder.driver_id;
         if (!driverId && newOrder.driver_offers) {
           for (let did in newOrder.driver_offers) {
@@ -972,10 +1029,18 @@
           document.getElementById('priceDisplay').innerHTML = `${formatRupiah(newOrder.price)} <small>total</small>`;
           document.getElementById('price').innerHTML = formatRupiah(newOrder.price);
         }
-        // Jika order baru saja menjadi completed dan rating belum diberikan, tampilkan modal
-        if (newOrder.status === 'completed' && !isRatingSubmitted) {
-          setTimeout(() => showRatingModal(), 1000);
+        // ========== CEK JIKA STATUS BERUBAH MENJADI COMPLETED ==========
+        if (previousStatus !== 'completed' && currentStatus === 'completed') {
+          const userId = auth.currentUser?.uid;
+          const orderPrice = newOrder.price || newOrder.totalPrice || 0;
+          if (userId && orderPrice > 0) {
+            await giveReferralBonusIfFirstOrder(userId, orderPrice, orderId);
+          }
+          if (!isRatingSubmitted) {
+            setTimeout(() => showRatingModal(), 1000);
+          }
         }
+        previousStatus = currentStatus;
       }
     });
     const driverId = orderData?.driver_id;
@@ -1048,7 +1113,6 @@
   function openChat() { document.getElementById('chatOverlay').classList.add('open'); }
   function closeChat() { document.getElementById('chatOverlay').classList.remove('open'); }
 
-  // Prevent back button from exiting app
   window.addEventListener('popstate', function(event) {
     if (document.getElementById('chatOverlay').classList.contains('open')) {
       closeChat();
