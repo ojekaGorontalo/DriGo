@@ -36,7 +36,10 @@
     .price-large { text-align: right; margin-bottom: 4px; }
     .price-label { font-size: 0.7rem; color: #64748b; margin-bottom: 2px; }
     .price-value { font-size: 1.5rem; font-weight: 800; color: #2E7D32; line-height: 1.2; }
-    .distance-small { text-align: right; }
+    .bonus-info { margin-top: 8px; padding-top: 8px; border-top: 1px dashed #e2e8f0; text-align: right; }
+    .bonus-text { font-size: 0.7rem; color: #f97316; }
+    .original-price { text-decoration: line-through; font-size: 0.9rem; color: #94a3b8; margin-right: 6px; }
+    .distance-small { text-align: right; margin-top: 6px; }
     .distance-label { font-size: 0.6rem; color: #64748b; }
     .distance-value { font-size: 0.85rem; font-weight: 600; color: #1e293b; }
     .route-card { background: #F8FAFC; border-radius: 24px; padding: 16px; margin-bottom: 20px; }
@@ -82,17 +85,17 @@
   <div id="mainContent" style="display: none; flex-direction: column; flex:1; overflow: hidden;">
     <div class="map-area" id="mapSection">
       <div id="orderMap" style="height: 100%;"></div>
-      <button id="mapActionBtn" class="map-float-btn" style="display: none;">🚗 Ke Jemputan</button>
+      <button id="mapActionBtn" class="map-float-btn" style="display: none;">📍 Ke Jemputan</button>
     </div>
     <div class="scroll-content">
-      <div class="status-chip" id="statusBadge">📋 Memuat</div>
+      <div class="status-chip" id="statusBadge">🚖 Memuat</div>
       <div class="customer-card">
         <div class="profile-row">
           <div class="customer-left">
             <img id="customerPhoto" class="customer-photo" src="https://cdn-icons-png.flaticon.com/512/3135/3135715.png">
             <div class="customer-info">
               <h3 id="customerName">-</h3>
-              <div class="rating"><span class="stars" id="ratingStarsDisplay">☆☆☆☆☆</span> <span id="customerRating">5.0</span></div>
+              <div class="rating"><span class="stars" id="ratingStarsDisplay">⭐️⭐️⭐️⭐️⭐️</span> <span id="customerRating">5.0</span></div>
               <div class="phone-action">
                 <span class="phone-number" id="customerPhone">-</span>
                 <button class="call-button" onclick="callCustomer()">📞 Hubungi</button>
@@ -104,6 +107,14 @@
               <div class="price-label">TARIF</div>
               <div class="price-value" id="tripPriceLarge">Rp 0</div>
             </div>
+            <!-- Informasi bonus akan ditampilkan di sini -->
+            <div id="bonusInfoDriver" class="bonus-info" style="display: none;">
+              <div class="bonus-text">
+                <span id="originalPriceSpan" style="text-decoration: line-through; font-size:0.8rem;"></span>
+                <span>💰 Potongan bonus: <span id="bonusAmountSpan">Rp 0</span></span><br>
+                <span>✅ Anda terima: <strong id="finalPriceSpan">Rp 0</strong></span>
+              </div>
+            </div>
             <div class="distance-small">
               <div class="distance-label">Jarak</div>
               <div class="distance-value" id="tripDistance">-</div>
@@ -112,7 +123,7 @@
         </div>
       </div>
       <div class="route-card">
-        <div class="section-title">📍 Rute Perjalanan</div>
+        <div class="section-title">🗺️ Rute Perjalanan</div>
         <div class="route-item">
           <div class="route-marker pickup-marker">A</div>
           <div><div class="route-address" id="pickupAddress">-</div><span style="font-size:0.7rem; color:#64748b;">Lokasi Jemput</span></div>
@@ -130,7 +141,7 @@
 </div>
 
 <!-- Modal Rating -->
-<div id="ratingModal" class="modal-overlay"><div class="modal-card"><h3>Beri Rating Customer</h3><div class="rating-stars" id="ratingStars"><span data-rating="1">★</span><span data-rating="2">★</span><span data-rating="3">★</span><span data-rating="4">★</span><span data-rating="5">★</span></div><div id="ratingPresetsContainer"></div><textarea id="ratingComment" placeholder="Komentar (opsional)" style="width:100%; margin:12px 0; padding:8px; border-radius:16px; border:1px solid #ddd;"></textarea><div style="display:flex; gap:8px;"><button class="modal-cancel" style="flex:1; background:#e2e8f0; border:none; padding:10px; border-radius:40px;" onclick="closeRatingModal()">Batal</button><button class="modal-submit" style="flex:1; background:#FF9800; border:none; color:white; border-radius:40px;" onclick="submitRating()">Kirim</button></div></div></div>
+<div id="ratingModal" class="modal-overlay"><div class="modal-card"><h3>Beri Rating Customer</h3><div class="rating-stars" id="ratingStars"><span data-rating="1">☆</span><span data-rating="2">☆</span><span data-rating="3">☆</span><span data-rating="4">☆</span><span data-rating="5">☆</span></div><div id="ratingPresetsContainer"></div><textarea id="ratingComment" placeholder="Komentar (opsional)" style="width:100%; margin:12px 0; padding:8px; border-radius:16px; border:1px solid #ddd;"></textarea><div style="display:flex; gap:8px;"><button class="modal-cancel" style="flex:1; background:#e2e8f0; border:none; padding:10px; border-radius:40px;" onclick="closeRatingModal()">Batal</button><button class="modal-submit" style="flex:1; background:#FF9800; border:none; color:white; border-radius:40px;" onclick="submitRating()">Kirim</button></div></div></div>
 
 <div id="toast" class="toast"></div>
 
@@ -232,10 +243,10 @@
     const headerCancelBtn = document.getElementById('headerCancelBtn');
     if (!mapBtn) return;
     switch(currentStatus) {
-      case 'accepted': mapBtn.style.display = 'flex'; mapBtn.innerHTML = '🚗 Ke Jemputan'; break;
+      case 'accepted': mapBtn.style.display = 'flex'; mapBtn.innerHTML = '📍 Ke Jemputan'; break;
       case 'on_the_way': mapBtn.style.display = 'flex'; mapBtn.innerHTML = '📍 Sampai di Lokasi'; break;
       case 'arrived': mapBtn.style.display = 'flex'; mapBtn.innerHTML = '🚀 Mulai Perjalanan'; break;
-      case 'on_trip': mapBtn.style.display = 'flex'; mapBtn.innerHTML = '✅ Selesaikan Perjalanan'; break;
+      case 'on_trip': mapBtn.style.display = 'flex'; mapBtn.innerHTML = '🏁 Selesaikan Perjalanan'; break;
       default: mapBtn.style.display = 'none';
     }
     if (headerCancelBtn) {
@@ -256,7 +267,6 @@
     else if (currentStatus === 'on_the_way') {
       await database.ref('orders/' + orderId).update({ status: 'arrived', arrived_at: new Date().toISOString() });
       showToast("Anda telah tiba di lokasi jemput");
-      // Kirim notifikasi ke customer bahwa driver sudah tiba
       await sendNotificationToCustomer("🚖 Driver Telah Tiba", `Driver ${getDriverData().name || 'Anda'} sudah sampai di lokasi jemput. Silakan keluar.`, { arrived: true });
     }
     else if (currentStatus === 'arrived') {
@@ -284,6 +294,28 @@
     }
   }
 
+  // Menampilkan informasi bonus jika ada
+  function updateBonusDisplay() {
+    const bonusInfoDiv = document.getElementById('bonusInfoDriver');
+    const bonusUsed = orderData.bonus_used || 0;
+    const originalPrice = orderData.price || orderData.totalPrice || 0;
+    const finalPrice = orderData.price_after_bonus || (originalPrice - bonusUsed);
+    
+    if (bonusUsed > 0 && finalPrice > 0) {
+      bonusInfoDiv.style.display = 'block';
+      document.getElementById('originalPriceSpan').innerHTML = 'Rp ' + originalPrice.toLocaleString('id-ID');
+      document.getElementById('bonusAmountSpan').innerHTML = 'Rp ' + bonusUsed.toLocaleString('id-ID');
+      document.getElementById('finalPriceSpan').innerHTML = 'Rp ' + finalPrice.toLocaleString('id-ID');
+      // Update tampilan harga utama menjadi harga setelah bonus
+      document.getElementById('tripPriceLarge').innerHTML = 'Rp ' + finalPrice.toLocaleString('id-ID');
+    } else {
+      bonusInfoDiv.style.display = 'none';
+      // Tampilkan harga asli jika tidak ada bonus
+      let priceValue = originalPrice;
+      document.getElementById('tripPriceLarge').innerHTML = 'Rp ' + priceValue.toLocaleString('id-ID');
+    }
+  }
+
   function displayOrderUI() {
     document.getElementById('loadingView').style.display = 'none';
     document.getElementById('mainContent').style.display = 'flex';
@@ -296,12 +328,8 @@
     document.getElementById('pickupAddress').innerText = orderData.pickup_address || '-';
     document.getElementById('destinationAddress').innerText = orderData.destination_address || '-';
 
-    let priceValue = 0;
-    if (orderData.totalPrice) priceValue = orderData.totalPrice;
-    else if (orderData.price) priceValue = orderData.price;
-    else if (orderData.total_amount) priceValue = orderData.total_amount;
-    else if (orderData.biaya) priceValue = orderData.biaya;
-    document.getElementById('tripPriceLarge').innerHTML = 'Rp ' + priceValue.toLocaleString('id-ID');
+    // Update tampilan bonus dan harga
+    updateBonusDisplay();
 
     let distanceText = '-';
     if (orderData.distance_meters) {
@@ -342,7 +370,7 @@
     if(status === 'accepted') badge.innerHTML = '✅ Order Diterima';
     else if(status === 'on_the_way') badge.innerHTML = '🚗 Menuju Lokasi';
     else if(status === 'arrived') badge.innerHTML = '📍 Telah Tiba';
-    else if(status === 'on_trip') badge.innerHTML = '🔄 Dalam Perjalanan';
+    else if(status === 'on_trip') badge.innerHTML = '🛣️ Dalam Perjalanan';
     else if(status === 'completed') badge.innerHTML = '🎉 Selesai';
     else if(status === 'cancelled') {
       if(orderData?.cancelled_by === 'driver') badge.innerHTML = '❌ Anda membatalkan order';
@@ -360,6 +388,8 @@
       if(snap.exists()){
         orderData = snap.val();
         updateStatusDisplay(orderData.status);
+        // Update bonus jika ada perubahan harga atau penggunaan bonus
+        updateBonusDisplay();
         if(orderData.status === 'completed' && !window.ratingShown){
           window.ratingShown = true;
           setTimeout(()=>showRatingModal(), 800);
