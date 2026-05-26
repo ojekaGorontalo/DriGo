@@ -5,253 +5,44 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
     <title>JeGo Customer Support</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Firebase SDKs -->
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            font-family: 'Segoe UI', system-ui, sans-serif;
-        }
-        
-        body {
-            background: linear-gradient(135deg, #FF9800, #F57C00);
-            height: 100vh;
-            display: flex;
-            flex-direction: column;
-            padding: 0;
-        }
-        
-        .chat-container {
-            width: 100%;
-            flex: 1;
-            background-color: rgba(255, 255, 255, 0.95);
-            overflow: hidden;
-            display: flex;
-            flex-direction: column;
-        }
-        
-        .chat-header {
-            background: linear-gradient(135deg, #FF9800, #F57C00);
-            color: white;
-            padding: 15px 20px;
-            display: flex;
-            align-items: center;
-            gap: 15px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
-        }
-        
-        .profile-img {
-            width: 45px;
-            height: 45px;
-            border-radius: 50%;
-            object-fit: cover;
-            border: 2px solid #FFE0B2;
-            background-color: #f0f0f0;
-        }
-        
-        .profile-info {
-            flex: 1;
-        }
-        
-        .profile-name {
-            font-weight: 600;
-            font-size: 18px;
-        }
-        
-        .profile-status {
-            font-size: 13px;
-            opacity: 0.9;
-            display: flex;
-            align-items: center;
-            gap: 5px;
-        }
-        
-        .status-indicator {
-            width: 8px;
-            height: 8px;
-            background-color: #4CAF50;
-            border-radius: 50%;
-            display: inline-block;
-        }
-        
-        .chat-area {
-            flex: 1;
-            padding: 20px;
-            overflow-y: auto;
-            background-color: #ece5dd;
-            background-image: url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M11 18c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm48 25c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm-43-7c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm63 31c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM34 90c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm56-76c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM12 86c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm28-65c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm23-11c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-6 60c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm29 22c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zM32 63c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm57-13c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-9-21c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM60 91c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM35 41c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM12 60c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2z' fill='%23FF9800' fill-opacity='0.05' fill-rule='evenodd'/%3E%3C/svg%3E");
-        }
-        
-        .message {
-            margin-bottom: 15px;
-            display: flex;
-            flex-direction: column;
-            max-width: 80%;
-            opacity: 0;
-            transform: translateY(10px);
-            animation: fadeInUp 0.3s forwards;
-        }
-        
-        @keyframes fadeInUp {
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-        
-        .received {
-            align-items: flex-start;
-        }
-        
-        .sent {
-            align-items: flex-end;
-            margin-left: auto;
-        }
-        
-        .message-bubble {
-            padding: 12px 16px;
-            border-radius: 18px;
-            position: relative;
-            word-wrap: break-word;
-            line-height: 1.4;
-            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
-            max-width: 100%;
-        }
-        
-        .received .message-bubble {
-            background-color: white;
-            border-top-left-radius: 5px;
-            color: #333;
-        }
-        
-        .sent .message-bubble {
-            background-color: #dcf8c6;
-            border-top-right-radius: 5px;
-            color: #333;
-        }
-        
-        .message-time {
-            font-size: 11px;
-            color: #666;
-            margin-top: 5px;
-            padding: 0 5px;
-        }
-        
-        .sent .message-time {
-            text-align: right;
-        }
-        
-        .received .message-time {
-            text-align: left;
-        }
-        
-        .input-area {
-            padding: 12px 15px;
-            background-color: white;
-            border-top: 1px solid #e0e0e0;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-        
-        .input-container {
-            flex: 1;
-            display: flex;
-            background-color: #f0f0f0;
-            border-radius: 25px;
-            padding: 8px 15px;
-            align-items: center;
-        }
-        
-        .message-input {
-            flex: 1;
-            border: none;
-            outline: none;
-            background: transparent;
-            font-size: 16px;
-            padding: 5px;
-            color: #333;
-            width: 100%;
-        }
-        
-        .send-button {
-            background: linear-gradient(135deg, #FF9800, #F57C00);
-            color: white;
-            border: none;
-            width: 45px;
-            height: 45px;
-            min-width: 45px;
-            border-radius: 50%;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            cursor: pointer;
-            transition: opacity 0.2s;
-            margin-left: 5px;
-        }
-        
-        .send-button:hover {
-            opacity: 0.9;
-        }
-        
-        .send-button i {
-            font-size: 18px;
-        }
-        
-        .typing-indicator {
-            display: inline-flex;
-            align-items: center;
-            gap: 4px;
-            padding: 10px 15px;
-            background-color: white;
-            border-radius: 18px;
-            border-top-left-radius: 5px;
-            margin-bottom: 15px;
-        }
-        
-        .typing-dot {
-            width: 8px;
-            height: 8px;
-            background-color: #999;
-            border-radius: 50%;
-            animation: typing 1.4s infinite ease-in-out;
-        }
-        
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', system-ui, sans-serif; }
+        body { background: linear-gradient(135deg, #FF9800, #F57C00); height: 100vh; display: flex; flex-direction: column; padding: 0; }
+        .chat-container { width: 100%; flex: 1; background-color: rgba(255, 255, 255, 0.95); overflow: hidden; display: flex; flex-direction: column; }
+        .chat-header { background: linear-gradient(135deg, #FF9800, #F57C00); color: white; padding: 15px 20px; display: flex; align-items: center; gap: 15px; box-shadow: 0 2px 10px rgba(0,0,0,0.2); }
+        .profile-img { width: 45px; height: 45px; border-radius: 50%; object-fit: cover; border: 2px solid #FFE0B2; background-color: #f0f0f0; }
+        .profile-info { flex: 1; }
+        .profile-name { font-weight: 600; font-size: 18px; }
+        .profile-status { font-size: 13px; opacity: 0.9; display: flex; align-items: center; gap: 5px; }
+        .status-indicator { width: 8px; height: 8px; background-color: #4CAF50; border-radius: 50%; display: inline-block; }
+        .chat-area { flex: 1; padding: 20px; overflow-y: auto; background-color: #ece5dd; background-image: url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M11 18c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm48 25c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm-43-7c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm63 31c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM34 90c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm56-76c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM12 86c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm28-65c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm23-11c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-6 60c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm29 22c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zM32 63c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm57-13c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-9-21c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM60 91c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM35 41c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM12 60c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2z' fill='%23FF9800' fill-opacity='0.05' fill-rule='evenodd'/%3E%3C/svg%3E"); }
+        .message { margin-bottom: 15px; display: flex; flex-direction: column; max-width: 80%; opacity: 0; transform: translateY(10px); animation: fadeInUp 0.3s forwards; }
+        @keyframes fadeInUp { to { opacity: 1; transform: translateY(0); } }
+        .received { align-items: flex-start; }
+        .sent { align-items: flex-end; margin-left: auto; }
+        .message-bubble { padding: 12px 16px; border-radius: 18px; position: relative; word-wrap: break-word; line-height: 1.4; box-shadow: 0 1px 2px rgba(0,0,0,0.1); max-width: 100%; }
+        .received .message-bubble { background-color: white; border-top-left-radius: 5px; color: #333; }
+        .sent .message-bubble { background-color: #dcf8c6; border-top-right-radius: 5px; color: #333; }
+        .message-time { font-size: 11px; color: #666; margin-top: 5px; padding: 0 5px; }
+        .sent .message-time { text-align: right; }
+        .received .message-time { text-align: left; }
+        .input-area { padding: 12px 15px; background-color: white; border-top: 1px solid #e0e0e0; display: flex; align-items: center; gap: 10px; }
+        .input-container { flex: 1; display: flex; background-color: #f0f0f0; border-radius: 25px; padding: 8px 15px; align-items: center; }
+        .message-input { flex: 1; border: none; outline: none; background: transparent; font-size: 16px; padding: 5px; color: #333; width: 100%; }
+        .send-button { background: linear-gradient(135deg, #FF9800, #F57C00); color: white; border: none; width: 45px; height: 45px; min-width: 45px; border-radius: 50%; display: flex; justify-content: center; align-items: center; cursor: pointer; transition: opacity 0.2s; margin-left: 5px; }
+        .send-button:hover { opacity: 0.9; }
+        .send-button i { font-size: 18px; }
+        .typing-indicator { display: inline-flex; align-items: center; gap: 4px; padding: 10px 15px; background-color: white; border-radius: 18px; border-top-left-radius: 5px; margin-bottom: 15px; }
+        .typing-dot { width: 8px; height: 8px; background-color: #999; border-radius: 50%; animation: typing 1.4s infinite ease-in-out; }
         .typing-dot:nth-child(1) { animation-delay: -0.32s; }
         .typing-dot:nth-child(2) { animation-delay: -0.16s; }
-        
-        @keyframes typing {
-            0%, 80%, 100% { transform: translateY(0); }
-            40% { transform: translateY(-10px); }
-        }
-        
-        .chat-area::-webkit-scrollbar {
-            width: 6px;
-        }
-        
-        .chat-area::-webkit-scrollbar-track {
-            background: rgba(0, 0, 0, 0.05);
-        }
-        
-        .chat-area::-webkit-scrollbar-thumb {
-            background: rgba(0, 0, 0, 0.2);
-            border-radius: 3px;
-        }
-        
-        @media (max-width: 600px) {
-            .chat-container {
-                height: 100vh;
-            }
-            .chat-header {
-                padding: 12px 15px;
-            }
-            .input-area {
-                padding: 10px 12px;
-            }
-        }
+        @keyframes typing { 0%, 80%, 100% { transform: translateY(0); } 40% { transform: translateY(-10px); } }
+        .chat-area::-webkit-scrollbar { width: 6px; }
+        .chat-area::-webkit-scrollbar-track { background: rgba(0,0,0,0.05); }
+        .chat-area::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.2); border-radius: 3px; }
+        @media (max-width: 600px) { .chat-container { height: 100vh; } .chat-header { padding: 12px 15px; } .input-area { padding: 10px 12px; } }
     </style>
 </head>
 <body>
@@ -266,16 +57,12 @@
                 </div>
             </div>
         </div>
-        
         <div class="chat-area" id="chatArea">
             <div class="message received">
-                <div class="message-bubble">
-                    Halo! Saya JeGo Customer Support. Ada yang bisa saya bantu? Tanyakan seputar pemesanan, promo, pembayaran, atau kendala lainnya.
-                </div>
-                <div class="message-time" id="initialTime">10:00</div>
+                <div class="message-bubble">Halo! Ada yang bisa saya bantu?</div>
+                <div class="message-time" id="initialTime"></div>
             </div>
         </div>
-        
         <div class="input-area">
             <div class="input-container">
                 <input type="text" class="message-input" id="messageInput" placeholder="Tanya tentang JeGo..." autocomplete="off">
@@ -287,7 +74,6 @@
     </div>
 
     <script>
-        // =================== KONFIGURASI FIREBASE ===================
         const firebaseConfig = {
             apiKey: "AIzaSyCD0pgeZio-LdKqYDtWxcdXcZwyL4ngYQI",
             authDomain: "jego-35a2b.firebaseapp.com",
@@ -296,119 +82,24 @@
             storageBucket: "jego-35a2b.firebasestorage.app",
             appId: "1:600037007040:web:ac3243ad9b472647ffd725"
         };
-        
-        if (!firebase.apps.length) {
-            firebase.initializeApp(firebaseConfig);
-        }
+        if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
         const database = firebase.database();
         
-        // =================== GLOBAL VARIABLES ===================
         let isProcessing = false;
         let OPENROUTER_API_KEY = null;
+        let SYSTEM_PROMPT = "Anda adalah asisten JeGo untuk customer. Jawab singkat dan ramah."; // fallback
         const OPENROUTER_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
         const OPENROUTER_MODEL = "deepseek/deepseek-chat";
         
-        // Element references
         const chatArea = document.getElementById('chatArea');
         const messageInput = document.getElementById('messageInput');
         const sendButton = document.getElementById('sendButton');
         const profileImage = document.getElementById('profileImage');
         const statusText = document.getElementById('statusText');
         
-        // =================== PROMPT UNTUK CUSTOMER JeGo ===================
-        const FULL_TRAINING_PROMPT = `Role & Konteks
-
-Anda adalah asisten virtual untuk aplikasi JeGo (Jasa Ekspedisi Gorontalo) khusus untuk CUSTOMER (pengguna yang memesan layanan transportasi/kurir). Anda akan menjawab pertanyaan seputar:
-
-1. Cara pemesanan layanan (Motor, Bentor, Mobil, Kurir)
-2. Pembayaran (tunai, QRIS, saldo bonus, referral)
-3. Program referral dan bonus
-4. Promo dan diskon
-5. Tracking order dan estimasi kedatangan
-6. Pembatalan order
-7. Keluhan dan komplain
-8. Informasi driver (rating, kendaraan)
-9. Kebijakan pengembalian dana (refund)
-10. Kontak customer service
-
----
-
-ATURAN WAJIB UNTUK ASISTEN:
-
-1. Jawab HANYA berdasarkan pengetahuan yang diberikan di atas.
-2. DILARANG menambah, mengira-ngira, atau mengarang informasi di luar pengetahuan yang diberikan.
-3. Jika pertanyaan tidak ada dalam pengetahuan, jawab: "Maaf, informasi tersebut belum tersedia untuk saat ini. Silakan hubungi customer service kami di cs.jego.app@gmail.com atau WhatsApp 083142889149."
-4. Jawaban harus singkat, jelas, profesional, dan ramah.
-5. Gunakan bahasa Indonesia yang mudah dipahami.
-6. Untuk pertanyaan spesifik, berikan jawaban spesifik sesuai konteks.
-7. Jika perlu langkah-langkah, gunakan poin-poin.
-8. Untuk masalah teknis, berikan solusi praktis atau arahkan ke CS.
-9. NOMOR WHATSAPP ADMIN (customer service) HANYA BOLEH DIBERIKAN jika diminta atau untuk masalah yang memerlukan interaksi manusia. Nomor: 083142889149.
-10. LINK DOWNLOAD APLIKASI HANYA BOLEH DIBERIKAN JIKA DIMINTA. Gunakan link: https://drive.google.com/uc?export=download&id=1dbd2An7GK5nN3GYqcigEiVt6M8gjA4cZ
-
----
-
-INFORMASI PENTING UNTUK CUSTOMER:
-
-1. CARA PEMESANAN:
-   · Pilih jenis layanan (Motor/Bentor/Mobil/Kurir).
-   · Masukkan lokasi jemput dan tujuan.
-   · Pilih metode pembayaran.
-   · Konfirmasi order dan tunggu driver menerima.
-   · Setelah order diambil, Anda dapat melihat posisi driver secara real-time.
-
-2. PEMBAYARAN:
-   - Metode: Cash, QRIS (scan code), Saldo Bonus (dari referral).
-   - Bonus referral: Dapatkan 0.5% dari setiap order teman yang menggunakan kode Anda.
-   - Saldo bonus dapat digunakan untuk membayar perjalanan (potong biaya).
-
-3. PROMO DAN DISKON:
-   · Diskon untuk customer baru (syarat & ketentuan).
-   · Program referral: ajak teman, dapat bonus.
-   · Kode promo dapat dimasukkan saat pemesanan.
-
-4. TRACKING ORDER:
-   · Setelah driver menerima, Anda dapat melihat peta posisi driver.
-   · Estimasi waktu kedatangan driver.
-   · Notifikasi saat driver tiba di lokasi jemput.
-
-5. PEMBATALAN ORDER:
-   · Customer dapat membatalkan order sebelum driver sampai di lokasi jemput.
-   · Jika driver sudah dalam perjalanan atau sudah tiba, pembatalan dapat dikenakan biaya.
-   · Bonus yang sudah digunakan tidak dapat dikembalikan jika customer membatalkan sendiri.
-
-6. REFUND (PENGEMBALIAN DANA):
-   · Jika driver membatalkan order setelah customer menggunakan bonus, bonus akan dikembalikan melalui mekanisme refund (klaim manual di halaman referral).
-   · Jika pembayaran via QRIS dan terjadi masalah, hubungi CS.
-
-7. KELUHAN DAN KOMPLAIN:
-   · Laporkan melalui email cs.jego.app@gmail.com.
-   · Sertakan order ID dan bukti (screenshot).
-   · Tim CS akan merespon maksimal 1x24 jam.
-
-8. INFORMASI DRIVER:
-   · Driver memiliki rating (bintang) dan jumlah perjalanan.
-   · Foto profil dan nomor polisi kendaraan terlihat setelah order diterima.
-
-9. KEBIJAKAN PRIVASI:
-   · Data pengguna dilindungi dan tidak akan dibagikan ke pihak ketiga tanpa izin.
-
-10. APLIKASI:
-    · Aplikasi JeGo customer dapat diunduh di link: https://drive.google.com/uc?export=download&id=1dbd2An7GK5nN3GYqcigEiVt6M8gjA4cZ
-    · Aplikasi sedang dalam proses upload ke Play Store.
-
----
-
-CATATAN:
-
-· Customer service aktif Senin-Minggu, 08:00-22:00 WITA.
-· Email: cs.jego.app@gmail.com.
-· WhatsApp: 083142889149 (khusus darurat atau verifikasi).`;
-        
-        // =================== UTILITY FUNCTIONS ===================
         function getCurrentTime() {
             const now = new Date();
-            return `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+            return `${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}`;
         }
         
         function showTypingIndicator() {
@@ -432,48 +123,54 @@ CATATAN:
             const timeString = getCurrentTime();
             messageDiv.innerHTML = `<div class="message-bubble">${text}</div><div class="message-time">${timeString}</div>`;
             chatArea.appendChild(messageDiv);
-            setTimeout(() => {
-                chatArea.scrollTo({
-                    top: chatArea.scrollHeight,
-                    behavior: 'smooth'
-                });
-            }, 50);
+            setTimeout(() => chatArea.scrollTo({ top: chatArea.scrollHeight, behavior: 'smooth' }), 50);
         }
         
-        // =================== AMBIL API KEY DARI FIREBASE SDK ===================
         async function fetchApiKey() {
             try {
-                // Path lengkap: data-jego/chatbot/Apikey_openRouter
                 const ref = database.ref('data-jego/chatbot/Apikey_openRouter');
                 const snapshot = await ref.once('value');
                 const apiKey = snapshot.val();
-                
                 if (apiKey && typeof apiKey === 'string' && apiKey.length > 10) {
                     OPENROUTER_API_KEY = apiKey;
-                    console.log("✅ API Key berhasil dimuat dari Firebase");
+                    console.log("✅ API Key loaded");
                     return true;
                 } else {
-                    throw new Error("API Key tidak valid atau kosong");
+                    throw new Error("API Key tidak valid");
                 }
             } catch (error) {
-                console.error("❌ Gagal mengambil API Key:", error);
-                addMessage("Maaf, terjadi kesalahan dalam menghubungkan ke server. Silakan refresh halaman.", true);
+                console.error("❌ Gagal ambil API Key:", error);
+                addMessage("Maaf, terjadi kesalahan koneksi. Silakan refresh.", true);
                 return false;
             }
         }
         
-        // =================== OPENROUTER AI FUNCTIONS ===================
+        // Ambil semua prompt dari Firebase (object) dan gabungkan jadi satu system prompt
+        async function fetchAndMergePrompts() {
+            try {
+                const ref = database.ref('data-jego/chatbot/prompts');
+                const snapshot = await ref.once('value');
+                const promptsObj = snapshot.val();
+                if (promptsObj && typeof promptsObj === 'object') {
+                    // Gabungkan semua nilai object menjadi satu string dengan pemisah
+                    const allPrompts = Object.values(promptsObj).join('\n\n');
+                    SYSTEM_PROMPT = allPrompts;
+                    console.log("✅ Prompt berhasil dimuat dan digabung dari Firebase");
+                    return true;
+                } else {
+                    console.warn("⚠️ Prompt tidak ditemukan, menggunakan fallback");
+                    return false;
+                }
+            } catch (err) {
+                console.error("❌ Gagal ambil prompt:", err);
+                return false;
+            }
+        }
+        
         async function queryOpenRouter(userMessage) {
-            if (!OPENROUTER_API_KEY) {
-                return "Maaf, sistem sedang dalam proses inisialisasi. Silakan coba lagi dalam beberapa detik.";
-            }
-            
-            if (isProcessing) {
-                return "Sedang memproses pesan sebelumnya...";
-            }
-            
+            if (!OPENROUTER_API_KEY) return "Sistem sedang memuat, coba lagi.";
+            if (isProcessing) return "Tunggu sebentar...";
             isProcessing = true;
-            
             try {
                 const response = await fetch(OPENROUTER_ENDPOINT, {
                     method: 'POST',
@@ -486,19 +183,14 @@ CATATAN:
                     body: JSON.stringify({
                         model: OPENROUTER_MODEL,
                         messages: [
-                            { role: "system", content: FULL_TRAINING_PROMPT },
+                            { role: "system", content: SYSTEM_PROMPT },
                             { role: "user", content: userMessage }
                         ],
-                        temperature: 0.2,
-                        max_tokens: 800
+                        temperature: 0.3,
+                        max_tokens: 600
                     })
                 });
-                
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(`HTTP ${response.status}: ${errorText}`);
-                }
-                
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
                 const data = await response.json();
                 if (data.choices && data.choices[0] && data.choices[0].message) {
                     return data.choices[0].message.content;
@@ -506,8 +198,8 @@ CATATAN:
                     throw new Error("Format respons tidak valid");
                 }
             } catch (error) {
-                console.error("Error querying OpenRouter:", error);
-                return "Maaf, terjadi kesalahan saat menghubungi AI. Silakan coba lagi.";
+                console.error(error);
+                return "Maaf, terjadi kesalahan. Silakan coba lagi.";
             } finally {
                 isProcessing = false;
             }
@@ -521,59 +213,44 @@ CATATAN:
                 addMessage(response, true);
             } catch (error) {
                 hideTypingIndicator();
-                addMessage("Maaf, terjadi kesalahan dalam memproses permintaan Anda.", true);
-                console.error("Error generating AI response:", error);
+                addMessage("Maaf, terjadi kesalahan.", true);
             }
         }
         
-        // =================== EVENT HANDLERS ===================
         function sendMessage() {
             if (!OPENROUTER_API_KEY) {
-                addMessage("Sistem masih memuat API key. Silakan tunggu beberapa saat.", true);
+                addMessage("Sistem sedang memuat API key. Tunggu sebentar.", true);
                 return;
             }
-            
             const text = messageInput.value.trim();
             if (text === "") return;
-            
             addMessage(text, false);
             messageInput.value = "";
             generateAIResponse(text);
             messageInput.focus();
         }
         
-        // =================== INITIALIZATION ===================
         async function initializeApp() {
-            // Set initial time
             document.getElementById('initialTime').textContent = getCurrentTime();
-            
-            // Fetch API key from Firebase
             addMessage("Menyiapkan sistem...", true);
             const apiKeyLoaded = await fetchApiKey();
-            
-            if (apiKeyLoaded) {
-                addMessage("Sistem siap! Silakan bertanya tentang JeGo Customer Support.", true);
+            const promptsLoaded = await fetchAndMergePrompts();
+            if (apiKeyLoaded && promptsLoaded) {
+                addMessage("Sistem siap! Silakan tanya.", true);
                 setTimeout(() => messageInput.focus(), 500);
+            } else if (apiKeyLoaded) {
+                addMessage("Sistem siap dengan mode terbatas.", true);
             }
         }
         
-        // Event Listeners
         sendButton.addEventListener('click', sendMessage);
-        messageInput.addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') sendMessage();
-        });
-        
-        profileImage.onerror = function() {
-            this.src = "https://cdn-icons-png.flaticon.com/128/3135/3135715.png";
-        };
-        
+        messageInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessage(); });
+        profileImage.onerror = () => profileImage.src = "https://cdn-icons-png.flaticon.com/128/3135/3135715.png";
         setInterval(() => {
             const indicator = document.querySelector('.status-indicator');
             if (indicator) indicator.style.backgroundColor = '#4CAF50';
             if (statusText) statusText.textContent = 'Online';
         }, 30000);
-        
-        // Start
         window.onload = initializeApp;
     </script>
 </body>
