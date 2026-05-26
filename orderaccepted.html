@@ -14,7 +14,7 @@
     .app-container { display: flex; flex-direction: column; height: 100vh; width: 100%; background: #FFFFFF; position: relative; }
     .app-header { background: linear-gradient(135deg, #FF9800, #F57C00); padding: 18px 20px; color: white; flex-shrink: 0; box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 10; display: flex; justify-content: space-between; align-items: center; }
     .app-header h1 { font-size: 1.35rem; font-weight: 600; display: flex; align-items: center; gap: 8px; }
-    .app-header h1::before { content: "🚗"; font-size: 1.4rem; }
+    .app-header h1::before { content: "🚕"; font-size: 1.4rem; }
     .header-cancel-btn { background: rgba(255,255,255,0.2); border: none; color: white; padding: 6px 14px; border-radius: 40px; font-size: 0.8rem; font-weight: 600; cursor: pointer; transition: all 0.2s ease; }
     .header-cancel-btn:active { transform: scale(0.95); background: rgba(255,255,255,0.4); }
     .map-area { width: 100%; height: 40vh; min-height: 260px; background: #e9ecef; position: relative; border-bottom-left-radius: 24px; border-bottom-right-radius: 24px; overflow: hidden; flex-shrink: 0; }
@@ -85,17 +85,17 @@
   <div id="mainContent" style="display: none; flex-direction: column; flex:1; overflow: hidden;">
     <div class="map-area" id="mapSection">
       <div id="orderMap" style="height: 100%;"></div>
-      <button id="mapActionBtn" class="map-float-btn" style="display: none;">📍 Ke Jemputan</button>
+      <button id="mapActionBtn" class="map-float-btn" style="display: none;">🚗 Ke Jemputan</button>
     </div>
     <div class="scroll-content">
-      <div class="status-chip" id="statusBadge">🚖 Memuat</div>
+      <div class="status-chip" id="statusBadge">📦 Memuat</div>
       <div class="customer-card">
         <div class="profile-row">
           <div class="customer-left">
             <img id="customerPhoto" class="customer-photo" src="https://cdn-icons-png.flaticon.com/512/3135/3135715.png">
             <div class="customer-info">
               <h3 id="customerName">-</h3>
-              <div class="rating"><span class="stars" id="ratingStarsDisplay">⭐️⭐️⭐️⭐️⭐️</span> <span id="customerRating">5.0</span></div>
+              <div class="rating"><span class="stars" id="ratingStarsDisplay">⭐⭐⭐⭐⭐</span> <span id="customerRating">5.0</span></div>
               <div class="phone-action">
                 <span class="phone-number" id="customerPhone">-</span>
                 <button class="call-button" onclick="callCustomer()">📞 Hubungi</button>
@@ -107,12 +107,11 @@
               <div class="price-label">TARIF</div>
               <div class="price-value" id="tripPriceLarge">Rp 0</div>
             </div>
-            <!-- Informasi bonus akan ditampilkan di sini -->
             <div id="bonusInfoDriver" class="bonus-info" style="display: none;">
               <div class="bonus-text">
                 <span id="originalPriceSpan" style="text-decoration: line-through; font-size:0.8rem;"></span>
-                <span>💰 Potongan bonus: <span id="bonusAmountSpan">Rp 0</span></span><br>
-                <span>✅ Anda terima: <strong id="finalPriceSpan">Rp 0</strong></span>
+                <span>🎉 Potongan bonus: <span id="bonusAmountSpan">Rp 0</span></span><br>
+                <span>💰 Anda terima: <strong id="finalPriceSpan">Rp 0</strong></span>
               </div>
             </div>
             <div class="distance-small">
@@ -141,7 +140,7 @@
 </div>
 
 <!-- Modal Rating -->
-<div id="ratingModal" class="modal-overlay"><div class="modal-card"><h3>Beri Rating Customer</h3><div class="rating-stars" id="ratingStars"><span data-rating="1">☆</span><span data-rating="2">☆</span><span data-rating="3">☆</span><span data-rating="4">☆</span><span data-rating="5">☆</span></div><div id="ratingPresetsContainer"></div><textarea id="ratingComment" placeholder="Komentar (opsional)" style="width:100%; margin:12px 0; padding:8px; border-radius:16px; border:1px solid #ddd;"></textarea><div style="display:flex; gap:8px;"><button class="modal-cancel" style="flex:1; background:#e2e8f0; border:none; padding:10px; border-radius:40px;" onclick="closeRatingModal()">Batal</button><button class="modal-submit" style="flex:1; background:#FF9800; border:none; color:white; border-radius:40px;" onclick="submitRating()">Kirim</button></div></div></div>
+<div id="ratingModal" class="modal-overlay"><div class="modal-card"><h3>Beri Rating Customer</h3><div class="rating-stars" id="ratingStars"><span data-rating="1">⭐</span><span data-rating="2">⭐</span><span data-rating="3">⭐</span><span data-rating="4">⭐</span><span data-rating="5">⭐</span></div><div id="ratingPresetsContainer"></div><textarea id="ratingComment" placeholder="Komentar (opsional)" style="width:100%; margin:12px 0; padding:8px; border-radius:16px; border:1px solid #ddd;"></textarea><div style="display:flex; gap:8px;"><button class="modal-cancel" style="flex:1; background:#e2e8f0; border:none; padding:10px; border-radius:40px;" onclick="closeRatingModal()">Batal</button><button class="modal-submit" style="flex:1; background:#FF9800; border:none; color:white; border-radius:40px;" onclick="submitRating()">Kirim</button></div></div></div>
 
 <div id="toast" class="toast"></div>
 
@@ -171,46 +170,8 @@
   let chatOpen = false;
   let onesignalApiKey = null;
 
-// ==================== REFUND BONUS JIKA DRIVER BATAL ====================
-async function refundCustomerBonusIfDriverCancels(orderId, bonusUsed, driverId, customerId) {
-  if (!bonusUsed || bonusUsed <= 0) return false;
-  try {
-    // 1. Kembalikan saldo bonus customer
-    const customerBonusRef = database.ref(`users/${customerId}/referral_bonus_total`);
-    await customerBonusRef.transaction(current => (current || 0) + bonusUsed);
-    
-    // 2. Update status bonus driver menjadi 'refunded' (tidak bisa diklaim)
-    const snapshot = await database.ref(`driver_bonus/${driverId}`).orderByChild('orderId').equalTo(orderId).once('value');
-    const updates = {};
-    snapshot.forEach(child => {
-      updates[`${child.key}/status`] = 'refunded';
-    });
-    if (Object.keys(updates).length) {
-      await database.ref(`driver_bonus/${driverId}`).update(updates);
-    }
-    
-    // 3. Catat history refund (opsional)
-    await database.ref(`bonus_refunds/${orderId}`).set({
-      orderId: orderId,
-      customerId: customerId,
-      driverId: driverId,
-      amount: bonusUsed,
-      refundedAt: new Date().toISOString(),
-      reason: 'driver_cancelled'
-    });
-    
-    console.log(`✅ Bonus Rp ${bonusUsed} dikembalikan ke customer ${customerId} karena driver membatalkan order.`);
-    return true;
-  } catch (err) {
-    console.error('Gagal refund bonus:', err);
-    return false;
-  }
-}
-
   function showToast(msg) { let t = document.getElementById('toast'); t.textContent = msg; t.style.opacity='1'; setTimeout(()=> t.style.opacity='0', 2500); }
-  function getDriverData() { 
-  return JSON.parse(localStorage.getItem('jego_logged_in_driver') || '{}'); 
-}
+  function getDriverData() { return JSON.parse(localStorage.getItem('jego_logged_in_driver') || '{}'); }
   
   async function getOneSignalApiKey() {
     if (onesignalApiKey) return onesignalApiKey;
@@ -281,10 +242,10 @@ async function refundCustomerBonusIfDriverCancels(orderId, bonusUsed, driverId, 
     const headerCancelBtn = document.getElementById('headerCancelBtn');
     if (!mapBtn) return;
     switch(currentStatus) {
-      case 'accepted': mapBtn.style.display = 'flex'; mapBtn.innerHTML = '📍 Ke Jemputan'; break;
+      case 'accepted': mapBtn.style.display = 'flex'; mapBtn.innerHTML = '🚗 Ke Jemputan'; break;
       case 'on_the_way': mapBtn.style.display = 'flex'; mapBtn.innerHTML = '📍 Sampai di Lokasi'; break;
       case 'arrived': mapBtn.style.display = 'flex'; mapBtn.innerHTML = '🚀 Mulai Perjalanan'; break;
-      case 'on_trip': mapBtn.style.display = 'flex'; mapBtn.innerHTML = '🏁 Selesaikan Perjalanan'; break;
+      case 'on_trip': mapBtn.style.display = 'flex'; mapBtn.innerHTML = '✅ Selesaikan Perjalanan'; break;
       default: mapBtn.style.display = 'none';
     }
     if (headerCancelBtn) {
@@ -305,7 +266,7 @@ async function refundCustomerBonusIfDriverCancels(orderId, bonusUsed, driverId, 
     else if (currentStatus === 'on_the_way') {
       await database.ref('orders/' + orderId).update({ status: 'arrived', arrived_at: new Date().toISOString() });
       showToast("Anda telah tiba di lokasi jemput");
-      await sendNotificationToCustomer("🚖 Driver Telah Tiba", `Driver ${getDriverData().name || 'Anda'} sudah sampai di lokasi jemput. Silakan keluar.`, { arrived: true });
+      await sendNotificationToCustomer("🚕 Driver Telah Tiba", `Driver ${getDriverData().name || 'Anda'} sudah sampai di lokasi jemput. Silakan keluar.`, { arrived: true });
     }
     else if (currentStatus === 'arrived') {
       if (openNavigation(orderData.dest_lat, orderData.dest_lng, "Tujuan")) {
@@ -325,42 +286,66 @@ async function refundCustomerBonusIfDriverCancels(orderId, bonusUsed, driverId, 
     }
   }
 
-  async function cancelTrip() {
-  if (currentStatus === 'on_trip') { 
-    showToast("Tidak dapat membatalkan perjalanan berlangsung"); 
-    return; 
-  }
-  if (!confirm("Batalkan perjalanan? Perhatian: Jika Anda batalkan, bonus customer akan dikembalikan ke saldo mereka.")) return;
-  
-  try {
-    // Ambil data bonus yang sudah digunakan dari orderData
-    const bonusUsed = orderData.bonus_used || 0;
-    const customerId = orderData.user_id; // pastikan orderData memiliki field user_id
-    const driver = getDriverData();
-    
-    // Jika ada bonus yang digunakan, lakukan refund ke customer
-    if (bonusUsed > 0 && customerId) {
-      const refundSuccess = await refundCustomerBonusIfDriverCancels(orderId, bonusUsed, driver.uid, customerId);
-      if (!refundSuccess) {
-        showToast("Gagal mengembalikan bonus, tetapi order tetap dibatalkan.");
-      } else {
-        showToast("Bonus customer telah dikembalikan.");
-      }
+  // ==================== REFUND PENDING (CUSTOMER HARUS KLAIM SENDIRI) ====================
+  async function createPendingRefund(orderId, bonusUsed, driverId, customerId) {
+    if (!bonusUsed || bonusUsed <= 0) return false;
+    try {
+      const refundRef = database.ref(`customer_refund_pending/${customerId}`).push();
+      await refundRef.set({
+        orderId: orderId,
+        amount: bonusUsed,
+        driverId: driverId,
+        driverName: getDriverData().name || 'Driver',
+        createdAt: new Date().toISOString(),
+        status: 'pending'
+      });
+      console.log(`✅ Refund pending Rp ${bonusUsed} untuk customer ${customerId}`);
+      return true;
+    } catch (err) {
+      console.error('Gagal membuat pending refund:', err);
+      return false;
     }
-    
-    // Batalkan order
-    await database.ref('orders/' + orderId).update({ 
-      status: 'cancelled', 
-      cancelled_by: 'driver', 
-      cancelled_at: new Date().toISOString() 
-    });
-    
-    showToast("Perjalanan dibatalkan.");
-  } catch (err) {
-    console.error(err);
-    showToast("Gagal membatalkan: " + err.message);
   }
-}
+
+  async function cancelTrip() {
+    if (currentStatus === 'on_trip') { 
+      showToast("Tidak dapat membatalkan perjalanan berlangsung"); 
+      return; 
+    }
+    if (!confirm("Batalkan perjalanan? Bonus customer akan masuk ke daftar refund yang bisa diklaim customer.")) return;
+    
+    try {
+      const bonusUsed = orderData.bonus_used || 0;
+      const custId = orderData.user_id;
+      const driver = getDriverData();
+      
+      if (bonusUsed > 0 && custId) {
+        await createPendingRefund(orderId, bonusUsed, driver.uid, custId);
+        showToast("Bonus refund telah dicatat, customer dapat mengklaimnya nanti.");
+      }
+      
+      await database.ref('orders/' + orderId).update({ 
+        status: 'cancelled', 
+        cancelled_by: 'driver', 
+        cancelled_at: new Date().toISOString() 
+      });
+      
+      // Update status bonus driver menjadi refunded (agar tidak bisa diklaim)
+      const snapshot = await database.ref(`driver_bonus/${driver.uid}`).orderByChild('orderId').equalTo(orderId).once('value');
+      const updates = {};
+      snapshot.forEach(child => {
+        updates[`${child.key}/status`] = 'refunded';
+      });
+      if (Object.keys(updates).length) {
+        await database.ref(`driver_bonus/${driver.uid}`).update(updates);
+      }
+      
+      showToast("Perjalanan dibatalkan.");
+    } catch (err) {
+      console.error(err);
+      showToast("Gagal membatalkan: " + err.message);
+    }
+  }
 
   // Menampilkan informasi bonus jika ada
   function updateBonusDisplay() {
@@ -374,11 +359,9 @@ async function refundCustomerBonusIfDriverCancels(orderId, bonusUsed, driverId, 
       document.getElementById('originalPriceSpan').innerHTML = 'Rp ' + originalPrice.toLocaleString('id-ID');
       document.getElementById('bonusAmountSpan').innerHTML = 'Rp ' + bonusUsed.toLocaleString('id-ID');
       document.getElementById('finalPriceSpan').innerHTML = 'Rp ' + finalPrice.toLocaleString('id-ID');
-      // Update tampilan harga utama menjadi harga setelah bonus
       document.getElementById('tripPriceLarge').innerHTML = 'Rp ' + finalPrice.toLocaleString('id-ID');
     } else {
       bonusInfoDiv.style.display = 'none';
-      // Tampilkan harga asli jika tidak ada bonus
       let priceValue = originalPrice;
       document.getElementById('tripPriceLarge').innerHTML = 'Rp ' + priceValue.toLocaleString('id-ID');
     }
@@ -396,7 +379,6 @@ async function refundCustomerBonusIfDriverCancels(orderId, bonusUsed, driverId, 
     document.getElementById('pickupAddress').innerText = orderData.pickup_address || '-';
     document.getElementById('destinationAddress').innerText = orderData.destination_address || '-';
 
-    // Update tampilan bonus dan harga
     updateBonusDisplay();
 
     let distanceText = '-';
@@ -438,8 +420,8 @@ async function refundCustomerBonusIfDriverCancels(orderId, bonusUsed, driverId, 
     if(status === 'accepted') badge.innerHTML = '✅ Order Diterima';
     else if(status === 'on_the_way') badge.innerHTML = '🚗 Menuju Lokasi';
     else if(status === 'arrived') badge.innerHTML = '📍 Telah Tiba';
-    else if(status === 'on_trip') badge.innerHTML = '🛣️ Dalam Perjalanan';
-    else if(status === 'completed') badge.innerHTML = '🎉 Selesai';
+    else if(status === 'on_trip') badge.innerHTML = '🚀 Dalam Perjalanan';
+    else if(status === 'completed') badge.innerHTML = '🏁 Selesai';
     else if(status === 'cancelled') {
       if(orderData?.cancelled_by === 'driver') badge.innerHTML = '❌ Anda membatalkan order';
       else if(orderData?.cancelled_by === 'customer') badge.innerHTML = '❌ Customer membatalkan order';
@@ -456,7 +438,6 @@ async function refundCustomerBonusIfDriverCancels(orderId, bonusUsed, driverId, 
       if(snap.exists()){
         orderData = snap.val();
         updateStatusDisplay(orderData.status);
-        // Update bonus jika ada perubahan harga atau penggunaan bonus
         updateBonusDisplay();
         if(orderData.status === 'completed' && !window.ratingShown){
           window.ratingShown = true;
@@ -473,7 +454,7 @@ async function refundCustomerBonusIfDriverCancels(orderId, bonusUsed, driverId, 
     stars.forEach(s=>{ s.onclick = ()=>{
       let val = parseInt(s.dataset.rating);
       selectedRating = val;
-      stars.forEach((star,idx)=>{ star.innerText = idx < val ? '★' : '☆'; star.classList.toggle('active', idx<val); });
+      stars.forEach((star,idx)=>{ star.innerText = idx < val ? '⭐' : '☆'; star.classList.toggle('active', idx<val); });
       generatePresets(val);
     }});
   }
