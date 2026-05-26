@@ -827,18 +827,21 @@ function loadOrders() {
     }
 
     addedOrders.forEach(order => {
-  // CEK JIKA SEDANG MENUNGGU KONFIRMASI, ABAIKAN ORDER BARU
-  if (isWaitingForConfirmation) {
-    console.log('Sedang menunggu konfirmasi order lain, abaikan order baru');
-    return;
-  }
-  if (locationTrackingEnabled && driverLocation.latitude && driverLocation.longitude && order.pickup_lat && order.pickup_lng) {
-    const dist = calculateDistance(driverLocation.latitude, driverLocation.longitude, order.pickup_lat, order.pickup_lng);
-    if (dist !== null && dist < 3) {
-      showOrderDetail({ orderId: order.id, orderData: order }, true);
-    }
-  }
-});
+      // CEK JIKA SEDANG MENUNGGU KONFIRMASI, ABAIKAN ORDER BARU
+      if (isWaitingForConfirmation) {
+        console.log('Sedang menunggu konfirmasi order lain, abaikan order baru');
+        return;
+      }
+      if (locationTrackingEnabled && driverLocation.latitude && driverLocation.longitude && order.pickup_lat && order.pickup_lng) {
+        const dist = calculateDistance(driverLocation.latitude, driverLocation.longitude, order.pickup_lat, order.pickup_lng);
+        if (dist !== null && dist < 3) {
+          const isKurir = (order.transport_type || '').includes('kurir');
+          const fromAuto = (autobidEnabled && !isKurir);
+          // BUKA MODAL, dengan flag fromAuto yang sesuai
+          showOrderDetail({ orderId: order.id, orderData: order }, fromAuto);
+        }
+      }
+    });
 
     if (ordersInRange.length === 0) {
       document.getElementById('radarContainer').style.display = 'flex';
@@ -936,54 +939,66 @@ function calculateBidPrice(original, percent) {
   }
 }
 
-function createBidOptions(originalPrice) {
-  const container = document.getElementById('bidOptionsContainer');
-  if (!container) return;
-  container.innerHTML = '';
-  const prices = [
-    { percent: 0, class: 'original' },
-    { percent: 10, class: 'plus' },
-    { percent: 20, class: 'plus' },
-    { percent: 30, class: 'plus' }
-  ];
-  prices.forEach(opt => {
-    const bidPrice = calculateBidPrice(originalPrice, opt.percent);
-    const btn = document.createElement('button');
-    btn.className = `bid-option ${opt.class}`;
-    if (opt.percent === 0) {
-      btn.innerText = `Ambil Rp ${bidPrice.toLocaleString('id-ID')}`;
-    } else {
-      btn.innerText = `Ambil dengan Rp ${bidPrice.toLocaleString('id-ID')}`;
-    }
-    btn.addEventListener('click', async (e) => {
-      e.stopPropagation();
-      if (isWaitingForConfirmation) {
-        showToast('Sedang menunggu konfirmasi order lain, tidak bisa mengirim penawaran baru.', 'warning');
-        return;
-      }
-      // Simpan teks asli dan ubah menjadi "Mengirim..."
-      const originalText = btn.innerText;
-      btn.dataset.originalText = originalText;
-      btn.innerText = 'Mengirim...';
-      btn.disabled = true;
-      // Nonaktifkan semua tombol tawaran lainnya
-      document.querySelectorAll('.bid-option').forEach(otherBtn => {
-        if (otherBtn !== btn) otherBtn.disabled = true;
-      });
-      try {
-        await sendDriverOffer(false, bidPrice, opt.percent, btn);
-        // Jika berhasil, tidak perlu mengembalikan teks karena countdown akan muncul
-        // dan tombol akan tetap dinonaktifkan (atau modal ditutup)
-      } catch (err) {
-        // Jika gagal, kembalikan teks dan aktifkan tombol
-        btn.innerText = originalText;
-        btn.disabled = false;
-        document.querySelectorAll('.bid-option').forEach(otherBtn => otherBtn.disabled = false);
-      }
+function createBidOptions(originalPrice, currentOrderId) {
+    const container = document.getElementById('bidOptionsContainer');
+    if (!container) return;
+    container.innerHTML = '';
+    const prices = [
+        { percent: 0, class: 'original' },
+        { percent: 10, class: 'plus' },
+        { percent: 20, class: 'plus' },
+        { percent: 30, class: 'plus' }
+    ];
+    
+    // Cek apakah sedang menunggu konfirmasi untuk order ini
+    const isCountdownActiveForThisOrder = (isWaitingForConfirmation && countdownOrderId === currentOrderId);
+    
+    prices.forEach(opt => {
+        const bidPrice = calculateBidPrice(originalPrice, opt.percent);
+        const btn = document.createElement('button');
+        btn.className = `bid-option ${opt.class}`;
+        if (opt.percent === 0) {
+            btn.innerText = `Ambil Rp ${bidPrice.toLocaleString('id-ID')}`;
+        } else {
+            btn.innerText = `Ambil dengan Rp ${bidPrice.toLocaleString('id-ID')}`;
+        }
+        
+        // Nonaktifkan tombol jika sedang menunggu konfirmasi untuk order ini
+        if (isCountdownActiveForThisOrder) {
+            btn.disabled = true;
+            btn.style.opacity = '0.5';
+            btn.style.cursor = 'not-allowed';
+        }
+        
+        btn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            if (isWaitingForConfirmation) {
+                showToast('Sedang menunggu konfirmasi order lain, tidak bisa mengirim penawaran baru.', 'warning');
+                return;
+            }
+            // Simpan teks asli dan ubah menjadi "Mengirim..."
+            const originalText = btn.innerText;
+            btn.dataset.originalText = originalText;
+            btn.innerText = 'Mengirim...';
+            btn.disabled = true;
+            // Nonaktifkan semua tombol tawaran lainnya
+            document.querySelectorAll('.bid-option').forEach(otherBtn => {
+                if (otherBtn !== btn) otherBtn.disabled = true;
+            });
+            try {
+                await sendDriverOffer(false, bidPrice, opt.percent, btn);
+                // Jika berhasil, tidak perlu mengembalikan teks karena countdown akan muncul
+                // dan tombol akan tetap dinonaktifkan (atau modal ditutup)
+            } catch (err) {
+                // Jika gagal, kembalikan teks dan aktifkan tombol
+                btn.innerText = originalText;
+                btn.disabled = false;
+                document.querySelectorAll('.bid-option').forEach(otherBtn => otherBtn.disabled = false);
+            }
+        });
+        container.appendChild(btn);
     });
-    container.appendChild(btn);
-  });
-  container.style.display = 'flex';
+    container.style.display = 'flex';
 }
 
 function hideBidOptions() {
@@ -1012,6 +1027,7 @@ async function showOrderDetail(orderObj, fromAuto = false) {
   }
   currentSelectedOrder = { orderId: orderId, orderData: currentOrder };
 
+  // Update UI modal
   document.getElementById('modalAddressA').textContent = currentOrder.pickup_address || '-';
   document.getElementById('modalAddressB').textContent = currentOrder.destination_address || '-';
   document.getElementById('modalDuration').textContent = currentOrder.duration_seconds ? Math.round(currentOrder.duration_seconds / 60) + ' menit' : '-';
@@ -1029,54 +1045,42 @@ async function showOrderDetail(orderObj, fromAuto = false) {
     deliveryDiv.style.display = 'block';
   } else deliveryDiv.style.display = 'none';
 
+  // Reset state UI
   document.getElementById('countdownContainer').style.display = 'none';
   document.getElementById('ambilBtn').disabled = false;
   document.getElementById('ambilBtn').textContent = 'Kirim Penawaran';
+  document.getElementById('ambilBtn').style.display = 'block'; // default tampilkan tombol utama
+  hideBidOptions();
+
+  // Tentukan apakah ini auto (autobid & fromAuto true)
+  const isAutoBid = (autobidEnabled && fromAuto);
   
-  // ========== TAMPILKAN TOMBOL TAWARAN ATAU TOMBOL BIASA ==========
-  const showBidOptionsFlag = (!autobidEnabled && locationTrackingEnabled);
-  if (showBidOptionsFlag) {
-    // Sembunyikan tombol biasa, tampilkan tombol tawaran
+  if (!isAutoBid) {
+    // Kasus manual: tampilkan opsi tawaran (0%,10%,20%,30%)
     document.getElementById('ambilBtn').style.display = 'none';
-    createBidOptions(currentOrder.price);
+    createBidOptions(currentOrder.price, orderId);
   } else {
-    document.getElementById('ambilBtn').style.display = 'block';
-    hideBidOptions();
+    // Kasus autobid: tombol utama tetap, opsi tawaran disembunyikan
+    // Tombol utama akan diubah teksnya setelah kita kirim penawaran
   }
-  
+
+  // Tampilkan modal
   document.getElementById('orderModal').style.display = 'flex';
-  
-  // PASANG LISTENER REALTIME UNTUK ORDER YANG SEDANG DILIHAT
+
+  // Pasang listener realtime untuk order yang sedang dilihat
   if (currentModalOrderListener && currentModalOrderRef) {
     currentModalOrderRef.off('value', currentModalOrderListener);
   }
   currentModalOrderRef = database.ref(`orders/${orderId}`);
   currentModalOrderListener = currentModalOrderRef.on('value', (snapshot) => {
-  const order = snapshot.val();
-  if (!order || order.status !== 'waiting' || order.status === 'cancelled_by_user') {
-    closeModal();
-    showToast('Order telah dibatalkan oleh customer.', 'warning');
-  }
-});
-
-  if (fromAuto) {
-  const orderType = currentOrder.transport_type || '';
-  const isKurir = orderType.includes('kurir');
-  if (autobidEnabled && !isKurir) {
-    // CEK: Cegah autobid berulang untuk order yang sama
-    if (autobidOfferedOrders.has(orderId)) {
-      console.log(`Autobid untuk order ${orderId} sudah dikirim sebelumnya, lewat.`);
-      return;
+    const order = snapshot.val();
+    if (!order || order.status !== 'waiting' || order.status === 'cancelled_by_user') {
+      closeModal();
+      showToast('Order telah dibatalkan oleh customer.', 'warning');
     }
-    const autoSound = document.getElementById('autobidSound');
-    if (autoSound) autoSound.play().catch(e => console.log('Audio error:', e));
-    setTimeout(() => sendDriverOffer(true), 500); // Kirim dengan parameter true (auto)
-  } else {
-    const manualSound = document.getElementById('manualPopupSound');
-    if (manualSound) manualSound.play().catch(e => console.log('Audio error:', e));
-  }
-}
+  });
 
+  // Tampilkan rute di map
   if (mapboxAccessToken) {
     if (!modalMap) initModalMapbox();
     showRouteOnMapbox(currentOrder);
@@ -1085,6 +1089,24 @@ async function showOrderDetail(orderObj, fromAuto = false) {
       if (!modalMap) initModalMapbox();
       showRouteOnMapbox(currentOrder);
     }).catch(console.error);
+  }
+
+  // JIKA INI AUTOBID, kirim penawaran otomatis setelah modal muncul
+  if (isAutoBid) {
+    // Cegah double offer
+    if (autobidOfferedOrders.has(orderId)) {
+      console.log(`Autobid untuk order ${orderId} sudah dikirim sebelumnya, lewat.`);
+      return;
+    }
+    const autoSound = document.getElementById('autobidSound');
+    if (autoSound) autoSound.play().catch(e => console.log('Audio error:', e));
+    // Ubah tombol utama jadi "Mengirim..."
+    const ambilBtn = document.getElementById('ambilBtn');
+    ambilBtn.disabled = true;
+    ambilBtn.textContent = 'Mengirim Penawaran...';
+    // Kirim penawaran otomatis dengan harga original
+    await sendDriverOffer(true, currentOrder.price, 0, null);
+    // Catatan: sendDriverOffer akan memulai countdown dan menonaktifkan tombol
   }
 }
 
