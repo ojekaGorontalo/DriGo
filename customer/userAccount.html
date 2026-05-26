@@ -838,12 +838,18 @@ async function loadReferralData(uid) {
             referredFriendsList.innerHTML = 'Belum ada teman yang mendaftar pakai kode Anda.';
             return;
         }
+        
         let html = '<ul class="friend-list">';
         for (let [referredUid, data] of Object.entries(referred)) {
-            // Tidak baca nama karena permission denied, cukup tampilkan ID singkat
             const shortId = referredUid.substring(0, 8) + '...';
-            const bonusGiven = data.bonusGiven;
-            html += `<li>Teman (${shortId}) <span class="badge ${bonusGiven ? 'badge-success' : 'badge-warning'}">${bonusGiven ? '✅ Bonus diberikan' : '⏳ Menunggu order pertama'}</span></li>`;
+            // Ambil total bonus yang sudah diakumulasi untuk teman ini (jika ada)
+            const totalBonusForFriend = data.totalBonusAccumulated || 0;
+            const lastBonusAt = data.lastBonusAt ? new Date(data.lastBonusAt).toLocaleDateString('id-ID') : '-';
+            html += `<li>
+                        Teman (${shortId}) 
+                        <span class="badge badge-success">💰 Bonus total: ${formatRupiah(totalBonusForFriend)}</span>
+                        <span style="font-size:0.7rem; color:#666;"> (terakhir: ${lastBonusAt})</span>
+                     </li>`;
         }
         html += '</ul>';
         referredFriendsList.innerHTML = html;
