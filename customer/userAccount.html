@@ -111,7 +111,7 @@
             width: 100%;
         }
         
-        .profile-section, .account-details, .referral-section {
+        .profile-section, .account-details {
             width: 100%;
             background: white;
             border-radius: 12px;
@@ -257,73 +257,6 @@
         
         .detail-value {
             font-size: 1rem;
-        }
-        
-        /* Referral Box */
-        .referral-box {
-            background: #fff7e6;
-            border: 1px dashed var(--primary);
-            border-radius: 12px;
-            padding: 15px;
-            margin-bottom: 20px;
-            text-align: center;
-        }
-        .referral-code {
-            font-size: 1.6rem;
-            font-weight: bold;
-            letter-spacing: 2px;
-            background: var(--primary);
-            color: white;
-            display: inline-block;
-            padding: 8px 20px;
-            border-radius: 40px;
-            margin: 10px 0;
-        }
-        .copy-btn-small {
-            background: var(--primary);
-            color: white;
-            border: none;
-            padding: 6px 16px;
-            border-radius: 30px;
-            cursor: pointer;
-            font-size: 0.8rem;
-            margin-left: 12px;
-            transition: 0.2s;
-        }
-        .copy-btn-small:hover {
-            background: var(--secondary);
-        }
-        .bonus-amount {
-            font-size: 1.8rem;
-            font-weight: bold;
-            color: var(--secondary);
-        }
-        .friend-list {
-            list-style: none;
-            margin-top: 10px;
-            max-height: 200px;
-            overflow-y: auto;
-        }
-        .friend-list li {
-            padding: 8px 0;
-            border-bottom: 1px solid #eee;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        .badge {
-            background: #e0e0e0;
-            padding: 2px 8px;
-            border-radius: 12px;
-            font-size: 0.7rem;
-        }
-        .badge-success {
-            background: #4CAF50;
-            color: white;
-        }
-        .badge-warning {
-            background: #FFC107;
-            color: #333;
         }
         
         .action-buttons {
@@ -597,28 +530,6 @@
                     <div class="detail-item"><div class="detail-label">Jumlah Perjalanan</div><div class="detail-value" id="userPerjalanan">-</div></div>
                 </section>
                 
-                <!-- BAGIAN REFERRAL -->
-                <section class="referral-section">
-                    <h2>🎁 Program Referral</h2>
-                    <div class="referral-box">
-                        <div>Kode Referral ANDA</div>
-                        <div>
-                            <span class="referral-code" id="myReferralCode">-</span>
-                            <button class="copy-btn-small" id="copyReferralBtn">Salin Kode</button>
-                        </div>
-                        <div style="margin-top: 12px; font-size: 0.85rem;">Bagikan kode ini ke teman. Setiap teman yang mendaftar dan melakukan perjalanan pertama, Anda mendapat <strong>20% dari nilai perjalanan</strong> sebagai bonus!</div>
-                    </div>
-                    <div style="display: flex; justify-content: space-between; align-items: baseline; margin-top: 10px;">
-                        <span style="font-weight: 600;">Total Bonus Referral</span>
-                        <span class="bonus-amount" id="totalBonus">Rp 0</span>
-                    </div>
-                    <details style="margin-top: 15px;">
-                        <summary style="cursor: pointer; color: var(--primary); font-weight: 500;">👥 Teman yang diajak (detail)</summary>
-                        <div id="referredFriendsList" style="margin-top: 12px;">Memuat...</div>
-                    </details>
-                    <div style="font-size: 0.7rem; color: #666; margin-top: 12px;">* Bonus diberikan otomatis setelah teman menyelesaikan order pertamanya.</div>
-                </section>
-                
                 <!-- Detail Akun & Tombol Aksi -->
                 <section class="account-details">
                     <h2>Detail Akun</h2>
@@ -762,12 +673,6 @@
         const photoPreview = document.getElementById('photoPreview');
         const uploadStatus = document.getElementById('uploadStatus');
 
-        // Elemen referral
-        const myReferralCodeSpan = document.getElementById('myReferralCode');
-        const totalBonusSpan = document.getElementById('totalBonus');
-        const referredFriendsList = document.getElementById('referredFriendsList');
-        const copyReferralBtn = document.getElementById('copyReferralBtn');
-
         let currentUserData = null;
         let currentUid = null;
         let newPhotoURL = null;
@@ -796,68 +701,6 @@
         function formatRupiah(amount) {
             return 'Rp ' + (parseInt(amount) || 0).toLocaleString('id-ID');
         }
-
-        // ========== FITUR REFERRAL ==========
-        // Fungsi untuk memastikan user (termasuk user lama) memiliki kode referral
-        async function ensureReferralCode(uid, userName) {
-    const userRef = database.ref(`users/${uid}`);
-    const userSnap = await userRef.once('value');
-    const userData = userSnap.val();
-    if (!userData.referral_code) {
-        const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ0123456789';
-        let code = '';
-        for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
-        const referralCode = `JEGO${code}`;
-        // Simpan ke users
-        await userRef.update({
-            referral_code: referralCode,
-            referral_bonus_total: 0
-        });
-        // **TAMBAHKAN: Simpan juga ke referral_codes agar bisa digunakan oleh orang lain**
-        await database.ref(`referral_codes/${referralCode}`).set(uid);
-        console.log(`✅ Kode referral dibuat untuk ${userName}: ${referralCode} (juga disimpan di referral_codes)`);
-        return referralCode;
-    }
-    return userData.referral_code;
-}
-
-        // Load data referral (kode, bonus, daftar teman)
-async function loadReferralData(uid) {
-    try {
-        // Ambil data user sendiri
-        const userSnap = await database.ref(`users/${uid}`).once('value');
-        const user = userSnap.val();
-        if (user) {
-            myReferralCodeSpan.innerText = user.referral_code || 'Tidak tersedia';
-            totalBonusSpan.innerText = formatRupiah(user.referral_bonus_total || 0);
-        }
-        // Ambil daftar teman yang diajak dari referralUsage/{uid}
-        const usageSnap = await database.ref(`referralUsage/${uid}`).once('value');
-        const referred = usageSnap.val();
-        if (!referred || Object.keys(referred).length === 0) {
-            referredFriendsList.innerHTML = 'Belum ada teman yang mendaftar pakai kode Anda.';
-            return;
-        }
-        
-        let html = '<ul class="friend-list">';
-        for (let [referredUid, data] of Object.entries(referred)) {
-            const shortId = referredUid.substring(0, 8) + '...';
-            // Ambil total bonus yang sudah diakumulasi untuk teman ini (jika ada)
-            const totalBonusForFriend = data.totalBonusAccumulated || 0;
-            const lastBonusAt = data.lastBonusAt ? new Date(data.lastBonusAt).toLocaleDateString('id-ID') : '-';
-            html += `<li>
-                        Teman (${shortId}) 
-                        <span class="badge badge-success">💰 Bonus total: ${formatRupiah(totalBonusForFriend)}</span>
-                        <span style="font-size:0.7rem; color:#666;"> (terakhir: ${lastBonusAt})</span>
-                     </li>`;
-        }
-        html += '</ul>';
-        referredFriendsList.innerHTML = html;
-    } catch (err) {
-        console.error('Gagal load referral:', err);
-        referredFriendsList.innerHTML = 'Gagal memuat data referral.';
-    }
-}
 
         // Tampilkan data user di profil
         function displayUserData(data) {
@@ -1069,17 +912,6 @@ async function loadReferralData(uid) {
             await deleteAccount(currentUid);
         });
 
-        // Salin kode referral
-        copyReferralBtn.addEventListener('click', () => {
-            const code = myReferralCodeSpan.innerText;
-            if (code && code !== 'Tidak tersedia') {
-                navigator.clipboard.writeText(code);
-                showAlert(successAlert, 'Kode referral disalin!', true);
-            } else {
-                showAlert(errorAlert, 'Kode referral belum tersedia.', false);
-            }
-        });
-
         // Inisialisasi
         document.addEventListener('DOMContentLoaded', async () => {
             await fetchImgbbApiKey();
@@ -1101,23 +933,13 @@ async function loadReferralData(uid) {
                         return;
                     }
                     
-                    // Pastikan user memiliki referral_code (untuk user lama)
-                    const newReferralCode = await ensureReferralCode(currentUid, data.name);
-                    if (newReferralCode && !data.referral_code) {
-                        // Update data lokal agar tidak perlu reload dari DB
-                        data.referral_code = newReferralCode;
-                        data.referral_bonus_total = 0;
-                    }
-                    
                     displayUserData(data);
-                    await loadReferralData(currentUid);
                     
                     const session = {
                         userId: currentUid, uid: currentUid, name: data.name, phone: data.phone,
                         email: data.email, address: data.address, gender: data.gender,
                         status: data.status, photoURL: data.photoURL, rating: data.rating,
-                        perjalanan: data.perjalanan, referralCode: data.referral_code,
-                        referralBonus: data.referral_bonus_total
+                        perjalanan: data.perjalanan
                     };
                     localStorage.setItem('jego_logged_in_user', JSON.stringify(session));
                 } catch (err) {
