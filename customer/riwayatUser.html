@@ -2,554 +2,505 @@
 <html lang="id">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
     <title>Riwayat Perjalanan - JeGo</title>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
     <style>
-        :root {
-            --primary: #FF9800;
-            --secondary: #FF5722;
-            --accent: #FFC107;
-            --light: #f8f9fa;
-            --dark: #343a40;
-            --success: #4CAF50;
-            --danger: #f44336;
-            --warning: #FFC107;
-            --info: #2196F3;
-            --gray: #9E9E9E;
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #F5F5F5;
+            font-family: 'Segoe UI', Roboto, system-ui, sans-serif;
+            min-height: 100vh;
         }
-        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-        body { background-color: #f5f5f5; color: var(--dark); line-height: 1.6; min-height: 100vh; display: flex; flex-direction: column; }
-        .container { max-width: 100%; padding: 15px; padding-bottom: 20px; }
-        .header {
-            background: linear-gradient(135deg, var(--primary), var(--secondary));
-            color: white;
-            padding: 15px 20px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+        .native-container {
+            width: 100%;
+            max-width: 100%;
+            background: #F5F5F5;
+            min-height: 100vh;
             display: flex;
-            align-items: center;
-            justify-content: center;
-            position: sticky;
-            top: 0;
-            z-index: 100;
+            flex-direction: column;
         }
-        .header-title { font-size: 1.1rem; font-weight: 600; text-align: center; }
+        .header {
+            background: linear-gradient(135deg, #FF9800, #F57C00);
+            padding: 20px;
+            text-align: center;
+            color: white;
+        }
+        .header h1 {
+            font-size: 1.5rem;
+            font-weight: 700;
+        }
         .filter-container {
             background: white;
-            border-radius: 12px;
-            padding: 15px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-            margin-bottom: 15px;
+            padding: 12px 16px;
             display: flex;
             gap: 10px;
             overflow-x: auto;
+            border-bottom: 1px solid #eee;
         }
         .filter-option {
-            background: #f8f9fa;
-            border: 1px solid #e9ecef;
-            border-radius: 20px;
-            padding: 8px 15px;
+            background: #f0f0f0;
+            border-radius: 30px;
+            padding: 6px 16px;
             font-size: 0.8rem;
             font-weight: 500;
             cursor: pointer;
-            transition: all 0.3s;
             white-space: nowrap;
+            transition: 0.2s;
         }
-        .filter-option.active { background: var(--primary); color: white; border-color: var(--primary); }
-        .orders-list { display: flex; flex-direction: column; gap: 10px; }
-        .date-section { margin-bottom: 5px; }
-        .date-header { font-size: 0.9rem; font-weight: 600; color: var(--primary); margin-bottom: 10px; padding-bottom: 5px; border-bottom: 1px solid #eee; }
-        .order-item {
-            background: white;
-            border-radius: 8px;
-            padding: 12px;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+        .filter-option.active {
+            background: #FF9800;
+            color: white;
+        }
+        .orders-list {
+            padding: 16px;
             display: flex;
             flex-direction: column;
-            gap: 8px;
+            gap: 12px;
+        }
+        .date-section {
+            margin-bottom: 8px;
+        }
+        .date-header {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: #FF9800;
+            margin-bottom: 8px;
+            padding-bottom: 4px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        .order-item {
+            background: white;
+            border-radius: 16px;
+            padding: 14px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.05);
             cursor: pointer;
-            transition: all 0.3s;
+            transition: 0.2s;
         }
-        .order-item:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.12); }
-        .order-header { display: flex; justify-content: space-between; align-items: flex-start; }
-        .customer-name { font-weight: 600; color: var(--primary); font-size: 0.9rem; display: flex; align-items: center; gap: 5px; }
-        .kurir-badge, .promo-badge { padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; font-weight: 600; }
-        .kurir-badge { background-color: var(--accent); color: var(--dark); }
-        .promo-badge { background-color: var(--success); color: white; }
-        .status-badge { display: inline-block; padding: 4px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; }
-        .status-completed { background-color: #d4edda; color: #155724; }
-        .status-cancelled { background-color: #f8d7da; color: #721c24; }
-        .status-on_the_way { background-color: #d1ecf1; color: #0c5460; }
-        .status-accepted { background-color: #fff3cd; color: #856404; }
-        .route-info { display: flex; flex-direction: column; gap: 5px; font-size: 0.8rem; }
-        .route-point { display: flex; align-items: flex-start; }
+        .order-item:active { transform: scale(0.98); }
+        .order-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        .customer-name {
+            font-weight: 700;
+            color: #FF9800;
+            font-size: 0.9rem;
+            display: flex;
+            gap: 6px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .status-badge {
+            padding: 4px 10px;
+            border-radius: 30px;
+            font-size: 0.7rem;
+            font-weight: 600;
+        }
+        .status-completed { background: #d4edda; color: #155724; }
+        .status-cancelled { background: #f8d7da; color: #721c24; }
+        .status-on_the_way { background: #d1ecf1; color: #0c5460; }
+        .status-accepted { background: #fff3cd; color: #856404; }
+        .route-info {
+            font-size: 0.8rem;
+            margin: 8px 0;
+            color: #333;
+        }
+        .route-point {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 4px;
+        }
         .point-marker {
-            width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
-            margin-right: 8px; flex-shrink: 0; font-size: 0.7rem; font-weight: bold; color: white;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.7rem;
+            font-weight: bold;
+            color: white;
+            flex-shrink: 0;
         }
-        .point-marker-a { background-color: var(--primary); }
-        .point-marker-b { background-color: var(--secondary); }
-        .point-address { flex: 1; word-break: break-word; }
-        .point-address-a { font-weight: 700; }
-        .order-details { display: flex; justify-content: space-between; border-top: 1px solid #eee; padding-top: 8px; font-size: 0.8rem; }
-        .detail-item { display: flex; flex-direction: column; align-items: center; text-align: center; flex: 1; }
-        .detail-value { font-weight: 600; color: var(--primary); }
-        .detail-label { font-size: 0.7rem; color: #666; margin-top: 2px; }
-        .price-highlight { color: var(--success); font-weight: 700; }
-        .original-price { text-decoration: line-through; color: #999; font-size: 0.7rem; margin-right: 4px; }
-        .order-meta { display: flex; justify-content: space-between; font-size: 0.7rem; color: #666; border-top: 1px solid #f0f0f0; padding-top: 8px; margin-top: 5px; }
-        .empty-state { text-align: center; padding: 40px 20px; color: #666; background: white; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.08); }
-        .loading { display: flex; justify-content: center; align-items: center; padding: 30px; background: white; border-radius: 8px; }
-        .spinner { width: 40px; height: 40px; border: 4px solid rgba(0,0,0,0.1); border-radius: 50%; border-top-color: var(--primary); animation: spin 1s ease-in-out infinite; }
+        .point-marker-a { background: #4CAF50; }
+        .point-marker-b { background: #FF9800; }
+        .order-details {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px solid #eee;
+            font-size: 0.75rem;
+        }
+        .detail-item {
+            text-align: center;
+            flex: 1;
+        }
+        .detail-value {
+            font-weight: 700;
+            color: #FF9800;
+        }
+        .order-meta {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 8px;
+            font-size: 0.7rem;
+            color: #666;
+        }
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #888;
+            background: white;
+            border-radius: 20px;
+        }
+        .loading {
+            text-align: center;
+            padding: 40px;
+        }
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #eee;
+            border-top-color: #FF9800;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 12px;
+        }
         @keyframes spin { to { transform: rotate(360deg); } }
         .modal {
             display: none;
             position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0,0,0,0.5);
-            z-index: 1000;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5);
             align-items: center;
             justify-content: center;
+            z-index: 1000;
         }
         .modal-content {
-            background-color: white;
-            border-radius: 12px;
-            width: 95%;
+            background: white;
+            border-radius: 24px;
+            width: 90%;
             max-width: 500px;
-            max-height: 90vh;
+            max-height: 85vh;
             overflow-y: auto;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
-            display: flex;
-            flex-direction: column;
         }
-        .modal-header { padding: 15px 20px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; }
-        .modal-title { font-size: 1.2rem; font-weight: 600; color: var(--primary); }
-        .close-btn { background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #666; padding: 0; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; }
-        .close-btn:hover { color: var(--danger); }
-        .modal-body { padding: 0; flex: 1; display: flex; flex-direction: column; }
-        .modal-details { padding: 15px 20px; }
-        .modal-route-info { display: flex; flex-direction: column; gap: 10px; margin-bottom: 15px; }
-        .modal-route-point { display: flex; align-items: flex-start; }
-        .modal-point-marker { width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-right: 10px; flex-shrink: 0; font-size: 0.8rem; color: white; font-weight: bold; }
-        .modal-point-address { flex: 1; word-break: break-word; }
-        .modal-point-address-a { font-weight: 700; }
-        .modal-order-details {
+        .modal-header {
+            padding: 16px;
+            border-bottom: 1px solid #eee;
             display: flex;
             justify-content: space-between;
-            background-color: #f9f9f9;
-            padding: 12px;
-            border-radius: 8px;
-            margin-bottom: 15px;
+            align-items: center;
         }
-        .modal-detail-item { display: flex; flex-direction: column; align-items: center; text-align: center; flex: 1; }
-        .modal-detail-value { font-weight: 600; color: var(--primary); font-size: 1rem; }
-        .modal-detail-label { font-size: 0.8rem; color: #666; margin-top: 2px; }
-        .modal-price-highlight { color: var(--success); font-weight: 700; font-size: 1.1rem; }
-        .modal-original-price { text-decoration: line-through; color: #999; font-size: 0.9rem; margin-right: 4px; }
-        .modal-timeline { margin-top: 15px; margin-bottom: 20px; }
-        .timeline-title { font-weight: 600; margin-bottom: 10px; color: var(--primary); }
-        .timeline-item { display: flex; margin-bottom: 8px; font-size: 0.8rem; flex-wrap: wrap; }
-        .timeline-time { width: 100px; color: #666; flex-shrink: 0; }
-        .timeline-event { flex: 1; }
+        .modal-title { color: #FF9800; font-weight: 700; }
+        .close-btn { background: none; border: none; font-size: 24px; cursor: pointer; }
+        .modal-body { padding: 16px; }
+        .modal-detail-item { margin-bottom: 12px; }
         .support-btn {
-            display: block;
+            background: linear-gradient(135deg, #FF9800, #F57C00);
             width: 100%;
-            padding: 14px;
-            background: linear-gradient(to right, var(--primary), var(--secondary));
+            padding: 12px;
+            border: none;
+            border-radius: 40px;
             color: white;
-            border: none;
-            border-radius: 8px;
-            font-size: 1rem;
-            font-weight: 600;
+            font-weight: bold;
+            margin-top: 16px;
             cursor: pointer;
-            transition: all 0.3s;
-            margin-top: 15px;
+        }
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            right: 20px;
+            background: #1E293B;
+            color: white;
             text-align: center;
-        }
-        .support-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 12px rgba(0,0,0,0.15); }
-        .cs-info { background-color: #f8f9fa; border-radius: 8px; padding: 15px; margin-bottom: 15px; border-left: 4px solid var(--primary); }
-        .cs-info h4 { color: var(--primary); margin-bottom: 10px; }
-        .cs-info ul { margin-left: 20px; margin-bottom: 10px; }
-        .cs-info li { margin-bottom: 5px; }
-        .cs-contact { display: flex; flex-direction: column; gap: 10px; margin-top: 15px; }
-        .contact-item { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-        .contact-icon { width: 24px; font-size: 1.2rem; }
-        .contact-action { margin-top: 5px; }
-        .copy-btn {
-            background-color: var(--accent);
-            color: var(--dark);
-            border: none;
-            border-radius: 4px;
-            padding: 6px 12px;
-            font-size: 0.8rem;
-            cursor: pointer;
-            transition: all 0.3s;
-        }
-        .copy-btn:hover { background-color: #d4c92a; }
-        .feedback-link {
-            color: var(--primary);
-            text-decoration: none;
-            font-weight: 600;
-        }
-        @media (max-width: 768px) {
-            body { font-size: 0.8rem; }
-            .order-item { padding: 10px; }
-            .route-info { font-size: 0.75rem; }
-            .order-details { font-size: 0.75rem; }
-            .modal-content { width: 98%; max-height: 95vh; }
-            .timeline-time { width: 85px; }
-        }
-        @media (max-width: 576px) {
-            .container { padding: 10px; }
-            .order-details { flex-wrap: wrap; gap: 5px; }
-            .detail-item { flex: 0 0 calc(33.333% - 10px); }
-            .modal-header { padding: 12px 15px; }
-            .modal-details { padding: 12px 15px; }
-            .modal-order-details { flex-direction: column; gap: 10px; }
-            .modal-detail-item { flex-direction: row; justify-content: space-between; text-align: left; }
-            .header { padding: 12px 15px; }
+            padding: 12px;
+            border-radius: 40px;
+            opacity: 0;
+            transition: 0.2s;
+            z-index: 1100;
         }
     </style>
 </head>
 <body>
+<div class="native-container">
     <div class="header">
-        <div class="header-title">Riwayat Perjalanan</div>
+        <h1>Riwayat Perjalanan</h1>
     </div>
 
-    <div class="container">
-        <div class="filter-container">
-            <div class="filter-option active" data-filter="all">Semua</div>
-            <div class="filter-option" data-filter="completed">Selesai</div>
-            <div class="filter-option" data-filter="cancelled">Dibatalkan</div>
-            <div class="filter-option" data-filter="this_week">Minggu Ini</div>
-            <div class="filter-option" data-filter="this_month">Bulan Ini</div>
-        </div>
-        <div class="orders-list" id="ordersList">
-            <div class="loading"><div class="spinner"></div></div>
-        </div>
+    <div class="filter-container">
+        <div class="filter-option active" data-filter="all">Semua</div>
+        <div class="filter-option" data-filter="completed">Selesai</div>
+        <div class="filter-option" data-filter="cancelled">Dibatalkan</div>
+        <div class="filter-option" data-filter="this_week">Minggu Ini</div>
+        <div class="filter-option" data-filter="this_month">Bulan Ini</div>
     </div>
 
-    <!-- Modal Detail Order -->
-    <div class="modal" id="orderModal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3 class="modal-title">Detail Order</h3>
-                <button class="close-btn" id="closeModal">&times;</button>
-            </div>
-            <div class="modal-body">
-                <div class="modal-details">
-                    <div class="modal-route-info">
-                        <div class="modal-route-point">
-                            <div class="modal-point-marker point-marker-a">A</div>
-                            <div class="modal-point-address modal-point-address-a" id="modalAddressA">-</div>
-                        </div>
-                        <div class="modal-route-point">
-                            <div class="modal-point-marker point-marker-b">B</div>
-                            <div class="modal-point-address" id="modalAddressB">-</div>
-                        </div>
-                    </div>
-                    <div class="modal-order-details">
-                        <div class="modal-detail-item"><span class="modal-detail-value" id="modalDuration">-</span><span class="modal-detail-label">Durasi</span></div>
-                        <div class="modal-detail-item"><span class="modal-detail-value" id="modalDistance">-</span><span class="modal-detail-label">Jarak</span></div>
-                        <div class="modal-detail-item"><span class="modal-detail-value modal-price-highlight" id="modalPrice">-</span><span class="modal-detail-label">Harga</span></div>
-                    </div>
-                    <div class="modal-timeline" id="modalPromoInfo" style="display:none;">
-                        <div class="timeline-title">Detail Promo</div>
-                        <div class="timeline-item"><div class="timeline-time">Kode Promo:</div><div class="timeline-event" id="modalPromoCode">-</div></div>
-                        <div class="timeline-item"><div class="timeline-time">Diskon:</div><div class="timeline-event" id="modalPromoDiscount">-</div></div>
-                        <div class="timeline-item"><div class="timeline-time">Harga Asli:</div><div class="timeline-event" id="modalOriginalPrice">-</div></div>
-                    </div>
-                    <div class="modal-timeline">
-                        <div class="timeline-title">Timeline Order</div>
-                        <div class="timeline-item"><div class="timeline-time" id="timelineCreated">-</div><div class="timeline-event">Order dibuat</div></div>
-                        <div class="timeline-item"><div class="timeline-time" id="timelineAccepted">-</div><div class="timeline-event">Driver diterima</div></div>
-                        <div class="timeline-item"><div class="timeline-time" id="timelineStarted">-</div><div class="timeline-event">Perjalanan dimulai</div></div>
-                        <div class="timeline-item"><div class="timeline-time" id="timelineArrived">-</div><div class="timeline-event">Tiba di tujuan</div></div>
-                        <div class="timeline-item"><div class="timeline-time" id="timelineCompleted">-</div><div class="timeline-event">Order selesai</div></div>
-                    </div>
-                    <button class="support-btn" id="hubungiDukunganBtn">📧 Hubungi Dukungan</button>
-                </div>
-            </div>
+    <div class="orders-list" id="ordersList">
+        <div class="loading"><div class="spinner"></div><p>Memuat riwayat...</p></div>
+    </div>
+</div>
+
+<!-- Modal Detail -->
+<div class="modal" id="orderModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 class="modal-title">Detail Perjalanan</h3>
+            <button class="close-btn" id="closeModalBtn">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div id="modalDetailContent"></div>
+            <button class="support-btn" id="hubungiDukunganBtn">📧 Hubungi Dukungan</button>
         </div>
     </div>
+</div>
 
-    <!-- Modal CS -->
-    <div class="modal" id="csModal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3 class="modal-title">Hubungi Customer Service</h3>
-                <button class="close-btn" id="closeCsModal">&times;</button>
-            </div>
-            <div class="modal-body">
-                <div class="modal-details">
-                    <div class="cs-info">
-                        <h4>Informasi Kontak CS JeGo</h4>
-                        <p>Untuk pertanyaan, keluhan, atau bantuan teknis, silakan hubungi kami melalui email:</p>
-                        <div class="cs-contact">
-                            <div class="contact-item">
-                                <div class="contact-icon">📧</div>
-                                <div>
-                                    <strong>Email:</strong> cs.jego.app@gmail.com
-                                    <div class="contact-action">
-                                        <button class="copy-btn" data-text="cs.jego.app@gmail.com">Salin Email</button>
-                                        <a href="mailto:cs.jego.app@gmail.com?subject=Feedback%20JeGo%20-%20Order%20ID:&body=Halo%20CS%20JeGo%2C%0A%0ASaya%20ingin%20menyampaikan%20..." class="feedback-link" style="margin-left: 10px;">📧 Buka Email</a>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        <p style="margin-top: 15px;"><strong>Informasi yang perlu disertakan:</strong></p>
-                        <ul>
-                            <li>Nomor HP Anda</li>
-                            <li>Order ID: <span id="csOrderId">-</span></li>
-                            <li>Detail keluhan atau pertanyaan</li>
-                            <li>Screenshot perjalanan yang dikeluhkan (jika ada)</li>
-                        </ul>
-                        <p style="margin-top: 15px; font-style: italic;">Kami akan membalas pesan Anda dalam waktu 1x24 jam.</p>
-                    </div>
-                    <button class="support-btn" id="tutupCsModal">Tutup</button>
-                </div>
-            </div>
+<!-- Modal CS -->
+<div class="modal" id="csModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 class="modal-title">Hubungi Customer Service</h3>
+            <button class="close-btn" id="closeCsModalBtn">&times;</button>
+        </div>
+        <div class="modal-body">
+            <p>Email: cs.jego.app@gmail.com</p>
+            <p>Sertakan Order ID: <span id="csOrderId">-</span></p>
+            <button class="support-btn" id="tutupCsModalBtn">Tutup</button>
         </div>
     </div>
+</div>
 
-    <script>
-        const FIREBASE_CONFIG = {
-            apiKey: "AIzaSyCD0pgeZio-LdKqYDtWxcdXcZwyL4ngYQI",
-            authDomain: "jego-35a2b.firebaseapp.com",
-            databaseURL: "https://jego-35a2b-default-rtdb.asia-southeast1.firebasedatabase.app",
-            projectId: "jego-35a2b",
-            storageBucket: "jego-35a2b.firebasestorage.app",
-            messagingSenderId: "600037007040",
-            appId: "1:600037007040:web:ac3243ad9b472647ffd725"
-        };
-        if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
-        const auth = firebase.auth();
-        const database = firebase.database();
+<div id="toast" class="toast"></div>
 
-        let ordersRef = null;
-        let ordersListener = null;
-        let currentUserData = null;
-        let currentFilter = 'all';
-        let currentOrderId = null;
+<script>
+    const FIREBASE_CONFIG = {
+        apiKey: "AIzaSyCD0pgeZio-LdKqYDtWxcdXcZwyL4ngYQI",
+        authDomain: "jego-35a2b.firebaseapp.com",
+        databaseURL: "https://jego-35a2b-default-rtdb.asia-southeast1.firebasedatabase.app",
+        projectId: "jego-35a2b",
+        storageBucket: "jego-35a2b.firebasestorage.app",
+        appId: "1:600037007040:web:ac3243ad9b472647ffd725"
+    };
+    if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
+    const auth = firebase.auth();
+    const database = firebase.database();
 
-        function escapeHtml(str) { if (!str) return ''; return str.replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[m])); }
-        function getStatusText(status) {
-            const map = { 'completed':'Selesai', 'cancelled':'Dibatalkan', 'accepted':'Diterima', 'on_the_way':'Dalam Perjalanan', 'waiting':'Menunggu Driver' };
-            return map[status] || status;
+    let currentUser = null;
+    let currentFilter = 'all';
+    let allOrders = []; // menyimpan semua order user
+    let ordersListener = null;
+
+    function showToast(msg) {
+        const toast = document.getElementById('toast');
+        toast.textContent = msg;
+        toast.style.opacity = '1';
+        setTimeout(() => toast.style.opacity = '0', 2500);
+    }
+
+    function formatRupiah(num) { return 'Rp ' + (num || 0).toLocaleString('id-ID'); }
+
+    function getStatusClass(status) {
+        const map = { 'completed':'status-completed', 'cancelled':'status-cancelled', 'accepted':'status-accepted', 'on_the_way':'status-on_the_way' };
+        return map[status] || 'status-completed';
+    }
+    function getStatusText(status) {
+        const map = { 'completed':'Selesai', 'cancelled':'Dibatalkan', 'accepted':'Diterima', 'on_the_way':'Dalam Perjalanan' };
+        return map[status] || status;
+    }
+
+    function isThisWeek(date) {
+        const today = new Date();
+        const start = new Date(today);
+        start.setDate(today.getDate() - today.getDay());
+        start.setHours(0,0,0,0);
+        const end = new Date(today);
+        end.setDate(today.getDate() + (6 - today.getDay()));
+        end.setHours(23,59,59,999);
+        return date >= start && date <= end;
+    }
+    function isThisMonth(date) {
+        const today = new Date();
+        return date.getMonth() === today.getMonth() && date.getFullYear() === today.getFullYear();
+    }
+
+    function formatDisplayDate(dateStr) {
+        const date = new Date(dateStr);
+        const today = new Date();
+        const yesterday = new Date(today);
+        yesterday.setDate(today.getDate()-1);
+        if (date.toDateString() === today.toDateString()) return 'Hari Ini';
+        if (date.toDateString() === yesterday.toDateString()) return 'Kemarin';
+        return date.toLocaleDateString('id-ID', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+    }
+
+    function groupOrdersByDate(orders) {
+        const groups = {};
+        orders.forEach(order => {
+            const date = new Date(order.completed_at || order.created_at);
+            const key = date.toISOString().split('T')[0];
+            if (!groups[key]) groups[key] = [];
+            groups[key].push(order);
+        });
+        return groups;
+    }
+
+    function renderOrders() {
+        const container = document.getElementById('ordersList');
+        if (!allOrders.length) {
+            container.innerHTML = '<div class="empty-state">📭 Tidak ada riwayat perjalanan</div>';
+            return;
         }
-        function getStatusClass(status) {
-            const map = { 'completed':'status-completed', 'cancelled':'status-cancelled', 'accepted':'status-accepted', 'on_the_way':'status-on_the_way' };
-            return map[status] || 'status-completed';
-        }
-        function formatDisplayDate(dateStr) {
-            const date = new Date(dateStr); const today = new Date(); const yesterday = new Date(today); yesterday.setDate(yesterday.getDate()-1);
-            if (date.toDateString() === today.toDateString()) return 'Hari Ini';
-            if (date.toDateString() === yesterday.toDateString()) return 'Kemarin';
-            return date.toLocaleDateString('id-ID', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
-        }
-        function formatOrderTime(dateStr) { return new Date(dateStr).toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit' }); }
-        function formatFullTime(dateStr) { return dateStr ? new Date(dateStr).toLocaleString('id-ID', { day:'numeric', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' }) : '-'; }
-        function isThisWeek(date) { const today = new Date(); const start = new Date(today); start.setDate(today.getDate()-today.getDay()); start.setHours(0,0,0,0); const end = new Date(today); end.setDate(today.getDate()+(6-today.getDay())); end.setHours(23,59,59,999); return date>=start && date<=end; }
-        function isThisMonth(date) { const today = new Date(); return date.getMonth()===today.getMonth() && date.getFullYear()===today.getFullYear(); }
 
-        function groupOrdersByDate(orders) {
-            const groups = {};
-            orders.forEach(order => {
-                const date = new Date(order.completed_at || order.created_at);
-                const key = date.toISOString().split('T')[0];
-                if (!groups[key]) groups[key] = [];
-                groups[key].push(order);
+        let filtered = [...allOrders];
+        if (currentFilter === 'completed') filtered = filtered.filter(o => o.status === 'completed');
+        else if (currentFilter === 'cancelled') filtered = filtered.filter(o => o.status === 'cancelled');
+        else if (currentFilter === 'this_week') filtered = filtered.filter(o => isThisWeek(new Date(o.completed_at || o.created_at)));
+        else if (currentFilter === 'this_month') filtered = filtered.filter(o => isThisMonth(new Date(o.completed_at || o.created_at)));
+
+        if (filtered.length === 0) {
+            container.innerHTML = '<div class="empty-state">🔍 Tidak ada perjalanan sesuai filter</div>';
+            return;
+        }
+
+        const grouped = groupOrdersByDate(filtered);
+        const sortedDates = Object.keys(grouped).sort((a,b) => new Date(b) - new Date(a));
+        container.innerHTML = '';
+        sortedDates.forEach(date => {
+            const section = document.createElement('div');
+            section.className = 'date-section';
+            section.innerHTML = `<div class="date-header">${formatDisplayDate(date)} • ${grouped[date].length} perjalanan</div>`;
+            container.appendChild(section);
+            grouped[date].forEach(order => {
+                const orderEl = createOrderElement(order);
+                container.appendChild(orderEl);
             });
-            return groups;
+        });
+    }
+
+    function createOrderElement(order) {
+        const div = document.createElement('div');
+        div.className = 'order-item';
+        const durasi = order.duration_seconds ? Math.round(order.duration_seconds/60)+' menit' : '-';
+        const jarak = order.distance_meters ? (order.distance_meters/1000).toFixed(1)+' km' : '-';
+        const harga = order.price_after_bonus || order.price || 0;
+        const hasPromo = order.bonus_used > 0;
+        let hargaDisplay = hasPromo ? `<span class="original-price" style="text-decoration:line-through; margin-right:4px;">${formatRupiah(order.price)}</span> ${formatRupiah(harga)}` : formatRupiah(harga);
+        div.innerHTML = `
+            <div class="order-header">
+                <div class="customer-name">${escapeHtml(order.customer_name || 'Pelanggan')} ${order.transport_type?.includes('kurir') ? '📦 KURIR' : ''}</div>
+                <span class="status-badge ${getStatusClass(order.status)}">${getStatusText(order.status)}</span>
+            </div>
+            <div class="route-info">
+                <div class="route-point"><span class="point-marker point-marker-a">A</span><span>${escapeHtml(order.pickup_address || '-')}</span></div>
+                <div class="route-point"><span class="point-marker point-marker-b">B</span><span>${escapeHtml(order.destination_address || '-')}</span></div>
+            </div>
+            <div class="order-details">
+                <div class="detail-item"><span class="detail-value">${durasi}</span><div>Durasi</div></div>
+                <div class="detail-item"><span class="detail-value">${jarak}</span><div>Jarak</div></div>
+                <div class="detail-item"><span class="detail-value">${hargaDisplay}</span><div>Harga</div></div>
+            </div>
+            <div class="order-meta">
+                <span>${new Date(order.created_at).toLocaleTimeString('id-ID', {hour:'2-digit',minute:'2-digit'})}</span>
+                <span>${order.transport_type || 'Motor'}</span>
+            </div>
+        `;
+        div.addEventListener('click', () => showOrderDetail(order));
+        return div;
+    }
+
+    function escapeHtml(str) { if (!str) return ''; return str.replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[m])); }
+
+    function showOrderDetail(order) {
+        const modalContent = document.getElementById('modalDetailContent');
+        modalContent.innerHTML = `
+            <div style="margin-bottom:12px"><strong>📍 Penjemputan:</strong><br>${escapeHtml(order.pickup_address || '-')}</div>
+            <div style="margin-bottom:12px"><strong>🏁 Tujuan:</strong><br>${escapeHtml(order.destination_address || '-')}</div>
+            <div style="display:flex; justify-content:space-between; margin-bottom:12px">
+                <div><strong>Jarak</strong><br>${order.distance_meters ? (order.distance_meters/1000).toFixed(1)+' km' : '-'}</div>
+                <div><strong>Durasi</strong><br>${order.duration_seconds ? Math.round(order.duration_seconds/60)+' menit' : '-'}</div>
+                <div><strong>Harga</strong><br>${order.price_after_bonus ? formatRupiah(order.price_after_bonus) : formatRupiah(order.price)}</div>
+            </div>
+            ${order.bonus_used ? `<div><strong>Bonus digunakan:</strong> ${formatRupiah(order.bonus_used)}</div>` : ''}
+            <div style="margin-top:12px"><strong>Status:</strong> ${getStatusText(order.status)}</div>
+            <div style="margin-top:12px"><strong>Order ID:</strong> ${order.id}</div>
+        `;
+        document.getElementById('orderModal').style.display = 'flex';
+        window.currentOrderId = order.id;
+    }
+
+    function closeModal() { document.getElementById('orderModal').style.display = 'none'; }
+    function showCsModal() {
+        if (window.currentOrderId) document.getElementById('csOrderId').innerText = window.currentOrderId;
+        closeModal();
+        document.getElementById('csModal').style.display = 'flex';
+    }
+    function closeCsModal() { document.getElementById('csModal').style.display = 'none'; }
+
+    async function loadUserOrders() {
+        if (!currentUser) return;
+        console.log("🔍 Memuat order untuk user:", currentUser.uid);
+        const ordersListDiv = document.getElementById('ordersList');
+        ordersListDiv.innerHTML = '<div class="loading"><div class="spinner"></div><p>Memuat data...</p></div>';
+
+        // Ambil semua order dari node /orders
+        const snapshot = await database.ref('orders').once('value');
+        const allOrdersData = snapshot.val();
+        console.log("📦 Semua order dari database:", allOrdersData);
+
+        if (!allOrdersData) {
+            console.warn("⚠️ Node /orders kosong atau tidak ada akses baca");
+            allOrders = [];
+            renderOrders();
+            return;
         }
 
-        function displayFilteredOrders(ordersByDate) {
-            const ordersList = document.getElementById('ordersList');
-            ordersList.innerHTML = '';
-            const sortedDates = Object.keys(ordersByDate).sort((a,b) => new Date(b) - new Date(a));
-            let hasOrders = false;
-            for (const date of sortedDates) {
-                const orders = ordersByDate[date];
-                let filtered = orders;
-                if (currentFilter === 'completed') filtered = orders.filter(o => o.status === 'completed');
-                else if (currentFilter === 'cancelled') filtered = orders.filter(o => o.status === 'cancelled');
-                else if (currentFilter === 'this_week') filtered = orders.filter(o => isThisWeek(new Date(o.completed_at || o.created_at)));
-                else if (currentFilter === 'this_month') filtered = orders.filter(o => isThisMonth(new Date(o.completed_at || o.created_at)));
-                if (filtered.length === 0) continue;
-                hasOrders = true;
-                const dateSection = document.createElement('div');
-                dateSection.className = 'date-section';
-                dateSection.innerHTML = `<div class="date-header">${formatDisplayDate(date)} • ${filtered.length} perjalanan</div>`;
-                ordersList.appendChild(dateSection);
-                filtered.forEach(order => ordersList.appendChild(createOrderItem(order)));
+        // Filter order milik user ini (berdasarkan user_id atau customer_id)
+        const userOrdersArray = [];
+        for (let [orderId, order] of Object.entries(allOrdersData)) {
+            // Cek apakah order punya field user_id atau customer_id yang sama dengan uid user
+            if ((order.user_id === currentUser.uid) || (order.customer_id === currentUser.uid) || (order.customerId === currentUser.uid)) {
+                userOrdersArray.push({ id: orderId, ...order });
+                console.log(`✅ Order ditemukan: ${orderId}`, order);
             }
-            if (!hasOrders) ordersList.innerHTML = `<div class="empty-state"><div>🔍</div><p>Tidak ada perjalanan yang sesuai dengan filter</p></div>`;
         }
+        console.log(`📋 Total order milik user: ${userOrdersArray.length}`);
+        allOrders = userOrdersArray.sort((a,b) => new Date(b.created_at||0) - new Date(a.created_at||0));
+        renderOrders();
+    }
 
-        function createOrderItem(order) {
-            const item = document.createElement('div'); item.className = 'order-item'; item.dataset.orderId = order.id;
-            const driverName = order.driver_name || order.customer_name || 'JeGo';
-            const alamatA = order.pickup_address || '-';
-            const alamatB = order.destination_address || '-';
-            const durasi = order.duration_seconds ? Math.round(order.duration_seconds/60)+' menit' : '-';
-            const jarak = order.distance_meters ? (order.distance_meters/1000).toFixed(1)+' km' : '-';
-            const harga = order.price || 0;
-            const hasPromo = order.discounted_price && order.discounted_price < harga;
-            let hargaDisplay;
-            if (hasPromo) hargaDisplay = `<span class="original-price">Rp ${order.original_price?.toLocaleString('id-ID')||''}</span> <span class="price-highlight">Rp ${order.discounted_price.toLocaleString('id-ID')}</span>`;
-            else hargaDisplay = `<span class="price-highlight">Rp ${harga.toLocaleString('id-ID')}</span>`;
-            const isKurir = order.transport_type && order.transport_type.toLowerCase().includes('kurir');
-            const statusText = getStatusText(order.status);
-            const statusClass = getStatusClass(order.status);
-            const orderTime = formatOrderTime(order.completed_at || order.created_at);
-            item.innerHTML = `
-                <div class="order-header">
-                    <div class="customer-name">${escapeHtml(driverName)} ${isKurir ? '<span class="kurir-badge">📦 KURIR</span>' : ''}${hasPromo ? '<span class="promo-badge">🎁 PROMO</span>' : ''}</div>
-                    <span class="status-badge ${statusClass}">${statusText}</span>
-                </div>
-                <div class="route-info">
-                    <div class="route-point"><div class="point-marker point-marker-a">A</div><div class="point-address point-address-a">${escapeHtml(alamatA)}</div></div>
-                    <div class="route-point"><div class="point-marker point-marker-b">B</div><div class="point-address">${escapeHtml(alamatB)}</div></div>
-                </div>
-                <div class="order-details">
-                    <div class="detail-item"><span class="detail-value">${durasi}</span><span class="detail-label">Durasi</span></div>
-                    <div class="detail-item"><span class="detail-value">${jarak}</span><span class="detail-label">Jarak</span></div>
-                    <div class="detail-item"><span class="detail-value">${hargaDisplay}</span><span class="detail-label">Harga</span></div>
-                </div>
-                <div class="order-meta"><span>${orderTime}</span><span>${order.transport_type || 'Motor'}</span></div>
-            `;
-            item.addEventListener('click', () => showOrderDetail(order));
-            return item;
-        }
-
-        function showOrderDetail(order) {
-            currentOrderId = order.id;
-            document.getElementById('modalAddressA').textContent = order.pickup_address || '-';
-            document.getElementById('modalAddressB').textContent = order.destination_address || '-';
-            const durasi = order.duration_seconds ? Math.round(order.duration_seconds/60)+' menit' : '-';
-            const jarak = order.distance_meters ? (order.distance_meters/1000).toFixed(1)+' km' : '-';
-            document.getElementById('modalDuration').textContent = durasi;
-            document.getElementById('modalDistance').textContent = jarak;
-            const harga = order.price || 0;
-            const hasPromo = order.discounted_price && order.discounted_price < harga;
-            if (hasPromo) {
-                document.getElementById('modalPrice').innerHTML = `<span class="modal-original-price">Rp ${order.original_price?.toLocaleString('id-ID')||''}</span> <span class="modal-price-highlight">Rp ${order.discounted_price.toLocaleString('id-ID')}</span>`;
-                document.getElementById('modalPromoInfo').style.display = 'block';
-                document.getElementById('modalPromoCode').textContent = order.promo_code || '-';
-                document.getElementById('modalPromoDiscount').textContent = order.discount_percent ? order.discount_percent+'%' : '-';
-                document.getElementById('modalOriginalPrice').textContent = 'Rp '+(order.original_price||0).toLocaleString('id-ID');
-            } else {
-                document.getElementById('modalPrice').innerHTML = `<span class="modal-price-highlight">Rp ${harga.toLocaleString('id-ID')}</span>`;
-                document.getElementById('modalPromoInfo').style.display = 'none';
-            }
-            document.getElementById('timelineCreated').textContent = formatFullTime(order.created_at);
-            document.getElementById('timelineAccepted').textContent = formatFullTime(order.accepted_at);
-            document.getElementById('timelineStarted').textContent = formatFullTime(order.trip_started_at);
-            document.getElementById('timelineArrived').textContent = formatFullTime(order.arrived_at);
-            document.getElementById('timelineCompleted').textContent = formatFullTime(order.completed_at);
-            document.getElementById('orderModal').style.display = 'flex';
-        }
-
-        function closeModal() { document.getElementById('orderModal').style.display = 'none'; }
-        function showCsModal() {
-            if (!currentOrderId) alert('Tidak ada order yang dipilih');
-            else document.getElementById('csOrderId').textContent = currentOrderId;
-            closeModal();
-            document.getElementById('csModal').style.display = 'flex';
-        }
-        function closeCsModal() { document.getElementById('csModal').style.display = 'none'; }
-        function copyToClipboard(text) { navigator.clipboard.writeText(text).then(() => alert('Teks berhasil disalin: '+text)); }
-        function changeFilter(filter) {
-            currentFilter = filter;
-            document.querySelectorAll('.filter-option').forEach(opt => opt.classList.toggle('active', opt.dataset.filter === filter));
-            loadHistoryData();
-        }
-
-        function loadHistoryData() {
-            const ordersList = document.getElementById('ordersList');
-            if (!currentUserData || !currentUserData.uid) {
-                ordersList.innerHTML = `<div class="empty-state"><div>🚫</div><p>Anda belum login. Silakan login terlebih dahulu.</p><a href="loginUser.html" style="color:var(--primary);">Login</a></div>`;
+    // Inisialisasi
+    document.addEventListener('DOMContentLoaded', () => {
+        auth.onAuthStateChanged(async (user) => {
+            if (!user) {
+                window.location.href = 'loginUser.html';
                 return;
             }
-            ordersList.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
-            const loadingTimeout = setTimeout(() => {
-                if (ordersList.querySelector('.loading')) ordersList.innerHTML = '<div class="empty-state"><div>⚠️</div><p>Gagal memuat data. Periksa koneksi internet.</p></div>';
-            }, 10000);
-
-            if (ordersListener && ordersRef) ordersRef.off('value', ordersListener);
-            // Menggunakan path userOrders/{uid} (sesuai aturan Firebase)
-            ordersRef = database.ref(`userOrders/${currentUserData.uid}`);
-            ordersListener = ordersRef.on('value', (snapshot) => {
-                clearTimeout(loadingTimeout);
-                const orders = snapshot.val();
-                if (!orders) {
-                    ordersList.innerHTML = '<div class="empty-state"><div>📭</div><p>Tidak ada riwayat perjalanan</p></div>';
-                    return;
-                }
-                const userOrders = Object.entries(orders)
-                    .map(([id, order]) => ({ id, ...order }))
-                    .filter(order => ['completed', 'cancelled', 'accepted', 'on_the_way'].includes(order.status))
-                    .sort((a,b) => new Date(b.created_at||0) - new Date(a.created_at||0));
-                if (userOrders.length === 0) {
-                    ordersList.innerHTML = '<div class="empty-state"><div>📭</div><p>Tidak ada riwayat perjalanan untuk akun ini</p></div>';
-                    return;
-                }
-                const ordersByDate = groupOrdersByDate(userOrders);
-                displayFilteredOrders(ordersByDate);
-            }, (error) => {
-                clearTimeout(loadingTimeout);
-                console.error(error);
-                ordersList.innerHTML = '<div class="empty-state"><div>❌</div><p>Terjadi kesalahan saat memuat data.</p></div>';
-            });
-        }
-
-        document.addEventListener('DOMContentLoaded', () => {
-            auth.onAuthStateChanged(async (user) => {
-                if (!user) {
-                    window.location.href = 'loginUser.html';
-                    return;
-                }
-                try {
-                    const uid = user.uid;
-                    const snapshot = await database.ref(`users/${uid}`).once('value');
-                    const userProfile = snapshot.val();
-                    if (!userProfile || userProfile.status === 'delete_account') {
-                        await auth.signOut();
-                        localStorage.removeItem('jego_logged_in_user');
-                        window.location.href = 'loginUser.html';
-                        return;
-                    }
-                    currentUserData = {
-                        uid: uid,
-                        name: userProfile.name,
-                        phone: userProfile.phone,
-                        email: userProfile.email,
-                        rating: userProfile.rating,
-                        perjalanan: userProfile.perjalanan
-                    };
-                    localStorage.setItem('jego_logged_in_user', JSON.stringify(currentUserData));
-                    loadHistoryData();
-                } catch (err) {
-                    console.error('Gagal memuat data user:', err);
-                    document.getElementById('ordersList').innerHTML = '<div class="empty-state"><div>❌</div><p>Gagal memuat profil user.</p></div>';
-                }
-            });
-
-            document.getElementById('closeModal').addEventListener('click', closeModal);
-            document.getElementById('hubungiDukunganBtn').addEventListener('click', showCsModal);
-            document.getElementById('closeCsModal').addEventListener('click', closeCsModal);
-            document.getElementById('tutupCsModal').addEventListener('click', closeCsModal);
-            document.getElementById('orderModal').addEventListener('click', (e) => { if(e.target===document.getElementById('orderModal')) closeModal(); });
-            document.getElementById('csModal').addEventListener('click', (e) => { if(e.target===document.getElementById('csModal')) closeCsModal(); });
-            document.querySelectorAll('.copy-btn').forEach(btn => btn.addEventListener('click', () => copyToClipboard(btn.dataset.text)));
-            document.querySelectorAll('.filter-option').forEach(opt => opt.addEventListener('click', () => changeFilter(opt.dataset.filter)));
+            currentUser = user;
+            await loadUserOrders();
         });
-        document.addEventListener('visibilitychange', () => { if(!document.hidden && currentUserData) loadHistoryData(); });
-    </script>
+
+        document.getElementById('closeModalBtn').addEventListener('click', closeModal);
+        document.getElementById('hubungiDukunganBtn').addEventListener('click', showCsModal);
+        document.getElementById('closeCsModalBtn').addEventListener('click', closeCsModal);
+        document.getElementById('tutupCsModalBtn').addEventListener('click', closeCsModal);
+        document.getElementById('orderModal').addEventListener('click', (e) => { if(e.target === document.getElementById('orderModal')) closeModal(); });
+        document.getElementById('csModal').addEventListener('click', (e) => { if(e.target === document.getElementById('csModal')) closeCsModal(); });
+        document.querySelectorAll('.filter-option').forEach(opt => {
+            opt.addEventListener('click', () => {
+                document.querySelectorAll('.filter-option').forEach(o => o.classList.remove('active'));
+                opt.classList.add('active');
+                currentFilter = opt.dataset.filter;
+                renderOrders();
+            });
+        });
+    });
+</script>
 </body>
 </html>
