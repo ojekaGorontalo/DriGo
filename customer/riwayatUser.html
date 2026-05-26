@@ -3,13 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-    <title>Dukungan - JeGo</title>
-    <!-- Firebase SDKs: Auth + Database (compat) -->
+    <title>Riwayat Perjalanan - JeGo</title>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
     <style>
-        /* ===== STYLE SAMA PERSIS DENGAN VERSI SEBELUMNYA (TIDAK DIUBAH) ===== */
         :root {
             --primary: #FF9800;
             --secondary: #FF5722;
@@ -32,28 +30,12 @@
             box-shadow: 0 2px 10px rgba(0,0,0,0.2);
             display: flex;
             align-items: center;
-            justify-content: space-between;
+            justify-content: center;
             position: sticky;
             top: 0;
             z-index: 100;
         }
-        .logo-container { display: flex; align-items: center; gap: 10px; }
-        .back-btn {
-            background: rgba(255,255,255,0.2);
-            color: white;
-            border: none;
-            border-radius: 8px;
-            padding: 8px 15px;
-            cursor: pointer;
-            font-weight: 600;
-            transition: all 0.3s;
-            display: flex;
-            align-items: center;
-            gap: 5px;
-            font-size: 0.85rem;
-        }
-        .back-btn:hover { background: rgba(255,255,255,0.3); }
-        .header-title { font-size: 1.1rem; font-weight: 600; flex: 1; text-align: center; white-space: nowrap; }
+        .header-title { font-size: 1.1rem; font-weight: 600; text-align: center; }
         .filter-container {
             background: white;
             border-radius: 12px;
@@ -236,11 +218,7 @@
 </head>
 <body>
     <div class="header">
-        <div class="logo-container">
-            <button class="back-btn" id="backBtn">← Kembali</button>
-        </div>
-        <div class="header-title">Dukungan & Riwayat</div>
-        <div style="width: 80px;"></div>
+        <div class="header-title">Riwayat Perjalanan</div>
     </div>
 
     <div class="container">
@@ -340,7 +318,6 @@
     </div>
 
     <script>
-        // ========== KONFIGURASI FIREBASE PROYEK BARU (jego-35a2b) ==========
         const FIREBASE_CONFIG = {
             apiKey: "AIzaSyCD0pgeZio-LdKqYDtWxcdXcZwyL4ngYQI",
             authDomain: "jego-35a2b.firebaseapp.com",
@@ -348,22 +325,18 @@
             projectId: "jego-35a2b",
             storageBucket: "jego-35a2b.firebasestorage.app",
             messagingSenderId: "600037007040",
-            appId: "1:600037007040:web:ac3243ad9b472647ffd725",
-            measurementId: "G-H5F9TSK50K"
+            appId: "1:600037007040:web:ac3243ad9b472647ffd725"
         };
-
-        // Inisialisasi
         if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
         const auth = firebase.auth();
         const database = firebase.database();
 
         let ordersRef = null;
         let ordersListener = null;
-        let currentUserData = null; // akan diisi dari Firebase Auth
+        let currentUserData = null;
         let currentFilter = 'all';
         let currentOrderId = null;
 
-        // Helper functions
         function escapeHtml(str) { if (!str) return ''; return str.replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[m])); }
         function getStatusText(status) {
             const map = { 'completed':'Selesai', 'cancelled':'Dibatalkan', 'accepted':'Diterima', 'on_the_way':'Dalam Perjalanan', 'waiting':'Menunggu Driver' };
@@ -496,9 +469,7 @@
             document.querySelectorAll('.filter-option').forEach(opt => opt.classList.toggle('active', opt.dataset.filter === filter));
             loadHistoryData();
         }
-        function goBack() { window.history.back(); }
 
-        // Fungsi utama memuat data order dari path /orders/{uid}
         function loadHistoryData() {
             const ordersList = document.getElementById('ordersList');
             if (!currentUserData || !currentUserData.uid) {
@@ -511,8 +482,8 @@
             }, 10000);
 
             if (ordersListener && ordersRef) ordersRef.off('value', ordersListener);
-            // Path baru: orders/{uid}
-            ordersRef = database.ref(`orders/${currentUserData.uid}`);
+            // Menggunakan path userOrders/{uid} (sesuai aturan Firebase)
+            ordersRef = database.ref(`userOrders/${currentUserData.uid}`);
             ordersListener = ordersRef.on('value', (snapshot) => {
                 clearTimeout(loadingTimeout);
                 const orders = snapshot.val();
@@ -537,11 +508,9 @@
             });
         }
 
-        // Inisialisasi: cek user via Firebase Auth
         document.addEventListener('DOMContentLoaded', () => {
             auth.onAuthStateChanged(async (user) => {
                 if (!user) {
-                    // Tidak login, redirect ke login
                     window.location.href = 'loginUser.html';
                     return;
                 }
@@ -563,7 +532,6 @@
                         rating: userProfile.rating,
                         perjalanan: userProfile.perjalanan
                     };
-                    // Simpan ke localStorage untuk kompatibilitas (opsional)
                     localStorage.setItem('jego_logged_in_user', JSON.stringify(currentUserData));
                     loadHistoryData();
                 } catch (err) {
@@ -572,8 +540,6 @@
                 }
             });
 
-            // Event listeners UI
-            document.getElementById('backBtn').addEventListener('click', goBack);
             document.getElementById('closeModal').addEventListener('click', closeModal);
             document.getElementById('hubungiDukunganBtn').addEventListener('click', showCsModal);
             document.getElementById('closeCsModal').addEventListener('click', closeCsModal);
