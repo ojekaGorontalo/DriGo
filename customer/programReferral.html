@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+  <title>Program Referral - JeGo</title>
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    body {
+      background: linear-gradient(135deg, #FF9800, #FF5722);
+      min-height: 100vh;
+      padding: 20px;
+    }
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 28px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+      overflow: hidden;
+      animation: fadeIn 0.3s ease;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .header {
+      background: linear-gradient(135deg, #FF9800, #F57C00);
+      padding: 20px;
+      text-align: center;
+      color: white;
+    }
+    .header h1 {
+      font-size: 1.6rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+    }
+    .header p {
+      font-size: 0.85rem;
+      opacity: 0.9;
+      margin-top: 5px;
+    }
+    .content {
+      padding: 20px;
+    }
+    .card {
+      background: #fff7e6;
+      border-radius: 20px;
+      padding: 20px;
+      margin-bottom: 20px;
+      border: 1px solid #ffe0a3;
+      text-align: center;
+    }
+    .referral-code {
+      font-size: 1.8rem;
+      font-weight: bold;
+      letter-spacing: 2px;
+      background: #FF9800;
+      color: white;
+      display: inline-block;
+      padding: 10px 25px;
+      border-radius: 50px;
+      margin: 10px 0;
+    }
+    .copy-btn {
+      background: #FF9800;
+      color: white;
+      border: none;
+      padding: 8px 20px;
+      border-radius: 40px;
+      font-size: 0.9rem;
+      font-weight: bold;
+      cursor: pointer;
+      margin-left: 10px;
+      transition: 0.2s;
+    }
+    .copy-btn:active {
+      transform: scale(0.95);
+    }
+    .bonus-box {
+      background: #e8f5e9;
+      border-radius: 20px;
+      padding: 15px;
+      margin-top: 15px;
+      text-align: center;
+    }
+    .bonus-amount {
+      font-size: 2rem;
+      font-weight: 800;
+      color: #2E7D32;
+    }
+    .info-text {
+      background: #e3f2fd;
+      border-radius: 16px;
+      padding: 15px;
+      margin-bottom: 20px;
+      font-size: 0.9rem;
+      line-height: 1.4;
+      color: #0d47a1;
+    }
+    .example-box {
+      background: #f9f9f9;
+      border-radius: 16px;
+      padding: 15px;
+      margin-bottom: 20px;
+      border-left: 4px solid #FF9800;
+    }
+    .example-box h4 {
+      margin-bottom: 10px;
+      color: #FF9800;
+    }
+    .example-item {
+      margin-bottom: 8px;
+      font-size: 0.85rem;
+    }
+    .friend-list {
+      list-style: none;
+      margin-top: 10px;
+      max-height: 250px;
+      overflow-y: auto;
+    }
+    .friend-list li {
+      padding: 12px 0;
+      border-bottom: 1px solid #eee;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .badge {
+      background: #4CAF50;
+      color: white;
+      padding: 4px 12px;
+      border-radius: 30px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .total-bonus-friend {
+      font-size: 0.8rem;
+      color: #2E7D32;
+      font-weight: bold;
+    }
+    .use-bonus-note {
+      background: #FFF8E1;
+      border-radius: 12px;
+      padding: 12px;
+      margin: 15px 0;
+      text-align: center;
+      font-size: 0.85rem;
+      border: 1px solid #FFE082;
+    }
+    .ad-container {
+      background: #f5f5f5;
+      border-radius: 16px;
+      padding: 12px;
+      text-align: center;
+      margin-top: 20px;
+      border: 1px dashed #ccc;
+    }
+    .ad-container img {
+      max-width: 100%;
+      border-radius: 12px;
+    }
+    .ad-text {
+      font-size: 0.7rem;
+      color: #888;
+      margin-top: 6px;
+    }
+    .btn-back {
+      display: block;
+      background: #e0e0e0;
+      text-align: center;
+      padding: 12px;
+      border-radius: 40px;
+      color: #333;
+      text-decoration: none;
+      font-weight: 600;
+      margin-top: 20px;
+      transition: 0.2s;
+    }
+    .btn-back:hover {
+      background: #ccc;
+    }
+    .loading {
+      text-align: center;
+      padding: 40px;
+      color: #666;
+    }
+    .spinner {
+      border: 3px solid #f3f3f3;
+      border-top: 3px solid #FF9800;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 15px;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    .error-msg {
+      background: #ffebee;
+      color: #c62828;
+      padding: 15px;
+      border-radius: 16px;
+      text-align: center;
+    }
+    footer {
+      text-align: center;
+      padding: 15px;
+      font-size: 0.7rem;
+      color: #aaa;
+      background: #fafafa;
+    }
+    @media (max-width: 480px) {
+      .referral-code { font-size: 1.2rem; padding: 8px 16px; }
+      .copy-btn { padding: 6px 12px; font-size: 0.8rem; }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>🎁 Program Referral JeGo</h1>
+    <p>Dapatkan bonus 0.5% dari setiap perjalanan teman yang kamu ajak!</p>
+  </div>
+  <div class="content">
+    <div id="loadingState" class="loading">
+      <div class="spinner"></div>
+      <p>Memuat data referral...</p>
+    </div>
+    <div id="mainContent" style="display: none;">
+      <!-- Info User -->
+      <div class="card">
+        <div style="font-weight: 600; margin-bottom: 5px;">Kode Referral ANDA</div>
+        <div>
+          <span class="referral-code" id="myReferralCode">-</span>
+          <button class="copy-btn" id="copyReferralBtn">📋 Salin</button>
+        </div>
+        <div class="bonus-box">
+          <div style="font-size: 0.8rem;">Total Bonus Terkumpul</div>
+          <div class="bonus-amount" id="totalBonus">Rp 0</div>
+          <div style="font-size: 0.7rem; margin-top: 6px;">* Otomatis ditambahkan setiap teman selesai perjalanan</div>
+        </div>
+        <div class="use-bonus-note">
+          💡 <strong>Bonus dapat digunakan untuk perjalanan Anda sendiri!</strong><br>
+          Saat memesan, bonus akan otomatis mengurangi biaya perjalanan. Contoh: total bonus Rp5.000, perjalanan Rp10.000 → cukup bayar Rp5.000 ke driver.
+        </div>
+      </div>
+
+      <!-- Penjelasan + Contoh -->
+      <div class="info-text">
+        <strong>📌 Bagaimana cara kerja referral?</strong><br>
+        1. Bagikan kode referral Anda ke teman.<br>
+        2. Teman mendaftar menggunakan kode Anda.<br>
+        3. Setiap kali teman menyelesaikan perjalanan (Motor/Bentor/Mobil), Anda mendapat <strong>bonus 0.5%</strong> dari nilai order.<br>
+        4. Bonus langsung ditambahkan ke akun Anda dan bisa digunakan untuk perjalanan Anda sendiri (potong biaya).<br>
+        5. <strong>Bonus berlaku SELAMANYA</strong> selama teman Anda terus menggunakan JeGo. Tidak ada batasan!<br>
+        <span style="font-size: 0.7rem;">* Berlaku untuk order transportasi saja (bukan kurir).</span>
+      </div>
+
+      <div class="example-box">
+        <h4>📊 Contoh Bonus yang Anda Dapatkan</h4>
+        <div class="example-item">🔹 Teman order Rp10.000 → bonus Anda = <strong>Rp50</strong></div>
+        <div class="example-item">🔹 Teman order Rp25.000 → bonus Anda = <strong>Rp125</strong></div>
+        <div class="example-item">🔹 Teman order Rp50.000 → bonus Anda = <strong>Rp250</strong></div>
+        <div class="example-item">🔹 Teman order Rp100.000 → bonus Anda = <strong>Rp500</strong></div>
+        <div class="example-item">🔹 Teman order Rp200.000 → bonus Anda = <strong>Rp1.000</strong></div>
+        <div style="margin-top: 10px; font-size: 0.75rem; color: #666;">Semakin sering teman Anda bepergian, semakin besar bonus yang Anda kumpulkan!</div>
+      </div>
+
+      <!-- Daftar teman yang diajak -->
+      <div style="margin-top: 10px;">
+        <div style="font-weight: 700; margin-bottom: 8px;">👥 Teman yang sudah bergabung via kode Anda</div>
+        <div id="referredFriendsList" style="background: #fafafa; border-radius: 16px; padding: 0 12px;">Memuat...</div>
+      </div>
+
+      <!-- Iklan (bisa diisi dengan promo atau informasi lain) -->
+      <div class="ad-container">
+        <img src="https://placehold.co/600x100/FF9800/white?text=✨+Free+Ongkir+Perjalanan+Pertama+✨" alt="Promo JeGo" style="max-width:100%; border-radius:12px;">
+        <div class="ad-text">Gunakan kode "JEGO10" untuk diskon 10% perjalanan pertama Anda! (Syarat & ketentuan berlaku)</div>
+      </div>
+
+      <a href="jenis_kenderaan.html" class="btn-back">🏠 Kembali ke Beranda</a>
+    </div>
+  </div>
+  <footer>
+    JeGo - Jasa Ekspedisi Gorontalo © 2026
+  </footer>
+</div>
+
+<script>
+  // Firebase Config (sama dengan project)
+  const FIREBASE_CONFIG = {
+    apiKey: "AIzaSyCD0pgeZio-LdKqYDtWxcdXcZwyL4ngYQI",
+    authDomain: "jego-35a2b.firebaseapp.com",
+    databaseURL: "https://jego-35a2b-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "jego-35a2b",
+    storageBucket: "jego-35a2b.firebasestorage.app",
+    messagingSenderId: "600037007040",
+    appId: "1:600037007040:web:ac3243ad9b472647ffd725"
+  };
+  if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
+  const auth = firebase.auth();
+  const database = firebase.database();
+
+  function formatRupiah(amount) {
+    return 'Rp ' + (parseInt(amount) || 0).toLocaleString('id-ID');
+  }
+
+  async function loadReferralData(uid) {
+    try {
+      const userSnap = await database.ref(`users/${uid}`).once('value');
+      const user = userSnap.val();
+      if (!user) throw new Error('Data user tidak ditemukan');
+      
+      document.getElementById('myReferralCode').innerText = user.referral_code || 'Tidak tersedia';
+      document.getElementById('totalBonus').innerText = formatRupiah(user.referral_bonus_total || 0);
+      
+      // Ambil daftar teman dari referralUsage
+      const usageSnap = await database.ref(`referralUsage/${uid}`).once('value');
+      const referred = usageSnap.val();
+      const container = document.getElementById('referredFriendsList');
+      if (!referred || Object.keys(referred).length === 0) {
+        container.innerHTML = '<div style="padding: 15px; text-align: center; color: #888;">Belum ada teman yang mendaftar pakai kode Anda.</div>';
+        return;
+      }
+      
+      let html = '<ul class="friend-list">';
+      for (let [referredUid, data] of Object.entries(referred)) {
+        const shortId = referredUid.substring(0, 8) + '...';
+        const totalBonus = data.totalBonusAccumulated || 0;
+        const lastBonus = data.lastBonusAt ? new Date(data.lastBonusAt).toLocaleDateString('id-ID') : '-';
+        html += `
+          <li>
+            <div>
+              <strong>${shortId}</strong>
+              <div style="font-size:0.7rem; color:#666;">Bergabung: ${new Date(data.registeredAt).toLocaleDateString('id-ID')}</div>
+            </div>
+            <div>
+              <span class="badge">💰 ${formatRupiah(totalBonus)}</span>
+              <div style="font-size:0.6rem; text-align:right;">Terakhir: ${lastBonus}</div>
+            </div>
+          </li>
+        `;
+      }
+      html += '</ul>';
+      container.innerHTML = html;
+    } catch (err) {
+      console.error(err);
+      document.getElementById('referredFriendsList').innerHTML = '<div class="error-msg">Gagal memuat data referral.</div>';
+    }
+  }
+
+  // Salin kode referral
+  document.getElementById('copyReferralBtn')?.addEventListener('click', () => {
+    const code = document.getElementById('myReferralCode').innerText;
+    if (code && code !== 'Tidak tersedia') {
+      navigator.clipboard.writeText(code);
+      alert('Kode referral disalin!');
+    } else {
+      alert('Kode referral belum tersedia.');
+    }
+  });
+
+  auth.onAuthStateChanged(async (user) => {
+    const loadingDiv = document.getElementById('loadingState');
+    const mainDiv = document.getElementById('mainContent');
+    if (!user) {
+      loadingDiv.innerHTML = '<div class="error-msg">Anda belum login. Silakan login terlebih dahulu.<br><a href="loginUser.html" style="color:#FF9800;">Login</a></div>';
+      return;
+    }
+    try {
+      await loadReferralData(user.uid);
+      loadingDiv.style.display = 'none';
+      mainDiv.style.display = 'block';
+    } catch (err) {
+      loadingDiv.innerHTML = '<div class="error-msg">Gagal memuat data. Silakan refresh halaman.</div>';
+      console.error(err);
+    }
+  });
+</script>
+</body>
+</html>
