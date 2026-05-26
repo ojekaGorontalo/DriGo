@@ -20,7 +20,6 @@
       min-height: 100vh;
     }
 
-    /* Container full width */
     .native-container {
       width: 100%;
       max-width: 100%;
@@ -30,7 +29,6 @@
       flex-direction: column;
     }
 
-    /* Header gradien solid seperti Android */
     .header {
       background: linear-gradient(135deg, #FF9800, #F57C00);
       padding: 20px 20px;
@@ -50,7 +48,6 @@
       margin-top: 4px;
     }
 
-    /* Card full width tanpa margin */
     .card {
       background: white;
       margin: 0 0 12px 0;
@@ -58,7 +55,6 @@
       border-bottom: 1px solid #eee;
     }
 
-    /* Balance card spesifik dengan latar oranye muda */
     .balance-card {
       background: #FFF3E0;
       margin: 12px 0;
@@ -83,7 +79,6 @@
       line-height: 1.2;
     }
 
-    /* List kompensasi */
     .kompensasi-list {
       display: flex;
       flex-direction: column;
@@ -136,12 +131,6 @@
     .btn-klaim:active {
       transform: scale(0.96);
       background: #F57C00;
-    }
-
-    .btn-klaim-disabled {
-      background: #CBD5E1;
-      color: #475569;
-      pointer-events: none;
     }
 
     .btn-primary-solid {
@@ -222,7 +211,6 @@
   </div>
 
   <div style="padding: 0 0px;">
-    <!-- Kartu saldo kompensasi -->
     <div class="balance-card">
       <div>
         <div class="balance-label">Total Kompensasi Belum Diambil</div>
@@ -231,7 +219,6 @@
       <button id="claimAllBtn" class="btn-primary-solid">Ambil Semua</button>
     </div>
 
-    <!-- Daftar kompensasi -->
     <div class="card">
       <div style="font-weight: 600; margin-bottom: 12px;">📋 Daftar Kompensasi Pending</div>
       <div id="kompensasiList" class="kompensasi-list">
@@ -294,7 +281,7 @@
     let html = '';
     for (let key in kompensasiData) {
       const item = kompensasiData[key];
-      if (item.status !== 'pending') continue; // hanya tampilkan pending
+      if (item.status !== 'pending') continue;
       pendingTotal += item.amount;
       html += `
         <div class="kompensasi-item" data-id="${key}">
@@ -318,7 +305,6 @@
     }
     totalSpan.innerText = formatRupiah(pendingTotal);
 
-    // Pasang event listener untuk tombol ambil
     document.querySelectorAll('.btn-klaim').forEach(btn => {
       btn.removeEventListener('click', handleClaim);
       btn.addEventListener('click', handleClaim);
@@ -347,17 +333,16 @@
     btnElement.innerText = 'Memproses...';
 
     try {
-      // Tambahkan ke saldo driver (balance)
-      const balanceRef = database.ref(`users/${currentDriver.uid}/balance`);
-      await balanceRef.transaction(current => (current || 0) + amount);
+      // ========== PERBAIKAN: Tambah ke node drivers, bukan users ==========
+      const balanceRef = database.ref(`drivers/${currentDriver.uid}/balance`);
+      await balanceRef.transaction(currentBalance => (currentBalance || 0) + amount);
+      // ====================================================================
 
-      // Update status kompensasi menjadi claimed
       await kompensasiRef.update({
         status: 'claimed',
         claimedAt: new Date().toISOString()
       });
 
-      // Catat history
       await database.ref(`balance_history/${currentDriver.uid}`).push({
         type: 'kompensasi_claim',
         amount: amount,
@@ -368,7 +353,7 @@
       });
 
       showToast(`✅ ${formatRupiah(amount)} telah masuk ke saldo Anda`);
-      loadKompensasi(); // refresh
+      loadKompensasi();
     } catch (err) {
       console.error(err);
       showToast('Gagal mengambil kompensasi: ' + err.message);
@@ -406,8 +391,10 @@
       const komp = snap.val();
       if (komp && komp.status === 'pending') {
         await ref.update({ status: 'claimed', claimedAt: new Date().toISOString() });
-        const balanceRef = database.ref(`users/${currentDriver.uid}/balance`);
+        // ========== PERBAIKAN: Tambah ke node drivers ==========
+        const balanceRef = database.ref(`drivers/${currentDriver.uid}/balance`);
         await balanceRef.transaction(cur => (cur || 0) + komp.amount);
+        // ========================================================
         await database.ref(`balance_history/${currentDriver.uid}`).push({
           type: 'kompensasi_claim_bulk',
           amount: komp.amount,
@@ -422,7 +409,6 @@
 
   auth.onAuthStateChanged(async (user) => {
     if (user) {
-      // Cek apakah user terdaftar sebagai driver (di node drivers)
       const driverData = await database.ref(`drivers/${user.uid}`).once('value');
       if (!driverData.exists()) {
         alert('Akun ini bukan driver. Halaman ini hanya untuk driver.');
