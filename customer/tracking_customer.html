@@ -1017,15 +1017,42 @@
     }
     const user = auth.currentUser;
     if (!user) return;
-    const confirmMsg = `Gunakan bonus Rp ${bonusValue.toLocaleString()} untuk order ini?\nHarga awal: ${formatRupiah(currentOrderPrice)}\nAnda cukup bayar: ${formatRupiah(currentOrderPrice - bonusValue)}\nSaldo bonus akan berkurang.`;
+    const confirmMsg = `Gunakan bonus Rp ${bonusValue.toLocaleString()} untuk order ini?\n\n` +
+                   `💰 Harga awal: ${formatRupiah(currentOrderPrice)}\n` +
+                   `✨ Potongan bonus: ${formatRupiah(bonusValue)}\n` +
+                   `💵 Anda bayar: ${formatRupiah(currentOrderPrice - bonusValue)}\n\n` +
+                   `Saldo bonus Anda akan berkurang.`;
     if (!confirm(confirmMsg)) return;
     try {
+      // 1. Kurangi saldo bonus customer
       await database.ref(`users/${user.uid}/referral_bonus_total`).transaction(cur => (cur || 0) - bonusValue);
+      
+      // 2. Update order dengan informasi bonus
       await database.ref(`orders/${orderId}`).update({
         bonus_used: bonusValue,
         price_after_bonus: currentOrderPrice - bonusValue,
         bonus_applied_at: new Date().toISOString()
       });
+
+      // ========== 🆕 SIMPAN BONUS KE DRIVER ==========
+      const driverId = orderData.driver_id; // pastikan orderData sudah memiliki driver_id
+      if (driverId && bonusValue > 0) {
+        const bonusTransactionRef = database.ref(`driver_bonus/${driverId}`).push();
+        await bonusTransactionRef.set({
+          amount: bonusValue,
+          orderId: orderId,
+          customerId: user.uid,
+          customerName: orderData.customer_name || 'Customer',
+          createdAt: new Date().toISOString(),
+          status: 'pending', // pending, claimed
+          originalPrice: currentOrderPrice,
+          finalPrice: currentOrderPrice - bonusValue
+        });
+        console.log(`✅ Bonus Rp ${bonusValue} dicatat untuk driver ${driverId}`);
+      }
+      // =============================================
+
+      // 3. Update state lokal & UI
       currentUserBonus -= bonusValue;
       bonusApplied = bonusValue;
       document.getElementById('userBonusAmount').innerText = formatRupiah(currentUserBonus);
