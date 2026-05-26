@@ -48,10 +48,11 @@
     .status-message { padding: 12px; border-radius: 6px; margin-bottom: 15px; display: none; }
     .status-success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
     .status-error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+    .status-info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
     .progress-container { height: 4px; background: #e0e0e0; margin: 10px 0; display: none; }
     .progress-bar { height: 100%; background: linear-gradient(to right, var(--primary), var(--secondary)); width: 0%; }
     .notification { position: fixed; top: 20px; right: 20px; background: white; padding: 15px; border-radius: 8px; border-left: 4px solid var(--primary); display: none; max-width: 300px; z-index: 1000; }
-    .referral-info { background: #fff3e0; padding: 8px; border-radius: 6px; margin-top: 5px; font-size: 0.8rem; color: #e67e22; display: none; }
+    small.text-muted { color: #666; font-size: 0.7rem; display: block; margin-top: 4px; }
   </style>
 </head>
 <body>
@@ -82,14 +83,14 @@
           <label class="form-label" for="passwordInput">Password *</label>
           <div class="input-group">
             <input type="password" class="form-input password-input" id="passwordInput" required minlength="6">
-            <button type="button" class="toggle-password" data-target="passwordInput">ðŸ‘ï¸</button>
+            <button type="button" class="toggle-password" id="togglePassword">👁️</button>
           </div>
         </div>
         <div class="form-group">
           <label class="form-label" for="confirmPasswordInput">Konfirmasi Password *</label>
           <div class="input-group">
             <input type="password" class="form-input password-input" id="confirmPasswordInput" required minlength="6">
-            <button type="button" class="toggle-password" data-target="confirmPasswordInput">ðŸ‘ï¸</button>
+            <button type="button" class="toggle-password" id="toggleConfirmPassword">👁️</button>
           </div>
         </div>
         <div class="form-group">
@@ -108,11 +109,13 @@
             <option value="Perempuan">Perempuan</option>
           </select>
         </div>
+        <!-- TAMBAHAN INPUT KODE REFERRAL -->
         <div class="form-group">
-          <label class="form-label" for="referralCodeInput">Kode Referral (jika ada)</label>
-          <input type="text" class="form-input" id="referralCodeInput" placeholder="Masukkan kode dari teman">
-          <div id="referralInfo" class="referral-info"></div>
+          <label class="form-label" for="refCodeInput">Kode Referral (jika ada)</label>
+          <input type="text" class="form-input" id="refCodeInput" placeholder="Masukkan kode dari teman" autocomplete="off">
+          <small class="text-muted">Dapatkan bonus 20% untuk referrer setelah perjalanan pertama Anda selesai.</small>
         </div>
+        <!-- END TAMBAHAN -->
         <button type="submit" class="submit-btn" id="registerBtn">Daftar</button>
       </form>
 
@@ -128,7 +131,7 @@
   </div>
 
   <script>
-    // ========== KONFIGURASI FIREBASE ==========
+    // KONFIGURASI FIREBASE (sama seperti sebelumnya)
     const FIREBASE_CONFIG = {
       apiKey: "AIzaSyCD0pgeZio-LdKqYDtWxcdXcZwyL4ngYQI",
       authDomain: "jego-35a2b.firebaseapp.com",
@@ -175,6 +178,7 @@
       firebaseDatabase = firebase.database();
     }
 
+    // Format nomor telepon ke format internasional +62...
     function formatPhoneNumber(phone) {
       let cleaned = phone.replace(/\D/g, '');
       if (cleaned.startsWith('0')) cleaned = '+62' + cleaned.substring(1);
@@ -183,41 +187,16 @@
       return cleaned;
     }
 
+    // Validasi nomor telepon (harus +62 dan panjang 10-13 digit setelah +62)
     function validatePhoneNumber(phone) {
       return /^\+62[0-9]{9,12}$/.test(phone);
     }
 
-    function generateReferralCode() {
-      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ0123456789';
-      let code = '';
-      for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
-      return `JEGO${code}`;
-    }
-
-    // ========== PERBAIKAN: Cek di referral_codes (underscore) ==========
-    async function getReferrerUid(referralCode) {
-      try {
-        console.log('ðŸ” [Referral] Mengecek kode:', referralCode);
-        const snapshot = await firebaseDatabase.ref(`referral_codes/${referralCode}`).once('value');
-        const uid = snapshot.val();
-        if (uid) {
-          console.log('âœ… [Referral] Kode valid, uid referrer:', uid);
-          return uid;
-        } else {
-          console.log('âŒ [Referral] Kode tidak ditemukan');
-          return null;
-        }
-      } catch (err) {
-        console.error('âŒ [Referral] Error:', err);
-        showStatus('Gagal memeriksa kode referral', 'error');
-        throw err;
-      }
-    }
-
-    async function saveUserToDatabase(uid, userData, referredByUid, myReferralCode) {
+    // Simpan data user ke database (users/{uid} dan phone_check)
+    async function saveUserToDatabase(uid, userData) {
       const userRef = firebaseDatabase.ref(`users/${uid}`);
       await userRef.set(userData);
-      
+      // Simpan juga ke phone_check untuk keperluan login via telepon nanti
       if (userData.phone) {
         const phoneKey = userData.phone.replace(/\+/g, '_');
         await firebaseDatabase.ref(`phone_check/${phoneKey}`).set({
@@ -227,25 +206,11 @@
           registered_at: new Date().toISOString()
         });
       }
-      
-      // ========== PERBAIKAN: Simpan ke referral_codes (underscore) ==========
-      await firebaseDatabase.ref(`referral_codes/${myReferralCode}`).set(uid);
-      console.log('ðŸ”‘ [Referral] Kode referral disimpan di referral_codes');
-      
-      if (referredByUid) {
-        await firebaseDatabase.ref(`users/${uid}/referred_by`).set(referredByUid);
-        await firebaseDatabase.ref(`referralUsage/${referredByUid}/${uid}`).set({
-          referredUid: uid,
-          bonusGiven: false,
-          registeredAt: new Date().toISOString()
-        });
-        console.log('ðŸ”— [Referral] Relasi referral tersimpan');
-      }
     }
 
+    // Handler registrasi
     document.getElementById('registerForm').addEventListener('submit', async (e) => {
       e.preventDefault();
-      console.log('ðŸš€ [Registrasi] Memulai...');
 
       const nama = document.getElementById('namaInput').value.trim();
       const email = document.getElementById('emailInput').value.trim();
@@ -254,68 +219,57 @@
       const teleponRaw = document.getElementById('teleponInput').value.trim();
       const alamat = document.getElementById('alamatInput').value.trim();
       const gender = document.getElementById('genderSelect').value;
-      const referralCodeInput = document.getElementById('referralCodeInput').value.trim().toUpperCase();
+      const referralCodeRaw = document.getElementById('refCodeInput').value.trim().toUpperCase();
 
-      if (!nama) { showStatus('Nama lengkap harus diisi', 'error'); return; }
-      if (!email) { showStatus('Email harus diisi', 'error'); return; }
-      if (!password || password.length < 6) { showStatus('Password minimal 6 karakter', 'error'); return; }
-      if (password !== confirmPassword) { showStatus('Password dan konfirmasi tidak sama', 'error'); return; }
-      if (!teleponRaw) { showStatus('Nomor telepon harus diisi', 'error'); return; }
-      if (!alamat) { showStatus('Alamat harus diisi', 'error'); return; }
-      console.log('âœ… [Registrasi] Validasi dasar lolos');
+      // Validasi
+      if (!nama) return showStatus('Nama lengkap harus diisi', 'error');
+      if (!email) return showStatus('Email harus diisi', 'error');
+      if (!password || password.length < 6) return showStatus('Password minimal 6 karakter', 'error');
+      if (password !== confirmPassword) return showStatus('Password dan konfirmasi password tidak cocok', 'error');
+      if (!teleponRaw) return showStatus('Nomor telepon harus diisi', 'error');
+      if (!alamat) return showStatus('Alamat harus diisi', 'error');
 
       const phone = formatPhoneNumber(teleponRaw);
-      if (!validatePhoneNumber(phone)) {
-        showStatus('Format nomor telepon tidak valid (contoh: 08123456789)', 'error');
-        return;
-      }
-      console.log('ðŸ“ž [Registrasi] Nomor terformat:', phone);
-
-      // Validasi kode referral
-      let referredByUid = null;
-      if (referralCodeInput) {
-        referredByUid = await getReferrerUid(referralCodeInput);
-        if (!referredByUid) {
-          showStatus('Kode referral tidak valid', 'error');
-          return;
-        }
-        const referralInfoDiv = document.getElementById('referralInfo');
-        referralInfoDiv.innerHTML = `âœ… Menggunakan kode dari: ${referralCodeInput}`;
-        referralInfoDiv.style.display = 'block';
-      } else {
-        console.log('â„¹ï¸ [Registrasi] Tidak ada kode referral');
-      }
-
-      // Validasi nomor telepon duplikat
-      const phoneKey = phone.replace(/\+/g, '_');
-      try {
-        const phoneSnapshot = await firebaseDatabase.ref(`phone_check/${phoneKey}`).once('value');
-        if (phoneSnapshot.exists()) {
-          showStatus('Nomor telepon sudah terdaftar. Silakan gunakan nomor lain.', 'error');
-          return;
-        }
-        console.log('âœ… [Registrasi] Nomor telepon tersedia');
-      } catch (err) {
-        console.error(err);
-        showStatus('Gagal memeriksa nomor telepon', 'error');
-        return;
-      }
+      if (!validatePhoneNumber(phone)) return showStatus('Format nomor telepon tidak valid (contoh: 08123456789)', 'error');
 
       const btn = document.getElementById('registerBtn');
       btn.disabled = true;
       btn.innerText = 'Mendaftar...';
-      showProgress(20);
+      showProgress(10);
 
       try {
+        // 1. Buat akun dengan email/password di Firebase Auth
         const userCredential = await firebaseAuth.createUserWithEmailAndPassword(email, password);
         const user = userCredential.user;
         const uid = user.uid;
-        console.log('âœ… [Registrasi] Akun Auth berhasil, uid:', uid);
-        showProgress(50);
+        showProgress(30);
 
-        const myReferralCode = generateReferralCode();
-        console.log('ðŸŽ [Registrasi] Kode referral baru:', myReferralCode);
+        // 2. Validasi kode referral jika diisi
+        let referredByUid = null;
+        let referralValid = true;
+        if (referralCodeRaw) {
+          showProgress(45);
+          const codeSnap = await firebaseDatabase.ref(`referral_codes/${referralCodeRaw}`).once('value');
+          const referrerUid = codeSnap.val();
+          if (referrerUid && referrerUid !== uid) {
+            referredByUid = referrerUid;
+            // Catat penggunaan referral (belum diberikan bonus)
+            await firebaseDatabase.ref(`referralUsage/${referrerUid}/${uid}`).set({
+              referredUid: uid,
+              registeredAt: new Date().toISOString(),
+              bonusGiven: false
+            });
+            console.log(`✅ Kode referral ${referralCodeRaw} valid, user ${uid} direfer oleh ${referrerUid}`);
+          } else {
+            // Kode tidak valid atau milik sendiri
+            showStatus('Kode referral tidak valid atau milik sendiri. Pendaftaran tetap dilanjutkan tanpa referral.', 'error');
+            referralValid = false;
+          }
+        }
 
+        showProgress(60);
+
+        // 3. Siapkan data user untuk database
         const userData = {
           name: nama,
           email: email,
@@ -327,19 +281,31 @@
           photoURL: '',
           rating: 5,
           perjalanan: 0,
-          referral_code: myReferralCode,
-          referral_bonus_total: 0,
           createdAt: new Date().toISOString()
         };
-        if (referredByUid) userData.referred_by = referredByUid;
 
-        await saveUserToDatabase(uid, userData, referredByUid, myReferralCode);
-        showProgress(80);
+        // 4. Tambahkan referred_by jika ada
+        if (referredByUid) {
+          userData.referred_by = referredByUid;
+        }
 
+        // 5. Simpan ke Realtime Database
+        await saveUserToDatabase(uid, userData);
+        showProgress(85);
+
+        // 6. Simpan session ke localStorage (agar kompatibel dengan halaman lain)
         const session = {
-          userId: uid, uid: uid, name: nama, phone: phone, email: email,
-          address: alamat, gender: gender, status: 'active', photoURL: '',
-          rating: 5, perjalanan: 0, referralCode: myReferralCode, referralBonus: 0
+          userId: uid,
+          uid: uid,
+          name: nama,
+          phone: phone,
+          email: email,
+          address: alamat,
+          gender: gender,
+          status: 'active',
+          photoURL: '',
+          rating: 5,
+          perjalanan: 0
         };
         localStorage.setItem('jego_logged_in_user', JSON.stringify(session));
 
@@ -349,7 +315,7 @@
           window.location.href = 'jenis_kenderaan.html';
         }, 1500);
       } catch (error) {
-        console.error('âŒ [Registrasi] Error:', error);
+        console.error('Registrasi error:', error);
         let pesanError = 'Gagal mendaftar. ';
         switch (error.code) {
           case 'auth/email-already-in-use':
@@ -372,26 +338,32 @@
       }
     });
 
-    document.querySelectorAll('.toggle-password').forEach(btn => {
-      btn.addEventListener('click', function() {
-        const targetId = this.getAttribute('data-target');
-        const input = document.getElementById(targetId);
-        if (!input) return;
-        const type = input.getAttribute('type') === 'password' ? 'text' : 'password';
-        input.setAttribute('type', type);
-        this.textContent = type === 'password' ? 'ðŸ‘ï¸' : 'ðŸ™ˆ';
-      });
+    // Toggle password visibility untuk kedua field password
+    const togglePwd = document.getElementById('togglePassword');
+    const pwdInput = document.getElementById('passwordInput');
+    togglePwd.addEventListener('click', function() {
+      const type = pwdInput.getAttribute('type') === 'password' ? 'text' : 'password';
+      pwdInput.setAttribute('type', type);
+      this.textContent = type === 'password' ? '👁️' : '🙈';
     });
 
+    const toggleConfirm = document.getElementById('toggleConfirmPassword');
+    const confirmInput = document.getElementById('confirmPasswordInput');
+    toggleConfirm.addEventListener('click', function() {
+      const type = confirmInput.getAttribute('type') === 'password' ? 'text' : 'password';
+      confirmInput.setAttribute('type', type);
+      this.textContent = type === 'password' ? '👁️' : '🙈';
+    });
+
+    // Inisialisasi Firebase saat halaman dimuat
     window.onload = async () => {
-      console.log('ðŸš€ [Init] Halaman registrasi dimuat');
       localStorage.removeItem('jego_logged_in_user');
       try {
         await initFirebase();
-        if (firebaseAuth.currentUser) await firebaseAuth.signOut();
-        console.log('âœ… [Init] Firebase siap');
+        if (firebaseAuth.currentUser) {
+          await firebaseAuth.signOut();
+        }
       } catch (e) {
-        console.error('âŒ [Init] Gagal:', e);
         showNotif('Error', 'Gagal inisialisasi Firebase', 'error');
       }
     };
