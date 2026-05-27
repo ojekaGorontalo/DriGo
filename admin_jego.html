@@ -475,14 +475,29 @@
         return false;
     }
 
-    // ========== FUNGSI AMBIL DRIVER AKTIF ==========
-    async function loadActiveDrivers() {
-        const snap = await database.ref("driver_locations").once("value");
-        const all = snap.val() || {};
-        const activeDrivers = [];
-        for (const uid in all) {
-            const d = all[uid];
-            if (d.tracking_enabled === true && d.playerId && d.latitude && d.longitude) {
+    // ========== FUNGSI AMBIL DRIVER AKTIF (dengan filter lokasi <5 menit) ==========
+async function loadActiveDrivers() {
+    const snap = await database.ref("driver_locations").once("value");
+    const all = snap.val() || {};
+    const activeDrivers = [];
+    const now = Date.now();
+    const MAX_AGE = 5 * 60 * 1000;
+
+    for (const uid in all) {
+        const d = all[uid];
+        if (d.tracking_enabled === true && d.playerId && d.latitude && d.longitude) {
+            let isFresh = false;
+            if (d.last_update) {
+                const lastUpdate = new Date(d.last_update).getTime();
+                if (now - lastUpdate < MAX_AGE) {
+                    isFresh = true;
+                } else {
+                    addLog(`⏸️ Driver ${uid} diabaikan karena lokasi terakhir >5 menit`, "warning");
+                }
+            } else {
+                addLog(`⏸️ Driver ${uid} diabaikan karena tidak punya last_update`, "warning");
+            }
+            if (isFresh) {
                 activeDrivers.push({
                     uid: uid,
                     playerId: d.playerId,
@@ -493,9 +508,10 @@
                 });
             }
         }
-        addLog(`Driver aktif (tracking ON): ${activeDrivers.length}`, "info");
-        return activeDrivers;
     }
+    addLog(`Driver aktif (tracking ON dan lokasi fresh <5 menit): ${activeDrivers.length}`, "info");
+    return activeDrivers;
+}
 
     // ========== FUNGSI AUTO FALLBACK ==========
     async function sendFallbackOffer(orderId, orderData) {
@@ -865,49 +881,82 @@
     }
 
     // ========== LISTENER ==========
-    function startListeningOrders() {
-        if (ordersListener) return;
-        database.ref("orders").on("child_added", async (snap) => await processNewOrder(snap.key, snap.val()));
-        ordersListener = true;
-        addLog("👂 Listener order aktif (auto fallback, notifikasi awal, auto offer)", "success");
+    // ========== LISTENER ==========
+function startListeningOrders() {
+    if (ordersListener) return;
+    database.ref("orders").on("child_added", async (snap) => await processNewOrder(snap.key, snap.val()));
+    ordersListener = true;
+    addLog("👂 Listener order aktif (auto fallback, notifikasi awal, auto offer)", "success");
+}
+
+function startListeners() {
+    database.ref('orders').on('child_changed', async (snap) => {
+        const order = snap.val(); const id = snap.key;
+        if (!order) return;
+        if (order.status === 'on_trip') await autoDeductOnTrip(id, order);
+        if (order.status === 'accepted' && order.driver_id) {
+            addLog(`🎉 Order ${id} diterima driver ${order.driver_id}`, "success");
+        }
+        if (order.status === 'completed' && order.driver_id) await updateDriverStats(order.driver_id);
+        if (currentView === 'dashboard') refreshDashboardOrders();
+    });
+
+    database.ref('ratings').on('child_added', async (snap) => {
+        const ratingData = snap.val();
+        if (ratingData?.driver_rating?.driver_id) {
+            addLog(`⭐ Rating baru untuk driver ${ratingData.driver_rating.driver_id}`, "info");
+            await updateDriverStats(ratingData.driver_rating.driver_id);
+        }
+        if (ratingData?.customer_rating?.customer_id) {
+            addLog(`⭐ Rating baru untuk customer ${ratingData.customer_rating.customer_id}`, "info");
+            await updateCustomerStats(ratingData.customer_rating.customer_id);
+        }
+    });
+    database.ref('ratings').on('child_changed', async (snap) => {
+        const ratingData = snap.val();
+        if (ratingData?.driver_rating?.driver_id) {
+            addLog(`🔄 Rating berubah untuk driver ${ratingData.driver_rating.driver_id}`, "info");
+            await updateDriverStats(ratingData.driver_rating.driver_id);
+        }
+        if (ratingData?.customer_rating?.customer_id) {
+            addLog(`🔄 Rating customer ${ratingData.customer_rating.customer_id} berubah`, "info");
+            await updateCustomerStats(ratingData.customer_rating.customer_id);
+        }
+    });
+}
+
+// ========== NOTIFIKASI DRIVER STALE (LOKASI KADALUARSA) ==========
+async function notifyStaleDrivers() {
+    const snap = await database.ref("driver_locations").once("value");
+    const all = snap.val() || {};
+    const now = Date.now();
+    const MAX_AGE = 5 * 60 * 1000;
+    for (const [uid, d] of Object.entries(all)) {
+        if (d.tracking_enabled === true && d.playerId) {
+            const lastUpdate = d.last_update ? new Date(d.last_update).getTime() : 0;
+            if (now - lastUpdate >= MAX_AGE) {
+                await sendPushNotification(d.playerId, "⚠️ Lokasi Tidak Terupdate", "Aplikasi JeGo Anda terdeteksi tidak mengirim lokasi. Buka aplikasi agar tetap dapat menerima order.");
+                // Cek notifikasi terakhir untuk hindari spam
+                const lastNotifSnap = await database.ref(`driver_notifications/${uid}`).orderByKey().limitToLast(1).once('value');
+                let lastNotif = null;
+                lastNotifSnap.forEach(child => { lastNotif = child.val(); });
+                const isDuplicate = lastNotif && lastNotif.type === 'stale_location' && (now - lastNotif.timestamp) < 30*60*1000;
+                if (!isDuplicate) {
+                    await database.ref(`driver_notifications/${uid}`).push({
+                        title: "Lokasi Kadaluarsa",
+                        message: "Aplikasi tidak mengirim lokasi dalam 5 menit terakhir. Buka aplikasi untuk tetap aktif.",
+                        timestamp: firebase.database.ServerValue.TIMESTAMP,
+                        read: false,
+                        type: "stale_location"
+                    });
+                    addLog(`📢 Notifikasi lokasi kadaluarsa dikirim ke driver ${uid}`, "info");
+                } else {
+                    addLog(`⏭️ Lewati notifikasi duplikat untuk driver ${uid}`, "info");
+                }
+            }
+        }
     }
-
-    function startListeners() {
-        database.ref('orders').on('child_changed', async (snap) => {
-            const order = snap.val(); const id = snap.key;
-            if (!order) return;
-            if (order.status === 'on_trip') await autoDeductOnTrip(id, order);
-            if (order.status === 'accepted' && order.driver_id) {
-                addLog(`🎉 Order ${id} diterima driver ${order.driver_id}`, "success");
-            }
-            if (order.status === 'completed' && order.driver_id) await updateDriverStats(order.driver_id);
-            if (currentView === 'dashboard') refreshDashboardOrders();
-        });
-
-        database.ref('ratings').on('child_added', async (snap) => {
-            const ratingData = snap.val();
-            if (ratingData?.driver_rating?.driver_id) {
-                addLog(`⭐ Rating baru untuk driver ${ratingData.driver_rating.driver_id}`, "info");
-                await updateDriverStats(ratingData.driver_rating.driver_id);
-            }
-            if (ratingData?.customer_rating?.customer_id) {
-                addLog(`⭐ Rating baru untuk customer ${ratingData.customer_rating.customer_id}`, "info");
-                await updateCustomerStats(ratingData.customer_rating.customer_id);
-            }
-        });
-        database.ref('ratings').on('child_changed', async (snap) => {
-            const ratingData = snap.val();
-            if (ratingData?.driver_rating?.driver_id) {
-                addLog(`🔄 Rating berubah untuk driver ${ratingData.driver_rating.driver_id}`, "info");
-                await updateDriverStats(ratingData.driver_rating.driver_id);
-            }
-            if (ratingData?.customer_rating?.customer_id) {
-                addLog(`🔄 Rating customer ${ratingData.customer_rating.customer_id} berubah`, "info");
-                await updateCustomerStats(ratingData.customer_rating.customer_id);
-            }
-        });
-    }
-
+}
     // ========== DASHBOARD ==========
     async function loadAllOrders() {
         const snap = await database.ref('orders').once('value');
@@ -1637,6 +1686,7 @@
         initUI();
         setInterval(deleteExpiredOrders, 10*60*1000);
         setInterval(cleanupExpiredOffers, 10000);
+        setInterval(notifyStaleDrivers, 10 * 60 * 1000);
     });
 </script>
 </body>
