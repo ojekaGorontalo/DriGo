@@ -113,7 +113,9 @@
             background: linear-gradient(135deg, var(--primary), var(--secondary));
         }
 
-        * { box-sizing: border-box; }
+        * {
+            box-sizing: border-box;
+        }
 
         html, body, #map {
             height: 100%;
@@ -360,8 +362,12 @@
             margin-bottom: 12px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.08);
             border-left: 4px solid var(--primary);
-            transition: none; /* mencegah gerakan */
-            min-height: 120px; /* tinggi konsisten */
+            /* PERBAIKAN: stabilkan card, hindari reflow */
+            contain: content; /* isolasi layout */
+            will-change: auto;
+            transition: none; /* hapus semua transisi */
+            transform: translateZ(0); /* percepat GPU */
+            backface-visibility: hidden;
         }
         .driver-info {
             display: flex;
@@ -394,11 +400,25 @@
         .accept-btn { background: var(--success); color: white; }
         .reject-btn { background: var(--danger); color: white; }
 
-        /* Progress bar tanpa transisi agar tidak goyang */
-        .offer-progress-bar {
-            transition: none;
+        /* PERBAIKAN: Progress bar menggunakan transform scaleX, tanpa width */
+        .offer-progress-wrapper {
+            background: #e0e0e0;
+            border-radius: 10px;
+            overflow: hidden;
             height: 4px;
+            margin-top: 8px;
+            /* stabilkan wrapper */
+            transform: translateZ(0);
+        }
+        .offer-progress-bar {
+            height: 100%;
             background: #FF9800;
+            transform-origin: left;
+            transform: scaleX(0);
+            transition: none; /* hilangkan transisi agar tidak bergoyang saat update */
+            will-change: transform;
+            /* lebar penuh secara visual, tapi scale yang mengatur */
+            width: 100%;
         }
 
         .popup-overlay {
@@ -809,22 +829,6 @@
     </div>
 </div>
 
-<div class="popup-overlay" id="priceOfferPopup">
-    <div class="popup">
-        <div class="popup-header"><h3>💡 Naikkan Tarif</h3></div>
-        <div class="popup-content">
-            <p>Belum ada driver. Naikkan tarif?</p>
-            <div style="margin:10px 0;font-size:1.2rem;font-weight:700" id="currentPriceDisplay">Rp0</div>
-            <div class="popup-buttons" style="flex-direction:column">
-                <button class="popup-button popup-button-primary" id="priceUp1Btn">Rp 0</button>
-                <button class="popup-button popup-button-primary" id="priceUp2Btn">Rp 0</button>
-                <button class="popup-button popup-button-primary" id="priceUp3Btn">Rp 0</button>
-                <button class="popup-button popup-button-secondary" id="continueWaitingBtn">Tunggu</button>
-            </div>
-        </div>
-    </div>
-</div>
-
 <script>
     // ==================== KONFIGURASI FIREBASE ====================
     const FIREBASE_CONFIG = {
@@ -861,7 +865,6 @@
     let orderRef = null, offersRef = null;
     let orderStatusCallback = null, offersCallback = null;
     let isSearching = false;
-    let priceOfferTimer = null, priceOfferShown = false;
     let offerTimerInterval = null;
     let cleanupInterval = null;
     let currentZoomAnimation = null;
@@ -1694,10 +1697,8 @@
                 const total = 30000;
                 const percent = (remaining / total) * 100;
                 timerHtml = `
-                    <div style="margin-top: 8px;">
-                        <div style="background:#e0e0e0; border-radius:10px; overflow:hidden;">
-                            <div class="offer-progress-bar" style="width:${percent}%;"></div>
-                        </div>
+                    <div class="offer-progress-wrapper">
+                        <div class="offer-progress-bar" data-expired="${offer.expired_at}" style="transform: scaleX(${Math.min(1, Math.max(0, percent/100))});"></div>
                     </div>
                 `;
             }
@@ -1726,19 +1727,20 @@
         document.querySelectorAll('.reject-btn').forEach(btn => btn.addEventListener('click', () => rejectOffer(btn.getAttribute('data-driver'))));
     }
 
-    // ========== FUNGSI UNTUK TIMER & CLEANUP (diletakkan di luar renderOffers) ==========
+    // ========== FUNGSI UNTUK TIMER & CLEANUP ==========
     function updateOfferTimers() {
-        const cards = document.querySelectorAll('.driver-offer-card');
         const now = Date.now();
-        cards.forEach(card => {
+        document.querySelectorAll('.driver-offer-card').forEach(card => {
             const expiredAt = parseInt(card.getAttribute('data-expired'), 10);
             if (!expiredAt) return;
-            const remaining = Math.max(0, expiredAt - now);
             const progressBar = card.querySelector('.offer-progress-bar');
             if (progressBar) {
+                const remaining = Math.max(0, expiredAt - now);
                 const total = 30000;
-                const percent = (remaining / total) * 100;
-                progressBar.style.width = `${percent}%`;
+                let percent = (remaining / total);
+                percent = Math.min(1, Math.max(0, percent));
+                // Gunakan transform scaleX untuk menghindari layout reflow
+                progressBar.style.transform = `scaleX(${percent})`;
             }
         });
     }
@@ -1832,7 +1834,6 @@
                 offersRef = database.ref(`orders/${currentOrderId}/driver_offers`);
                 offersCallback = (snap) => renderOffers(snap.val());
                 offersRef.on('value', offersCallback);
-                priceOfferTimer = setTimeout(() => { if (isSearching && currentOrderId) showPriceOfferPopup(); }, 30000);
                 return;
             }
         }
@@ -1922,7 +1923,6 @@
         offersRef = database.ref(`orders/${currentOrderId}/driver_offers`);
         offersCallback = (snap) => renderOffers(snap.val());
         offersRef.on('value', offersCallback);
-        priceOfferTimer = setTimeout(() => { if (isSearching && currentOrderId) showPriceOfferPopup(); }, 30000);
     }
 
     function startSearchDriversForOrder(centerLatLng, radiusKm = 3) {
@@ -1956,40 +1956,11 @@
     }
     function cancelSearchHandler() { cancelSearch(); }
 
-    function showPriceOfferPopup() {
-        if (priceOfferShown) return;
-        priceOfferShown = true;
-        const currentPriceVal = currentPrice;
-        document.getElementById('currentPriceDisplay').innerText = formatRupiah(currentPriceVal);
-        const price1 = Math.round(currentPriceVal * 1.1);
-        const price2 = Math.round(currentPriceVal * 1.2);
-        const price3 = Math.round(currentPriceVal * 1.3);
-        document.getElementById('priceUp1Btn').innerHTML = formatRupiah(price1);
-        document.getElementById('priceUp2Btn').innerHTML = formatRupiah(price2);
-        document.getElementById('priceUp3Btn').innerHTML = formatRupiah(price3);
-        const popup = document.getElementById('priceOfferPopup');
-        popup.classList.add('active');
-        const closePopup = () => popup.classList.remove('active');
-        document.getElementById('priceUp1Btn').onclick = () => { updateOrderPrice(price1); closePopup(); };
-        document.getElementById('priceUp2Btn').onclick = () => { updateOrderPrice(price2); closePopup(); };
-        document.getElementById('priceUp3Btn').onclick = () => { updateOrderPrice(price3); closePopup(); };
-        document.getElementById('continueWaitingBtn').onclick = closePopup;
-        popup.addEventListener('click', (e) => { if (e.target === popup) closePopup(); }, { once: true });
-    }
-
-    async function updateOrderPrice(newPrice) {
-        if (!currentOrderId) return;
-        currentPrice = newPrice;
-        await database.ref(`orders/${currentOrderId}`).update({ price: newPrice, price_updated_at: new Date().toISOString() });
-        showPopup('Tarif Dinaikkan', `Tarif baru: ${formatRupiah(newPrice)}. Menunggu driver...`);
-    }
 
     function cleanupSearch() {
         if (orderRef && orderStatusCallback) orderRef.off('value', orderStatusCallback);
         if (offersRef && offersCallback) offersRef.off('value', offersCallback);
         isSearching = false;
-        if (priceOfferTimer) clearTimeout(priceOfferTimer);
-        priceOfferShown = false;
         document.getElementById('radar').style.display = 'none';
         document.getElementById('radar').classList.remove('expanding');
         document.getElementById('driverOffers').style.display = 'none';
