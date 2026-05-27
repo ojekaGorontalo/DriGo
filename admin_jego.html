@@ -279,7 +279,6 @@
             <div class="menu-item" data-view="realtime_log"><i class="fas fa-terminal"></i> <span>Real-time Log</span></div>
             <div class="menu-item" data-view="tools"><i class="fas fa-tools"></i> <span>Tools</span></div>
             <div class="menu-item" data-view="send_notif_customer"><i class="fas fa-bell"></i> <span>Notifikasi Customer</span></div>
-            <!-- MENU BARU: Bonus Customer & Pengaturan Referral -->
             <div class="menu-item" data-view="manage_bonus"><i class="fas fa-gift"></i> <span>Bonus Customer</span></div>
             <div class="menu-item" data-view="referral_settings"><i class="fas fa-sliders-h"></i> <span>Pengaturan Referral</span></div>
         </div>
@@ -412,18 +411,20 @@
         const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
         return R * c;
     }
-// ========== CEK KESESUAIAN TIPE KENDARAAN ==========
-function isVehicleTypeMatch(driverType, orderType) {
-    if (!driverType || !orderType) return false;
-    driverType = driverType.toLowerCase();
-    orderType = orderType.toLowerCase();
-    if (driverType === orderType) return true;
-    if (orderType.includes('kurir')) {
-        if (driverType === 'motor' && orderType === 'kurir_motor') return true;
-        if (driverType === 'bentor' && orderType === 'kurir_bentor') return true;
+
+    // ========== CEK KESESUAIAN TIPE KENDARAAN ==========
+    function isVehicleTypeMatch(driverType, orderType) {
+        if (!driverType || !orderType) return false;
+        driverType = driverType.toLowerCase();
+        orderType = orderType.toLowerCase();
+        if (driverType === orderType) return true;
+        if (orderType.includes('kurir')) {
+            if (driverType === 'motor' && orderType === 'kurir_motor') return true;
+            if (driverType === 'bentor' && orderType === 'kurir_bentor') return true;
+        }
+        return false;
     }
-    return false;
-}
+
     // ========== FUNGSI HITUNG TOTAL POTONGAN ==========
     async function hitungTotalPotongan(hargaOrder) {
         try {
@@ -445,35 +446,34 @@ function isVehicleTypeMatch(driverType, orderType) {
         const tipe = orderData.transport_type || orderData.vehicle || '';
         return tipe.includes('kurir');
     }
-    // ========== CEK JIKA DRIVER SEDANG MENUNGGU KONFIRMASI ==========
-async function isDriverWaitingForConfirmation(driverId) {
-    // Ambil semua order yang masih waiting
-    const ordersSnap = await database.ref('orders').orderByChild('status').equalTo('waiting').once('value');
-    const waitingOrders = ordersSnap.val() || {};
-    for (let orderId in waitingOrders) {
-        const order = waitingOrders[orderId];
-        // Cek apakah driver memiliki offer di order ini dengan status 'offered'
-        const offers = order.driver_offers || {};
-        if (offers[driverId] && offers[driverId].status === 'offered') {
-            return true; // driver sedang menunggu konfirmasi di order ini
-        }
-    }
-    return false;
-}
 
-// ========== CEK JIKA DRIVER SEDANG MEMILIKI ORDER AKTIF ==========
-async function isDriverOnActiveOrder(driverId) {
-    const activeStatuses = ['accepted', 'on_the_way', 'arrived', 'on_trip'];
-    const ordersSnap = await database.ref('orders').once('value');
-    const orders = ordersSnap.val() || {};
-    for (let orderId in orders) {
-        const order = orders[orderId];
-        if (order.driver_id === driverId && activeStatuses.includes(order.status)) {
-            return true; // driver sedang dalam perjalanan
+    // ========== CEK JIKA DRIVER SEDANG MENUNGGU KONFIRMASI ==========
+    async function isDriverWaitingForConfirmation(driverId) {
+        const ordersSnap = await database.ref('orders').orderByChild('status').equalTo('waiting').once('value');
+        const waitingOrders = ordersSnap.val() || {};
+        for (let orderId in waitingOrders) {
+            const order = waitingOrders[orderId];
+            const offers = order.driver_offers || {};
+            if (offers[driverId] && offers[driverId].status === 'offered') {
+                return true;
+            }
         }
+        return false;
     }
-    return false;
-}
+
+    // ========== CEK JIKA DRIVER SEDANG MEMILIKI ORDER AKTIF ==========
+    async function isDriverOnActiveOrder(driverId) {
+        const activeStatuses = ['accepted', 'on_the_way', 'arrived', 'on_trip'];
+        const ordersSnap = await database.ref('orders').once('value');
+        const orders = ordersSnap.val() || {};
+        for (let orderId in orders) {
+            const order = orders[orderId];
+            if (order.driver_id === driverId && activeStatuses.includes(order.status)) {
+                return true;
+            }
+        }
+        return false;
+    }
 
     // ========== FUNGSI AMBIL DRIVER AKTIF ==========
     async function loadActiveDrivers() {
@@ -499,222 +499,213 @@ async function isDriverOnActiveOrder(driverId) {
 
     // ========== FUNGSI AUTO FALLBACK ==========
     async function sendFallbackOffer(orderId, orderData) {
-    if (isKurirOrder(orderData)) {
-        addLog(`🚫 Fallback dibatalkan untuk order Kurir ${orderId.substring(0,8)}`, "warning");
-        return false;
-    }
-    const orderSnap = await database.ref(`orders/${orderId}`).once('value');
-    const order = orderSnap.val();
-    if (!order || order.status !== 'waiting') return false;
-    const offersSnap = await database.ref(`orders/${orderId}/driver_offers`).once('value');
-    if (offersSnap.exists() && Object.keys(offersSnap.val()).length > 0) return false;
-    const pickupLat = order.pickup_lat, pickupLng = order.pickup_lng;
-    if (!pickupLat || !pickupLng) return false;
+        if (isKurirOrder(orderData)) {
+            addLog(`🚫 Fallback dibatalkan untuk order Kurir ${orderId.substring(0,8)}`, "warning");
+            return false;
+        }
+        const orderSnap = await database.ref(`orders/${orderId}`).once('value');
+        const order = orderSnap.val();
+        if (!order || order.status !== 'waiting') return false;
+        const offersSnap = await database.ref(`orders/${orderId}/driver_offers`).once('value');
+        if (offersSnap.exists() && Object.keys(offersSnap.val()).length > 0) return false;
+        const pickupLat = order.pickup_lat, pickupLng = order.pickup_lng;
+        if (!pickupLat || !pickupLng) return false;
 
-    const driversLoc = await database.ref("driver_locations").once('value');
-    const allDrivers = driversLoc.val() || {};
-    let eligibleDrivers = [];
-    for (const [uid, data] of Object.entries(allDrivers)) {
-        if (data.tracking_enabled !== true) continue;
-        if (!data.latitude || !data.longitude) continue;
-        const dist = getDistance(pickupLat, pickupLng, data.latitude, data.longitude);
-        if (dist < 3) {
-            eligibleDrivers.push({ uid, ...data, distance: dist });
+        const driversLoc = await database.ref("driver_locations").once('value');
+        const allDrivers = driversLoc.val() || {};
+        let eligibleDrivers = [];
+        for (const [uid, data] of Object.entries(allDrivers)) {
+            if (data.tracking_enabled !== true) continue;
+            if (!data.latitude || !data.longitude) continue;
+            const dist = getDistance(pickupLat, pickupLng, data.latitude, data.longitude);
+            if (dist < 3) {
+                eligibleDrivers.push({ uid, ...data, distance: dist });
+            }
+        }
+        if (eligibleDrivers.length === 0) {
+            addLog(`⚠️ Order ${orderId.substring(0,8)}: Tidak ada driver dalam radius 3 km.`, "warning");
+            return false;
+        }
+        eligibleDrivers.sort((a,b) => a.distance - b.distance);
+
+        let selectedDriver = null;
+        for (const driver of eligibleDrivers) {
+            const driverSnap = await database.ref(`drivers/${driver.uid}`).once('value');
+            const driverData = driverSnap.val();
+            if (!driverData) continue;
+            const driverType = driverData.vehicle_type || '';
+            const orderType = order.transport_type || order.vehicle || 'motor';
+            if (!isVehicleTypeMatch(driverType, orderType)) {
+                addLog(`⚠️ Fallback skipped: tipe kendaraan ${driverData.name || driver.uid} (${driverType}) tidak cocok dengan order ${orderType}`, "warning");
+                continue;
+            }
+            const potonganInfo = await hitungTotalPotongan(order.price || 0);
+            const saldoDriver = driverData.balance || 0;
+            if (saldoDriver >= potonganInfo.total) {
+                selectedDriver = { uid: driver.uid, data: driverData, distance: driver.distance, playerId: driver.playerId };
+                break;
+            } else {
+                addLog(`⚠️ Driver ${driverData.name || driver.uid} saldo tidak cukup (${saldoDriver} < ${potonganInfo.total}), dilewati.`, "warning");
+            }
+        }
+
+        if (!selectedDriver) {
+            addLog(`🚨 Auto fallback gagal: Tidak ada driver dengan saldo cukup dalam radius 3 km untuk order ${orderId.substring(0,8)}.`, "error");
+            return false;
+        }
+
+        const offerData = {
+            driver_id: selectedDriver.uid,
+            driver_name: selectedDriver.data.name || "Driver",
+            driver_plate: selectedDriver.data.plate_number || '',
+            driver_type: selectedDriver.data.vehicle_type || '',
+            driver_rating: selectedDriver.data.rating || 5,
+            driver_trips: selectedDriver.data.perjalanan || 0,
+            driver_photo: selectedDriver.data.photoURL || '',
+            offered_at: new Date().toISOString(),
+            status: 'offered',
+            auto_fallback_by_admin: true,
+            bid_price: order.price,
+            bid_percent: 0,
+            bid_requested: true,
+            expired_at: Date.now() + 30000
+        };
+
+        try {
+            await database.ref(`orders/${orderId}/driver_offers/${selectedDriver.uid}`).set(offerData);
+            addLog(`🤖 AUTO FALLBACK: offer ke ${offerData.driver_name} (${selectedDriver.uid}) jarak ${selectedDriver.distance.toFixed(2)}km, saldo cukup ✅`, "success");
+            if (selectedDriver.playerId) {
+                const title = "🚖 Order Baru (Auto Offer dari Admin)";
+                const message = `Halo ${selectedDriver.data.name}, admin mengirim penawaran order dari ${order.customer_name || 'Customer'} (Rp ${order.price?.toLocaleString()}) karena tidak ada driver merespon.`;
+                await sendPushNotification(selectedDriver.playerId, title, message, { auto_fallback: true, orderId });
+            }
+            return true;
+        } catch(err) {
+            addLog(`❌ Gagal fallback: ${err.message}`, "error");
+            return false;
         }
     }
-    if (eligibleDrivers.length === 0) {
-        addLog(`⚠️ Order ${orderId.substring(0,8)}: Tidak ada driver dalam radius 3 km.`, "warning");
-        return false;
-    }
-    eligibleDrivers.sort((a,b) => a.distance - b.distance);
-
-    let selectedDriver = null;
-    for (const driver of eligibleDrivers) {
-        const driverSnap = await database.ref(`drivers/${driver.uid}`).once('value');
-        const driverData = driverSnap.val();
-        if (!driverData) continue;
-
-        // CEK TIPE KENDARAAN
-        const driverType = driverData.vehicle_type || '';
-        const orderType = order.transport_type || order.vehicle || 'motor';
-        if (!isVehicleTypeMatch(driverType, orderType)) {
-            addLog(`⚠️ Fallback skipped: tipe kendaraan ${driverData.name || driver.uid} (${driverType}) tidak cocok dengan order ${orderType}`, "warning");
-            continue;
-        }
-
-        const potonganInfo = await hitungTotalPotongan(order.price || 0);
-        const saldoDriver = driverData.balance || 0;
-        if (saldoDriver >= potonganInfo.total) {
-            selectedDriver = { uid: driver.uid, data: driverData, distance: driver.distance, playerId: driver.playerId };
-            break;
-        } else {
-            addLog(`⚠️ Driver ${driverData.name || driver.uid} saldo tidak cukup (${saldoDriver} < ${potonganInfo.total}), dilewati.`, "warning");
-        }
-    }
-
-    if (!selectedDriver) {
-        addLog(`🚨 Auto fallback gagal: Tidak ada driver dengan saldo cukup dalam radius 3 km untuk order ${orderId.substring(0,8)}.`, "error");
-        return false;
-    }
-
-    const offerData = {
-    driver_id: driverId,
-    driver_name: driver.name || "Driver",
-    driver_plate: driver.plate_number || '',
-    driver_type: driver.vehicle_type || '',
-    driver_rating: driver.rating || 5,
-    driver_trips: driver.perjalanan || 0,
-    driver_photo: driver.photoURL || '',
-    offered_at: new Date().toISOString(),
-    status: 'offered',
-    auto_fallback_by_admin: true,
-    bid_price: order.price,
-    bid_percent: 0
-    expired_at: Date.now() + 30000   // 30 detik dari sekarang
-};
-
-    try {
-        await database.ref(`orders/${orderId}/driver_offers/${selectedDriver.uid}`).set(offerData);
-        addLog(`🤖 AUTO FALLBACK: offer ke ${offerData.driver_name} (${selectedDriver.uid}) jarak ${selectedDriver.distance.toFixed(2)}km, saldo cukup ✅`, "success");
-        if (selectedDriver.playerId) {
-            const title = "🚖 Order Baru (Auto Offer dari Admin)";
-            const message = `Halo ${selectedDriver.data.name}, admin mengirim penawaran order dari ${order.customer_name || 'Customer'} (Rp ${order.price?.toLocaleString()}) karena tidak ada driver merespon.`;
-            await sendPushNotification(selectedDriver.playerId, title, message, { auto_fallback: true, orderId });
-        }
-        return true;
-    } catch(err) {
-        addLog(`❌ Gagal fallback: ${err.message}`, "error");
-        return false;
-    }
-}
 
     // ========== PROSES ORDER BARU ==========
     async function processNewOrder(orderId, orderData) {
-    if (processedOrderIds.has(orderId)) return;
-    if (orderData.status !== "waiting" && orderData.status !== "searching") return;
-    const lat = orderData.pickup_lat || orderData.from_lat;
-    const lng = orderData.pickup_lng || orderData.from_lng;
-    if (!lat || !lng) return;
+        if (processedOrderIds.has(orderId)) return;
+        if (orderData.status !== "waiting" && orderData.status !== "searching") return;
+        const lat = orderData.pickup_lat || orderData.from_lat;
+        const lng = orderData.pickup_lng || orderData.from_lng;
+        if (!lat || !lng) return;
 
-    const isKurir = isKurirOrder(orderData);
-    addLog(`📦 Order baru: ${orderId.substring(0,8)}${isKurir ? ' (KURIR)' : ''}`, "info");
+        const isKurir = isKurirOrder(orderData);
+        addLog(`📦 Order baru: ${orderId.substring(0,8)}${isKurir ? ' (KURIR)' : ''}`, "info");
 
-    // ========== OPTIMASI: BACA SEMUA ORDER AKTIF SEKALI ==========
-    const activeStatuses = ['accepted', 'on_the_way', 'arrived', 'on_trip'];
-    const ordersSnap = await database.ref('orders').once('value'); // BACA SEKALI SAJA
-    const allOrders = ordersSnap.val() || {};
-    const activeDriverIds = new Set(); // driver yang sedang dalam perjalanan
-    const waitingDriverIds = new Set(); // driver yang sedang menunggu konfirmasi penawaran
-    
-    for (let orderIdLoop in allOrders) {
-        const order = allOrders[orderIdLoop];
-        // Driver dalam perjalanan (order aktif)
-        if (order.driver_id && activeStatuses.includes(order.status)) {
-            activeDriverIds.add(order.driver_id);
-        }
-        // Driver menunggu konfirmasi (order waiting dengan penawaran status offered)
-        if (order.status === 'waiting' && order.driver_offers) {
-            for (let driverId in order.driver_offers) {
-                if (order.driver_offers[driverId].status === 'offered') {
-                    waitingDriverIds.add(driverId);
-                }
+        const activeStatuses = ['accepted', 'on_the_way', 'arrived', 'on_trip'];
+        const ordersSnap = await database.ref('orders').once('value');
+        const allOrders = ordersSnap.val() || {};
+        const activeDriverIds = new Set();
+        const waitingDriverIds = new Set();
+        for (let orderIdLoop in allOrders) {
+            const order = allOrders[orderIdLoop];
+            if (order.driver_id && activeStatuses.includes(order.status)) {
+                activeDriverIds.add(order.driver_id);
             }
-        }
-    }
-    // ============================================================
-
-    const drivers = await loadActiveDrivers();
-    let notifiedCount = 0;
-    let autoOfferCount = 0;
-
-    for (const driver of drivers) {
-        const dist = getDistance(lat, lng, driver.latitude, driver.longitude);
-        if (dist < 3) {
-            const cust = orderData.customer_name || "Customer";
-            const harga = orderData.price || 0;
-            await sendPushNotification(driver.playerId, "🚖 Order Baru Dekat Anda!", `${cust} Rp ${harga.toLocaleString()} jarak ${dist.toFixed(1)}km`, { orderId });
-            notifiedCount++;
-
-            if (driver.autobid_enabled && !isKurir) {
-                // CEK DARI SET YANG SUDAH KITA BUAT
-                if (waitingDriverIds.has(driver.uid)) {
-                    addLog(`⏸️ Auto offer skipped: driver ${driver.name} sedang menunggu konfirmasi order lain, lewat.`, "warning");
-                    continue;
-                }
-                if (activeDriverIds.has(driver.uid)) {
-                    addLog(`⏸️ Auto offer skipped: driver ${driver.name} sedang dalam perjalanan (order aktif), lewat.`, "warning");
-                    continue;
-                }
-                // =================================================
-
-                const driverSnap = await database.ref(`drivers/${driver.uid}`).once('value');
-                const driverData = driverSnap.val();
-                if (!driverData) continue;
-                // CEK TIPE KENDARAAN
-                const driverType = driverData.vehicle_type || '';
-                const orderType = orderData.transport_type || orderData.vehicle || 'motor';
-                if (!isVehicleTypeMatch(driverType, orderType)) {
-                    addLog(`⚠️ Auto offer skipped: tipe kendaraan ${driver.name} (${driverType}) tidak cocok dengan order ${orderType}`, "warning");
-                    continue;
-                }
-                const potonganInfo = await hitungTotalPotongan(orderData.price || 0);
-                const saldoDriver = driverData.balance || 0;
-                if (saldoDriver >= potonganInfo.total) {
-                    const existingOffer = await database.ref(`orders/${orderId}/driver_offers/${driver.uid}`).once('value');
-                    if (!existingOffer.exists()) {
-                        const offerData = {
-    driver_id: driver.uid,
-    driver_name: driverData.name || "Driver",
-    driver_plate: driverData.plate_number || '',
-    driver_type: driverData.vehicle_type || '',
-    driver_rating: driverData.rating || 5,
-    driver_trips: driverData.perjalanan || 0,
-    driver_photo: driverData.photoURL || '',
-    offered_at: new Date().toISOString(),
-    status: 'offered',
-    auto_offer_by_admin: true,
-    bid_price: orderData.price,   // <-- tambahkan ini
-    bid_percent: 0,              // <-- tambahkan ini
-    bid_requested: true
-};
-                        await database.ref(`orders/${orderId}/driver_offers/${driver.uid}`).set(offerData);
-                        addLog(`🤖 AUTO OFFER (autobid ON): ke ${driver.name} jarak ${dist.toFixed(2)}km`, "success");
-                        autoOfferCount++;
+            if (order.status === 'waiting' && order.driver_offers) {
+                for (let driverId in order.driver_offers) {
+                    if (order.driver_offers[driverId].status === 'offered') {
+                        waitingDriverIds.add(driverId);
                     }
-                } else {
-                    addLog(`⚠️ Autobid skipped: saldo driver ${driver.name} tidak cukup (${saldoDriver} < ${potonganInfo.total})`, "warning");
                 }
             }
         }
-    }
-    addLog(`✅ Order ${orderId.substring(0,8)}: notif ke ${notifiedCount} driver, auto offer ke ${autoOfferCount} driver`, "success");
 
-    if (!isKurir && !fallbackProcessed.has(orderId)) {
-        if (fallbackTimers.has(orderId)) clearTimeout(fallbackTimers.get(orderId));
-        const timer = setTimeout(async () => {
-            const cur = await database.ref(`orders/${orderId}`).once('value');
-            const curOrder = cur.val();
-            if (!curOrder || curOrder.status !== 'waiting') {
+        const drivers = await loadActiveDrivers();
+        let notifiedCount = 0;
+        let autoOfferCount = 0;
+
+        for (const driver of drivers) {
+            const dist = getDistance(lat, lng, driver.latitude, driver.longitude);
+            if (dist < 3) {
+                const cust = orderData.customer_name || "Customer";
+                const harga = orderData.price || 0;
+                await sendPushNotification(driver.playerId, "🚖 Order Baru Dekat Anda!", `${cust} Rp ${harga.toLocaleString()} jarak ${dist.toFixed(1)}km`, { orderId });
+                notifiedCount++;
+
+                if (driver.autobid_enabled && !isKurir) {
+                    if (waitingDriverIds.has(driver.uid)) {
+                        addLog(`⏸️ Auto offer skipped: driver ${driver.name} sedang menunggu konfirmasi order lain, lewat.`, "warning");
+                        continue;
+                    }
+                    if (activeDriverIds.has(driver.uid)) {
+                        addLog(`⏸️ Auto offer skipped: driver ${driver.name} sedang dalam perjalanan (order aktif), lewat.`, "warning");
+                        continue;
+                    }
+
+                    const driverSnap = await database.ref(`drivers/${driver.uid}`).once('value');
+                    const driverData = driverSnap.val();
+                    if (!driverData) continue;
+                    const driverType = driverData.vehicle_type || '';
+                    const orderType = orderData.transport_type || orderData.vehicle || 'motor';
+                    if (!isVehicleTypeMatch(driverType, orderType)) {
+                        addLog(`⚠️ Auto offer skipped: tipe kendaraan ${driver.name} (${driverType}) tidak cocok dengan order ${orderType}`, "warning");
+                        continue;
+                    }
+                    const potonganInfo = await hitungTotalPotongan(orderData.price || 0);
+                    const saldoDriver = driverData.balance || 0;
+                    if (saldoDriver >= potonganInfo.total) {
+                        const existingOffer = await database.ref(`orders/${orderId}/driver_offers/${driver.uid}`).once('value');
+                        if (!existingOffer.exists()) {
+                            const offerData = {
+                                driver_id: driver.uid,
+                                driver_name: driverData.name || "Driver",
+                                driver_plate: driverData.plate_number || '',
+                                driver_type: driverData.vehicle_type || '',
+                                driver_rating: driverData.rating || 5,
+                                driver_trips: driverData.perjalanan || 0,
+                                driver_photo: driverData.photoURL || '',
+                                offered_at: new Date().toISOString(),
+                                status: 'offered',
+                                auto_offer_by_admin: true,
+                                bid_price: orderData.price,
+                                bid_percent: 0,
+                                bid_requested: true,
+                                expired_at: Date.now() + 30000
+                            };
+                            await database.ref(`orders/${orderId}/driver_offers/${driver.uid}`).set(offerData);
+                            addLog(`🤖 AUTO OFFER (autobid ON): ke ${driver.name} jarak ${dist.toFixed(2)}km`, "success");
+                            autoOfferCount++;
+                        }
+                    } else {
+                        addLog(`⚠️ Autobid skipped: saldo driver ${driver.name} tidak cukup (${saldoDriver} < ${potonganInfo.total})`, "warning");
+                    }
+                }
+            }
+        }
+        addLog(`✅ Order ${orderId.substring(0,8)}: notif ke ${notifiedCount} driver, auto offer ke ${autoOfferCount} driver`, "success");
+
+        if (!isKurir && !fallbackProcessed.has(orderId)) {
+            if (fallbackTimers.has(orderId)) clearTimeout(fallbackTimers.get(orderId));
+            const timer = setTimeout(async () => {
+                const cur = await database.ref(`orders/${orderId}`).once('value');
+                const curOrder = cur.val();
+                if (!curOrder || curOrder.status !== 'waiting') {
+                    fallbackTimers.delete(orderId);
+                    return;
+                }
+                const offers = await database.ref(`orders/${orderId}/driver_offers`).once('value');
+                if (offers.exists() && Object.keys(offers.val()).length > 0) {
+                    addLog(`✅ Order ${orderId.substring(0,8)} sudah ada penawaran`, "success");
+                } else {
+                    addLog(`🚨 Tidak ada penawaran (termasuk autobid), kirim fallback`, "warning");
+                    await sendFallbackOffer(orderId, curOrder);
+                    fallbackProcessed.add(orderId);
+                }
                 fallbackTimers.delete(orderId);
-                return;
-            }
-            const offers = await database.ref(`orders/${orderId}/driver_offers`).once('value');
-            if (offers.exists() && Object.keys(offers.val()).length > 0) {
-                addLog(`✅ Order ${orderId.substring(0,8)} sudah ada penawaran`, "success");
-            } else {
-                addLog(`🚨 Tidak ada penawaran (termasuk autobid), kirim fallback`, "warning");
-                await sendFallbackOffer(orderId, curOrder);
-                fallbackProcessed.add(orderId);
-            }
-            fallbackTimers.delete(orderId);
-        }, FALLBACK_DELAY_SECONDS * 1000);
-        fallbackTimers.set(orderId, timer);
-        addLog(`⏲️ Timer fallback ${FALLBACK_DELAY_SECONDS}s untuk order ${orderId.substring(0,8)}`, "info");
-    } else if (isKurir) {
-        addLog(`🚫 Order Kurir: auto fallback dinonaktifkan (harus manual)`, "info");
+            }, FALLBACK_DELAY_SECONDS * 1000);
+            fallbackTimers.set(orderId, timer);
+            addLog(`⏲️ Timer fallback ${FALLBACK_DELAY_SECONDS}s untuk order ${orderId.substring(0,8)}`, "info");
+        } else if (isKurir) {
+            addLog(`🚫 Order Kurir: auto fallback dinonaktifkan (harus manual)`, "info");
+        }
+        processedOrderIds.add(orderId);
     }
-    processedOrderIds.add(orderId);
-}
 
     // ========== AUTO DEDUCT ==========
     async function autoDeductOnTrip(orderId, orderData) {
@@ -852,14 +843,12 @@ async function isDriverOnActiveOrder(driverId) {
             const drivers = driversSnap.val() || {};
             const ordersSnap = await database.ref('orders').once('value');
             const orders = ordersSnap.val() || {};
-
             const completedOrdersByDriver = {};
             for (const [orderId, order] of Object.entries(orders)) {
                 if (order.status === 'completed' && order.driver_id) {
                     completedOrdersByDriver[order.driver_id] = (completedOrdersByDriver[order.driver_id] || 0) + 1;
                 }
             }
-
             for (const [driverId, count] of Object.entries(completedOrdersByDriver)) {
                 await database.ref(`drivers/${driverId}/perjalanan`).set(count);
                 addLog(`🔄 Sinkronisasi: Driver ${driverId} perjalanan = ${count}`, "success");
@@ -1119,7 +1108,7 @@ async function isDriverOnActiveOrder(driverId) {
         const users = snap.val() || {};
         const customers = [];
         for (const [uid, data] of Object.entries(users)) {
-            if (data.role !== 'admin') { // asumsi customer tidak punya role admin
+            if (data.role !== 'admin') {
                 customers.push({
                     uid: uid,
                     name: data.name || data.fullName || 'Unknown',
@@ -1238,13 +1227,12 @@ async function isDriverOnActiveOrder(driverId) {
         }
     }
 
-    // ========== FITUR BARU: MANAJEMEN BONUS CUSTOMER ==========
+    // ========== FITUR MANAJEMEN BONUS CUSTOMER ==========
     async function loadAllCustomersForBonus() {
         const snap = await database.ref('users').once('value');
         const users = snap.val() || {};
         const customers = [];
         for (const [uid, data] of Object.entries(users)) {
-            // Asumsi customer tidak punya field vehicle_type (driver) dan bukan admin
             if (!data.vehicle_type && data.role !== 'admin') {
                 customers.push({
                     uid,
@@ -1301,7 +1289,6 @@ async function isDriverOnActiveOrder(driverId) {
             </div>
         `;
         container.innerHTML = html;
-        // Search
         document.getElementById('searchBonusCustomer')?.addEventListener('input', (e) => {
             const keyword = e.target.value.toLowerCase();
             const rows = document.querySelectorAll('#bonusCustomerTable tbody tr');
@@ -1310,7 +1297,6 @@ async function isDriverOnActiveOrder(driverId) {
                 row.style.display = text.includes(keyword) ? '' : 'none';
             });
         });
-        // Export CSV
         document.getElementById('exportBonusCsv')?.addEventListener('click', () => {
             const rows = Array.from(document.querySelectorAll('#bonusCustomerTable tbody tr'));
             const csvRows = [['UID','Nama','Telepon','Saldo Bonus','Status']];
@@ -1328,7 +1314,6 @@ async function isDriverOnActiveOrder(driverId) {
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a'); a.href = url; a.download = 'bonus_customers.csv'; a.click(); URL.revokeObjectURL(url);
         });
-        // Modal handling
         const modal = document.getElementById('bonusModal');
         const closeModal = () => modal.style.display = 'none';
         document.getElementById('closeBonusModal')?.addEventListener('click', closeModal);
@@ -1341,13 +1326,12 @@ async function isDriverOnActiveOrder(driverId) {
                 await database.ref(`users/${uid}/referral_bonus_total`).set(newBonus);
                 addLog(`✅ Saldo bonus customer ${uid} diubah menjadi Rp ${newBonus.toLocaleString()}`, "success");
                 closeModal();
-                await renderManageBonus(); // refresh tabel
+                await renderManageBonus();
             } catch(err) {
                 addLog(`❌ Gagal update bonus: ${err.message}`, "error");
                 alert('Gagal update bonus');
             }
         });
-        // Tombol Atur Bonus
         document.querySelectorAll('.adjust-bonus-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 const uid = btn.getAttribute('data-uid');
@@ -1361,7 +1345,7 @@ async function isDriverOnActiveOrder(driverId) {
         });
     }
 
-    // ========== FITUR BARU: PENGATURAN REFERRAL (persentase bonus) ==========
+    // ========== FITUR PENGATURAN REFERRAL ==========
     async function renderReferralSettings() {
         const container = document.getElementById('viewContainer');
         let currentPercent = 0.5;
@@ -1507,7 +1491,11 @@ async function isDriverOnActiveOrder(driverId) {
                     driver_trips: driver.perjalanan || 0,
                     driver_photo: driver.photoURL || '',
                     offered_at: new Date().toISOString(),
-                    status: 'offered'
+                    status: 'offered',
+                    bid_price: order.price,
+                    bid_percent: 0,
+                    bid_requested: true,
+                    expired_at: Date.now() + 30000
                 };
                 try {
                     await database.ref(`orders/${orderId}/driver_offers/${driverId}`).set(offerData);
@@ -1610,7 +1598,32 @@ async function isDriverOnActiveOrder(driverId) {
         showView('dashboard');
     }
 
-    // ========== AUTENTIKASI ==========
+    // ========== CLEANUP EXPIRED OFFERS ==========
+    async function cleanupExpiredOffers() {
+        try {
+            const ordersSnap = await database.ref('orders').orderByChild('status').equalTo('waiting').once('value');
+            const waitingOrders = ordersSnap.val() || {};
+            const now = Date.now();
+            let removedCount = 0;
+            for (const [orderId, order] of Object.entries(waitingOrders)) {
+                const offers = order.driver_offers || {};
+                for (const [driverId, offer] of Object.entries(offers)) {
+                    if (offer.status === 'offered' && offer.expired_at && offer.expired_at < now) {
+                        await database.ref(`orders/${orderId}/driver_offers/${driverId}`).remove();
+                        removedCount++;
+                        addLog(`🗑️ Hapus offer expired dari driver ${driverId.substring(0,8)} untuk order ${orderId.substring(0,8)}`, "info");
+                    }
+                }
+            }
+            if (removedCount > 0) {
+                addLog(`✅ Bersihkan ${removedCount} offer expired`, "success");
+            }
+        } catch (err) {
+            addLog(`❌ Gagal cleanup expired offers: ${err.message}`, "error");
+        }
+    }
+
+    // ========== AUTENTIKASI & START ==========
     auth.onAuthStateChanged(async (user) => {
         if (!user) { window.location.href = 'login_admin.html'; return; }
         const adminSnap = await database.ref(`admins/${user.uid}`).once('value');
@@ -1623,6 +1636,7 @@ async function isDriverOnActiveOrder(driverId) {
         startListeners();
         initUI();
         setInterval(deleteExpiredOrders, 10*60*1000);
+        setInterval(cleanupExpiredOffers, 10000);
     });
 </script>
 </body>
