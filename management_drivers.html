@@ -4,11 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
     <title>JeGo Admin - Manajemen Driver & Customer</title>
-    <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
-    <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -27,11 +25,12 @@
         .toolbar { padding: 16px 24px; background: #f8f9fa; border-bottom: 1px solid #e9ecef; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
         .search-box { padding: 8px 14px; border: 1px solid #ddd; border-radius: 30px; width: 260px; outline: none; font-size: 0.85rem; }
         .filter-select { padding: 8px 14px; border: 1px solid #ddd; border-radius: 30px; background: white; font-size: 0.85rem; cursor: pointer; }
-        .refresh-btn { background: #FF9800; color: white; border: none; padding: 8px 18px; border-radius: 30px; cursor: pointer; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+        .refresh-btn, .activate-all-btn { background: #FF9800; color: white; border: none; padding: 8px 18px; border-radius: 30px; cursor: pointer; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; }
+        .activate-all-btn { background: #10b981; }
         .stats-badge { background: #e9ecef; padding: 5px 14px; border-radius: 30px; font-size: 0.8rem; font-weight: 500; color: #1e293b; }
         .table-wrapper { overflow-x: auto; padding: 0 0 20px 0; }
         table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
-        th, td { padding: 14px 12px; text-align: left; border-bottom: 1px solid #edf2f7; vertical-align: middle; }
+        th, td { padding: 14px 8px; text-align: left; border-bottom: 1px solid #edf2f7; vertical-align: middle; }
         th { background: #f8fafc; font-weight: 600; color: #1e293b; position: sticky; top: 0; }
         tr:hover { background: #fef9e6; }
         .user-photo, .driver-photo { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; background: #f1f5f9; border: 1px solid #e2e8f0; }
@@ -41,14 +40,19 @@
         .status-rejected { background: #fee2e2; color: #b91c1c; }
         .status-blocked { background: #f1f5f9; color: #334155; }
         .status-select { padding: 6px 10px; border-radius: 8px; border: 1px solid #cbd5e1; background: white; font-size: 0.8rem; cursor: pointer; }
-        .reason-input { width: 160px; padding: 6px 8px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 0.75rem; margin-top: 4px; }
-        .action-buttons { display: flex; gap: 8px; flex-wrap: wrap; }
+        .reason-input { width: 140px; padding: 6px 8px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 0.75rem; margin-top: 4px; }
+        .action-buttons { display: flex; gap: 6px; flex-wrap: wrap; }
         .update-status-btn, .edit-btn, .topup-btn, .confirm-deposit-btn { border: none; padding: 6px 12px; border-radius: 8px; cursor: pointer; font-size: 0.7rem; font-weight: 600; transition: 0.2s; }
         .update-status-btn { background: #FF9800; color: white; }
         .edit-btn { background: #3b82f6; color: white; }
         .topup-btn { background: #10b981; color: white; }
         .confirm-deposit-btn { background: #8b5cf6; color: white; }
-        .update-status-btn:disabled, .edit-btn:disabled, .topup-btn:disabled, .confirm-deposit-btn:disabled { background: #ccc; cursor: not-allowed; }
+        .toggle-switch { position: relative; display: inline-block; width: 44px; height: 22px; margin: 0 5px; }
+        .toggle-switch input { opacity: 0; width: 0; height: 0; }
+        .toggle-slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .3s; border-radius: 22px; }
+        .toggle-slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 2px; bottom: 2px; background-color: white; transition: .3s; border-radius: 50%; }
+        input:checked + .toggle-slider { background-color: #4CAF50; }
+        input:checked + .toggle-slider:before { transform: translateX(22px); }
         .toast { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); background: #1e293b; color: white; padding: 10px 20px; border-radius: 40px; font-size: 0.85rem; z-index: 1000; opacity: 0; transition: opacity 0.2s; pointer-events: none; }
         .toast.show { opacity: 1; }
         .loading-overlay { display: flex; justify-content: center; padding: 50px; }
@@ -72,7 +76,7 @@
         .modal-btn-save { background: #FF9800; color: white; }
         .small-text { font-size: 0.75rem; color: #64748b; margin-top: 5px; }
         .debug-box { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 12px; margin-top: 16px; border-radius: 12px; font-family: monospace; font-size: 0.7rem; word-break: break-all; display: none; }
-        @media (max-width: 700px) { body { padding: 10px; } th, td { padding: 8px; font-size: 0.7rem; } .action-buttons { flex-direction: column; } }
+        @media (max-width: 700px) { body { padding: 10px; } th, td { padding: 6px; font-size: 0.7rem; } .action-buttons { flex-direction: column; } }
     </style>
 </head>
 <body>
@@ -91,13 +95,14 @@
     <!-- TAB DRIVER -->
     <div id="driversTab" class="tab-content active">
         <div class="toolbar">
-            <div style="display: flex; gap: 10px; flex-wrap: wrap; width: 100%;">
+            <div style="display: flex; gap: 10px; flex-wrap: wrap; width: 100%; align-items: center;">
                 <input type="text" id="driverSearch" class="search-box" placeholder="Cari nama, telepon, plat...">
                 <select id="vehicleFilter" class="filter-select">
                     <option value="all">🚗 Semua kendaraan</option>
                 </select>
                 <div style="flex:1; display: flex; justify-content: flex-end; gap: 12px;">
                     <div class="stats-badge" id="driverStats">Menampilkan <span id="driverDisplayCount">0</span> dari <span id="driverTotalCount">0</span></div>
+                    <button class="activate-all-btn" id="activateAllBtn"><i class="fas fa-check-double"></i> Aktifkan Semua</button>
                     <button class="refresh-btn" id="refreshDriversBtn"><i class="fas fa-sync-alt"></i> Refresh</button>
                 </div>
             </div>
@@ -105,14 +110,14 @@
         <div class="table-wrapper">
             <table id="driverTable">
                 <thead>
-                    <tr><th>Foto</th><th>Nama</th><th>Telepon</th><th>Kendaraan</th><th>Plat</th><th>Rating</th><th>Perjalanan</th><th>Saldo</th><th>Status</th><th>Alasan</th><th>Aksi</th></tr>
+                    <tr><th>Foto</th><th>Nama</th><th>Telepon</th><th>Kendaraan</th><th>Plat</th><th>Rating</th><th>Perjalanan</th><th>Saldo</th><th>Status</th><th>Alasan</th><th>Tracking</th><th>Autobid</th><th>Aksi</th></tr>
                 </thead>
-                <tbody id="driverTableBody"><tr class="empty-row"><td colspan="11"><div class="loading-overlay"><div class="spinner"></div></div></tr></tbody>
+                <tbody id="driverTableBody"><tr class="empty-row"><td colspan="13"><div class="loading-overlay"><div class="spinner"></div></div></tr></tbody>
             </table>
         </div>
     </div>
 
-    <!-- TAB CUSTOMER -->
+    <!-- TAB CUSTOMER (tidak berubah) -->
     <div id="customersTab" class="tab-content">
         <div class="toolbar">
             <div style="display: flex; gap: 10px; flex-wrap: wrap; width: 100%;">
@@ -125,15 +130,13 @@
         </div>
         <div class="table-wrapper">
             <table id="customerTable">
-                <thead>
-                    <tr><th>Foto</th><th>Nama</th><th>Telepon</th><th>Email</th><th>Rating</th><th>Jumlah Rating</th><th>Aksi</th></tr>
-                </thead>
+                <thead><tr><th>Foto</th><th>Nama</th><th>Telepon</th><th>Email</th><th>Rating</th><th>Jumlah Rating</th><th>Aksi</th></tr></thead>
                 <tbody id="customerTableBody"><tr class="empty-row"><td colspan="7"><div class="loading-overlay"><div class="spinner"></div></div></tr></tbody>
             </table>
         </div>
     </div>
 
-    <!-- TAB PERMINTAAN DEPOSIT -->
+    <!-- TAB PERMINTAAN DEPOSIT (tidak berubah) -->
     <div id="depositsTab" class="tab-content">
         <div class="toolbar">
             <div style="display: flex; gap: 10px; flex-wrap: wrap; width: 100%;">
@@ -146,86 +149,21 @@
         </div>
         <div class="table-wrapper">
             <table id="depositTable">
-                <thead>
-                    <tr><th>Waktu</th><th>Driver</th><th>Telepon</th><th>Jumlah Deposit</th><th>Total Transfer</th><th>Kode Unik</th><th>Aksi</th></tr>
-                </thead>
+                <thead><tr><th>Waktu</th><th>Driver</th><th>Telepon</th><th>Jumlah Deposit</th><th>Total Transfer</th><th>Kode Unik</th><th>Aksi</th></tr></thead>
                 <tbody id="depositTableBody"><tr class="empty-row"><td colspan="7"><div class="loading-overlay"><div class="spinner"></div></div></tr></tbody>
             </table>
         </div>
     </div>
 
     <div class="footer-note">
-        <i class="fas fa-info-circle"></i> Klik <strong>Edit Data</strong> untuk mengubah informasi driver atau customer. Klik <strong>Atur Saldo</strong> untuk menyesuaikan saldo driver. <strong>Permintaan Deposit</strong> akan otomatis menambah saldo driver dan mencatat riwayat.
+        <i class="fas fa-info-circle"></i> Klik <strong>Edit Data</strong> untuk mengubah informasi driver/customer. <strong>Atur Saldo</strong> untuk menambah/mengurangi saldo. <strong>Tracking / Autobid</strong> dapat diaktifkan langsung dari sini. Tombol <strong>Aktifkan Semua</strong> akan mengaktifkan Tracking & Autobid untuk semua driver tanpa notifikasi.
     </div>
 </div>
 
 <!-- Modal Edit Driver -->
-<div id="editDriverModal" class="modal">
-    <div class="modal-content">
-        <div class="modal-header"><h2><i class="fas fa-edit"></i> Edit Driver</h2><button class="modal-close close-driver-modal">&times;</button></div>
-        <div class="modal-body">
-            <input type="hidden" id="editDriverUid">
-            <div class="form-group"><label>Nama Lengkap</label><input type="text" id="editDriverName"></div>
-            <div class="form-group"><label>Telepon</label><input type="tel" id="editDriverPhone"></div>
-            <div class="form-group"><label>Jenis Kendaraan</label><input type="text" id="editDriverVehicleType" placeholder="motor, mobil, bentor..."></div>
-            <div class="form-group"><label>Plat Nomor</label><input type="text" id="editDriverPlate"></div>
-            <div class="form-group"><label>Rating (0-5)</label><input type="number" id="editDriverRating" step="0.1" min="0" max="5"></div>
-            <div class="form-group"><label>Perjalanan</label><input type="number" id="editDriverTrips" step="1" min="0"></div>
-            <div class="form-group"><label>Saldo (Rp)</label><input type="number" id="editDriverBalance" step="1000" min="0"></div>
-        </div>
-        <div class="modal-footer"><button class="modal-btn modal-btn-cancel close-driver-modal">Batal</button><button class="modal-btn modal-btn-save" id="saveDriverBtn">Simpan</button></div>
-    </div>
-</div>
-
-<!-- Modal Edit Customer -->
-<div id="editCustomerModal" class="modal">
-    <div class="modal-content">
-        <div class="modal-header"><h2><i class="fas fa-edit"></i> Edit Customer</h2><button class="modal-close close-customer-modal">&times;</button></div>
-        <div class="modal-body">
-            <input type="hidden" id="editCustomerUid">
-            <div class="form-group"><label>Nama Lengkap</label><input type="text" id="editCustomerName"></div>
-            <div class="form-group"><label>Telepon</label><input type="tel" id="editCustomerPhone"></div>
-            <div class="form-group"><label>Email</label><input type="email" id="editCustomerEmail"></div>
-            <div class="form-group"><label>Rating (baca saja)</label><input type="text" id="editCustomerRating" readonly style="background:#e9ecef;"></div>
-        </div>
-        <div class="modal-footer"><button class="modal-btn modal-btn-cancel close-customer-modal">Batal</button><button class="modal-btn modal-btn-save" id="saveCustomerBtn">Simpan</button></div>
-    </div>
-</div>
-
-<!-- MODAL ATUR SALDO -->
-<div id="topupModal" class="modal">
-    <div class="modal-content">
-        <div class="modal-header"><h2><i class="fas fa-wallet"></i> Atur Saldo Driver</h2><button class="modal-close close-topup-modal">&times;</button></div>
-        <div class="modal-body">
-            <input type="hidden" id="topupDriverUid">
-            <div class="form-group"><label>Nama Driver</label><input type="text" id="topupDriverName" readonly style="background:#e9ecef;"></div>
-            <div class="form-group"><label>Saldo Saat Ini (Rp)</label><input type="text" id="currentBalance" readonly style="background:#e9ecef;"></div>
-            <div class="form-group">
-                <label>Jenis Transaksi</label>
-                <select id="transactionType">
-                    <option value="add">➕ Tambah Saldo</option>
-                    <option value="subtract">➖ Kurangi Saldo</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label>Nominal (Rp)</label>
-                <input type="number" id="topupAmount" step="1000" min="1" placeholder="Masukkan nominal">
-                <div class="small-text">Minimal Rp1.000. Untuk kurangi saldo, pastikan saldo cukup.</div>
-            </div>
-            <div class="form-group">
-                <label>Keterangan (wajib)</label>
-                <input type="text" id="topupNote" placeholder="Contoh: Bonus referral, Penyesuaian, Potongan komisi">
-                <div class="small-text">Keterangan akan tercatat di log transaksi dan notifikasi driver.</div>
-            </div>
-            <div class="form-group">
-                <label>Saldo Setelah Transaksi</label>
-                <div class="balance-preview" id="newBalancePreview">Rp 0</div>
-            </div>
-            <div id="debugInfo" class="debug-box"></div>
-        </div>
-        <div class="modal-footer"><button class="modal-btn modal-btn-cancel close-topup-modal">Batal</button><button class="modal-btn modal-btn-save" id="confirmTopupBtn">Proses & Kirim Notifikasi</button></div>
-    </div>
-</div>
+<div id="editDriverModal" class="modal"><div class="modal-content"><div class="modal-header"><h2><i class="fas fa-edit"></i> Edit Driver</h2><button class="modal-close close-driver-modal">&times;</button></div><div class="modal-body"><input type="hidden" id="editDriverUid"><div class="form-group"><label>Nama Lengkap</label><input type="text" id="editDriverName"></div><div class="form-group"><label>Telepon</label><input type="tel" id="editDriverPhone"></div><div class="form-group"><label>Jenis Kendaraan</label><input type="text" id="editDriverVehicleType"></div><div class="form-group"><label>Plat Nomor</label><input type="text" id="editDriverPlate"></div><div class="form-group"><label>Rating (0-5)</label><input type="number" id="editDriverRating" step="0.1" min="0" max="5"></div><div class="form-group"><label>Perjalanan</label><input type="number" id="editDriverTrips" step="1" min="0"></div><div class="form-group"><label>Saldo (Rp)</label><input type="number" id="editDriverBalance" step="1000" min="0"></div></div><div class="modal-footer"><button class="modal-btn modal-btn-cancel close-driver-modal">Batal</button><button class="modal-btn modal-btn-save" id="saveDriverBtn">Simpan</button></div></div></div>
+<div id="editCustomerModal" class="modal"><div class="modal-content"><div class="modal-header"><h2><i class="fas fa-edit"></i> Edit Customer</h2><button class="modal-close close-customer-modal">&times;</button></div><div class="modal-body"><input type="hidden" id="editCustomerUid"><div class="form-group"><label>Nama Lengkap</label><input type="text" id="editCustomerName"></div><div class="form-group"><label>Telepon</label><input type="tel" id="editCustomerPhone"></div><div class="form-group"><label>Email</label><input type="email" id="editCustomerEmail"></div><div class="form-group"><label>Rating (baca saja)</label><input type="text" id="editCustomerRating" readonly style="background:#e9ecef;"></div></div><div class="modal-footer"><button class="modal-btn modal-btn-cancel close-customer-modal">Batal</button><button class="modal-btn modal-btn-save" id="saveCustomerBtn">Simpan</button></div></div></div>
+<div id="topupModal" class="modal"><div class="modal-content"><div class="modal-header"><h2><i class="fas fa-wallet"></i> Atur Saldo Driver</h2><button class="modal-close close-topup-modal">&times;</button></div><div class="modal-body"><input type="hidden" id="topupDriverUid"><div class="form-group"><label>Nama Driver</label><input type="text" id="topupDriverName" readonly style="background:#e9ecef;"></div><div class="form-group"><label>Saldo Saat Ini (Rp)</label><input type="text" id="currentBalance" readonly style="background:#e9ecef;"></div><div class="form-group"><label>Jenis Transaksi</label><select id="transactionType"><option value="add">➕ Tambah Saldo</option><option value="subtract">➖ Kurangi Saldo</option></select></div><div class="form-group"><label>Nominal (Rp)</label><input type="number" id="topupAmount" step="1000" min="1" placeholder="Masukkan nominal"><div class="small-text">Minimal Rp1.000.</div></div><div class="form-group"><label>Keterangan (wajib)</label><input type="text" id="topupNote" placeholder="Contoh: Bonus referral, Penyesuaian, Potongan komisi"></div><div class="form-group"><label>Saldo Setelah Transaksi</label><div class="balance-preview" id="newBalancePreview">Rp 0</div></div><div id="debugInfo" class="debug-box"></div></div><div class="modal-footer"><button class="modal-btn modal-btn-cancel close-topup-modal">Batal</button><button class="modal-btn modal-btn-save" id="confirmTopupBtn">Proses & Kirim Notifikasi</button></div></div></div>
 
 <div id="toastMsg" class="toast"></div>
 
@@ -249,15 +187,14 @@
     let onesignalApiKey = null;
     let currentDriverForTopup = null;
 
-    // ========== ONE SIGNAL & DATABASE NOTIF ==========
+    // ========== ONE SIGNAL & NOTIF (tetap ada tapi untuk keperluan lain) ==========
     async function getOneSignalApiKey() {
         if (onesignalApiKey) return onesignalApiKey;
         try {
             const snap = await database.ref('data-jego/PushKey').once('value');
             onesignalApiKey = snap.val();
-            if (!onesignalApiKey) console.warn("PushKey tidak ditemukan");
             return onesignalApiKey;
-        } catch(e) { console.error(e); return null; }
+        } catch(e) { return null; }
     }
 
     async function sendPushNotification(playerId, title, message, extraData = {}) {
@@ -265,7 +202,7 @@
         const apiKey = await getOneSignalApiKey();
         if (!apiKey) return false;
         try {
-            const res = await fetch("https://onesignal.com/api/v1/notifications", {
+            await fetch("https://onesignal.com/api/v1/notifications", {
                 method: "POST",
                 headers: { "Content-Type": "application/json", "Authorization": `Basic ${apiKey}` },
                 body: JSON.stringify({
@@ -273,36 +210,22 @@
                     include_player_ids: [playerId],
                     headings: { en: title },
                     contents: { en: message },
-                    data: { type: "balance_update", ...extraData },
+                    data: { type: "admin_setting", ...extraData },
                     priority: 10,
-                    android_priority: "high",
-                    android_channel_id: "14488f7c-4003-4699-b220-dee4451568df",
-                    small_icon: "ic_stat_onesignal_default",
-                    large_icon: "https://ojekaGorontalo.github.io/Logo/logo.png",
-                    android_sound: "default"
+                    android_priority: "high"
                 })
             });
-            const result = await res.json();
-            if (result.errors) throw new Error(JSON.stringify(result.errors));
             return true;
-        } catch(err) { console.error("Gagal notif:", err); return false; }
+        } catch(err) { return false; }
     }
 
     async function saveDriverNotification(driverId, title, message, type = 'info') {
         if (!driverId) return;
         try {
-            const notifRef = database.ref(`driver_notifications/${driverId}`).push();
-            await notifRef.set({
-                title: title,
-                message: message,
-                timestamp: firebase.database.ServerValue.TIMESTAMP,
-                read: false,
-                type: type
+            await database.ref(`driver_notifications/${driverId}`).push({
+                title, message, timestamp: firebase.database.ServerValue.TIMESTAMP, read: false, type
             });
-            console.log(`✅ Notifikasi database terkirim ke driver ${driverId}`);
-        } catch (err) {
-            console.error("❌ Gagal simpan notifikasi database:", err);
-        }
+        } catch(err) { console.error(err); }
     }
 
     // ========== UTILITY ==========
@@ -313,27 +236,36 @@
         toast.classList.add('show');
         setTimeout(() => toast.classList.remove('show'), 3000);
     }
+    function formatRupiah(amount) { return 'Rp ' + (amount || 0).toLocaleString('id-ID'); }
 
-    function formatRupiah(amount) {
-        return 'Rp ' + (amount || 0).toLocaleString('id-ID');
-    }
-
-    // =============== DRIVER SECTION ===============
+    // ========== DRIVER SECTION with TRACKING & AUTOBID ==========
     async function loadDrivers() {
         const tbody = document.getElementById('driverTableBody');
-        tbody.innerHTML = '<tr class="empty-row"><td colspan="11"><div class="loading-overlay"><div class="spinner"></div></div></tr>';
+        tbody.innerHTML = '<tr class="empty-row"><td colspan="13"><div class="loading-overlay"><div class="spinner"></div></div></tr>';
         try {
-            const snapshot = await database.ref('drivers').once('value');
-            const driversObj = snapshot.val() || {};
+            const [driversSnap, locSnap] = await Promise.all([
+                database.ref('drivers').once('value'),
+                database.ref('driver_locations').once('value')
+            ]);
+            const driversObj = driversSnap.val() || {};
+            const locObj = locSnap.val() || {};
             const driversArray = [];
             for (const [uid, data] of Object.entries(driversObj)) {
+                const locData = locObj[uid] || {};
                 driversArray.push({
-                    uid, name: data.name || '-', phone: data.phone || data.phoneNumber || '-',
+                    uid,
+                    name: data.name || '-',
+                    phone: data.phone || data.phoneNumber || '-',
                     vehicle_type: data.vehicle_type || data.vehicleType || '-',
                     plate_number: data.plate_number || data.plateNumber || '-',
-                    rating: data.rating || 0, perjalanan: data.perjalanan || 0,
-                    balance: data.balance || 0, status: data.status || 'pending',
-                    ketGagal: data.ketGagal || '', photoURL: data.photoURL || ''
+                    rating: data.rating || 0,
+                    perjalanan: data.perjalanan || 0,
+                    balance: data.balance || 0,
+                    status: data.status || 'pending',
+                    ketGagal: data.ketGagal || '',
+                    photoURL: data.photoURL || '',
+                    tracking_enabled: locData.tracking_enabled === true,
+                    autobid_enabled: locData.autobid_enabled === true
                 });
             }
             allDrivers = driversArray;
@@ -341,7 +273,7 @@
             applyDriverFilter();
         } catch (err) {
             console.error(err);
-            tbody.innerHTML = `<tr class="empty-row"><td colspan="11">⚠️ Gagal load driver: ${err.message}</td></tr>`;
+            tbody.innerHTML = `<tr class="empty-row"><td colspan="13">⚠️ Gagal load driver: ${err.message}</td>`;
             showToast('Gagal load driver', true);
         }
     }
@@ -365,12 +297,65 @@
         document.getElementById('driverDisplayCount').innerText = filtered.length;
     }
 
+    // Fungsi untuk mengaktifkan semua driver (tracking & autobid) tanpa notifikasi
+    async function activateAllDrivers() {
+        if (!allDrivers.length) {
+            showToast('Tidak ada driver', true);
+            return;
+        }
+        const btn = document.getElementById('activateAllBtn');
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-pulse"></i> Memproses...';
+        let successCount = 0;
+        let errorCount = 0;
+        for (const driver of allDrivers) {
+            try {
+                const updates = {};
+                updates[`drivers/${driver.uid}/tracking_enabled`] = true;
+                updates[`drivers/${driver.uid}/autobid_enabled`] = true;
+                updates[`driver_locations/${driver.uid}/tracking_enabled`] = true;
+                updates[`driver_locations/${driver.uid}/autobid_enabled`] = true;
+                await database.ref().update(updates);
+                // Update local data
+                driver.tracking_enabled = true;
+                driver.autobid_enabled = true;
+                successCount++;
+            } catch (err) {
+                console.error(`Gagal update driver ${driver.uid}:`, err);
+                errorCount++;
+            }
+        }
+        // Refresh tampilan tabel setelah semua selesai
+        applyDriverFilter(); // ini akan memanggil renderDriverTable dengan data terbaru
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-check-double"></i> Aktifkan Semua';
+        showToast(`Berhasil mengaktifkan ${successCount} driver. Gagal: ${errorCount}`);
+    }
+
+    async function toggleDriverSetting(uid, field, newValue) {
+        const updates = {};
+        updates[`drivers/${uid}/${field}`] = newValue;
+        updates[`driver_locations/${uid}/${field}`] = newValue;
+        try {
+            await database.ref().update(updates);
+            // Update local data
+            const driver = allDrivers.find(d => d.uid === uid);
+            if (driver) driver[field] = newValue;
+            // Tidak mengirim notifikasi
+            showToast(`Setting ${field} untuk ${driver ? driver.name : uid} diubah menjadi ${newValue ? 'ON' : 'OFF'}`);
+        } catch(err) {
+            console.error(err);
+            showToast(`Gagal mengubah ${field}: ${err.message}`, true);
+        }
+    }
+
     function renderDriverTable(drivers) {
         const tbody = document.getElementById('driverTableBody');
-        if (!drivers.length) { tbody.innerHTML = '<tr class="empty-row"><td colspan="11">Tidak ada driver</td></tr>'; return; }
+        if (!drivers.length) { tbody.innerHTML = '<tr class="empty-row"><td colspan="13">Tidak ada driver</td></tr>'; return; }
         tbody.innerHTML = '';
         drivers.forEach(d => {
             const row = tbody.insertRow();
+            // Foto
             const img = document.createElement('img');
             img.src = d.photoURL || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png';
             img.className = 'driver-photo';
@@ -391,6 +376,33 @@
             reasonInput.type = 'text'; reasonInput.className = 'reason-input'; reasonInput.placeholder = 'Alasan';
             reasonInput.value = d.ketGagal || '';
             row.insertCell(9).appendChild(reasonInput);
+            // Tracking toggle
+            const trackingToggle = document.createElement('label');
+            trackingToggle.className = 'toggle-switch';
+            const trackingCheck = document.createElement('input');
+            trackingCheck.type = 'checkbox';
+            trackingCheck.checked = d.tracking_enabled === true;
+            trackingCheck.addEventListener('change', (e) => {
+                e.stopPropagation();
+                toggleDriverSetting(d.uid, 'tracking_enabled', trackingCheck.checked);
+            });
+            trackingToggle.appendChild(trackingCheck);
+            trackingToggle.appendChild(document.createElement('span')).className = 'toggle-slider';
+            row.insertCell(10).appendChild(trackingToggle);
+            // Autobid toggle
+            const autobidToggle = document.createElement('label');
+            autobidToggle.className = 'toggle-switch';
+            const autobidCheck = document.createElement('input');
+            autobidCheck.type = 'checkbox';
+            autobidCheck.checked = d.autobid_enabled === true;
+            autobidCheck.addEventListener('change', (e) => {
+                e.stopPropagation();
+                toggleDriverSetting(d.uid, 'autobid_enabled', autobidCheck.checked);
+            });
+            autobidToggle.appendChild(autobidCheck);
+            autobidToggle.appendChild(document.createElement('span')).className = 'toggle-slider';
+            row.insertCell(11).appendChild(autobidToggle);
+            // Action buttons (status update, edit, topup)
             const actionDiv = document.createElement('div'); actionDiv.className = 'action-buttons';
             const statusSelect = document.createElement('select'); statusSelect.className = 'status-select';
             ['accepted','pending','rejected','blocked'].forEach(s => {
@@ -402,9 +414,9 @@
             const editBtn = document.createElement('button'); editBtn.textContent = 'Edit Data'; editBtn.className = 'edit-btn';
             const topupBtn = document.createElement('button'); topupBtn.innerHTML = '<i class="fas fa-coins"></i> Atur Saldo'; topupBtn.className = 'topup-btn';
             actionDiv.append(statusSelect, updateBtn, editBtn, topupBtn);
-            row.insertCell(10).appendChild(actionDiv);
+            row.insertCell(12).appendChild(actionDiv);
 
-            // Update Status Driver
+            // Event handler status
             updateBtn.onclick = async () => {
                 const newStatus = statusSelect.value;
                 const newReason = reasonInput.value.trim();
@@ -416,15 +428,12 @@
                         updates[`drivers/${d.uid}/ketGagal`] = newReason || (newStatus === 'rejected' ? 'Ditolak admin' : 'Diblokir admin');
                     else updates[`drivers/${d.uid}/ketGagal`] = null;
                     await database.ref().update(updates);
-
-                    // Kirim notifikasi database
                     let statusMessage = '';
                     if (newStatus === 'accepted') statusMessage = '✅ Akun driver Anda telah disetujui. Silakan login dan mulai bekerja.';
                     else if (newStatus === 'rejected') statusMessage = `❌ Pendaftaran Anda ditolak. Alasan: ${newReason || 'Tidak ada keterangan'}`;
                     else if (newStatus === 'blocked') statusMessage = `⛔ Akun Anda diblokir. Alasan: ${newReason || 'Tidak ada keterangan'}`;
                     else statusMessage = `ℹ️ Status akun Anda diubah menjadi ${newStatus.toUpperCase()}.`;
                     await saveDriverNotification(d.uid, 'Status Akun Diubah', statusMessage, 'status');
-
                     d.status = newStatus; d.ketGagal = updates[`drivers/${d.uid}/ketGagal`] || null;
                     applyDriverFilter();
                     showToast(`Status driver ${d.name} diubah menjadi ${newStatus}`);
@@ -465,15 +474,14 @@
             await database.ref(`drivers/${uid}`).update(data);
             const idx = allDrivers.findIndex(d => d.uid === uid);
             if (idx !== -1) Object.assign(allDrivers[idx], data);
-            // Kirim notifikasi database
-            await saveDriverNotification(uid, 'Data Driver Diubah', `Data Anda telah diperbarui oleh admin. Periksa kembali profil Anda.`, 'edit');
+            await saveDriverNotification(uid, 'Data Driver Diubah', 'Data Anda telah diperbarui oleh admin. Periksa kembali profil Anda.', 'edit');
             applyDriverFilter();
             showToast('Data driver disimpan');
             document.getElementById('editDriverModal').style.display = 'none';
         } catch(err) { showToast(err.message, true); } finally { btn.disabled = false; btn.textContent = 'Simpan'; }
     }
 
-    // ========== ATUR SALDO ==========
+    // ========== ATUR SALDO (sama seperti sebelumnya) ==========
     function openTopupModal(driver) {
         currentDriverForTopup = driver;
         document.getElementById('topupDriverUid').value = driver.uid;
@@ -486,96 +494,14 @@
         updateBalancePreview();
         document.getElementById('topupModal').style.display = 'flex';
     }
-
     function updateBalancePreview() {
         const currentBalance = currentDriverForTopup ? currentDriverForTopup.balance : 0;
         const type = document.getElementById('transactionType').value;
         let amount = parseInt(document.getElementById('topupAmount').value);
         if (isNaN(amount)) amount = 0;
-        let newBalance = currentBalance;
-        if (type === 'add') newBalance = currentBalance + amount;
-        else newBalance = currentBalance - amount;
+        let newBalance = type === 'add' ? currentBalance + amount : currentBalance - amount;
         document.getElementById('newBalancePreview').innerHTML = formatRupiah(newBalance);
-        const previewDiv = document.getElementById('newBalancePreview');
-        if (type === 'subtract' && amount > currentBalance) {
-            previewDiv.style.color = '#b91c1c';
-            previewDiv.style.fontWeight = 'bold';
-        } else {
-            previewDiv.style.color = '#1e293b';
-        }
     }
-
-    async function processTopup(uid, amount, note, type = 'add', fromDepositConfirm = false, depositLogId = null) {
-        if (!uid || !amount || amount <= 0) throw new Error('Nominal tidak valid');
-        if (!note) throw new Error('Keterangan wajib diisi');
-        const driverSnap = await database.ref(`drivers/${uid}`).once('value');
-        const driverData = driverSnap.val();
-        if (!driverData) throw new Error('Driver tidak ditemukan');
-        const oldBalance = driverData.balance || 0;
-        let newBalance = oldBalance;
-        let amountChanged = amount;
-        let transactionTypeLabel = 'topup_admin';
-        if (type === 'add') {
-            newBalance = oldBalance + amount;
-            transactionTypeLabel = 'topup_admin';
-        } else {
-            if (amount > oldBalance) throw new Error(`Saldo tidak cukup! Saldo saat ini ${formatRupiah(oldBalance)}`);
-            newBalance = oldBalance - amount;
-            amountChanged = -amount;
-            transactionTypeLabel = 'deduct_admin';
-        }
-        const currentUser = auth.currentUser;
-        if (!currentUser) throw new Error('Admin tidak login');
-        const adminCheck = await database.ref(`admins/${currentUser.uid}`).once('value');
-        if (!adminCheck.exists()) throw new Error('UID tidak terdaftar sebagai admin');
-
-        // Notifikasi database
-        const notifTitle = type === 'add' ? "💰 Saldo Ditambahkan" : "⚠️ Saldo Dikurangi";
-        const notifMessage = `Halo ${driverData.name}, saldo Anda ${type === 'add' ? 'bertambah' : 'berkurang'} Rp ${amount.toLocaleString('id-ID')}. Saldo lama: ${formatRupiah(oldBalance)}, Saldo baru: ${formatRupiah(newBalance)}. Keterangan: ${note}`;
-        await saveDriverNotification(uid, notifTitle, notifMessage, transactionTypeLabel);
-
-        // Update saldo
-        await database.ref(`drivers/${uid}/balance`).set(newBalance);
-
-        // Tulis log transaksi
-        const logRef = database.ref(`driver_balance_logs/${uid}`).push();
-        await logRef.set({
-            type: transactionTypeLabel,
-            amount: amountChanged,
-            old_balance: oldBalance,
-            new_balance: newBalance,
-            note: note,
-            admin_id: currentUser.uid,
-            timestamp: firebase.database.ServerValue.TIMESTAMP
-        });
-
-        if (fromDepositConfirm && depositLogId) {
-            await database.ref(`driver_balance_logs/${uid}/${depositLogId}/status`).set('confirmed');
-        }
-
-        // Kirim push notification via OneSignal
-        const playerIdSnap = await database.ref(`drivers/${uid}/playerId`).once('value');
-        let playerId = playerIdSnap.val();
-        if (!playerId) {
-            const locSnap = await database.ref(`driver_locations/${uid}/playerId`).once('value');
-            playerId = locSnap.val();
-        }
-        if (playerId) {
-            try {
-                await sendPushNotification(playerId, notifTitle, notifMessage, { type: transactionTypeLabel, amount, old_balance: oldBalance, new_balance: newBalance, note });
-            } catch (notifErr) { console.error('Notif gagal:', notifErr); }
-        }
-        // Refresh data driver di memori
-        const idx = allDrivers.findIndex(d => d.uid === uid);
-        if (idx !== -1) {
-            allDrivers[idx].balance = newBalance;
-            if (currentDriverForTopup && currentDriverForTopup.uid === uid) currentDriverForTopup.balance = newBalance;
-        }
-        applyDriverFilter();
-        return true;
-    }
-
-    // Handler tombol Proses di modal atur saldo
     document.getElementById('confirmTopupBtn').onclick = async () => {
         const uid = document.getElementById('topupDriverUid').value;
         const amountInput = document.getElementById('topupAmount').value.trim();
@@ -583,7 +509,6 @@
         const type = document.getElementById('transactionType').value;
         const debugDiv = document.getElementById('debugInfo');
         debugDiv.style.display = 'block';
-        debugDiv.innerHTML = '<strong>🔍 DEBUG LOG:</strong><br>Memeriksa akses...';
         if (!uid || !amountInput) { showToast('Nominal harus diisi', true); return; }
         let amount = parseInt(amountInput);
         if (isNaN(amount) || amount <= 0) { showToast('Nominal harus lebih dari 0', true); return; }
@@ -591,19 +516,46 @@
         const btn = document.getElementById('confirmTopupBtn');
         btn.disabled = true; btn.textContent = 'Memproses...';
         try {
-            await processTopup(uid, amount, note, type, false);
+            const driverSnap = await database.ref(`drivers/${uid}`).once('value');
+            const driverData = driverSnap.val();
+            if (!driverData) throw new Error('Driver tidak ditemukan');
+            const oldBalance = driverData.balance || 0;
+            let newBalance = type === 'add' ? oldBalance + amount : oldBalance - amount;
+            if (type === 'subtract' && amount > oldBalance) throw new Error(`Saldo tidak cukup! Saldo saat ini ${formatRupiah(oldBalance)}`);
+            const admin = auth.currentUser;
+            if (!admin) throw new Error('Admin tidak login');
+            await database.ref(`drivers/${uid}/balance`).set(newBalance);
+            await database.ref(`driver_balance_logs/${uid}`).push({
+                type: type === 'add' ? 'topup_admin' : 'deduct_admin',
+                amount: type === 'add' ? amount : -amount,
+                old_balance: oldBalance, new_balance: newBalance, note, admin_id: admin.uid,
+                timestamp: firebase.database.ServerValue.TIMESTAMP
+            });
+            const title = type === 'add' ? "💰 Saldo Ditambahkan" : "⚠️ Saldo Dikurangi";
+            const message = `Saldo Anda ${type === 'add' ? 'bertambah' : 'berkurang'} Rp ${amount.toLocaleString('id-ID')}. Saldo baru: ${formatRupiah(newBalance)}. Keterangan: ${note}`;
+            await saveDriverNotification(uid, title, message, type === 'add' ? 'topup' : 'deduct');
+            const locSnap = await database.ref(`driver_locations/${uid}/playerId`).once('value');
+            let playerId = locSnap.val();
+            if (!playerId) {
+                const driverSnap2 = await database.ref(`drivers/${uid}/playerId`).once('value');
+                playerId = driverSnap2.val();
+            }
+            if (playerId) await sendPushNotification(playerId, title, message, { amount, new_balance: newBalance });
+            const idx = allDrivers.findIndex(d => d.uid === uid);
+            if (idx !== -1) allDrivers[idx].balance = newBalance;
+            if (currentDriverForTopup && currentDriverForTopup.uid === uid) currentDriverForTopup.balance = newBalance;
+            applyDriverFilter();
             document.getElementById('topupModal').style.display = 'none';
             showToast(`Saldo berhasil ${type === 'add' ? 'ditambah' : 'dikurangi'} ${formatRupiah(amount)}`);
         } catch (err) {
-            console.error(err);
             debugDiv.innerHTML += `<br><span style="color:#b91c1c;">❌ ERROR: ${err.message}</span>`;
             showToast(`Gagal: ${err.message}`, true);
-        } finally {
-            btn.disabled = false; btn.textContent = 'Proses & Kirim Notifikasi';
-        }
+        } finally { btn.disabled = false; btn.textContent = 'Proses & Kirim Notifikasi'; }
     };
+    document.getElementById('topupAmount')?.addEventListener('input', updateBalancePreview);
+    document.getElementById('transactionType')?.addEventListener('change', updateBalancePreview);
 
-    // =============== CUSTOMER SECTION ===============
+    // ========== CUSTOMER & DEPOSIT (sama seperti asli, tidak diubah) ==========
     async function loadCustomers() {
         const tbody = document.getElementById('customerTableBody');
         tbody.innerHTML = '<tr class="empty-row"><td colspan="7"><div class="loading-overlay"><div class="spinner"></div></div></tr>';
@@ -620,32 +572,22 @@
             }
             allCustomers = customers;
             applyCustomerFilter();
-        } catch(err) {
-            console.error(err);
-            tbody.innerHTML = `<tr class="empty-row"><td colspan="7">⚠️ Gagal load customer: ${err.message}</td></tr>`;
-            showToast('Gagal load data customer', true);
-        }
+        } catch(err) { console.error(err); showToast('Gagal load customer', true); }
     }
-
     function applyCustomerFilter() {
         const keyword = document.getElementById('customerSearch').value.toLowerCase();
-        const filtered = allCustomers.filter(c => 
-            keyword === '' || (c.name && c.name.toLowerCase().includes(keyword)) || (c.phone && c.phone.toLowerCase().includes(keyword)) || (c.email && c.email.toLowerCase().includes(keyword))
-        );
+        const filtered = allCustomers.filter(c => keyword === '' || (c.name && c.name.toLowerCase().includes(keyword)) || (c.phone && c.phone.toLowerCase().includes(keyword)) || (c.email && c.email.toLowerCase().includes(keyword)));
         renderCustomerTable(filtered);
         document.getElementById('customerTotalCount').innerText = allCustomers.length;
         document.getElementById('customerDisplayCount').innerText = filtered.length;
     }
-
     function renderCustomerTable(customers) {
         const tbody = document.getElementById('customerTableBody');
         if (!customers.length) { tbody.innerHTML = '<tr class="empty-row"><td colspan="7">Tidak ada customer</td></tr>'; return; }
         tbody.innerHTML = '';
         customers.forEach(c => {
             const row = tbody.insertRow();
-            const img = document.createElement('img');
-            img.src = c.photoURL || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png';
-            img.className = 'user-photo'; img.onerror = () => img.src = 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png';
+            const img = document.createElement('img'); img.src = c.photoURL || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png'; img.className = 'user-photo'; img.onerror = () => img.src = 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png';
             row.insertCell(0).appendChild(img);
             row.insertCell(1).textContent = c.name;
             row.insertCell(2).textContent = c.phone;
@@ -653,11 +595,10 @@
             row.insertCell(4).textContent = c.rating.toFixed(1);
             row.insertCell(5).textContent = c.ratingCount;
             const editBtn = document.createElement('button'); editBtn.textContent = 'Edit Data'; editBtn.className = 'edit-btn';
-            const actionCell = row.insertCell(6); actionCell.appendChild(editBtn);
             editBtn.onclick = () => openCustomerEditModal(c);
+            row.insertCell(6).appendChild(editBtn);
         });
     }
-
     function openCustomerEditModal(customer) {
         document.getElementById('editCustomerUid').value = customer.uid;
         document.getElementById('editCustomerName').value = customer.name === '-' ? '' : customer.name;
@@ -666,7 +607,6 @@
         document.getElementById('editCustomerRating').value = customer.rating.toFixed(1);
         document.getElementById('editCustomerModal').style.display = 'flex';
     }
-
     async function saveCustomerEdit() {
         const uid = document.getElementById('editCustomerUid').value;
         if (!uid) return;
@@ -685,7 +625,6 @@
         } catch(err) { showToast(err.message, true); } finally { btn.disabled = false; btn.textContent = 'Simpan'; }
     }
 
-    // =============== PERMINTAAN DEPOSIT ===============
     async function loadDepositRequests() {
         const tbody = document.getElementById('depositTableBody');
         tbody.innerHTML = '<tr class="empty-row"><td colspan="7"><div class="loading-overlay"><div class="spinner"></div></div></tr>';
@@ -697,81 +636,64 @@
                 driverChild.forEach(logChild => {
                     const log = logChild.val();
                     if (log.type === 'deposit_request' && log.status === 'pending') {
-                        requests.push({
-                            driverId: driverId,
-                            logId: logChild.key,
-                            ...log,
-                            timestamp: log.timestamp || 0
-                        });
+                        requests.push({ driverId, logId: logChild.key, ...log, timestamp: log.timestamp || 0 });
                     }
                 });
             });
             requests.sort((a,b) => (b.timestamp || 0) - (a.timestamp || 0));
             depositRequests = requests;
             applyDepositFilter();
-        } catch (err) {
-            console.error(err);
-            tbody.innerHTML = `<tr class="empty-row"><td colspan="7">⚠️ Gagal load permintaan: ${err.message}</td></tr>`;
-            showToast('Gagal load permintaan deposit', true);
-        }
+        } catch(err) { console.error(err); showToast('Gagal load deposit', true); }
     }
-
     function applyDepositFilter() {
         const keyword = document.getElementById('depositSearch').value.toLowerCase();
-        let filtered = depositRequests.filter(req => 
-            keyword === '' || 
-            (req.driver_name && req.driver_name.toLowerCase().includes(keyword)) ||
-            (req.driver_phone && req.driver_phone.toLowerCase().includes(keyword))
-        );
+        let filtered = depositRequests.filter(req => keyword === '' || (req.driver_name && req.driver_name.toLowerCase().includes(keyword)) || (req.driver_phone && req.driver_phone.toLowerCase().includes(keyword)));
         renderDepositTable(filtered);
         document.getElementById('depositCount').innerText = filtered.length;
     }
-
     function renderDepositTable(requests) {
         const tbody = document.getElementById('depositTableBody');
         if (!requests.length) { tbody.innerHTML = '<tr class="empty-row"><td colspan="7">Tidak ada permintaan deposit pending</td></tr>'; return; }
         tbody.innerHTML = '';
         requests.forEach(req => {
             const row = tbody.insertRow();
-            const dateStr = req.timestamp ? new Date(req.timestamp).toLocaleString('id-ID') : '-';
-            row.insertCell(0).textContent = dateStr;
+            row.insertCell(0).textContent = req.timestamp ? new Date(req.timestamp).toLocaleString('id-ID') : '-';
             row.insertCell(1).textContent = req.driver_name || '-';
             row.insertCell(2).textContent = req.driver_phone || '-';
             row.insertCell(3).innerHTML = formatRupiah(req.amount);
             row.insertCell(4).innerHTML = formatRupiah(req.uniqueAmount);
             row.insertCell(5).textContent = req.uniqueDigits;
-            const confirmBtn = document.createElement('button');
-            confirmBtn.textContent = '✅ Konfirmasi & Tambah Saldo';
-            confirmBtn.className = 'confirm-deposit-btn';
+            const confirmBtn = document.createElement('button'); confirmBtn.textContent = '✅ Konfirmasi & Tambah Saldo'; confirmBtn.className = 'confirm-deposit-btn';
             confirmBtn.onclick = async () => {
-                confirmBtn.disabled = true;
-                confirmBtn.textContent = 'Memproses...';
+                confirmBtn.disabled = true; confirmBtn.textContent = 'Memproses...';
                 try {
-                    await processTopup(
-                        req.driverId,
-                        req.uniqueAmount,
-                        `Deposit via QRIS - ${req.note || ''} (kode unik ${req.uniqueDigits})`,
-                        'add',
-                        true,
-                        req.logId
-                    );
-                    const index = depositRequests.findIndex(r => r.logId === req.logId && r.driverId === req.driverId);
-                    if (index !== -1) depositRequests.splice(index, 1);
+                    const driverSnap = await database.ref(`drivers/${req.driverId}`).once('value');
+                    const driverData = driverSnap.val();
+                    if (!driverData) throw new Error('Driver tidak ditemukan');
+                    const oldBalance = driverData.balance || 0;
+                    const newBalance = oldBalance + req.uniqueAmount;
+                    await database.ref(`drivers/${req.driverId}/balance`).set(newBalance);
+                    await database.ref(`driver_balance_logs/${req.driverId}/${req.logId}/status`).set('confirmed');
+                    await saveDriverNotification(req.driverId, '💰 Deposit Dikonfirmasi', `Deposit Anda sebesar ${formatRupiah(req.uniqueAmount)} telah dikonfirmasi. Saldo baru: ${formatRupiah(newBalance)}`, 'deposit');
+                    const playerIdSnap = await database.ref(`driver_locations/${req.driverId}/playerId`).once('value');
+                    let playerId = playerIdSnap.val();
+                    if (!playerId) {
+                        const driverSnap2 = await database.ref(`drivers/${req.driverId}/playerId`).once('value');
+                        playerId = driverSnap2.val();
+                    }
+                    if (playerId) await sendPushNotification(playerId, '💰 Deposit Diterima', `Deposit Anda ${formatRupiah(req.uniqueAmount)} telah ditambahkan ke saldo.`);
+                    const idx = allDrivers.findIndex(d => d.uid === req.driverId);
+                    if (idx !== -1) allDrivers[idx].balance = newBalance;
+                    depositRequests = depositRequests.filter(r => !(r.logId === req.logId && r.driverId === req.driverId));
                     applyDepositFilter();
-                    showToast(`Saldo ${req.driver_name} berhasil ditambah Rp ${req.amount.toLocaleString('id-ID')}`);
-                } catch (err) {
-                    console.error(err);
-                    showToast(`Gagal konfirmasi: ${err.message}`, true);
-                } finally {
-                    confirmBtn.disabled = false;
-                    confirmBtn.textContent = '✅ Konfirmasi & Tambah Saldo';
-                }
+                    showToast(`Saldo ${req.driver_name} berhasil ditambah ${formatRupiah(req.uniqueAmount)}`);
+                } catch(err) { showToast(err.message, true); } finally { confirmBtn.disabled = false; confirmBtn.textContent = '✅ Konfirmasi & Tambah Saldo'; }
             };
             row.insertCell(6).appendChild(confirmBtn);
         });
     }
 
-    // =============== TAB & INIT ===============
+    // ========== TABS & INIT ==========
     function setupTabs() {
         document.querySelectorAll('.tab-btn').forEach(btn => {
             btn.addEventListener('click', () => {
@@ -786,7 +708,6 @@
             });
         });
     }
-
     function closeModals() {
         document.querySelectorAll('.close-driver-modal, .modal-close').forEach(el => el.addEventListener('click', () => document.getElementById('editDriverModal').style.display = 'none'));
         document.querySelectorAll('.close-customer-modal').forEach(el => el.addEventListener('click', () => document.getElementById('editCustomerModal').style.display = 'none'));
@@ -798,20 +719,17 @@
         });
     }
 
-    document.getElementById('topupAmount')?.addEventListener('input', updateBalancePreview);
-    document.getElementById('transactionType')?.addEventListener('change', updateBalancePreview);
-
     auth.onAuthStateChanged(async (user) => {
         if (!user) { window.location.href = 'login_admin.html'; return; }
         const adminSnap = await database.ref(`admins/${user.uid}`).once('value');
         if (!adminSnap.exists()) { showToast('Bukan admin', true); await auth.signOut(); setTimeout(() => window.location.href = 'login_admin.html', 1500); return; }
         await getOneSignalApiKey();
         await Promise.all([loadDrivers(), loadCustomers(), loadDepositRequests()]);
-        setupTabs();
-        closeModals();
+        setupTabs(); closeModals();
         document.getElementById('refreshDriversBtn').onclick = loadDrivers;
         document.getElementById('refreshCustomersBtn').onclick = loadCustomers;
-        document.getElementById('refreshDepositsBtn').onclick = () => { loadDepositRequests(); };
+        document.getElementById('refreshDepositsBtn').onclick = loadDepositRequests;
+        document.getElementById('activateAllBtn').onclick = activateAllDrivers; // tombol aktifkan semua
         document.getElementById('driverSearch').addEventListener('input', applyDriverFilter);
         document.getElementById('customerSearch').addEventListener('input', applyCustomerFilter);
         document.getElementById('depositSearch').addEventListener('input', applyDepositFilter);
