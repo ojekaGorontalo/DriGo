@@ -293,17 +293,6 @@
             animation: radarPulse 3s infinite ease-out;
         }
         .radar::after { animation-delay: 1.5s; }
-        .radar span {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: rgba(255,255,255,0.95);
-            padding: 8px 16px;
-            border-radius: 30px;
-            font-weight: bold;
-            white-space: nowrap;
-        }
 
         @keyframes radarPulse {
             0% { transform: scale(0.4); opacity: 1; }
@@ -371,6 +360,8 @@
             margin-bottom: 12px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.08);
             border-left: 4px solid var(--primary);
+            transition: none; /* mencegah gerakan */
+            min-height: 120px; /* tinggi konsisten */
         }
         .driver-info {
             display: flex;
@@ -402,6 +393,13 @@
         }
         .accept-btn { background: var(--success); color: white; }
         .reject-btn { background: var(--danger); color: white; }
+
+        /* Progress bar tanpa transisi agar tidak goyang */
+        .offer-progress-bar {
+            transition: none;
+            height: 4px;
+            background: #FF9800;
+        }
 
         .popup-overlay {
             position: fixed;
@@ -799,7 +797,7 @@
 
 <button class="confirm-btn" id="confirmBtn" disabled>📍 Konfirmasi Rute</button>
 <button class="cancel-btn" id="cancelBtn">❌ Batalkan</button>
-<div class="radar" id="radar"><span>🔍 Mencari driver...</span></div>
+<div class="radar" id="radar"></div>
 
 <div class="popup-overlay" id="popupOverlay">
     <div class="popup">
@@ -864,6 +862,8 @@
     let orderStatusCallback = null, offersCallback = null;
     let isSearching = false;
     let priceOfferTimer = null, priceOfferShown = false;
+    let offerTimerInterval = null;
+    let cleanupInterval = null;
     let currentZoomAnimation = null;
     let driverMarkers = [];
     let driversRef = null, driversListener = null;
@@ -1040,7 +1040,7 @@
         return str.replace(/[&<>]/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[m]));
     }
 
-    // ==================== DARK MODE (TANPA TOMBOL, BERDASARKAN LOCALSTORAGE) ====================
+    // ==================== DARK MODE (BERDASARKAN LOCALSTORAGE) ====================
     function applyDarkMode() {
         const isDark = localStorage.getItem('jego_dark_mode') === 'true';
         if (isDark) {
@@ -1384,7 +1384,6 @@
     }
 
     async function initMap() {
-        // Tentukan style awal berdasarkan localStorage
         const isDark = localStorage.getItem('jego_dark_mode') === 'true';
         const initialStyle = isDark ? 'mapbox://styles/mapbox/navigation-night-v1' : 'mapbox://styles/mapbox/navigation-day-v1';
         map = new mapboxgl.Map({
@@ -1676,7 +1675,10 @@
     function renderOffers(offers) {
         const container = document.getElementById('driverOfferList');
         if (!container) return;
-        if (!offers || Object.keys(offers).length === 0) { container.innerHTML = '<div style="text-align:center; padding:16px;">⏳ Belum ada penawaran driver</div>'; return; }
+        if (!offers || Object.keys(offers).length === 0) {
+            container.innerHTML = '<div style="text-align:center; padding:16px;">⏳ Belum ada penawaran driver</div>';
+            return;
+        }
         container.innerHTML = '';
         Object.entries(offers).forEach(([driverId, offer]) => {
             const isProcessed = offer.status === 'accepted' || offer.status === 'rejected';
@@ -1684,8 +1686,25 @@
             if (offer.bid_price && offer.bid_price > 0 && offer.bid_requested === true) {
                 bidPriceText = `<div class="bid-price-text">💰 Menawar: ${formatRupiah(offer.bid_price)}</div>`;
             }
+            
+            // Timer & Progress Bar (hanya untuk offer yang masih aktif dan memiliki expired_at)
+            let timerHtml = '';
+            if (!isProcessed && offer.expired_at) {
+                const remaining = Math.max(0, offer.expired_at - Date.now());
+                const total = 30000;
+                const percent = (remaining / total) * 100;
+                timerHtml = `
+                    <div style="margin-top: 8px;">
+                        <div style="background:#e0e0e0; border-radius:10px; overflow:hidden;">
+                            <div class="offer-progress-bar" style="width:${percent}%;"></div>
+                        </div>
+                    </div>
+                `;
+            }
+            
             const card = document.createElement('div');
             card.className = 'driver-offer-card';
+            if (offer.expired_at) card.setAttribute('data-expired', offer.expired_at);
             card.innerHTML = `
                 <div class="driver-info">
                     <img class="driver-photo" src="${offer.driver_photo || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png'}">
@@ -1694,6 +1713,7 @@
                         <div class="driver-vehicle">${offer.driver_type || transportType}</div>
                         <div>⭐ ${offer.driver_rating ? parseFloat(offer.driver_rating).toFixed(1) : 5} (${offer.driver_trips || 0} trip)</div>
                         ${bidPriceText}
+                        ${timerHtml}
                     </div>
                 </div>
                 <div class="driver-action-buttons">
@@ -1704,6 +1724,50 @@
         });
         document.querySelectorAll('.accept-btn').forEach(btn => btn.addEventListener('click', () => acceptOffer(btn.getAttribute('data-driver'))));
         document.querySelectorAll('.reject-btn').forEach(btn => btn.addEventListener('click', () => rejectOffer(btn.getAttribute('data-driver'))));
+    }
+
+    // ========== FUNGSI UNTUK TIMER & CLEANUP (diletakkan di luar renderOffers) ==========
+    function updateOfferTimers() {
+        const cards = document.querySelectorAll('.driver-offer-card');
+        const now = Date.now();
+        cards.forEach(card => {
+            const expiredAt = parseInt(card.getAttribute('data-expired'), 10);
+            if (!expiredAt) return;
+            const remaining = Math.max(0, expiredAt - now);
+            const progressBar = card.querySelector('.offer-progress-bar');
+            if (progressBar) {
+                const total = 30000;
+                const percent = (remaining / total) * 100;
+                progressBar.style.width = `${percent}%`;
+            }
+        });
+    }
+
+    async function cleanupExpiredOffersCustomer() {
+        if (!currentOrderId) return false;
+        try {
+            const orderSnap = await database.ref(`orders/${currentOrderId}`).once('value');
+            const order = orderSnap.val();
+            if (!order || order.status !== 'waiting') return false;
+            const offers = order.driver_offers || {};
+            const now = Date.now();
+            let removedCount = 0;
+            for (const [driverId, offer] of Object.entries(offers)) {
+                if (offer.status === 'offered' && offer.expired_at && offer.expired_at < now) {
+                    await database.ref(`orders/${currentOrderId}/driver_offers/${driverId}`).remove();
+                    removedCount++;
+                }
+            }
+            if (removedCount > 0) {
+                const freshSnap = await database.ref(`orders/${currentOrderId}/driver_offers`).once('value');
+                renderOffers(freshSnap.val());
+                showToast(`⏰ ${removedCount} penawaran kadaluarsa, diperbarui`, 'warning');
+            }
+            return removedCount > 0;
+        } catch (err) {
+            console.error('Gagal membersihkan offer expired:', err);
+            return false;
+        }
     }
 
     async function acceptOffer(driverId) {
@@ -1747,6 +1811,17 @@
                 if (autoDriverSearchEnabled) stopAutoShowDrivers();
                 if (pickupCoord) startSearchDriversForOrder(pickupCoord, 3);
                 document.getElementById('driverOffers').style.display = 'block';
+                // Hentikan interval sebelumnya jika ada
+                if (offerTimerInterval) clearInterval(offerTimerInterval);
+                if (cleanupInterval) clearInterval(cleanupInterval);
+                // Jalankan update timer setiap 1 detik
+                offerTimerInterval = setInterval(() => {
+                    updateOfferTimers();
+                }, 1000);
+                // Jalankan cleanup expired setiap 10 detik
+                cleanupInterval = setInterval(() => {
+                    cleanupExpiredOffersCustomer();
+                }, 10000);
                 orderRef = database.ref(`orders/${currentOrderId}/status`);
                 orderStatusCallback = (snap) => {
                     const status = snap.val();
@@ -1828,6 +1903,15 @@
         if (autoDriverSearchEnabled) stopAutoShowDrivers();
         if (pickupCoord) startSearchDriversForOrder(pickupCoord, 3);
         document.getElementById('driverOffers').style.display = 'block';
+        // Hentikan interval sebelumnya jika ada (pencegahan ganda)
+        if (offerTimerInterval) clearInterval(offerTimerInterval);
+        if (cleanupInterval) clearInterval(cleanupInterval);
+        offerTimerInterval = setInterval(() => {
+            updateOfferTimers();
+        }, 1000);
+        cleanupInterval = setInterval(() => {
+            cleanupExpiredOffersCustomer();
+        }, 10000);
         orderRef = database.ref(`orders/${currentOrderId}/status`);
         orderStatusCallback = (snap) => {
             const status = snap.val();
@@ -1909,6 +1993,15 @@
         document.getElementById('radar').style.display = 'none';
         document.getElementById('radar').classList.remove('expanding');
         document.getElementById('driverOffers').style.display = 'none';
+        // Hentikan semua interval
+        if (offerTimerInterval) {
+            clearInterval(offerTimerInterval);
+            offerTimerInterval = null;
+        }
+        if (cleanupInterval) {
+            clearInterval(cleanupInterval);
+            cleanupInterval = null;
+        }
         const btn = document.getElementById('confirmBtn');
         btn.removeEventListener('click', cancelSearchHandler);
         btn.addEventListener('click', confirmRoute);
@@ -1929,7 +2022,6 @@
 
     // ==================== INISIALISASI ====================
     window.onload = async () => {
-        // Terapkan dark mode (tanpa tombol) sebelum apa pun
         applyDarkMode();
 
         const tokenOk = await fetchMapboxToken();
