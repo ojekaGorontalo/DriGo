@@ -8,22 +8,159 @@
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', system-ui; }
-    body { background: #F1F5F9; padding: 20px; }
-    .container { max-width: 600px; margin: 0 auto; background: white; border-radius: 32px; overflow: hidden; box-shadow: 0 8px 24px rgba(0,0,0,0.1); }
-    .header { background: linear-gradient(135deg, #FF9800, #F57C00); color: white; padding: 20px; text-align: center; }
-    .header h1 { font-size: 1.5rem; }
-    .refund-list { padding: 0 16px 20px; }
-    .refund-item { background: #F8FAFC; border-radius: 20px; padding: 12px; margin-bottom: 12px; border: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; }
-    .refund-info { flex: 1; }
-    .refund-amount { font-weight: 800; color: #2E7D32; font-size: 1.1rem; }
-    .refund-meta { font-size: 0.7rem; color: #64748b; margin-top: 4px; }
-    .claim-btn { background: #FF9800; border: none; padding: 6px 16px; border-radius: 40px; color: white; font-weight: bold; cursor: pointer; transition: 0.2s; }
-    .claim-btn:active { transform: scale(0.96); }
-    .claimed { background: #CBD5E1; color: #475569; pointer-events: none; }
-    .empty { text-align: center; padding: 40px; color: #94a3b8; }
-    .loading { text-align: center; padding: 40px; }
-    .toast { position: fixed; bottom: 20px; left: 20px; right: 20px; background: #1E293B; color: white; text-align: center; padding: 12px; border-radius: 40px; opacity: 0; transition: 0.2s; z-index: 1100; }
+    /* ========== LIGHT MODE (DEFAULT) ========== */
+    :root {
+      --primary: #FF9800;
+      --primary-dark: #E65100;
+      --secondary: #F57C00;
+      --surface: #FFFFFF;
+      --background: #F1F5F9;
+      --text-primary: #212121;
+      --text-secondary: #5f6368;
+      --border-light: #e2e8f0;
+      --card-bg: #F8FAFC;
+      --amount-color: #2E7D32;
+      --meta-color: #64748b;
+      --empty-color: #94a3b8;
+      --toast-bg: #1E293B;
+      --toast-text: white;
+      --claimed-bg: #CBD5E1;
+      --claimed-text: #475569;
+    }
+
+    /* ========== DARK MODE OVERRIDES ========== */
+    body.dark-mode {
+      --primary: #FFB74D;
+      --primary-dark: #FF9800;
+      --secondary: #FF7043;
+      --surface: #1E1E1E;
+      --background: #121212;
+      --text-primary: #FFFFFF;
+      --text-secondary: #B0B0B0;
+      --border-light: #333333;
+      --card-bg: #2C2C2C;
+      --amount-color: #8bc34a;
+      --meta-color: #9e9e9e;
+      --empty-color: #757575;
+      --toast-bg: #2c2c2c;
+      --toast-text: #eee;
+      --claimed-bg: #424242;
+      --claimed-text: #cccccc;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: 'Segoe UI', system-ui;
+      transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s;
+    }
+
+    body {
+      background: var(--background);
+      padding: 20px;
+      color: var(--text-primary);
+    }
+
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+      background: var(--surface);
+      border-radius: 32px;
+      overflow: hidden;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+    }
+
+    .header {
+      background: linear-gradient(135deg, var(--primary), var(--secondary));
+      color: white;
+      padding: 20px;
+      text-align: center;
+    }
+
+    .header h1 {
+      font-size: 1.5rem;
+    }
+
+    .refund-list {
+      padding: 0 16px 20px;
+    }
+
+    .refund-item {
+      background: var(--card-bg);
+      border-radius: 20px;
+      padding: 12px;
+      margin-bottom: 12px;
+      border: 1px solid var(--border-light);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .refund-info {
+      flex: 1;
+    }
+
+    .refund-amount {
+      font-weight: 800;
+      color: var(--amount-color);
+      font-size: 1.1rem;
+    }
+
+    .refund-meta {
+      font-size: 0.7rem;
+      color: var(--meta-color);
+      margin-top: 4px;
+    }
+
+    .claim-btn {
+      background: var(--primary);
+      border: none;
+      padding: 6px 16px;
+      border-radius: 40px;
+      color: white;
+      font-weight: bold;
+      cursor: pointer;
+      transition: 0.2s;
+    }
+
+    .claim-btn:active {
+      transform: scale(0.96);
+    }
+
+    .claimed {
+      background: var(--claimed-bg);
+      color: var(--claimed-text);
+      pointer-events: none;
+    }
+
+    .empty {
+      text-align: center;
+      padding: 40px;
+      color: var(--empty-color);
+    }
+
+    .loading {
+      text-align: center;
+      padding: 40px;
+      color: var(--text-secondary);
+    }
+
+    .toast {
+      position: fixed;
+      bottom: 20px;
+      left: 20px;
+      right: 20px;
+      background: var(--toast-bg);
+      color: var(--toast-text);
+      text-align: center;
+      padding: 12px;
+      border-radius: 40px;
+      opacity: 0;
+      transition: 0.2s;
+      z-index: 1100;
+    }
   </style>
 </head>
 <body>
@@ -39,6 +176,16 @@
 <div id="toast" class="toast"></div>
 
 <script>
+  // ========== DARK MODE - MENGIKUTI LOCALSTORAGE (TANPA TOMBOL) ==========
+  function applyDarkModeFromLocalStorage() {
+    const isDarkMode = localStorage.getItem('jego_dark_mode') === 'true';
+    if (isDarkMode) {
+      document.body.classList.add('dark-mode');
+    } else {
+      document.body.classList.remove('dark-mode');
+    }
+  }
+
   const firebaseConfig = {
     apiKey: "AIzaSyCD0pgeZio-LdKqYDtWxcdXcZwyL4ngYQI",
     authDomain: "jego-35a2b.firebaseapp.com",
@@ -70,7 +217,7 @@
     const container = document.getElementById('refundList');
 
     if (!refunds) {
-      container.innerHTML = '<div class="empty">✨ Tidak ada refund pending</div>';
+      container.innerHTML = '<div class="empty">📭 Tidak ada refund pending</div>';
       return;
     }
 
@@ -93,7 +240,7 @@
       `;
     }
     if (html === '') {
-      container.innerHTML = '<div class="empty">✨ Tidak ada refund pending</div>';
+      container.innerHTML = '<div class="empty">📭 Tidak ada refund pending</div>';
     } else {
       container.innerHTML = html;
       document.querySelectorAll('.claim-btn').forEach(btn => {
@@ -115,7 +262,7 @@
       return;
     }
     const amount = refund.amount;
-    if (!confirm(`Klaim refund Rp ${amount.toLocaleString('id-ID')} ke saldo bonus Anda?`)) return;
+    if (!confirm(`Klaim refund ${formatRupiah(amount)} ke saldo bonus Anda?`)) return;
 
     btnElement.disabled = true;
     btnElement.innerText = 'Memproses...';
@@ -140,6 +287,9 @@
       btnElement.innerText = 'Klaim ke Saldo Bonus';
     }
   }
+
+  // Terapkan dark mode sebelum auth state
+  applyDarkModeFromLocalStorage();
 
   auth.onAuthStateChanged(async (user) => {
     if (user) {
