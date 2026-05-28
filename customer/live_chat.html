@@ -1,0 +1,802 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>Live Chat - JeGo</title>
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Roboto, system-ui, sans-serif;
+            background: #f5f7fb;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        /* Header */
+        .chat-header {
+            background: linear-gradient(135deg, #FF6D00, #FF9800);
+            color: white;
+            padding: 16px 20px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            flex-shrink: 0;
+        }
+        .back-btn {
+            background: rgba(255,255,255,0.2);
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 20px;
+            transition: background 0.2s;
+        }
+        .back-btn:active {
+            background: rgba(255,255,255,0.4);
+        }
+        .header-info {
+            flex: 1;
+        }
+        .header-title {
+            font-weight: 700;
+            font-size: 1.2rem;
+        }
+        .header-sub {
+            font-size: 0.75rem;
+            opacity: 0.9;
+        }
+        .online-status {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #4caf50;
+            margin-right: 6px;
+            box-shadow: 0 0 4px #4caf50;
+        }
+        /* Daftar chat (untuk admin) */
+        .chat-list-panel {
+            background: white;
+            border-right: 1px solid #e0e0e0;
+            width: 100%;
+            max-width: 320px;
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+            flex-shrink: 0;
+        }
+        .chat-list-item {
+            padding: 14px 16px;
+            border-bottom: 1px solid #f0f0f0;
+            cursor: pointer;
+            transition: background 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .chat-list-item:hover, .chat-list-item.active {
+            background: #fff3e0;
+        }
+        .chat-avatar {
+            width: 48px;
+            height: 48px;
+            background: #FF9800;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 20px;
+            font-weight: bold;
+        }
+        .chat-info {
+            flex: 1;
+        }
+        .chat-name {
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+        .chat-last-msg {
+            font-size: 0.75rem;
+            color: #666;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 180px;
+        }
+        .chat-time {
+            font-size: 0.7rem;
+            color: #999;
+        }
+        /* Area chat utama */
+        .chat-main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            background: #f9fafc;
+        }
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .message {
+            display: flex;
+            flex-direction: column;
+            max-width: 80%;
+        }
+        .message.sent {
+            align-items: flex-end;
+            margin-left: auto;
+        }
+        .message.received {
+            align-items: flex-start;
+        }
+        .bubble {
+            padding: 10px 14px;
+            border-radius: 20px;
+            word-wrap: break-word;
+            max-width: 100%;
+            font-size: 0.9rem;
+            line-height: 1.4;
+        }
+        .sent .bubble {
+            background: #FF9800;
+            color: white;
+            border-bottom-right-radius: 4px;
+        }
+        .received .bubble {
+            background: white;
+            color: #212121;
+            border: 1px solid #e0e0e0;
+            border-bottom-left-radius: 4px;
+        }
+        .message-time {
+            font-size: 0.65rem;
+            color: #999;
+            margin-top: 4px;
+            margin-left: 8px;
+            margin-right: 8px;
+        }
+        .chat-input-area {
+            background: white;
+            padding: 12px 16px;
+            display: flex;
+            gap: 10px;
+            border-top: 1px solid #e0e0e0;
+            align-items: center;
+        }
+        .chat-input {
+            flex: 1;
+            border: 1px solid #ddd;
+            border-radius: 24px;
+            padding: 10px 16px;
+            font-size: 0.9rem;
+            outline: none;
+            transition: border 0.2s;
+        }
+        .chat-input:focus {
+            border-color: #FF9800;
+        }
+        .send-btn {
+            background: #FF9800;
+            color: white;
+            border: none;
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s;
+        }
+        .send-btn:active {
+            background: #E65100;
+        }
+        .empty-state {
+            text-align: center;
+            color: #aaa;
+            padding: 40px;
+        }
+        .two-columns {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+        @media (max-width: 640px) {
+            .chat-list-panel {
+                max-width: 100%;
+                width: 100%;
+                position: absolute;
+                z-index: 10;
+                height: 100%;
+                transform: translateX(-100%);
+                transition: transform 0.3s;
+            }
+            .chat-list-panel.open {
+                transform: translateX(0);
+            }
+            .message {
+                max-width: 90%;
+            }
+        }
+        .btn-menu {
+            display: none;
+        }
+        @media (max-width: 640px) {
+            .btn-menu {
+                display: block;
+            }
+        }
+        .typing-indicator {
+            font-size: 0.7rem;
+            color: #888;
+            margin-left: 16px;
+            margin-bottom: 8px;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+
+<div class="chat-header">
+    <div class="back-btn" id="backBtn">
+        <i class="fas fa-arrow-left"></i>
+    </div>
+    <div class="header-info">
+        <div class="header-title" id="chatTitle">Live Chat JeGo</div>
+        <div class="header-sub" id="chatSubtitle"><span class="online-status"></span> <span id="onlineStatusText">Online</span></div>
+    </div>
+    <div class="btn-menu" id="menuBtn" style="font-size:24px; cursor:pointer;">
+        <i class="fas fa-bars"></i>
+    </div>
+</div>
+
+<div class="two-columns" id="mainContainer">
+    <!-- Sidebar daftar chat (hanya untuk admin) -->
+    <div class="chat-list-panel" id="chatListPanel">
+        <div style="padding: 16px; font-weight: 600; border-bottom: 1px solid #eee;">
+            <i class="fas fa-comments"></i> Percakapan
+        </div>
+        <div id="chatListContainer" style="flex:1; overflow-y: auto;">
+            <div class="empty-state">Loading...</div>
+        </div>
+    </div>
+
+    <!-- Area chat aktif -->
+    <div class="chat-main" id="chatMain">
+        <div class="chat-messages" id="chatMessages">
+            <div class="empty-state">Pilih percakapan untuk mulai chatting</div>
+        </div>
+        <div id="typingIndicator" class="typing-indicator" style="display: none;">Sedang mengetik...</div>
+        <div class="chat-input-area" id="chatInputArea" style="display: none;">
+            <input type="text" class="chat-input" id="messageInput" placeholder="Ketik pesan...">
+            <button class="send-btn" id="sendBtn"><i class="fas fa-paper-plane"></i></button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // ==================== KONFIGURASI FIREBASE ====================
+    const firebaseConfig = {
+        apiKey: "AIzaSyCD0pgeZio-LdKqYDtWxcdXcZwyL4ngYQI",
+        authDomain: "jego-35a2b.firebaseapp.com",
+        databaseURL: "https://jego-35a2b-default-rtdb.asia-southeast1.firebasedatabase.app",
+        projectId: "jego-35a2b",
+        storageBucket: "jego-35a2b.firebasestorage.app",
+        messagingSenderId: "600037007040",
+        appId: "1:600037007040:web:ac3243ad9b472647ffd725"
+    };
+    if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const database = firebase.database();
+
+    // ==================== GLOBAL VARIABLES ====================
+    let currentUser = null;
+    let userRole = null; // 'customer' atau 'admin'
+    let currentChatRoom = null; // format: "chat_{customerId}" atau "chat_{customerId}_{adminId}"? Kita pakai "chat_{customerId}"
+    let currentChatPartner = null; // { name, uid, playerId, isAdmin }
+    let chatMessagesRef = null;
+    let typingRef = null;
+    let isPageActive = true; // deteksi focus tab
+    let notificationPermissionGranted = false;
+    let ONESIGNAL_APP_ID = "3357d683-8f6b-4558-9d42-2eeceed6204a";
+    let ONESIGNAL_API_KEY = "";
+    let lastNotifiedMessageId = new Set(); // cegah notif ganda per pesan
+
+    // Daftar chat untuk admin
+    let chatRoomsList = []; // { customerId, customerName, lastMessage, lastTime, unread }
+
+    // ==================== AMBIL ONESIGNAL API KEY ====================
+    async function fetchOneSignalApiKey() {
+        try {
+            const snap = await database.ref('data-jego/PushKey').once('value');
+            const key = snap.val();
+            if (key) {
+                ONESIGNAL_API_KEY = key;
+                console.log("OneSignal API Key loaded");
+                return true;
+            }
+            return false;
+        } catch(e) {
+            console.error("Gagal ambil PushKey", e);
+            return false;
+        }
+    }
+
+    // ==================== KIRIM NOTIFIKASI PUSH ====================
+    async function sendPushNotification(playerId, title, message, extraData = {}) {
+        if (!playerId || !ONESIGNAL_API_KEY) return false;
+        try {
+            const res = await fetch("https://onesignal.com/api/v1/notifications", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Basic ${ONESIGNAL_API_KEY}`
+                },
+                body: JSON.stringify({
+                    app_id: ONESIGNAL_APP_ID,
+                    include_player_ids: [playerId],
+                    headings: { en: title },
+                    contents: { en: message },
+                    data: { type: "chat_message", ...extraData },
+                    priority: 10,
+                    android_priority: "high",
+                    android_channel_id: "14488f7c-4003-4699-b220-dee4451568df"
+                })
+            });
+            const result = await res.json();
+            if (result.errors) {
+                console.warn("Notif error:", result.errors);
+                return false;
+            }
+            return true;
+        } catch(err) {
+            console.error("Notif error:", err);
+            return false;
+        }
+    }
+
+    // ==================== DETEKSI FOCUS TAB ====================
+    function initFocusDetection() {
+        const handleVisibilityChange = () => {
+            isPageActive = !document.hidden;
+            // Update status online di database (untuk CS/customer)
+            if (currentUser) {
+                const statusRef = userRole === 'admin' ? database.ref(`admins/${currentUser.uid}/chat_status`) : database.ref(`users/${currentUser.uid}/chat_status`);
+                statusRef.set({
+                    online: isPageActive,
+                    last_seen: firebase.database.ServerValue.TIMESTAMP
+                });
+            }
+        };
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        window.addEventListener('focus', () => { isPageActive = true; handleVisibilityChange(); });
+        window.addEventListener('blur', () => { isPageActive = false; handleVisibilityChange(); });
+        handleVisibilityChange();
+    }
+
+    // ==================== AUTENTIKASI & ROLE ====================
+    async function checkUserAndRole() {
+        return new Promise((resolve, reject) => {
+            const unsubscribe = auth.onAuthStateChanged(async (user) => {
+                unsubscribe();
+                if (!user) {
+                    // Redirect ke login jika belum login
+                    window.location.href = 'loginUser.html';
+                    reject();
+                    return;
+                }
+                // Cek apakah admin
+                const adminSnap = await database.ref(`admins/${user.uid}`).once('value');
+                if (adminSnap.exists()) {
+                    userRole = 'admin';
+                    const adminData = adminSnap.val();
+                    currentUser = {
+                        uid: user.uid,
+                        name: adminData.name || 'Admin JeGo',
+                        photoURL: adminData.photoURL || '',
+                        playerId: adminData.playerId || null
+                    };
+                    resolve('admin');
+                } else {
+                    // Cek customer
+                    const userSnap = await database.ref(`users/${user.uid}`).once('value');
+                    if (userSnap.exists()) {
+                        userRole = 'customer';
+                        const userData = userSnap.val();
+                        currentUser = {
+                            uid: user.uid,
+                            name: userData.name || 'Customer',
+                            photoURL: userData.photoURL || '',
+                            playerId: userData.playerId || null
+                        };
+                        resolve('customer');
+                    } else {
+                        // Tidak terdaftar
+                        alert('Akun tidak dikenali');
+                        window.location.href = 'loginUser.html';
+                        reject();
+                    }
+                }
+            });
+        });
+    }
+
+    // ==================== INISIALISASI UI BERDASARKAN ROLE ====================
+    async function initUIByRole() {
+        if (userRole === 'customer') {
+            // Sembunyikan sidebar chat list, hanya tampilkan satu chat dengan CS
+            document.getElementById('chatListPanel').style.display = 'none';
+            document.getElementById('chatMain').style.width = '100%';
+            document.getElementById('menuBtn').style.display = 'none';
+            // Set room chat = customerId
+            const roomId = `chat_${currentUser.uid}`;
+            currentChatRoom = roomId;
+            // Partner adalah CS (admin tetap). Kita ambil admin utama dari node 'admins' misal ambil satu admin active.
+            await loadCsPartner();
+            loadMessages(roomId);
+            markMessagesAsRead(roomId);
+            setupTyping(roomId);
+            // Tampilkan input
+            document.getElementById('chatInputArea').style.display = 'flex';
+            document.getElementById('chatTitle').innerText = 'Customer Service JeGo';
+            document.getElementById('chatSubtitle').innerHTML = '<span class="online-status"></span> CS Online';
+            // Listener untuk update status CS
+            listenCsStatus();
+        } else if (userRole === 'admin') {
+            // Tampilkan sidebar daftar customer yang pernah chat
+            document.getElementById('chatListPanel').style.display = 'flex';
+            document.getElementById('chatMain').style.display = 'flex';
+            document.getElementById('menuBtn').style.display = 'block';
+            // Load daftar chat rooms (semua chat_*)
+            await loadChatRoomsForAdmin();
+            // Event listener untuk tombol menu di mobile
+            const menuBtn = document.getElementById('menuBtn');
+            const panel = document.getElementById('chatListPanel');
+            menuBtn.onclick = () => {
+                panel.classList.toggle('open');
+            };
+            // Sembunyikan input sampai pilih chat
+            document.getElementById('chatInputArea').style.display = 'none';
+        }
+    }
+
+    // Untuk customer: ambil CS pertama yang ada (atau CS default)
+    async function loadCsPartner() {
+        // Ambil satu admin dari node admins (bisa urutkan berdasarkan yang online)
+        const adminsSnap = await database.ref('admins').once('value');
+        const admins = adminsSnap.val() || {};
+        let csAdmin = null;
+        for (let uid in admins) {
+            csAdmin = { uid, name: admins[uid].name || 'CS', playerId: admins[uid].playerId || null };
+            break; // ambil pertama
+        }
+        if (!csAdmin) {
+            // fallback dummy
+            csAdmin = { uid: 'cs_default', name: 'Customer Service', playerId: null };
+        }
+        currentChatPartner = { ...csAdmin, isAdmin: true };
+    }
+
+    // Customer: mendengarkan status online CS
+    function listenCsStatus() {
+        if (!currentChatPartner) return;
+        const statusRef = database.ref(`admins/${currentChatPartner.uid}/chat_status`);
+        statusRef.on('value', (snap) => {
+            const data = snap.val();
+            const isOnline = data && data.online === true;
+            const statusText = isOnline ? 'Online' : 'Offline';
+            const statusDot = isOnline ? '#4caf50' : '#aaa';
+            document.getElementById('chatSubtitle').innerHTML = `<span class="online-status" style="background:${statusDot}"></span> ${statusText}`;
+        });
+    }
+
+    // Admin: load semua customer yang memiliki chat room
+    async function loadChatRoomsForAdmin() {
+        const chatRoomsRef = database.ref('chat_rooms');
+        const snap = await chatRoomsRef.once('value');
+        const rooms = snap.val() || {};
+        const roomList = [];
+        for (let roomId in rooms) {
+            if (roomId.startsWith('chat_')) {
+                const customerId = roomId.replace('chat_', '');
+                // Ambil info customer
+                const userSnap = await database.ref(`users/${customerId}`).once('value');
+                const customer = userSnap.val();
+                if (customer) {
+                    const lastMsgSnap = await database.ref(`chat_messages/${roomId}`).orderByKey().limitToLast(1).once('value');
+                    let lastMessage = '', lastTime = 0;
+                    lastMsgSnap.forEach(msg => {
+                        lastMessage = msg.val().text;
+                        lastTime = msg.val().timestamp || 0;
+                    });
+                    // Hitung unread: pesan yang belum dibaca oleh admin (admin_read = false)
+                    const unreadSnap = await database.ref(`chat_messages/${roomId}`).orderByChild('admin_read').equalTo(false).once('value');
+                    let unreadCount = 0;
+                    unreadSnap.forEach(msg => {
+                        if (msg.val().sender_role === 'customer') unreadCount++;
+                    });
+                    roomList.push({
+                        roomId,
+                        customerId,
+                        customerName: customer.name || 'Customer',
+                        lastMessage,
+                        lastTime,
+                        unread: unreadCount
+                    });
+                }
+            }
+        }
+        roomList.sort((a,b) => b.lastTime - a.lastTime);
+        chatRoomsList = roomList;
+        renderChatListForAdmin();
+    }
+
+    function renderChatListForAdmin() {
+        const container = document.getElementById('chatListContainer');
+        if (!chatRoomsList.length) {
+            container.innerHTML = '<div class="empty-state">Belum ada percakapan</div>';
+            return;
+        }
+        container.innerHTML = chatRoomsList.map(room => `
+            <div class="chat-list-item" data-room="${room.roomId}" data-customer="${room.customerId}" data-name="${escapeHtml(room.customerName)}">
+                <div class="chat-avatar">${(room.customerName.charAt(0) || 'C').toUpperCase()}</div>
+                <div class="chat-info">
+                    <div class="chat-name">${escapeHtml(room.customerName)}</div>
+                    <div class="chat-last-msg">${escapeHtml(room.lastMessage.substring(0, 50))}</div>
+                </div>
+                <div class="chat-time">${room.lastTime ? formatTime(room.lastTime) : ''}</div>
+                ${room.unread > 0 ? `<div style="background:#FF9800; color:white; border-radius:12px; padding:2px 8px; font-size:12px;">${room.unread}</div>` : ''}
+            </div>
+        `).join('');
+        // Event click
+        document.querySelectorAll('.chat-list-item').forEach(el => {
+            el.addEventListener('click', () => {
+                const roomId = el.getAttribute('data-room');
+                const customerId = el.getAttribute('data-customer');
+                const customerName = el.getAttribute('data-name');
+                openChatRoom(roomId, customerId, customerName);
+                // Tutup sidebar di mobile
+                if (window.innerWidth <= 640) {
+                    document.getElementById('chatListPanel').classList.remove('open');
+                }
+            });
+        });
+    }
+
+    function openChatRoom(roomId, customerId, customerName) {
+        if (currentChatRoom === roomId) return;
+        // Hapus listener sebelumnya
+        if (chatMessagesRef) chatMessagesRef.off();
+        if (typingRef) typingRef.off();
+        currentChatRoom = roomId;
+        currentChatPartner = {
+            uid: customerId,
+            name: customerName,
+            isAdmin: false,
+            playerId: null // nanti ambil dari database
+        };
+        // Ambil playerId customer
+        database.ref(`users/${customerId}/playerId`).once('value').then(snap => {
+            if (currentChatPartner) currentChatPartner.playerId = snap.val();
+        });
+        document.getElementById('chatTitle').innerHTML = `<i class="fas fa-user"></i> ${escapeHtml(customerName)}`;
+        document.getElementById('chatSubtitle').innerHTML = '<span class="online-status"></span> Memuat...';
+        // Tampilkan input
+        document.getElementById('chatInputArea').style.display = 'flex';
+        // Load pesan
+        loadMessages(roomId);
+        // Tandai semua pesan customer sebagai dibaca oleh admin
+        markMessagesAsRead(roomId);
+        // Setup typing indicator
+        setupTyping(roomId);
+        // Dengarkan status online customer
+        listenCustomerStatus(customerId);
+    }
+
+    function listenCustomerStatus(customerId) {
+        const statusRef = database.ref(`users/${customerId}/chat_status`);
+        statusRef.on('value', (snap) => {
+            const data = snap.val();
+            const isOnline = data && data.online === true;
+            const statusText = isOnline ? 'Online' : 'Offline';
+            const statusDot = isOnline ? '#4caf50' : '#aaa';
+            document.getElementById('chatSubtitle').innerHTML = `<span class="online-status" style="background:${statusDot}"></span> ${statusText}`;
+        });
+    }
+
+    // ==================== FUNGSI CHAT ====================
+    function loadMessages(roomId) {
+        if (chatMessagesRef) chatMessagesRef.off();
+        chatMessagesRef = database.ref(`chat_messages/${roomId}`).orderByChild('timestamp');
+        chatMessagesRef.on('value', (snapshot) => {
+            const messages = snapshot.val() || {};
+            const messagesArray = Object.entries(messages).map(([id, msg]) => ({ id, ...msg }));
+            messagesArray.sort((a,b) => (a.timestamp || 0) - (b.timestamp || 0));
+            renderMessages(messagesArray, roomId);
+        });
+    }
+
+    function renderMessages(messages, roomId) {
+        const container = document.getElementById('chatMessages');
+        if (!messages.length) {
+            container.innerHTML = '<div class="empty-state">Belum ada pesan. Mulai chatting!</div>';
+            return;
+        }
+        const isAdmin = (userRole === 'admin');
+        container.innerHTML = messages.map(msg => {
+            const isOwn = (isAdmin && msg.sender_role === 'admin') || (!isAdmin && msg.sender_role === 'customer');
+            const senderName = msg.sender_name || (msg.sender_role === 'admin' ? 'CS' : 'Anda');
+            return `
+                <div class="message ${isOwn ? 'sent' : 'received'}">
+                    <div class="bubble">${escapeHtml(msg.text)}</div>
+                    <div class="message-time">${formatTime(msg.timestamp)} • ${senderName}</div>
+                </div>
+            `;
+        }).join('');
+        // Scroll ke bawah
+        container.scrollTop = container.scrollHeight;
+        // Jika admin, setelah render, tandai semua pesan sebagai dibaca
+        if (isAdmin) {
+            markMessagesAsRead(roomId);
+        } else {
+            // Customer: tandai pesan dari admin sebagai read
+            markMessagesAsReadForCustomer(roomId);
+        }
+    }
+
+    async function markMessagesAsRead(roomId) {
+        // Admin membaca semua pesan dari customer
+        const unreadSnap = await database.ref(`chat_messages/${roomId}`).orderByChild('admin_read').equalTo(false).once('value');
+        const updates = {};
+        unreadSnap.forEach(snap => {
+            const msg = snap.val();
+            if (msg.sender_role === 'customer') {
+                updates[`chat_messages/${roomId}/${snap.key}/admin_read`] = true;
+            }
+        });
+        if (Object.keys(updates).length) {
+            await database.ref().update(updates);
+        }
+    }
+
+    async function markMessagesAsReadForCustomer(roomId) {
+        // Customer membaca pesan dari admin
+        const unreadSnap = await database.ref(`chat_messages/${roomId}`).orderByChild('customer_read').equalTo(false).once('value');
+        const updates = {};
+        unreadSnap.forEach(snap => {
+            const msg = snap.val();
+            if (msg.sender_role === 'admin') {
+                updates[`chat_messages/${roomId}/${snap.key}/customer_read`] = true;
+            }
+        });
+        if (Object.keys(updates).length) {
+            await database.ref().update(updates);
+        }
+    }
+
+    async function sendMessage() {
+        const input = document.getElementById('messageInput');
+        const text = input.value.trim();
+        if (!text || !currentChatRoom) return;
+        input.value = '';
+        const isAdmin = (userRole === 'admin');
+        const senderRole = isAdmin ? 'admin' : 'customer';
+        const senderName = currentUser.name;
+        const receiverId = isAdmin ? currentChatPartner.uid : currentChatPartner.uid; // untuk notifikasi
+        const messageData = {
+            text: text,
+            sender_id: currentUser.uid,
+            sender_name: senderName,
+            sender_role: senderRole,
+            timestamp: firebase.database.ServerValue.TIMESTAMP,
+            admin_read: false,
+            customer_read: false
+        };
+        // Tandai bahwa admin/customer sudah membaca pesan sendiri
+        if (senderRole === 'admin') messageData.admin_read = true;
+        else messageData.customer_read = true;
+
+        const newMsgRef = database.ref(`chat_messages/${currentChatRoom}`).push();
+        await newMsgRef.set(messageData);
+
+        // Update last message di chat_rooms
+        await database.ref(`chat_rooms/${currentChatRoom}`).set({
+            last_message: text,
+            last_time: firebase.database.ServerValue.TIMESTAMP,
+            last_sender: senderName
+        });
+
+        // Kirim notifikasi jika penerima tidak sedang fokus pada halaman chat
+        const receiverPlayerId = currentChatPartner.playerId;
+        if (receiverPlayerId && !isPageActive) {
+            // Juga cek apakah penerima sedang membuka room yang sama? Kita kirim notif jika tidak fokus
+            const receiverRole = isAdmin ? 'customer' : 'admin';
+            // Hindari spam notif untuk pesan yang sama (tapi setiap pesan berbeda)
+            await sendPushNotification(receiverPlayerId, `Pesan baru dari ${senderName}`, text, { chat_room: currentChatRoom });
+        }
+    }
+
+    function setupTyping(roomId) {
+        if (typingRef) typingRef.off();
+        const typingPath = `chat_typing/${roomId}`;
+        typingRef = database.ref(typingPath);
+        // Dengarkan typing dari partner
+        typingRef.on('value', (snap) => {
+            const data = snap.val();
+            if (data && data.typing === true && data.user_id !== currentUser.uid) {
+                document.getElementById('typingIndicator').style.display = 'block';
+            } else {
+                document.getElementById('typingIndicator').style.display = 'none';
+            }
+        });
+        // Kirim typing event saat input
+        const input = document.getElementById('messageInput');
+        let typingTimeout;
+        input.addEventListener('input', () => {
+            if (typingTimeout) clearTimeout(typingTimeout);
+            typingRef.set({ typing: true, user_id: currentUser.uid });
+            typingTimeout = setTimeout(() => {
+                typingRef.set({ typing: false, user_id: null });
+            }, 1500);
+        });
+        // Hapus typing saat room berubah
+    }
+
+    // ==================== UTILITY ====================
+    function escapeHtml(str) {
+        if (!str) return '';
+        return str.replace(/[&<>]/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[m]));
+    }
+    function formatTime(timestamp) {
+        if (!timestamp) return '';
+        const date = new Date(timestamp);
+        return `${date.getHours().toString().padStart(2,'0')}:${date.getMinutes().toString().padStart(2,'0')}`;
+    }
+
+    // ==================== INIT ====================
+    window.onload = async () => {
+        await fetchOneSignalApiKey();
+        await checkUserAndRole();
+        initFocusDetection();
+        await initUIByRole();
+
+        // Back button
+        document.getElementById('backBtn').onclick = () => {
+            if (userRole === 'admin' && window.innerWidth <= 640) {
+                document.getElementById('chatListPanel').classList.add('open');
+            } else {
+                window.history.back();
+            }
+        };
+        document.getElementById('sendBtn').onclick = sendMessage;
+        document.getElementById('messageInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendMessage();
+        });
+    };
+</script>
+</body>
+</html>
