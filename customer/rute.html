@@ -1601,7 +1601,7 @@
         pinContainer.classList.add('active');
         // Reset teks tombol
         const useBtn = document.getElementById('useMapPickBtn');
-        useBtn.innerHTML = '📍 Gunakan';
+        useBtn.innerHTML = '📍 Pilih Lokasi';
         const center = map.getCenter();
         mapPickCoords = [center.lng, center.lat];
         resolveCenterAddress();
@@ -1612,43 +1612,47 @@
     }
 
     function onMapMoveStart() {
-        if (!mapPickActive) return;
-        const pinContainer = document.getElementById('mapCenterPin');
-        if (pinContainer) pinContainer.classList.add('dragging');
-        const useBtn = document.getElementById('useMapPickBtn');
-        useBtn.innerHTML = '📍 Memuat...';
-    }
+    if (!mapPickActive) return;
+    const pinContainer = document.getElementById('mapCenterPin');
+    if (pinContainer) pinContainer.classList.add('dragging');
+    const useBtn = document.getElementById('useMapPickBtn');
+    useBtn.innerHTML = 'Memuat...';   // tambahkan baris ini
+}
 
     function onMapMoveEnd() {
-        if (!mapPickActive) return;
-        const pinContainer = document.getElementById('mapCenterPin');
-        if (pinContainer) {
-            pinContainer.classList.remove('dragging');
-            void pinContainer.offsetWidth;
-            pinContainer.classList.remove('active');
-            void pinContainer.offsetWidth;
-            pinContainer.classList.add('active');
-        }
-        const center = map.getCenter();
-        mapPickCoords = [center.lng, center.lat];
-        resolveCenterAddress();
+    if (!mapPickActive) return;
+    const pinContainer = document.getElementById('mapCenterPin');
+    if (pinContainer) {
+        pinContainer.classList.remove('dragging');
+        void pinContainer.offsetWidth;
+        pinContainer.classList.remove('active');
+        void pinContainer.offsetWidth;
+        pinContainer.classList.add('active');
     }
+    const center = map.getCenter();
+    mapPickCoords = [center.lng, center.lat];
+    resolveCenterAddress();
+    // Kembalikan teks tombol ke statis
+    const useBtn = document.getElementById('useMapPickBtn');
+    useBtn.innerHTML = '📍 Pilih Lokasi';
+}
 
     async function resolveCenterAddress() {
-        if (!mapPickCoords) return;
-        const [lng, lat] = mapPickCoords;
-        if (mapPickResolveTimer) clearTimeout(mapPickResolveTimer);
-        mapPickResolveTimer = setTimeout(async () => {
-            const address = await reverseGeocode(lng, lat);
-            mapPickAddress = address || '(Alamat tidak ditemukan)';
-            const useBtn = document.getElementById('useMapPickBtn');
-            if (useBtn) {
-                let shortAddress = mapPickAddress;
-                if (shortAddress.length > 35) shortAddress = shortAddress.substring(0,32)+'...';
-                useBtn.innerHTML = `📍 ${shortAddress}`;
-            }
-        }, 300);
-    }
+    if (!mapPickCoords) return;
+    const [lng, lat] = mapPickCoords;
+    if (mapPickResolveTimer) clearTimeout(mapPickResolveTimer);
+    mapPickResolveTimer = setTimeout(async () => {
+        const address = await reverseGeocode(lng, lat);
+        mapPickAddress = address || '(Alamat tidak ditemukan)';
+        // Hapus atau komentari 6 baris di bawah ini:
+        // const useBtn = document.getElementById('useMapPickBtn');
+        // if (useBtn) {
+        //     let shortAddress = mapPickAddress;
+        //     if (shortAddress.length > 35) shortAddress = shortAddress.substring(0,32)+'...';
+        //     useBtn.innerHTML = `📍 ${shortAddress}`;
+        // }
+    }, 300);
+}
 
     function confirmMapPick() {
         if (!mapPickCoords || !mapPickAddress) { showToast('❌ Alamat belum didapatkan', 'error'); return; }
