@@ -261,41 +261,66 @@
 
     function escapeHtml(str) { return str.replace(/[&<>]/g, m => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;' }[m])); }
 
-    // ========== SDK PLAYER ID DENGAN TIMEOUT ==========
+    // ========== PERBAIKAN UTAMA: BACA LANGSUNG DARI ONESIGNAL OBJECT ==========
     async function getSdkPlayerId() {
-        if (typeof median === 'undefined' || !median.onesignal) {
-            addDebugLog(`SDK OneSignal tidak tersedia (median.onesignal undefined)`, "error");
+        // Deteksi apakah OneSignal SDK tersedia (global)
+        const hasOneSignal = typeof window.OneSignal !== 'undefined' && window.OneSignal;
+        const hasMedian = typeof median !== 'undefined' && median.onesignal;
+        
+        if (!hasOneSignal && !hasMedian) {
+            addDebugLog(`SDK OneSignal tidak tersedia (OneSignal global tidak ada)`, "error");
             return { hasSdk: false, playerId: null, isSubscribed: false };
         }
-        addDebugLog(`Mengambil info dari OneSignal SDK (timeout 3 detik)...`, "info");
-        try {
-            // Promise with timeout
-            const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout 3s")), 3000));
-            const sdkPromise = median.onesignal.onesignalInfo();
-            const info = await Promise.race([sdkPromise, timeoutPromise]);
-            const playerId = info?.oneSignalUserId || null;
-            const isSubscribed = info?.oneSignalSubscribed === true;
-            addDebugLog(`SDK response: PlayerID=${playerId}, Subscribed=${isSubscribed}`, isSubscribed ? "success" : "warning");
-            return { hasSdk: true, playerId, isSubscribed };
-        } catch (err) {
-            addDebugLog(`Gagal mendapatkan info OneSignal: ${err.message}`, "error");
-            lastErrorMsg = `SDK Error: ${err.message}`;
-            // Fallback: coba baca dari OneSignal global jika ada
+        
+        addDebugLog(`Mengambil Player ID dari OneSignal (prioritas User.getPushSubscription)...`, "info");
+        
+        // METODE 1: Menggunakan OneSignal.User.getPushSubscription() (SDK v16+)
+        if (hasOneSignal && window.OneSignal.User) {
             try {
-                if (window.OneSignal && window.OneSignal.User) {
-                    const sub = window.OneSignal.User.getPushSubscription();
-                    const fallbackId = sub?.id;
-                    const fallbackSub = sub?.optIn === true;
-                    if (fallbackId) {
-                        addDebugLog(`Fallback dari window.OneSignal: ID=${fallbackId}`, "success");
-                        return { hasSdk: true, playerId: fallbackId, isSubscribed: fallbackSub };
-                    }
-                }
-            } catch(e) { addDebugLog(`Fallback juga gagal: ${e.message}`, "error"); }
-            return { hasSdk: true, playerId: null, isSubscribed: false };
+                const subscription = await window.OneSignal.User.getPushSubscription();
+                const playerId = subscription?.id || null;
+                const isSubscribed = subscription?.optIn === true;
+                addDebugLog(`OneSignal.User => PlayerID=${playerId}, Subscribed=${isSubscribed}`, isSubscribed ? "success" : "warning");
+                return { hasSdk: true, playerId, isSubscribed };
+            } catch (err) {
+                addDebugLog(`Error menggunakan OneSignal.User: ${err.message}`, "error");
+            }
         }
+        
+        // METODE 2: Menggunakan median.onesignal (cara lama) dengan timeout 2 detik
+        if (hasMedian) {
+            addDebugLog(`Mencoba median.onesignal dengan timeout 2 detik...`, "info");
+            try {
+                const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout 2s")), 2000));
+                const sdkPromise = median.onesignal.onesignalInfo();
+                const info = await Promise.race([sdkPromise, timeoutPromise]);
+                const playerId = info?.oneSignalUserId || null;
+                const isSubscribed = info?.oneSignalSubscribed === true;
+                addDebugLog(`median.onesignal => PlayerID=${playerId}, Subscribed=${isSubscribed}`, isSubscribed ? "success" : "warning");
+                return { hasSdk: true, playerId, isSubscribed };
+            } catch (err) {
+                addDebugLog(`median.onesignal gagal: ${err.message}`, "error");
+            }
+        }
+        
+        // METODE 3: Coba baca dari localStorage OneSignal (jika ada)
+        try {
+            const osData = localStorage.getItem('OneSignal');
+            if (osData) {
+                const parsed = JSON.parse(osData);
+                const pid = parsed?.userId || parsed?.playerId || null;
+                if (pid) {
+                    addDebugLog(`Fallback localStorage: PlayerID=${pid}`, "success");
+                    return { hasSdk: true, playerId: pid, isSubscribed: true }; // asumsi subscribed kalau ada ID
+                }
+            }
+        } catch(e) {}
+        
+        addDebugLog(`Gagal mendapatkan Player ID dari semua metode`, "error");
+        return { hasSdk: true, playerId: null, isSubscribed: false };
     }
 
+    // ========== FUNGSI LAINNYA (Firebase) ==========
     async function getFirebasePlayerId() {
         if (!currentUid) return null;
         try {
@@ -340,7 +365,9 @@
     async function activateNotifications() {
         if (isProcessing) return showToast("Proses sedang berjalan");
         if (!currentUid) return showToast("Driver belum login", true);
-        if (typeof median === 'undefined' || !median.onesignal) return showToast("OneSignal SDK tidak tersedia", true);
+        if (typeof window.OneSignal === 'undefined' && typeof median === 'undefined') {
+            return showToast("OneSignal SDK tidak tersedia", true);
+        }
         isProcessing = true;
         const btn = document.getElementById('actionBtn');
         const original = btn.innerText;
@@ -349,20 +376,31 @@
         addDebugLog(`Memulai aktivasi notifikasi...`, "info");
         try {
             await clearFirebasePlayerId();
-            if (median.onesignal.setConsentGiven) await median.onesignal.setConsentGiven(true);
-            await median.onesignal.register();
-            if (median.onesignal.promptForPushNotificationsWithUserResponse) {
-                const granted = await median.onesignal.promptForPushNotificationsWithUserResponse();
-                addDebugLog(`Izin notifikasi: ${granted ? "GRANTED" : "DENIED"}`, granted ? "success" : "error");
-                if (!granted) showToast("Izin notifikasi ditolak", true);
+            
+            // Gunakan OneSignal global jika ada
+            if (window.OneSignal && window.OneSignal.Notifications) {
+                addDebugLog(`Meminta izin via window.OneSignal.Notifications.requestPermission()`, "info");
+                const permissionGranted = await window.OneSignal.Notifications.requestPermission();
+                addDebugLog(`Hasil requestPermission: ${permissionGranted}`, permissionGranted ? "success" : "error");
+                if (!permissionGranted) showToast("Izin notifikasi ditolak", true);
+            } 
+            // Fallback ke median.onesignal
+            else if (median?.onesignal) {
+                if (median.onesignal.setConsentGiven) await median.onesignal.setConsentGiven(true);
+                await median.onesignal.register();
+                if (median.onesignal.promptForPushNotificationsWithUserResponse) {
+                    const granted = await median.onesignal.promptForPushNotificationsWithUserResponse();
+                    addDebugLog(`Izin via median: ${granted}`, granted ? "success" : "error");
+                }
             }
-            await new Promise(r => setTimeout(r, 3000));
+            
+            await new Promise(r => setTimeout(r, 2000));
             const sdk = await getSdkPlayerId();
             if (sdk.playerId && sdk.isSubscribed) {
                 await savePlayerIdToFirebase(sdk.playerId);
                 showToast("Notifikasi berhasil diaktifkan!", false);
             } else {
-                showToast("Gagal mendapatkan ID valid", true);
+                showToast("Gagal mendapatkan ID valid setelah aktivasi", true);
             }
             await refreshStatus();
         } catch (err) {
@@ -414,9 +452,9 @@
         document.getElementById('debugSdkPid').className = sdk.playerId ? "debug-stat-value value-success" : "debug-stat-value value-error";
         document.getElementById('debugSubscribed').innerText = sdk.isSubscribed ? "✅ Ya" : "❌ Tidak";
         document.getElementById('debugSubscribed').className = sdk.isSubscribed ? "debug-stat-value value-success" : "debug-stat-value value-error";
-        const sdkAvail = (typeof median !== 'undefined' && median.onesignal) ? "✅ Tersedia" : "❌ Tidak";
+        const sdkAvail = (typeof window.OneSignal !== 'undefined' || typeof median !== 'undefined') ? "✅ Tersedia" : "❌ Tidak";
         document.getElementById('debugSdkAvailable').innerText = sdkAvail;
-        document.getElementById('debugSdkAvailable').className = (typeof median !== 'undefined' && median.onesignal) ? "debug-stat-value value-success" : "debug-stat-value value-error";
+        document.getElementById('debugSdkAvailable').className = sdkAvail.includes("Tersedia") ? "debug-stat-value value-success" : "debug-stat-value value-error";
         let perm = Notification.permission;
         document.getElementById('debugPermission').innerText = perm === "granted" ? "✅ Granted" : (perm === "denied" ? "❌ Denied" : "⏳ Prompt");
         const match = (firebasePid && sdk.playerId && firebasePid === sdk.playerId);
@@ -516,7 +554,7 @@
     window.addEventListener('load', () => {
         setTimeout(() => {
             if (currentUid) refreshStatus();
-            addDebugLog(`Halaman siap, OneSignal SDK tersedia? ${!!(typeof median !== 'undefined' && median.onesignal)}`, "info");
+            addDebugLog(`Halaman siap. window.OneSignal ada? ${!!window.OneSignal}`, "info");
         }, 500);
     });
 </script>
