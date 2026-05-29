@@ -31,7 +31,6 @@
             --success: #4CAF50;
             --warning: #FFC107;
             --danger: #f44336;
-            --progress-bg: #e0e0e0;
         }
 
         /* Dark Mode */
@@ -44,7 +43,6 @@
             --text-secondary: #B0B0B0;
             --border-light: #333333;
             --card-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-            --progress-bg: #2C2C2C;
         }
 
         body {
@@ -96,7 +94,7 @@
             margin: 0;
         }
 
-        /* Kartu Statistik - full lebar, tanpa border-radius samping */
+        /* Kartu Statistik - full lebar */
         .stats-card {
             background: var(--surface);
             padding: 20px;
@@ -105,10 +103,10 @@
             border: 1px solid var(--border-light);
             border-left: none;
             border-right: none;
-            transition: 0.2s;
+            transition: all 0.3s ease;
         }
 
-        /* Card rating khusus agar bisa diklik area rating & panah */
+        /* Rating card */
         .rating-card {
             cursor: pointer;
         }
@@ -116,10 +114,17 @@
             transform: scale(0.99);
         }
 
-        /* Bagian kiri rating (tanpa panah) */
-        .rating-left {
-            flex: 1;
+        /* Card pendapatan yang bisa diklik */
+        .clickable-card {
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
+        .clickable-card:active {
+            transform: scale(0.99);
+        }
+
         /* Area prioritas di dalam card rating */
         .priority-area {
             display: flex;
@@ -130,7 +135,18 @@
             border-bottom: 1px solid var(--border-light);
         }
         .priority-label {
+            display: flex;
+            align-items: center;
+            gap: 12px;
             text-align: left;
+        }
+        .priority-icon {
+            font-size: 2rem;
+            width: 48px;
+            text-align: center;
+        }
+        .priority-text {
+            flex: 1;
         }
         .priority-sub {
             font-size: 0.7rem;
@@ -143,6 +159,65 @@
             color: var(--primary);
             line-height: 1.2;
         }
+        /* Efek api merah untuk label Essential */
+        .priority-name.essential {
+            font-size: 2rem;
+            color: #ff1a1a;
+            text-transform: uppercase;
+            text-shadow:
+                0 0 5px #ff0000,
+                0 0 15px #ff0000,
+                0 0 30px #ff1a1a,
+                0 0 60px #b30000,
+                0 0 90px #ff0000;
+            animation: flame 0.8s infinite alternate;
+            position: relative;
+            display: inline-block;
+        }
+
+        @keyframes flame {
+            0% {
+                transform: scale(1);
+                filter: brightness(1);
+                text-shadow:
+                    0 0 5px #ff0000,
+                    0 0 15px #ff1a1a,
+                    0 0 30px #ff0000,
+                    0 0 50px #8b0000;
+            }
+            100% {
+                transform: scale(1.08);
+                filter: brightness(1.4);
+                text-shadow:
+                    0 0 10px #ff0000,
+                    0 0 25px #ff1a1a,
+                    0 0 50px #ff0000,
+                    0 0 80px #ff0000;
+            }
+        }
+
+        /* Efek api di bawah label (opsional, seperti contoh) */
+        .priority-name.essential::after {
+            content: "";
+            position: absolute;
+            left: 50%;
+            bottom: -15px;
+            transform: translateX(-50%);
+            width: 120%;
+            height: 120%;
+            background: radial-gradient(circle, rgba(255, 0, 0, 0.6), transparent 70%);
+            filter: blur(12px);
+            opacity: 0.7;
+            animation: flicker 0.2s infinite alternate;
+            z-index: -1;
+            pointer-events: none;
+        }
+
+        @keyframes flicker {
+            0% { opacity: 0.3; }
+            100% { opacity: 0.8; }
+        }
+
         .priority-info-icon {
             font-size: 1.3rem;
             color: var(--text-secondary);
@@ -170,22 +245,6 @@
             line-height: 1.2;
         }
 
-        /* Progress bar rating */
-        .progress-container {
-            background: var(--progress-bg);
-            border-radius: 20px;
-            height: 8px;
-            margin: 12px 0;
-            overflow: hidden;
-        }
-        .progress-fill {
-            background: var(--primary);
-            width: 0%;
-            height: 100%;
-            border-radius: 20px;
-            transition: width 0.3s;
-        }
-
         /* Bintang rating */
         .rating-stars {
             display: flex;
@@ -200,8 +259,8 @@
             color: #FFB300;
         }
 
-        /* Arrow kanan untuk rating */
-        .rating-arrow {
+        /* Arrow kanan */
+        .arrow-right {
             font-size: 1.5rem;
             color: var(--text-secondary);
             margin-left: 12px;
@@ -383,9 +442,34 @@
             margin: 0;
         }
 
+        /* Loading spinner */
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid rgba(0,0,0,0.1);
+            border-radius: 50%;
+            border-top-color: var(--primary);
+            animation: spin 1s ease-in-out infinite;
+            margin: 0 auto 12px;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .loading-container {
+            text-align: center;
+            padding: 60px 20px;
+        }
+
         @media (max-width: 500px) {
             .priority-name {
                 font-size: 1.2rem;
+            }
+            .priority-name.essential {
+                font-size: 1.5rem;
+            }
+            .priority-icon {
+                font-size: 1.5rem;
+                width: 36px;
             }
             .stats-value {
                 font-size: 1.6rem;
@@ -401,49 +485,9 @@
 </div>
 
 <div class="container" id="mainContent">
-    <!-- Card Rating - berisi Prioritas + Rating, full width, klik area rating/panah menuju penilaianLayanan.html -->
-    <div class="stats-card rating-card" id="ratingCard">
-        <!-- Area Prioritas (dengan ikon info) -->
-        <div class="priority-area">
-            <div class="priority-label">
-                <div class="priority-sub">Prioritas</div>
-                <div class="priority-name" id="priorityName">Basic</div>
-            </div>
-            <div class="priority-info-icon" id="priorityInfoIcon">
-                <i class="fas fa-question-circle"></i>
-            </div>
-        </div>
-        <!-- Rating display (tanpa panah, panah di luar setelah progress) -->
-        <div class="rating-left">
-            <div class="stats-title">⭐ Rating Driver</div>
-            <div class="stats-value" id="ratingValue">0</div>
-            <div id="ratingStars" class="rating-stars"></div>
-            <div class="progress-container">
-                <div class="progress-fill" id="ratingProgress" style="width:0%"></div>
-            </div>
-        </div>
-        <!-- Panah kanan di luar rating-left, tapi masih dalam rating-card -->
-        <div class="rating-arrow">
-            <i class="fas fa-chevron-right"></i>
-        </div>
-    </div>
-
-    <!-- Card Pendapatan Hari Ini -->
-    <div class="stats-card">
-        <div class="stats-title">📅 Pendapatan Hari Ini</div>
-        <div class="stats-value" id="todayEarnings">Rp 0</div>
-        <div class="stats-sub" id="todayOrdersCount">0 order selesai</div>
-    </div>
-
-    <!-- Card Saldo Driver dengan tombol Top Up -->
-    <div class="stats-card">
-        <div class="stats-title">💰 Saldo Driver</div>
-        <div class="balance-row">
-            <div class="balance-left">
-                <div class="stats-value" id="balanceValue">Rp 0</div>
-            </div>
-            <button class="btn-topup" id="topupBtn"><i class="fas fa-plus-circle"></i> Top Up</button>
-        </div>
+    <div class="stats-card loading-container">
+        <div class="spinner"></div>
+        <p>Memuat data statistik...</p>
     </div>
 </div>
 
@@ -518,7 +562,6 @@
 
     let currentDriverUid = null;
     let feePersen = 0, pajakPersen = 0;
-    let currentDriverRating = 0;
 
     // ========== Helper Functions ==========
     function formatRupiah(amount) {
@@ -534,14 +577,6 @@
         } catch(e) { console.warn(e); }
     }
 
-    function calculateNetEarnings(price, fee = null, tax = null) {
-        const feePer = (fee !== null) ? fee : feePersen;
-        const taxPer = (tax !== null) ? tax : pajakPersen;
-        const potongan = price * (feePer / 100);
-        const pajakVal = potongan * (taxPer / 100);
-        return price - (potongan + pajakVal);
-    }
-
     // ========== Ambil data driver ==========
     async function loadDriverData() {
         if (!currentDriverUid) return null;
@@ -549,8 +584,8 @@
         return snap.val();
     }
 
-    // ========== Hitung pendapatan hari ini ==========
-    async function getTodayEarnings(driverId) {
+    // ========== Hitung pendapatan kotor hari ini ==========
+    async function getTodayGrossEarnings(driverId) {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
         const tomorrow = new Date(today);
@@ -558,7 +593,7 @@
 
         const ordersSnap = await db.ref('orders').orderByChild('driver_id').equalTo(driverId).once('value');
         const orders = ordersSnap.val() || {};
-        let totalNet = 0;
+        let totalGross = 0;
         let completedCount = 0;
         for (let orderId in orders) {
             const order = orders[orderId];
@@ -566,17 +601,15 @@
                 const completedDate = new Date(order.completed_at);
                 if (completedDate >= today && completedDate < tomorrow) {
                     const price = order.price || 0;
-                    const fee = order.fee_percent !== undefined ? order.fee_percent : feePersen;
-                    const tax = order.tax_percent !== undefined ? order.tax_percent : pajakPersen;
-                    totalNet += calculateNetEarnings(price, fee, tax);
+                    totalGross += price;
                     completedCount++;
                 }
             }
         }
-        return { totalNet, completedCount };
+        return { totalGross, completedCount };
     }
 
-    // ========== Fungsi prioritas berdasarkan rating (sinkron dengan akun.html) ==========
+    // ========== Fungsi prioritas berdasarkan rating ==========
     function getPriorityFromRating(rating) {
         if (rating >= 4.5) return 'Essential';
         if (rating >= 4.0) return 'Regular';
@@ -584,53 +617,126 @@
         return 'Basic';
     }
 
-    // ========== Render UI ==========
-    async function renderStats() {
+    // ========== Ambil ikon sesuai prioritas ==========
+    function getPriorityIcon(priority) {
+        switch(priority) {
+            case 'Essential': return '<i class="fas fa-crown" style="color: #FFD700;"></i>';
+            case 'Regular':   return '<i class="fas fa-check-circle" style="color: #4CAF50;"></i>';
+            case 'Standard':  return '<i class="fas fa-car" style="color: #2196F3;"></i>';
+            case 'Basic':     return '<i class="fas fa-shield-alt" style="color: #9E9E9E;"></i>';
+            default: return '<i class="fas fa-star"></i>';
+        }
+    }
+
+    // ========== Render konten utama setelah loading ==========
+    async function renderMainContent() {
         if (!currentDriverUid) return;
         const driverData = await loadDriverData();
         if (!driverData) {
-            document.getElementById('mainContent').innerHTML = '<div class="stats-card">Gagal memuat data driver</div>';
+            document.getElementById('mainContent').innerHTML = '<div class="stats-card loading-container"><p>Gagal memuat data. Silakan coba lagi.</p></div>';
             return;
         }
-        const todayData = await getTodayEarnings(currentDriverUid);
+        const todayData = await getTodayGrossEarnings(currentDriverUid);
         const rating = driverData.rating || 0;
         const balance = driverData.balance || 0;
-        currentDriverRating = rating;
-
-        // Prioritas
         const priority = getPriorityFromRating(rating);
-        document.getElementById('priorityName').innerText = priority;
-
-        // Rating
-        document.getElementById('ratingValue').innerHTML = `${rating.toFixed(1)} / 5.0`;
+        const priorityIcon = getPriorityIcon(priority);
         const ratingPercent = (rating / 5) * 100;
-        document.getElementById('ratingProgress').style.width = `${ratingPercent}%`;
-        
+
+        // Bangun HTML (tanpa glow card)
+        const html = `
+            <div class="stats-card rating-card" id="ratingCard">
+                <div class="priority-area">
+                    <div class="priority-label">
+                        <div class="priority-icon">${priorityIcon}</div>
+                        <div class="priority-text">
+                            <div class="priority-sub">Prioritas</div>
+                            <div class="priority-name ${priority === 'Essential' ? 'essential' : ''}">${priority}</div>
+                        </div>
+                    </div>
+                    <div class="priority-info-icon" id="priorityInfoIcon">
+                        <i class="fas fa-question-circle"></i>
+                    </div>
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <div class="stats-title">⭐ Rating Driver</div>
+                        <div class="stats-value">${rating.toFixed(1)} / 5.0</div>
+                        <div id="ratingStars" class="rating-stars"></div>
+                    </div>
+                    <div class="arrow-right">
+                        <i class="fas fa-chevron-right"></i>
+                    </div>
+                </div>
+            </div>
+            <div class="stats-card clickable-card" id="earningsCard">
+                <div>
+                    <div class="stats-title">📅 Pendapatan Hari Ini</div>
+                    <div class="stats-value">${formatRupiah(todayData.totalGross)}</div>
+                    <div class="stats-sub">${todayData.completedCount} order selesai</div>
+                </div>
+                <div class="arrow-right">
+                    <i class="fas fa-chevron-right"></i>
+                </div>
+            </div>
+            <div class="stats-card">
+                <div class="stats-title">💰 Saldo Dompet</div>
+                <div class="balance-row">
+                    <div class="balance-left">
+                        <div class="stats-value">${formatRupiah(balance)}</div>
+                    </div>
+                    <button class="btn-topup" id="topupBtn"><i class="fas fa-plus-circle"></i> Top Up</button>
+                </div>
+            </div>
+        `;
+        const container = document.getElementById('mainContent');
+        container.innerHTML = html;
+
+        // Render bintang rating
         const starsContainer = document.getElementById('ratingStars');
-        starsContainer.innerHTML = '';
-        const fullStars = Math.floor(rating);
-        const halfStar = (rating % 1) >= 0.5;
-        for (let i = 1; i <= 5; i++) {
-            const star = document.createElement('span');
-            star.className = 'star';
-            if (i <= fullStars) star.classList.add('active');
-            else if (halfStar && i === fullStars+1) star.classList.add('active');
-            star.innerHTML = '★';
-            starsContainer.appendChild(star);
+        if (starsContainer) {
+            const fullStars = Math.floor(rating);
+            const halfStar = (rating % 1) >= 0.5;
+            for (let i = 1; i <= 5; i++) {
+                const star = document.createElement('span');
+                star.className = 'star';
+                if (i <= fullStars) star.classList.add('active');
+                else if (halfStar && i === fullStars+1) star.classList.add('active');
+                star.innerHTML = '★';
+                starsContainer.appendChild(star);
+            }
         }
 
-        // Saldo
-        document.getElementById('balanceValue').innerText = formatRupiah(balance);
-
-        // Pendapatan hari ini
-        document.getElementById('todayEarnings').innerText = formatRupiah(todayData.totalNet);
-        document.getElementById('todayOrdersCount').innerText = `${todayData.completedCount} order selesai`;
-    }
-
-    async function refreshData() {
-        if (!currentDriverUid) return;
-        await loadFeeSettings();
-        await renderStats();
+        // Event listener untuk rating card
+        const ratingCard = document.getElementById('ratingCard');
+        if (ratingCard) {
+            ratingCard.addEventListener('click', (e) => {
+                if (e.target.closest('#priorityInfoIcon')) return;
+                window.location.href = 'penilaianLayanan.html';
+            });
+        }
+        // Ikon info prioritas
+        const priorityInfo = document.getElementById('priorityInfoIcon');
+        if (priorityInfo) {
+            priorityInfo.addEventListener('click', (e) => {
+                e.stopPropagation();
+                window.location.href = 'penjelasan_prioritas.html';
+            });
+        }
+        // Card pendapatan -> pendapatan.html
+        const earningsCard = document.getElementById('earningsCard');
+        if (earningsCard) {
+            earningsCard.addEventListener('click', () => {
+                window.location.href = 'pendapatan.html';
+            });
+        }
+        // Tombol Top Up -> payment.html
+        const topupBtn = document.getElementById('topupBtn');
+        if (topupBtn) {
+            topupBtn.addEventListener('click', () => {
+                window.location.href = 'payment.html';
+            });
+        }
     }
 
     // ========== DARK MODE & PENGATURAN ==========
@@ -662,15 +768,25 @@
 
     function loadSettingsFromLocal() {
         const tripSound = localStorage.getItem('jego_trip_sound') === 'true';
-        document.getElementById('tripSoundToggle').checked = tripSound;
+        const tripToggle = document.getElementById('tripSoundToggle');
+        if (tripToggle) tripToggle.checked = tripSound;
         const requestChain = localStorage.getItem('jego_request_chain') === 'true';
-        document.getElementById('requestChainToggle').checked = requestChain;
+        const chainToggle = document.getElementById('requestChainToggle');
+        if (chainToggle) chainToggle.checked = requestChain;
         const shortcut = localStorage.getItem('jego_shortcut') === 'true';
-        document.getElementById('shortcutToggle').checked = shortcut;
+        const shortcutToggle = document.getElementById('shortcutToggle');
+        if (shortcutToggle) shortcutToggle.checked = shortcut;
         const darkMode = localStorage.getItem('jego_dark_mode');
-        if (darkMode === 'true') document.querySelector('input[name="darkMode"][value="dark"]').checked = true;
-        else if (darkMode === 'false') document.querySelector('input[name="darkMode"][value="light"]').checked = true;
-        else document.querySelector('input[name="darkMode"][value="system"]').checked = true;
+        if (darkMode === 'true') {
+            const darkRadio = document.querySelector('input[name="darkMode"][value="dark"]');
+            if (darkRadio) darkRadio.checked = true;
+        } else if (darkMode === 'false') {
+            const lightRadio = document.querySelector('input[name="darkMode"][value="light"]');
+            if (lightRadio) lightRadio.checked = true;
+        } else {
+            const systemRadio = document.querySelector('input[name="darkMode"][value="system"]');
+            if (systemRadio) systemRadio.checked = true;
+        }
     }
 
     function saveSetting(key, value) {
@@ -678,9 +794,12 @@
     }
 
     function initSettingsListeners() {
-        document.getElementById('tripSoundToggle').addEventListener('change', (e) => saveSetting('jego_trip_sound', e.target.checked));
-        document.getElementById('requestChainToggle').addEventListener('change', (e) => saveSetting('jego_request_chain', e.target.checked));
-        document.getElementById('shortcutToggle').addEventListener('change', (e) => saveSetting('jego_shortcut', e.target.checked));
+        const tripToggle = document.getElementById('tripSoundToggle');
+        if (tripToggle) tripToggle.addEventListener('change', (e) => saveSetting('jego_trip_sound', e.target.checked));
+        const chainToggle = document.getElementById('requestChainToggle');
+        if (chainToggle) chainToggle.addEventListener('change', (e) => saveSetting('jego_request_chain', e.target.checked));
+        const shortcutToggle = document.getElementById('shortcutToggle');
+        if (shortcutToggle) shortcutToggle.addEventListener('change', (e) => saveSetting('jego_shortcut', e.target.checked));
         const radios = document.querySelectorAll('input[name="darkMode"]');
         radios.forEach(radio => {
             radio.addEventListener('change', (e) => {
@@ -698,31 +817,20 @@
     const modal = document.getElementById('settingsModal');
     const settingsBtn = document.getElementById('settingsBtn');
     const closeModalBtn = document.getElementById('closeModalBtn');
-    settingsBtn.addEventListener('click', () => {
-        loadSettingsFromLocal();
-        modal.classList.add('active');
-    });
-    closeModalBtn.addEventListener('click', () => modal.classList.remove('active'));
-    modal.addEventListener('click', (e) => {
-        if (e.target === modal) modal.classList.remove('active');
-    });
-
-    // Event untuk rating card (klik -> penilaianLayanan.html) - area rating-left dan rating-arrow
-    const ratingCard = document.getElementById('ratingCard');
-    ratingCard.addEventListener('click', (e) => {
-        // Jangan redirect jika klik icon info (prioritas)
-        if (e.target.closest('#priorityInfoIcon')) return;
-        window.location.href = 'penilaianLayanan.html';
-    });
-    // Event untuk ikon info prioritas
-    document.getElementById('priorityInfoIcon').addEventListener('click', (e) => {
-        e.stopPropagation();
-        window.location.href = 'penjelasan_prioritas.html';
-    });
-    // Event untuk tombol Top Up
-    document.getElementById('topupBtn').addEventListener('click', () => {
-        window.location.href = 'payment.html';
-    });
+    if (settingsBtn) {
+        settingsBtn.addEventListener('click', () => {
+            loadSettingsFromLocal();
+            modal.classList.add('active');
+        });
+    }
+    if (closeModalBtn) {
+        closeModalBtn.addEventListener('click', () => modal.classList.remove('active'));
+    }
+    if (modal) {
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) modal.classList.remove('active');
+        });
+    }
 
     // ========== Auth & Initialization ==========
     auth.onAuthStateChanged(async (user) => {
@@ -739,11 +847,12 @@
         currentDriverUid = user.uid;
         loadDarkModeSetting();
         initSettingsListeners();
-        await refreshData();
+        await loadFeeSettings();
+        await renderMainContent();
 
         // Real-time update
-        db.ref(`drivers/${currentDriverUid}`).on('value', () => refreshData());
-        db.ref('orders').orderByChild('driver_id').equalTo(currentDriverUid).on('value', () => refreshData());
+        db.ref(`drivers/${currentDriverUid}`).on('value', () => renderMainContent());
+        db.ref('orders').orderByChild('driver_id').equalTo(currentDriverUid).on('value', () => renderMainContent());
     });
 </script>
 </body>
