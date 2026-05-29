@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-    <title>Jego Notifikasi - With Debug</title>
+    <title>Jego Notifikasi - Full Debug</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -83,6 +83,7 @@
         .btn-secondary { background: #e9edf2; color: #2c3e50; }
         .btn-outline { background: transparent; border: 1px solid #d0d8e3; color: #4a627a; }
         .btn-debug { background: #2c3e50; color: white; margin-top: 5px; font-size: 0.8rem; padding: 8px; }
+        .btn-danger { background: #b91c1c; color: white; margin-top: 10px; }
         .debug-panel {
             background: #1e2a3a;
             color: #e2e8f0;
@@ -148,13 +149,15 @@
                 ✅ Pastikan status "Notifikasi Aktif".<br>
                 ✅ Izinkan notifikasi dari pengaturan HP.<br>
                 ✅ Gunakan tombol "Aktifkan Notifikasi" jika belum.<br>
-                ✅ Jika gagal, lihat panel DEBUG di bawah.
+                ✅ Jika gagal, gunakan tombol "Cek SDK Manual" dan lihat debug.
             </div>
         </div>
 
         <button id="actionBtn" class="btn btn-primary">🔔 Aktifkan Notifikasi</button>
         <button id="refreshBtn" class="btn btn-secondary">🔄 Refresh Status</button>
+        <button id="manualCheckBtn" class="btn btn-outline" style="margin-top:8px;">🔍 Cek OneSignal SDK Manual</button>
         <button id="debugToggleBtn" class="btn btn-debug">🐞 Tampilkan Debug Info</button>
+        <button id="resetStorageBtn" class="btn btn-danger" style="background:#6c757d;">🗑️ Reset & Daftar Ulang</button>
 
         <div id="debugPanel" class="debug-panel">
             <div class="debug-header">
@@ -172,7 +175,7 @@
 <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-database-compat.js"></script>
 
 <script>
-    // Firebase Config
+    // ========== Firebase Config ==========
     const firebaseConfig = {
         apiKey: "AIzaSyCD0pgeZio-LdKqYDtWxcdXcZwyL4ngYQI",
         authDomain: "jego-35a2b.firebaseapp.com",
@@ -195,7 +198,7 @@
         const prefix = isError ? '❌' : '🔹';
         const logLine = `[${timestamp}] ${prefix} ${message}`;
         debugLines.unshift(logLine);
-        if (debugLines.length > 40) debugLines.pop();
+        if (debugLines.length > 60) debugLines.pop();
         updateDebugUI();
         console.log(logLine);
     }
@@ -338,6 +341,13 @@
         }
     }
 
+    async function resetAndReRegister() {
+        if (!confirm("Reset akan menghapus data notifikasi dari Firebase. Anda harus mengaktifkan ulang. Lanjutkan?")) return;
+        await clearFirebasePlayerId();
+        showToast("Data Firebase direset. Silakan klik 'Aktifkan Notifikasi'", false);
+        await refreshStatus();
+    }
+
     async function refreshStatus() {
         if (!currentUid) {
             document.getElementById('driverName').innerText = "(Belum login)";
@@ -399,6 +409,32 @@
         }
     }
 
+    // ========== Manual Check ==========
+    async function manualCheckSDK() {
+        addDebugLog('=== MANUAL CHECK SDK ===');
+        if (typeof median !== 'undefined') {
+            addDebugLog('median global DITEMUKAN');
+            if (median.onesignal) {
+                addDebugLog('median.onesignal DITEMUKAN, memanggil onesignalInfo()...');
+                try {
+                    const info = await median.onesignal.onesignalInfo();
+                    addDebugLog(`onesignalInfo sukses: playerId=${info?.oneSignalUserId}, subscribed=${info?.oneSignalSubscribed}`);
+                    alert(`✅ OneSignal SDK aktif!\n\nPlayer ID: ${info?.oneSignalUserId || '(kosong)'}\nSubscribed: ${info?.oneSignalSubscribed}\n\nJika Player ID kosong, coba klik 'Aktifkan Notifikasi'.`);
+                } catch (err) {
+                    addDebugLog(`Error saat onesignalInfo: ${err.message}`, true);
+                    alert(`❌ Error saat memanggil onesignalInfo: ${err.message}`);
+                }
+            } else {
+                addDebugLog('median.onesignal TIDAK ADA', true);
+                alert('❌ median.onesignal tidak tersedia. Plugin OneSignal mungkin tidak aktif.');
+            }
+        } else {
+            addDebugLog('median global TIDAK ADA', true);
+            alert('❌ median global tidak tersedia. Pastikan plugin OneSignal Median terpasang dan build ulang aplikasi.');
+        }
+        addDebugLog('=== END MANUAL CHECK ===');
+    }
+
     // ========== Auth ==========
     auth.onAuthStateChanged(async (user) => {
         if (user) {
@@ -408,18 +444,22 @@
         } else {
             currentUid = null;
             addDebugLog('User logout / tidak ada');
-            refreshStatus(); // akan tampilkan belum login
+            refreshStatus();
         }
     });
 
-    // UI Controls
+    // ========== UI Event Listeners ==========
     document.getElementById('refreshBtn').addEventListener('click', refreshStatus);
+    document.getElementById('manualCheckBtn').addEventListener('click', manualCheckSDK);
+    document.getElementById('resetStorageBtn').addEventListener('click', resetAndReRegister);
+    
     const debugToggleBtn = document.getElementById('debugToggleBtn');
     const debugPanel = document.getElementById('debugPanel');
     debugToggleBtn.addEventListener('click', () => {
         debugPanel.classList.toggle('show');
         debugToggleBtn.innerText = debugPanel.classList.contains('show') ? '🙈 Sembunyikan Debug' : '🐞 Tampilkan Debug Info';
     });
+    
     document.getElementById('copyDebugBtn').addEventListener('click', () => {
         const content = debugLines.join('\n');
         navigator.clipboard.writeText(content).then(() => showToast("Debug log disalin")).catch(() => showToast("Gagal menyalin", true));
