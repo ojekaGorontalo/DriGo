@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-    <title>JeGo Admin - Permintaan Deposit</title>
+    <title>JeGo Admin - Permintaan Deposit (Auto Expired 1 Hari)</title>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
@@ -26,6 +26,7 @@
         th { background: #f8fafc; font-weight: 600; color: #1e293b; }
         tr:hover { background: #fef9e6; }
         .confirm-deposit-btn { background: #10b981; color: white; border: none; padding: 6px 12px; border-radius: 8px; cursor: pointer; font-size: 0.7rem; font-weight: 600; }
+        .expired-badge { background: #f1f5f9; color: #64748b; padding: 4px 10px; border-radius: 20px; font-size: 0.7rem; font-weight: 600; }
         .toast { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); background: #1e293b; color: white; padding: 10px 20px; border-radius: 40px; font-size: 0.85rem; z-index: 1000; opacity: 0; transition: opacity 0.2s; pointer-events: none; }
         .toast.show { opacity: 1; }
         .loading-overlay { display: flex; justify-content: center; padding: 50px; }
@@ -37,7 +38,7 @@
 <body>
 <div class="container">
     <div class="header">
-        <h1><i class="fas fa-money-bill-wave"></i> Permintaan Deposit</h1>
+        <h1><i class="fas fa-money-bill-wave"></i> Permintaan Deposit (Expired 1 Hari)</h1>
         <button class="logout-btn" id="logoutBtn"><i class="fas fa-sign-out-alt"></i> Logout Admin</button>
     </div>
     <div class="toolbar">
@@ -51,9 +52,14 @@
     </div>
     <div class="table-wrapper">
         <table id="depositTable">
-            <thead><tr><th>Waktu</th><th>Driver</th><th>Telepon</th><th>Jumlah Deposit</th><th>Total Transfer</th><th>Kode Unik</th><th>Aksi</th></tr></thead>
-            <tbody id="depositTableBody"><tr class="empty-row"><td colspan="7"><div class="loading-overlay"><div class="spinner"></div></div></tr></tbody>
+            <thead>
+                <tr><th>Waktu</th><th>Driver</th><th>Telepon</th><th>Jumlah Deposit</th><th>Total Transfer</th><th>Kode Unik</th><th>Status</th><th>Aksi</th> 
+            </thead>
+            <tbody id="depositTableBody"><tr class="empty-row"><td colspan="8"><div class="loading-overlay"><div class="spinner"></div></div></tr></tbody>
         </table>
+    </div>
+    <div class="footer-note">
+        <i class="fas fa-info-circle"></i> Deposit yang tidak dikonfirmasi dalam <strong>1x24 jam</strong> akan otomatis kadaluarsa (expired) dan tidak dapat dikonfirmasi lagi.
     </div>
 </div>
 <div id="toastMsg" class="toast"></div>
@@ -76,6 +82,7 @@
     let onesignalApiKey = null;
     const ONESIGNAL_APP_ID = "007d7eba-9cfc-40d1-a92e-f2299f770282";
 
+    // ========== ONE SIGNAL ==========
     async function getOneSignalApiKey() {
         if (onesignalApiKey) return onesignalApiKey;
         try {
@@ -122,10 +129,46 @@
     }
     function formatRupiah(amount) { return 'Rp ' + (amount || 0).toLocaleString('id-ID'); }
 
+    // ========== CLEANUP EXPIRED DEPOSITS (LEBIH DARI 24 JAM) ==========
+    async function cleanupExpiredDeposits() {
+        const now = Date.now();
+        const ONE_DAY = 24 * 60 * 60 * 1000;
+        let expiredCount = 0;
+        try {
+            const logsSnap = await database.ref('driver_balance_logs').once('value');
+            const updates = {};
+            logsSnap.forEach(driverChild => {
+                const driverId = driverChild.key;
+                driverChild.forEach(logChild => {
+                    const log = logChild.val();
+                    if (log.type === 'deposit_request' && log.status === 'pending') {
+                        const depositTime = log.timestamp || 0;
+                        if (now - depositTime > ONE_DAY) {
+                            updates[`driver_balance_logs/${driverId}/${logChild.key}/status`] = 'expired';
+                            expiredCount++;
+                        }
+                    }
+                });
+            });
+            if (expiredCount > 0) {
+                await database.ref().update(updates);
+                console.log(`✅ ${expiredCount} deposit expired otomatis`);
+                showToast(`${expiredCount} permintaan deposit kadaluarsa (lebih 24 jam)`, false);
+                await loadDepositRequests(); // refresh tampilan
+            }
+        } catch(err) {
+            console.error("Gagal cleanup expired deposits:", err);
+        }
+    }
+
+    // ========== LOAD DEPOSIT REQUESTS (HANYA PENDING & BELUM EXPIRED) ==========
     async function loadDepositRequests() {
         const tbody = document.getElementById('depositTableBody');
-        tbody.innerHTML = '<tr class="empty-row"><td colspan="7"><div class="loading-overlay"><div class="spinner"></div></div></tr>';
+        tbody.innerHTML = '<tr class="empty-row"><td colspan="8"><div class="loading-overlay"><div class="spinner"></div></div></td>';
         try {
+            // Pertama, bersihkan deposit expired
+            await cleanupExpiredDeposits();
+
             const logsSnap = await database.ref('driver_balance_logs').once('value');
             const requests = [];
             logsSnap.forEach(driverChild => {
@@ -152,7 +195,7 @@
 
     function renderDepositTable(requests) {
         const tbody = document.getElementById('depositTableBody');
-        if (!requests.length) { tbody.innerHTML = '<tr class="empty-row"><td colspan="7">Tidak ada permintaan deposit pending</tr>'; return; }
+        if (!requests.length) { tbody.innerHTML = '<tr class="empty-row"><td colspan="8">Tidak ada permintaan deposit pending (expired otomatis setelah 24 jam)</td>'; return; }
         tbody.innerHTML = '';
         requests.forEach(req => {
             const row = tbody.insertRow();
@@ -162,8 +205,25 @@
             row.insertCell(3).innerHTML = formatRupiah(req.amount);
             row.insertCell(4).innerHTML = formatRupiah(req.uniqueAmount);
             row.insertCell(5).textContent = req.uniqueDigits;
-            const confirmBtn = document.createElement('button'); confirmBtn.textContent = '✅ Konfirmasi & Tambah Saldo'; confirmBtn.className = 'confirm-deposit-btn';
+            // Status (pending / akan expired)
+            const timeLeft = (req.timestamp + 24*60*60*1000) - Date.now();
+            let statusHtml = '<span class="status-badge status-pending">Pending</span>';
+            if (timeLeft < 3600000) { // kurang dari 1 jam
+                statusHtml = '<span class="status-badge status-warning" style="background:#ffecb3;color:#b76e00;">Segera Expired</span>';
+            }
+            row.insertCell(6).innerHTML = statusHtml;
+            
+            const confirmBtn = document.createElement('button');
+            confirmBtn.textContent = '✅ Konfirmasi & Tambah Saldo';
+            confirmBtn.className = 'confirm-deposit-btn';
             confirmBtn.onclick = async () => {
+                // Cek apakah sudah expired sebelum konfirmasi
+                const now = Date.now();
+                if (req.timestamp + 24*60*60*1000 < now) {
+                    showToast('Deposit sudah kadaluarsa, tidak bisa dikonfirmasi', true);
+                    await loadDepositRequests(); // refresh
+                    return;
+                }
                 confirmBtn.disabled = true; confirmBtn.textContent = 'Memproses...';
                 try {
                     const driverSnap = await database.ref(`drivers/${req.driverId}`).once('value');
@@ -175,16 +235,17 @@
                     await saveDriverNotification(req.driverId, 'Deposit Dikonfirmasi', `Deposit Rp ${req.uniqueAmount.toLocaleString()} telah ditambahkan.`);
                     const playerId = await getDriverPlayerId(req.driverId);
                     if (playerId) await sendPushNotification(playerId, 'Deposit Diterima', `Saldo Anda bertambah Rp ${req.uniqueAmount.toLocaleString()}.`);
-                    // Hapus dari array lokal
+                    // Update array lokal
                     depositRequests = depositRequests.filter(r => !(r.logId === req.logId && r.driverId === req.driverId));
                     applyDepositFilter();
                     showToast(`Saldo ${req.driver_name} berhasil ditambah ${formatRupiah(req.uniqueAmount)}`);
                 } catch(err) { showToast(err.message, true); } finally { confirmBtn.disabled = false; confirmBtn.textContent = '✅ Konfirmasi & Tambah Saldo'; }
             };
-            row.insertCell(6).appendChild(confirmBtn);
+            row.insertCell(7).appendChild(confirmBtn);
         });
     }
 
+    // ========== AUTH & INIT ==========
     auth.onAuthStateChanged(async (user) => {
         if (!user) { window.location.href = 'login_admin.html'; return; }
         const adminSnap = await database.ref(`admins/${user.uid}`).once('value');
@@ -194,6 +255,8 @@
         document.getElementById('refreshDepositsBtn').onclick = loadDepositRequests;
         document.getElementById('depositSearch').addEventListener('input', applyDepositFilter);
         document.getElementById('logoutBtn').onclick = async () => { await auth.signOut(); window.location.href = 'login_admin.html'; };
+        // Jalankan cleanup setiap 30 menit
+        setInterval(cleanupExpiredDeposits, 30 * 60 * 1000);
     });
 </script>
 </body>
