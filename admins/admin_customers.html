@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>JeGo Admin - Manajemen Customer & Notifikasi</title>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f0f2f5; padding: 20px; }
+        .container { max-width: 1400px; margin: 0 auto; background: white; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); overflow: hidden; }
+        .header { background: linear-gradient(135deg, #FF9800, #FFB74D); padding: 20px 24px; color: white; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; }
+        .header h1 { font-size: 1.6rem; display: flex; align-items: center; gap: 12px; }
+        .logout-btn { background: rgba(255,255,255,0.2); border: none; color: white; padding: 8px 18px; border-radius: 30px; cursor: pointer; font-weight: 600; transition: 0.2s; }
+        .logout-btn:hover { background: rgba(255,255,255,0.35); }
+        .toolbar { padding: 16px 24px; background: #f8f9fa; border-bottom: 1px solid #e9ecef; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
+        .search-box { padding: 8px 14px; border: 1px solid #ddd; border-radius: 30px; width: 260px; outline: none; font-size: 0.85rem; }
+        .broadcast-btn, .refresh-btn { background: #FF9800; color: white; border: none; padding: 8px 18px; border-radius: 30px; cursor: pointer; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; }
+        .broadcast-btn { background: #3b82f6; }
+        .stats-badge { background: #e9ecef; padding: 5px 14px; border-radius: 30px; font-size: 0.8rem; font-weight: 500; color: #1e293b; }
+        .table-wrapper { overflow-x: auto; padding: 0 0 20px 0; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+        th, td { padding: 12px 6px; text-align: left; border-bottom: 1px solid #edf2f7; vertical-align: middle; }
+        th { background: #f8fafc; font-weight: 600; color: #1e293b; position: sticky; top: 0; }
+        tr:hover { background: #fef9e6; }
+        .customer-photo { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; background: #f1f5f9; border: 1px solid #e2e8f0; }
+        .edit-btn, .send-notif-btn { border: none; padding: 6px 10px; border-radius: 8px; cursor: pointer; font-size: 0.7rem; font-weight: 600; transition: 0.2s; }
+        .edit-btn { background: #3b82f6; color: white; }
+        .send-notif-btn { background: #8b5cf6; color: white; }
+        .action-buttons { display: flex; gap: 6px; flex-wrap: wrap; }
+        .toast { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); background: #1e293b; color: white; padding: 10px 20px; border-radius: 40px; font-size: 0.85rem; z-index: 1000; opacity: 0; transition: opacity 0.2s; pointer-events: none; }
+        .toast.show { opacity: 1; }
+        .loading-overlay { display: flex; justify-content: center; padding: 50px; }
+        .spinner { width: 40px; height: 40px; border: 4px solid #e2e8f0; border-top-color: #FF9800; border-radius: 50%; animation: spin 0.8s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .empty-row td { text-align: center; padding: 40px; color: #64748b; }
+        .footer-note { padding: 12px 24px; background: #f8fafc; text-align: center; font-size: 0.7rem; color: #475569; border-top: 1px solid #e2e8f0; }
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); z-index: 2000; align-items: center; justify-content: center; }
+        .modal-content { background: white; border-radius: 24px; width: 90%; max-width: 500px; }
+        .modal-header { background: linear-gradient(135deg, #FF9800, #FFB74D); color: white; padding: 20px; border-radius: 24px 24px 0 0; display: flex; justify-content: space-between; align-items: center; }
+        .modal-header h2 { font-size: 1.3rem; }
+        .modal-close { background: none; border: none; font-size: 26px; cursor: pointer; color: white; }
+        .modal-body { padding: 20px; }
+        .form-group { margin-bottom: 18px; }
+        .form-group label { display: block; font-weight: 600; margin-bottom: 6px; color: #1e293b; font-size: 0.85rem; }
+        .form-group input, .form-group textarea { width: 100%; padding: 10px 14px; border: 1px solid #cbd5e1; border-radius: 12px; font-size: 0.9rem; }
+        .modal-footer { padding: 16px 20px; border-top: 1px solid #e2e8f0; display: flex; justify-content: flex-end; gap: 12px; }
+        .modal-btn { padding: 10px 20px; border-radius: 40px; border: none; font-weight: 600; cursor: pointer; }
+        .modal-btn-cancel { background: #e2e8f0; color: #1e293b; }
+        .modal-btn-save { background: #FF9800; color: white; }
+        @media (max-width: 700px) { body { padding: 10px; } th, td { padding: 6px; font-size: 0.7rem; } }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1><i class="fas fa-user-friends"></i> Manajemen Customer & Notifikasi</h1>
+        <button class="logout-btn" id="logoutBtn"><i class="fas fa-sign-out-alt"></i> Logout Admin</button>
+    </div>
+    <div class="toolbar">
+        <div style="display: flex; gap: 10px; flex-wrap: wrap; width: 100%; align-items: center;">
+            <input type="text" id="customerSearch" class="search-box" placeholder="Cari nama, telepon, email...">
+            <div style="flex:1; display: flex; justify-content: flex-end; gap: 12px;">
+                <div class="stats-badge" id="customerStats">Menampilkan <span id="customerDisplayCount">0</span> dari <span id="customerTotalCount">0</span></div>
+                <button class="broadcast-btn" id="broadcastCustomerBtn"><i class="fas fa-bullhorn"></i> Broadcast ke Semua Customer</button>
+                <button class="refresh-btn" id="refreshCustomersBtn"><i class="fas fa-sync-alt"></i> Refresh</button>
+            </div>
+        </div>
+    </div>
+    <div class="table-wrapper">
+        <table id="customerTable">
+            <thead>
+                <tr><th>Foto</th><th>Nama</th><th>Telepon</th><th>Email</th><th>Rating</th><th>Jumlah Rating</th><th>Player ID</th><th>Aksi</th> 
+            </thead>
+            <tbody id="customerTableBody"><tr class="empty-row"><td colspan="8"><div class="loading-overlay"><div class="spinner"></div></div></tr></tbody>
+        </table>
+    </div>
+    <div class="footer-note">
+        <i class="fas fa-info-circle"></i> Klik <strong>Edit Data</strong> untuk mengubah nama, telepon, email customer. <strong>Kirim Notif</strong> untuk mengirim pesan manual ke customer via OneSignal.
+    </div>
+</div>
+
+<!-- Modal Edit Customer -->
+<div id="editCustomerModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header"><h2><i class="fas fa-edit"></i> Edit Customer</h2><button class="modal-close close-customer-modal">&times;</button></div>
+        <div class="modal-body">
+            <input type="hidden" id="editCustomerUid">
+            <div class="form-group"><label>Nama</label><input type="text" id="editCustomerName"></div>
+            <div class="form-group"><label>Telepon</label><input type="tel" id="editCustomerPhone"></div>
+            <div class="form-group"><label>Email</label><input type="email" id="editCustomerEmail"></div>
+            <div class="form-group"><label>Rating</label><input type="text" id="editCustomerRating" readonly style="background:#e9ecef;"></div>
+        </div>
+        <div class="modal-footer"><button class="modal-btn modal-btn-cancel close-customer-modal">Batal</button><button class="modal-btn modal-btn-save" id="saveCustomerBtn">Simpan</button></div>
+    </div>
+</div>
+
+<!-- Modal Kirim Notifikasi ke Customer -->
+<div id="notifCustomerModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header"><h2><i class="fas fa-paper-plane"></i> Kirim Notifikasi ke Customer</h2><button class="modal-close close-notif-modal">&times;</button></div>
+        <div class="modal-body">
+            <input type="hidden" id="notifCustomerUid">
+            <div class="form-group"><label>Kepada</label><input type="text" id="notifTargetName" readonly style="background:#e9ecef;"></div>
+            <div class="form-group"><label>Judul</label><input type="text" id="notifTitle" placeholder="Judul notifikasi" value="📢 Pengumuman dari JeGo"></div>
+            <div class="form-group"><label>Pesan</label><textarea id="notifMessage" rows="4" placeholder="Tulis pesan..."></textarea></div>
+        </div>
+        <div class="modal-footer"><button class="modal-btn modal-btn-cancel close-notif-modal">Batal</button><button class="modal-btn modal-btn-save" id="sendNotifNowBtn">Kirim Sekarang</button></div>
+    </div>
+</div>
+
+<div id="toastMsg" class="toast"></div>
+
+<script>
+    const firebaseConfig = {
+        apiKey: "AIzaSyCD0pgeZio-LdKqYDtWxcdXcZwyL4ngYQI",
+        authDomain: "jego-35a2b.firebaseapp.com",
+        databaseURL: "https://jego-35a2b-default-rtdb.asia-southeast1.firebasedatabase.app",
+        projectId: "jego-35a2b",
+        storageBucket: "jego-35a2b.firebasestorage.app",
+        messagingSenderId: "600037007040",
+        appId: "1:600037007040:web:ac3243ad9b472647ffd725"
+    };
+    if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const database = firebase.database();
+
+    let allCustomers = [];
+    let onesignalApiKey = null;
+    const ONESIGNAL_APP_ID = "007d7eba-9cfc-40d1-a92e-f2299f770282";
+
+    // ========== ONE SIGNAL ==========
+    async function getOneSignalApiKey() {
+        if (onesignalApiKey) return onesignalApiKey;
+        try {
+            const snap = await database.ref('data-jego/PushKey').once('value');
+            onesignalApiKey = snap.val();
+            return onesignalApiKey;
+        } catch(e) { return null; }
+    }
+
+    async function sendPushNotification(playerId, title, message, extraData = {}) {
+        if (!playerId) return false;
+        const apiKey = await getOneSignalApiKey();
+        if (!apiKey) return false;
+        try {
+            const res = await fetch("https://onesignal.com/api/v1/notifications", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "Authorization": `Basic ${apiKey}` },
+                body: JSON.stringify({
+                    app_id: ONESIGNAL_APP_ID,
+                    include_player_ids: [playerId],
+                    headings: { en: title },
+                    contents: { en: message },
+                    data: { type: "admin_broadcast_customer", ...extraData },
+                    priority: 10,
+                    android_priority: "high",
+                    android_channel_id: "022cc65d-3fb9-4939-85df-07e7cf3df0b8",
+                    small_icon: "ic_stat_onesignal_default",
+                    large_icon: "https://ojekaGorontalo.github.io/Logo/logo.png",
+                    android_sound: "default"
+                })
+            });
+            const result = await res.json();
+            if (result.errors) {
+                console.error("OneSignal error:", result.errors);
+                return false;
+            }
+            return true;
+        } catch(err) {
+            console.error(err);
+            return false;
+        }
+    }
+
+    async function saveCustomerNotification(customerId, title, message, type = 'admin') {
+        if (!customerId) return;
+        try {
+            await database.ref(`customer_notifications/${customerId}`).push({
+                title, message, timestamp: firebase.database.ServerValue.TIMESTAMP, read: false, type
+            });
+        } catch(err) { console.error(err); }
+    }
+
+    function showToast(msg, isError = false) {
+        const toast = document.getElementById('toastMsg');
+        toast.textContent = msg;
+        toast.style.background = isError ? '#b91c1c' : '#1e293b';
+        toast.classList.add('show');
+        setTimeout(() => toast.classList.remove('show'), 3000);
+    }
+
+    // ========== LOAD CUSTOMERS ==========
+    async function loadCustomers() {
+        const tbody = document.getElementById('customerTableBody');
+        tbody.innerHTML = '<tr class="empty-row"><td colspan="8"><div class="loading-overlay"><div class="spinner"></div></div></tr>';
+        try {
+            const snapshot = await database.ref('users').once('value');
+            const usersObj = snapshot.val() || {};
+            const customers = [];
+            for (const [uid, data] of Object.entries(usersObj)) {
+                // Filter: bukan driver dan bukan admin
+                if (data.role !== 'driver' && data.role !== 'admin') {
+                    customers.push({
+                        uid,
+                        name: data.name || '-',
+                        phone: data.phone || '-',
+                        email: data.email || '-',
+                        rating: data.rating || 0,
+                        ratingCount: data.ratingCount || 0,
+                        photoURL: data.photoURL || '',
+                        playerId: data.playerId || null,
+                        status: data.status || 'active'
+                    });
+                }
+            }
+            allCustomers = customers;
+            applyCustomerFilter();
+        } catch(err) {
+            console.error(err);
+            showToast('Gagal load customer', true);
+        }
+    }
+
+    function applyCustomerFilter() {
+        const keyword = document.getElementById('customerSearch').value.toLowerCase();
+        const filtered = allCustomers.filter(c => 
+            keyword === '' || 
+            (c.name && c.name.toLowerCase().includes(keyword)) || 
+            (c.phone && c.phone.toLowerCase().includes(keyword)) || 
+            (c.email && c.email.toLowerCase().includes(keyword))
+        );
+        renderCustomerTable(filtered);
+        document.getElementById('customerTotalCount').innerText = allCustomers.length;
+        document.getElementById('customerDisplayCount').innerText = filtered.length;
+    }
+
+    function renderCustomerTable(customers) {
+        const tbody = document.getElementById('customerTableBody');
+        if (!customers.length) {
+            tbody.innerHTML = '<tr class="empty-row"><td colspan="8">Tidak ada customer</tr>';
+            return;
+        }
+        tbody.innerHTML = '';
+        customers.forEach(c => {
+            const row = tbody.insertRow();
+            // Foto
+            const img = document.createElement('img');
+            img.src = c.photoURL || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png';
+            img.className = 'customer-photo';
+            img.onerror = () => img.src = 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png';
+            row.insertCell(0).appendChild(img);
+            row.insertCell(1).textContent = c.name;
+            row.insertCell(2).textContent = c.phone;
+            row.insertCell(3).textContent = c.email;
+            row.insertCell(4).textContent = c.rating.toFixed(1);
+            row.insertCell(5).textContent = c.ratingCount;
+            // Player ID status
+            const playerIdSpan = document.createElement('span');
+            if (c.playerId) {
+                playerIdSpan.innerHTML = `<span style="color:green;">✅ Ada</span>`;
+                playerIdSpan.title = c.playerId;
+            } else {
+                playerIdSpan.innerHTML = `<span style="color:red;">❌ Tidak ada</span>`;
+            }
+            row.insertCell(6).appendChild(playerIdSpan);
+            // Aksi buttons
+            const actionDiv = document.createElement('div'); actionDiv.className = 'action-buttons';
+            const editBtn = document.createElement('button'); editBtn.textContent = 'Edit Data'; editBtn.className = 'edit-btn';
+            const notifBtn = document.createElement('button'); notifBtn.innerHTML = 'Kirim Notif'; notifBtn.className = 'send-notif-btn';
+            actionDiv.append(editBtn, notifBtn);
+            row.insertCell(7).appendChild(actionDiv);
+
+            editBtn.onclick = () => openCustomerEditModal(c);
+            notifBtn.onclick = () => openNotifModal(c);
+        });
+    }
+
+    // ========== EDIT CUSTOMER ==========
+    function openCustomerEditModal(customer) {
+        document.getElementById('editCustomerUid').value = customer.uid;
+        document.getElementById('editCustomerName').value = customer.name === '-' ? '' : customer.name;
+        document.getElementById('editCustomerPhone').value = customer.phone === '-' ? '' : customer.phone;
+        document.getElementById('editCustomerEmail').value = customer.email === '-' ? '' : customer.email;
+        document.getElementById('editCustomerRating').value = customer.rating.toFixed(1);
+        document.getElementById('editCustomerModal').style.display = 'flex';
+    }
+
+    async function saveCustomerEdit() {
+        const uid = document.getElementById('editCustomerUid').value;
+        const name = document.getElementById('editCustomerName').value.trim();
+        const phone = document.getElementById('editCustomerPhone').value.trim();
+        const email = document.getElementById('editCustomerEmail').value.trim();
+        if (!name || !phone) { showToast('Nama dan telepon wajib diisi', true); return; }
+        const btn = document.getElementById('saveCustomerBtn');
+        btn.disabled = true; btn.textContent = 'Menyimpan...';
+        try {
+            await database.ref(`users/${uid}`).update({ name, phone, email });
+            const idx = allCustomers.findIndex(c => c.uid === uid);
+            if (idx !== -1) {
+                allCustomers[idx].name = name;
+                allCustomers[idx].phone = phone;
+                allCustomers[idx].email = email;
+            }
+            applyCustomerFilter();
+            showToast('Data customer disimpan');
+            document.getElementById('editCustomerModal').style.display = 'none';
+        } catch(err) {
+            showToast(err.message, true);
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Simpan';
+        }
+    }
+
+    // ========== KIRIM NOTIFIKASI PER CUSTOMER ==========
+    function openNotifModal(customer) {
+        document.getElementById('notifCustomerUid').value = customer.uid;
+        document.getElementById('notifTargetName').value = customer.name;
+        document.getElementById('notifTitle').value = '📢 Pengumuman dari JeGo';
+        document.getElementById('notifMessage').value = '';
+        document.getElementById('notifCustomerModal').style.display = 'flex';
+    }
+
+    async function sendManualNotification() {
+        const uid = document.getElementById('notifCustomerUid').value;
+        const title = document.getElementById('notifTitle').value.trim();
+        const message = document.getElementById('notifMessage').value.trim();
+        if (!title || !message) {
+            showToast('Judul dan pesan harus diisi', true);
+            return;
+        }
+        const customer = allCustomers.find(c => c.uid === uid);
+        if (!customer) return;
+        if (!customer.playerId) {
+            showToast(`Customer ${customer.name} tidak memiliki Player ID, tidak bisa kirim notifikasi.`, true);
+            return;
+        }
+        const btn = document.getElementById('sendNotifNowBtn');
+        btn.disabled = true; btn.textContent = 'Mengirim...';
+        try {
+            // Simpan notifikasi ke database (opsional)
+            await saveCustomerNotification(uid, title, message, 'manual');
+            const sent = await sendPushNotification(customer.playerId, title, message, { customer_id: uid, manual: true });
+            if (sent) {
+                showToast(`Notifikasi terkirim ke ${customer.name}`);
+            } else {
+                showToast(`Gagal mengirim notifikasi ke ${customer.name}`, true);
+            }
+            document.getElementById('notifCustomerModal').style.display = 'none';
+        } catch(err) {
+            showToast(`Gagal: ${err.message}`, true);
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Kirim Sekarang';
+        }
+    }
+
+    // ========== BROADCAST KE SEMUA CUSTOMER ==========
+    async function broadcastToAllCustomers() {
+        const title = prompt("Masukkan judul notifikasi broadcast:", "Pengumuman dari Admin");
+        if (!title) return;
+        const message = prompt("Masukkan pesan broadcast:");
+        if (!message) return;
+        const customersWithPlayerId = allCustomers.filter(c => c.playerId);
+        if (customersWithPlayerId.length === 0) {
+            showToast("Tidak ada customer yang memiliki Player ID", true);
+            return;
+        }
+        const confirmSend = confirm(`Kirim broadcast ke ${customersWithPlayerId.length} customer?\nJudul: ${title}\nPesan: ${message}`);
+        if (!confirmSend) return;
+        
+        let success = 0, fail = 0;
+        for (const customer of customersWithPlayerId) {
+            try {
+                await saveCustomerNotification(customer.uid, title, message, 'broadcast');
+                const sent = await sendPushNotification(customer.playerId, title, message, { broadcast: true });
+                if (sent) success++;
+                else fail++;
+                // Delay untuk menghindari rate limit
+                await new Promise(r => setTimeout(r, 200));
+            } catch(e) {
+                fail++;
+            }
+        }
+        showToast(`Broadcast selesai: ${success} terkirim, ${fail} gagal.`);
+    }
+
+    // ========== INIT & AUTH ==========
+    function closeModals() {
+        document.querySelectorAll('.close-customer-modal').forEach(el => {
+            el.addEventListener('click', () => document.getElementById('editCustomerModal').style.display = 'none');
+        });
+        document.querySelectorAll('.close-notif-modal').forEach(el => {
+            el.addEventListener('click', () => document.getElementById('notifCustomerModal').style.display = 'none');
+        });
+        window.addEventListener('click', (e) => {
+            if (e.target === document.getElementById('editCustomerModal')) document.getElementById('editCustomerModal').style.display = 'none';
+            if (e.target === document.getElementById('notifCustomerModal')) document.getElementById('notifCustomerModal').style.display = 'none';
+        });
+    }
+
+    auth.onAuthStateChanged(async (user) => {
+        if (!user) {
+            window.location.href = 'login_admin.html';
+            return;
+        }
+        const adminSnap = await database.ref(`admins/${user.uid}`).once('value');
+        if (!adminSnap.exists()) {
+            showToast('Bukan admin', true);
+            await auth.signOut();
+            setTimeout(() => window.location.href = 'login_admin.html', 1500);
+            return;
+        }
+        await getOneSignalApiKey();
+        await loadCustomers();
+        
+        // Event listeners
+        document.getElementById('refreshCustomersBtn').onclick = loadCustomers;
+        document.getElementById('broadcastCustomerBtn').onclick = broadcastToAllCustomers;
+        document.getElementById('customerSearch').addEventListener('input', applyCustomerFilter);
+        document.getElementById('saveCustomerBtn').onclick = saveCustomerEdit;
+        document.getElementById('sendNotifNowBtn').onclick = sendManualNotification;
+        document.getElementById('logoutBtn').onclick = async () => {
+            await auth.signOut();
+            window.location.href = 'login_admin.html';
+        };
+        closeModals();
+    });
+</script>
+</body>
+</html>

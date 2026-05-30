@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>JeGo Admin - Permintaan Deposit</title>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f0f2f5; padding: 20px; }
+        .container { max-width: 1200px; margin: 0 auto; background: white; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); overflow: hidden; }
+        .header { background: linear-gradient(135deg, #FF9800, #FFB74D); padding: 20px 24px; color: white; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; }
+        .header h1 { font-size: 1.6rem; display: flex; align-items: center; gap: 12px; }
+        .logout-btn { background: rgba(255,255,255,0.2); border: none; color: white; padding: 8px 18px; border-radius: 30px; cursor: pointer; font-weight: 600; transition: 0.2s; }
+        .logout-btn:hover { background: rgba(255,255,255,0.35); }
+        .toolbar { padding: 16px 24px; background: #f8f9fa; border-bottom: 1px solid #e9ecef; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
+        .search-box { padding: 8px 14px; border: 1px solid #ddd; border-radius: 30px; width: 260px; outline: none; font-size: 0.85rem; }
+        .refresh-btn { background: #FF9800; color: white; border: none; padding: 8px 18px; border-radius: 30px; cursor: pointer; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; }
+        .stats-badge { background: #e9ecef; padding: 5px 14px; border-radius: 30px; font-size: 0.8rem; font-weight: 500; color: #1e293b; }
+        .table-wrapper { overflow-x: auto; padding: 0 0 20px 0; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+        th, td { padding: 12px 6px; text-align: left; border-bottom: 1px solid #edf2f7; vertical-align: middle; }
+        th { background: #f8fafc; font-weight: 600; color: #1e293b; }
+        tr:hover { background: #fef9e6; }
+        .confirm-deposit-btn { background: #10b981; color: white; border: none; padding: 6px 12px; border-radius: 8px; cursor: pointer; font-size: 0.7rem; font-weight: 600; }
+        .toast { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); background: #1e293b; color: white; padding: 10px 20px; border-radius: 40px; font-size: 0.85rem; z-index: 1000; opacity: 0; transition: opacity 0.2s; pointer-events: none; }
+        .toast.show { opacity: 1; }
+        .loading-overlay { display: flex; justify-content: center; padding: 50px; }
+        .spinner { width: 40px; height: 40px; border: 4px solid #e2e8f0; border-top-color: #FF9800; border-radius: 50%; animation: spin 0.8s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .empty-row td { text-align: center; padding: 40px; color: #64748b; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1><i class="fas fa-money-bill-wave"></i> Permintaan Deposit</h1>
+        <button class="logout-btn" id="logoutBtn"><i class="fas fa-sign-out-alt"></i> Logout Admin</button>
+    </div>
+    <div class="toolbar">
+        <div style="display: flex; gap: 10px; flex-wrap: wrap; width: 100%; align-items: center;">
+            <input type="text" id="depositSearch" class="search-box" placeholder="Cari nama driver, telepon...">
+            <div style="flex:1; display: flex; justify-content: flex-end; gap: 12px;">
+                <div class="stats-badge" id="depositStats">Menampilkan <span id="depositCount">0</span> permintaan pending</div>
+                <button class="refresh-btn" id="refreshDepositsBtn"><i class="fas fa-sync-alt"></i> Refresh</button>
+            </div>
+        </div>
+    </div>
+    <div class="table-wrapper">
+        <table id="depositTable">
+            <thead><tr><th>Waktu</th><th>Driver</th><th>Telepon</th><th>Jumlah Deposit</th><th>Total Transfer</th><th>Kode Unik</th><th>Aksi</th></tr></thead>
+            <tbody id="depositTableBody"><tr class="empty-row"><td colspan="7"><div class="loading-overlay"><div class="spinner"></div></div></tr></tbody>
+        </table>
+    </div>
+</div>
+<div id="toastMsg" class="toast"></div>
+
+<script>
+    const firebaseConfig = {
+        apiKey: "AIzaSyCD0pgeZio-LdKqYDtWxcdXcZwyL4ngYQI",
+        authDomain: "jego-35a2b.firebaseapp.com",
+        databaseURL: "https://jego-35a2b-default-rtdb.asia-southeast1.firebasedatabase.app",
+        projectId: "jego-35a2b",
+        storageBucket: "jego-35a2b.firebasestorage.app",
+        messagingSenderId: "600037007040",
+        appId: "1:600037007040:web:ac3243ad9b472647ffd725"
+    };
+    if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const database = firebase.database();
+
+    let depositRequests = [];
+    let onesignalApiKey = null;
+    const ONESIGNAL_APP_ID = "007d7eba-9cfc-40d1-a92e-f2299f770282";
+
+    async function getOneSignalApiKey() {
+        if (onesignalApiKey) return onesignalApiKey;
+        try {
+            const snap = await database.ref('data-jego/PushKey').once('value');
+            onesignalApiKey = snap.val();
+            return onesignalApiKey;
+        } catch(e) { return null; }
+    }
+
+    async function sendPushNotification(playerId, title, message, extraData = {}) {
+        if (!playerId) return false;
+        const apiKey = await getOneSignalApiKey();
+        if (!apiKey) return false;
+        try {
+            await fetch("https://onesignal.com/api/v1/notifications", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "Authorization": `Basic ${apiKey}` },
+                body: JSON.stringify({ app_id: ONESIGNAL_APP_ID, include_player_ids: [playerId], headings: { en: title }, contents: { en: message }, data: { type: "deposit", ...extraData }, priority: 10 })
+            });
+            return true;
+        } catch(err) { return false; }
+    }
+
+    async function saveDriverNotification(driverId, title, message, type = 'deposit') {
+        if (!driverId) return;
+        try { await database.ref(`driver_notifications/${driverId}`).push({ title, message, timestamp: firebase.database.ServerValue.TIMESTAMP, read: false, type }); } catch(err) { console.error(err); }
+    }
+
+    async function getDriverPlayerId(driverId) {
+        try {
+            const locSnap = await database.ref(`driver_locations/${driverId}/playerId`).once('value');
+            let playerId = locSnap.val();
+            if (!playerId) { const driverSnap = await database.ref(`drivers/${driverId}/playerId`).once('value'); playerId = driverSnap.val(); }
+            return playerId;
+        } catch(e) { return null; }
+    }
+
+    function showToast(msg, isError = false) {
+        const toast = document.getElementById('toastMsg');
+        toast.textContent = msg;
+        toast.style.background = isError ? '#b91c1c' : '#1e293b';
+        toast.classList.add('show');
+        setTimeout(() => toast.classList.remove('show'), 3000);
+    }
+    function formatRupiah(amount) { return 'Rp ' + (amount || 0).toLocaleString('id-ID'); }
+
+    async function loadDepositRequests() {
+        const tbody = document.getElementById('depositTableBody');
+        tbody.innerHTML = '<tr class="empty-row"><td colspan="7"><div class="loading-overlay"><div class="spinner"></div></div></tr>';
+        try {
+            const logsSnap = await database.ref('driver_balance_logs').once('value');
+            const requests = [];
+            logsSnap.forEach(driverChild => {
+                const driverId = driverChild.key;
+                driverChild.forEach(logChild => {
+                    const log = logChild.val();
+                    if (log.type === 'deposit_request' && log.status === 'pending') {
+                        requests.push({ driverId, logId: logChild.key, ...log, timestamp: log.timestamp || 0 });
+                    }
+                });
+            });
+            requests.sort((a,b) => (b.timestamp || 0) - (a.timestamp || 0));
+            depositRequests = requests;
+            applyDepositFilter();
+        } catch(err) { console.error(err); showToast('Gagal load deposit', true); }
+    }
+
+    function applyDepositFilter() {
+        const keyword = document.getElementById('depositSearch').value.toLowerCase();
+        let filtered = depositRequests.filter(req => keyword === '' || (req.driver_name && req.driver_name.toLowerCase().includes(keyword)) || (req.driver_phone && req.driver_phone.toLowerCase().includes(keyword)));
+        renderDepositTable(filtered);
+        document.getElementById('depositCount').innerText = filtered.length;
+    }
+
+    function renderDepositTable(requests) {
+        const tbody = document.getElementById('depositTableBody');
+        if (!requests.length) { tbody.innerHTML = '<tr class="empty-row"><td colspan="7">Tidak ada permintaan deposit pending</tr>'; return; }
+        tbody.innerHTML = '';
+        requests.forEach(req => {
+            const row = tbody.insertRow();
+            row.insertCell(0).textContent = req.timestamp ? new Date(req.timestamp).toLocaleString('id-ID') : '-';
+            row.insertCell(1).textContent = req.driver_name || '-';
+            row.insertCell(2).textContent = req.driver_phone || '-';
+            row.insertCell(3).innerHTML = formatRupiah(req.amount);
+            row.insertCell(4).innerHTML = formatRupiah(req.uniqueAmount);
+            row.insertCell(5).textContent = req.uniqueDigits;
+            const confirmBtn = document.createElement('button'); confirmBtn.textContent = '✅ Konfirmasi & Tambah Saldo'; confirmBtn.className = 'confirm-deposit-btn';
+            confirmBtn.onclick = async () => {
+                confirmBtn.disabled = true; confirmBtn.textContent = 'Memproses...';
+                try {
+                    const driverSnap = await database.ref(`drivers/${req.driverId}`).once('value');
+                    const driverData = driverSnap.val();
+                    const oldBalance = driverData.balance || 0;
+                    const newBalance = oldBalance + req.uniqueAmount;
+                    await database.ref(`drivers/${req.driverId}/balance`).set(newBalance);
+                    await database.ref(`driver_balance_logs/${req.driverId}/${req.logId}/status`).set('confirmed');
+                    await saveDriverNotification(req.driverId, 'Deposit Dikonfirmasi', `Deposit Rp ${req.uniqueAmount.toLocaleString()} telah ditambahkan.`);
+                    const playerId = await getDriverPlayerId(req.driverId);
+                    if (playerId) await sendPushNotification(playerId, 'Deposit Diterima', `Saldo Anda bertambah Rp ${req.uniqueAmount.toLocaleString()}.`);
+                    // Hapus dari array lokal
+                    depositRequests = depositRequests.filter(r => !(r.logId === req.logId && r.driverId === req.driverId));
+                    applyDepositFilter();
+                    showToast(`Saldo ${req.driver_name} berhasil ditambah ${formatRupiah(req.uniqueAmount)}`);
+                } catch(err) { showToast(err.message, true); } finally { confirmBtn.disabled = false; confirmBtn.textContent = '✅ Konfirmasi & Tambah Saldo'; }
+            };
+            row.insertCell(6).appendChild(confirmBtn);
+        });
+    }
+
+    auth.onAuthStateChanged(async (user) => {
+        if (!user) { window.location.href = 'login_admin.html'; return; }
+        const adminSnap = await database.ref(`admins/${user.uid}`).once('value');
+        if (!adminSnap.exists()) { showToast('Bukan admin', true); await auth.signOut(); setTimeout(() => window.location.href = 'login_admin.html', 1500); return; }
+        await getOneSignalApiKey();
+        await loadDepositRequests();
+        document.getElementById('refreshDepositsBtn').onclick = loadDepositRequests;
+        document.getElementById('depositSearch').addEventListener('input', applyDepositFilter);
+        document.getElementById('logoutBtn').onclick = async () => { await auth.signOut(); window.location.href = 'login_admin.html'; };
+    });
+</script>
+</body>
+</html>

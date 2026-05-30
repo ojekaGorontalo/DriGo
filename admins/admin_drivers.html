@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>JeGo Admin - Manajemen Driver</title>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f0f2f5; padding: 20px; }
+        .container { max-width: 1400px; margin: 0 auto; background: white; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); overflow: hidden; }
+        .header { background: linear-gradient(135deg, #FF9800, #FFB74D); padding: 20px 24px; color: white; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; }
+        .header h1 { font-size: 1.6rem; display: flex; align-items: center; gap: 12px; }
+        .logout-btn { background: rgba(255,255,255,0.2); border: none; color: white; padding: 8px 18px; border-radius: 30px; cursor: pointer; font-weight: 600; transition: 0.2s; }
+        .logout-btn:hover { background: rgba(255,255,255,0.35); }
+        .toolbar { padding: 16px 24px; background: #f8f9fa; border-bottom: 1px solid #e9ecef; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
+        .search-box { padding: 8px 14px; border: 1px solid #ddd; border-radius: 30px; width: 260px; outline: none; font-size: 0.85rem; }
+        .filter-select { padding: 8px 14px; border: 1px solid #ddd; border-radius: 30px; background: white; font-size: 0.85rem; cursor: pointer; }
+        .refresh-btn, .activate-all-btn, .broadcast-btn { background: #FF9800; color: white; border: none; padding: 8px 18px; border-radius: 30px; cursor: pointer; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; }
+        .activate-all-btn { background: #10b981; }
+        .broadcast-btn { background: #3b82f6; }
+        .stats-badge { background: #e9ecef; padding: 5px 14px; border-radius: 30px; font-size: 0.8rem; font-weight: 500; color: #1e293b; }
+        .table-wrapper { overflow-x: auto; padding: 0 0 20px 0; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+        th, td { padding: 12px 6px; text-align: left; border-bottom: 1px solid #edf2f7; vertical-align: middle; }
+        th { background: #f8fafc; font-weight: 600; color: #1e293b; position: sticky; top: 0; }
+        tr:hover { background: #fef9e6; }
+        .driver-photo { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; background: #f1f5f9; border: 1px solid #e2e8f0; }
+        .status-badge { display: inline-block; padding: 4px 12px; border-radius: 30px; font-size: 0.7rem; font-weight: 600; text-align: center; min-width: 80px; }
+        .status-accepted, .status-active { background: #dcfce7; color: #15803d; }
+        .status-pending { background: #fff3cd; color: #b45309; }
+        .status-rejected { background: #fee2e2; color: #b91c1c; }
+        .status-blocked { background: #f1f5f9; color: #334155; }
+        .reason-input { width: 120px; padding: 6px 8px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 0.75rem; }
+        .action-buttons { display: flex; gap: 6px; flex-wrap: wrap; }
+        .update-status-btn, .edit-btn, .topup-btn, .send-notif-btn { border: none; padding: 6px 10px; border-radius: 8px; cursor: pointer; font-size: 0.7rem; font-weight: 600; transition: 0.2s; }
+        .update-status-btn { background: #FF9800; color: white; }
+        .edit-btn { background: #3b82f6; color: white; }
+        .topup-btn { background: #10b981; color: white; }
+        .send-notif-btn { background: #8b5cf6; color: white; }
+        .toggle-switch { position: relative; display: inline-block; width: 44px; height: 22px; margin: 0 5px; }
+        .toggle-switch input { opacity: 0; width: 0; height: 0; }
+        .toggle-slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .3s; border-radius: 22px; }
+        .toggle-slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 2px; bottom: 2px; background-color: white; transition: .3s; border-radius: 50%; }
+        input:checked + .toggle-slider { background-color: #4CAF50; }
+        input:checked + .toggle-slider:before { transform: translateX(22px); }
+        .toast { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); background: #1e293b; color: white; padding: 10px 20px; border-radius: 40px; font-size: 0.85rem; z-index: 1000; opacity: 0; transition: opacity 0.2s; pointer-events: none; }
+        .toast.show { opacity: 1; }
+        .loading-overlay { display: flex; justify-content: center; padding: 50px; }
+        .spinner { width: 40px; height: 40px; border: 4px solid #e2e8f0; border-top-color: #FF9800; border-radius: 50%; animation: spin 0.8s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .empty-row td { text-align: center; padding: 40px; color: #64748b; }
+        .footer-note { padding: 12px 24px; background: #f8fafc; text-align: center; font-size: 0.7rem; color: #475569; border-top: 1px solid #e2e8f0; }
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); z-index: 2000; align-items: center; justify-content: center; }
+        .modal-content { background: white; border-radius: 24px; width: 90%; max-width: 550px; max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 35px rgba(0,0,0,0.2); }
+        .modal-header { background: linear-gradient(135deg, #FF9800, #FFB74D); color: white; padding: 20px; border-radius: 24px 24px 0 0; display: flex; justify-content: space-between; align-items: center; }
+        .modal-header h2 { font-size: 1.3rem; }
+        .modal-close { background: none; border: none; font-size: 26px; cursor: pointer; color: white; }
+        .modal-body { padding: 20px; }
+        .form-group { margin-bottom: 18px; }
+        .form-group label { display: block; font-weight: 600; margin-bottom: 6px; color: #1e293b; font-size: 0.85rem; }
+        .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 10px 14px; border: 1px solid #cbd5e1; border-radius: 12px; font-size: 0.9rem; }
+        .modal-footer { padding: 16px 20px; border-top: 1px solid #e2e8f0; display: flex; justify-content: flex-end; gap: 12px; }
+        .modal-btn { padding: 10px 20px; border-radius: 40px; border: none; font-weight: 600; cursor: pointer; }
+        .modal-btn-cancel { background: #e2e8f0; color: #1e293b; }
+        .modal-btn-save { background: #FF9800; color: white; }
+        .balance-preview { background: #f0fdf4; padding: 10px; border-radius: 12px; font-weight: bold; }
+        @media (max-width: 700px) { body { padding: 10px; } th, td { padding: 6px; font-size: 0.7rem; } .action-buttons { flex-direction: column; } }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1><i class="fas fa-taxi"></i> Manajemen Driver</h1>
+        <button class="logout-btn" id="logoutBtn"><i class="fas fa-sign-out-alt"></i> Logout Admin</button>
+    </div>
+    <div class="toolbar">
+        <div style="display: flex; gap: 10px; flex-wrap: wrap; width: 100%; align-items: center;">
+            <input type="text" id="driverSearch" class="search-box" placeholder="Cari nama, telepon, plat...">
+            <select id="vehicleFilter" class="filter-select">
+                <option value="all">🚗 Semua kendaraan</option>
+            </select>
+            <div style="flex:1; display: flex; justify-content: flex-end; gap: 12px;">
+                <div class="stats-badge" id="driverStats">Menampilkan <span id="driverDisplayCount">0</span> dari <span id="driverTotalCount">0</span></div>
+                <button class="broadcast-btn" id="broadcastNotifBtn"><i class="fas fa-bullhorn"></i> Broadcast ke Semua Driver</button>
+                <button class="activate-all-btn" id="activateAllBtn"><i class="fas fa-check-double"></i> Aktifkan Semua</button>
+                <button class="refresh-btn" id="refreshDriversBtn"><i class="fas fa-sync-alt"></i> Refresh</button>
+            </div>
+        </div>
+    </div>
+    <div class="table-wrapper">
+        <table id="driverTable">
+            <thead>
+                <tr><th>Foto</th><th>Nama</th><th>Telepon</th><th>Email</th><th>Kendaraan</th><th>Plat</th><th>Rating</th><th>Perjalanan</th><th>Saldo</th><th>Status</th><th>Alasan</th><th>Tracking</th><th>Autobid</th><th>Aksi</th>
+                </tr>
+            </thead>
+            <tbody id="driverTableBody"><tr class="empty-row"><td colspan="14"><div class="loading-overlay"><div class="spinner"></div></div></tr></tbody>
+        </table>
+    </div>
+    <div class="footer-note"><i class="fas fa-info-circle"></i> Klik <strong>Edit Data</strong> untuk mengubah semua informasi driver. <strong>Kirim Notif</strong> pesan manual. <strong>Atur Saldo</strong> untuk topup atau potong saldo.</div>
+</div>
+
+<!-- Modal Edit Driver -->
+<div id="editDriverModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header"><h2><i class="fas fa-edit"></i> Edit Driver</h2><button class="modal-close close-driver-modal">&times;</button></div>
+        <div class="modal-body">
+            <input type="hidden" id="editDriverUid">
+            <div class="form-group"><label>Nama Lengkap</label><input type="text" id="editDriverName"></div>
+            <div class="form-group"><label>Telepon</label><input type="tel" id="editDriverPhone"></div>
+            <div class="form-group"><label>Email</label><input type="email" id="editDriverEmail"></div>
+            <div class="form-group"><label>Tanggal Lahir</label><input type="date" id="editDriverDob"></div>
+            <div class="form-group"><label>Jenis Kendaraan</label><input type="text" id="editDriverVehicleType" placeholder="motor / bentor"></div>
+            <div class="form-group"><label>Merek Kendaraan</label><input type="text" id="editDriverVehicleBrand"></div>
+            <div class="form-group"><label>Tahun Kendaraan</label><input type="number" id="editDriverVehicleYear"></div>
+            <div class="form-group"><label>Plat Nomor</label><input type="text" id="editDriverPlate"></div>
+            <div class="form-group"><label>Rating (0-5)</label><input type="number" id="editDriverRating" step="0.1" min="0" max="5"></div>
+            <div class="form-group"><label>Perjalanan</label><input type="number" id="editDriverTrips" step="1" min="0"></div>
+            <div class="form-group"><label>Saldo (Rp)</label><input type="number" id="editDriverBalance" step="1000" min="0"></div>
+            <div class="form-group"><label>Status</label><select id="editDriverStatus"><option value="active">Active</option><option value="accepted">Accepted</option><option value="pending">Pending</option><option value="rejected">Rejected</option><option value="blocked">Blocked</option></select></div>
+        </div>
+        <div class="modal-footer"><button class="modal-btn modal-btn-cancel close-driver-modal">Batal</button><button class="modal-btn modal-btn-save" id="saveDriverBtn">Simpan</button></div>
+    </div>
+</div>
+
+<!-- Modal Kirim Notifikasi -->
+<div id="notifDriverModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header"><h2><i class="fas fa-paper-plane"></i> Kirim Notifikasi</h2><button class="modal-close close-notif-modal">&times;</button></div>
+        <div class="modal-body">
+            <input type="hidden" id="notifDriverUid">
+            <div class="form-group"><label>Kepada</label><input type="text" id="notifTargetName" readonly style="background:#e9ecef;"></div>
+            <div class="form-group"><label>Judul</label><input type="text" id="notifTitle" placeholder="Judul notifikasi"></div>
+            <div class="form-group"><label>Pesan</label><textarea id="notifMessage" rows="4" placeholder="Tulis pesan..."></textarea></div>
+        </div>
+        <div class="modal-footer"><button class="modal-btn modal-btn-cancel close-notif-modal">Batal</button><button class="modal-btn modal-btn-save" id="sendNotifNowBtn">Kirim Sekarang</button></div>
+    </div>
+</div>
+
+<!-- Modal Atur Saldo -->
+<div id="topupModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header"><h2><i class="fas fa-wallet"></i> Atur Saldo Driver</h2><button class="modal-close close-topup-modal">&times;</button></div>
+        <div class="modal-body">
+            <input type="hidden" id="topupDriverUid">
+            <div class="form-group"><label>Nama</label><input type="text" id="topupDriverName" readonly style="background:#e9ecef;"></div>
+            <div class="form-group"><label>Saldo Saat Ini</label><input type="text" id="currentBalance" readonly style="background:#e9ecef;"></div>
+            <div class="form-group"><label>Jenis</label><select id="transactionType"><option value="add">Tambah Saldo</option><option value="subtract">Kurangi Saldo</option></select></div>
+            <div class="form-group"><label>Nominal (Rp)</label><input type="number" id="topupAmount" step="1000" min="1" placeholder="Masukkan nominal"></div>
+            <div class="form-group"><label>Keterangan</label><input type="text" id="topupNote" placeholder="Contoh: Bonus referral"></div>
+            <div class="form-group"><label>Saldo Baru</label><div class="balance-preview" id="newBalancePreview">Rp 0</div></div>
+        </div>
+        <div class="modal-footer"><button class="modal-btn modal-btn-cancel close-topup-modal">Batal</button><button class="modal-btn modal-btn-save" id="confirmTopupBtn">Proses & Kirim Notif</button></div>
+    </div>
+</div>
+
+<div id="toastMsg" class="toast"></div>
+
+<script>
+    const firebaseConfig = {
+        apiKey: "AIzaSyCD0pgeZio-LdKqYDtWxcdXcZwyL4ngYQI",
+        authDomain: "jego-35a2b.firebaseapp.com",
+        databaseURL: "https://jego-35a2b-default-rtdb.asia-southeast1.firebasedatabase.app",
+        projectId: "jego-35a2b",
+        storageBucket: "jego-35a2b.firebasestorage.app",
+        messagingSenderId: "600037007040",
+        appId: "1:600037007040:web:ac3243ad9b472647ffd725"
+    };
+    if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const database = firebase.database();
+
+    let allDrivers = [];
+    let currentDriverForTopup = null;
+    let onesignalApiKey = null;
+    const ONESIGNAL_APP_ID = "007d7eba-9cfc-40d1-a92e-f2299f770282";
+
+    async function getOneSignalApiKey() {
+        if (onesignalApiKey) return onesignalApiKey;
+        try {
+            const snap = await database.ref('data-jego/PushKey').once('value');
+            onesignalApiKey = snap.val();
+            return onesignalApiKey;
+        } catch(e) { return null; }
+    }
+
+    async function sendPushNotification(playerId, title, message, extraData = {}) {
+        if (!playerId) return false;
+        const apiKey = await getOneSignalApiKey();
+        if (!apiKey) return false;
+        try {
+            await fetch("https://onesignal.com/api/v1/notifications", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "Authorization": `Basic ${apiKey}` },
+                body: JSON.stringify({ app_id: ONESIGNAL_APP_ID, include_player_ids: [playerId], headings: { en: title }, contents: { en: message }, data: { type: "admin_manual", ...extraData }, priority: 10 })
+            });
+            return true;
+        } catch(err) { return false; }
+    }
+
+    async function saveDriverNotification(driverId, title, message, type = 'info') {
+        if (!driverId) return;
+        try { await database.ref(`driver_notifications/${driverId}`).push({ title, message, timestamp: firebase.database.ServerValue.TIMESTAMP, read: false, type }); } catch(err) { console.error(err); }
+    }
+
+    async function getDriverPlayerId(driverId) {
+        try {
+            const locSnap = await database.ref(`driver_locations/${driverId}/playerId`).once('value');
+            let playerId = locSnap.val();
+            if (!playerId) { const driverSnap = await database.ref(`drivers/${driverId}/playerId`).once('value'); playerId = driverSnap.val(); }
+            return playerId;
+        } catch(e) { return null; }
+    }
+
+    function showToast(msg, isError = false) {
+        const toast = document.getElementById('toastMsg');
+        toast.textContent = msg;
+        toast.style.background = isError ? '#b91c1c' : '#1e293b';
+        toast.classList.add('show');
+        setTimeout(() => toast.classList.remove('show'), 3000);
+    }
+    function formatRupiah(amount) { return 'Rp ' + (amount || 0).toLocaleString('id-ID'); }
+
+    async function loadDrivers() {
+        const tbody = document.getElementById('driverTableBody');
+        tbody.innerHTML = '<tr class="empty-row"><td colspan="14"><div class="loading-overlay"><div class="spinner"></div></div></tr>';
+        try {
+            const [driversSnap, locSnap] = await Promise.all([database.ref('drivers').once('value'), database.ref('driver_locations').once('value')]);
+            const driversObj = driversSnap.val() || {};
+            const locObj = locSnap.val() || {};
+            const driversArray = [];
+            for (const [uid, data] of Object.entries(driversObj)) {
+                if (data.role === 'driver') {
+                    const locData = locObj[uid] || {};
+                    driversArray.push({
+                        uid, name: data.name || '-', phone: data.phone || '-', email: data.email || '-',
+                        vehicle_type: data.vehicle_type || '-', vehicle_brand: data.vehicle_brand || '-', vehicle_year: data.vehicle_year || '',
+                        plate_number: data.plate_number || '-', rating: data.rating || 0, perjalanan: data.perjalanan || 0,
+                        balance: data.balance || 0, status: data.status || 'pending', ketGagal: data.ketGagal || '',
+                        photoURL: data.photoURL || '', date_of_birth: data.date_of_birth || '',
+                        tracking_enabled: locData.tracking_enabled === true, autobid_enabled: locData.autobid_enabled === true
+                    });
+                }
+            }
+            allDrivers = driversArray;
+            populateVehicleFilter();
+            applyDriverFilter();
+        } catch (err) { tbody.innerHTML = `<tr class="empty-row"><td colspan="14">⚠️ Gagal load driver: ${err.message}</tr>`; }
+    }
+
+    function populateVehicleFilter() {
+        const vehicles = [...new Set(allDrivers.map(d => d.vehicle_type).filter(v => v && v !== '-'))];
+        const select = document.getElementById('vehicleFilter');
+        select.innerHTML = '<option value="all">🚗 Semua kendaraan</option>';
+        vehicles.forEach(v => { const opt = document.createElement('option'); opt.value = v; opt.textContent = v; select.appendChild(opt); });
+    }
+
+    function applyDriverFilter() {
+        const keyword = document.getElementById('driverSearch').value.toLowerCase();
+        const selectedVehicle = document.getElementById('vehicleFilter').value;
+        let filtered = allDrivers.filter(d => (keyword === '' || d.name.toLowerCase().includes(keyword) || d.phone.toLowerCase().includes(keyword) || d.plate_number.toLowerCase().includes(keyword)) && (selectedVehicle === 'all' || d.vehicle_type === selectedVehicle));
+        renderDriverTable(filtered);
+        document.getElementById('driverTotalCount').innerText = allDrivers.length;
+        document.getElementById('driverDisplayCount').innerText = filtered.length;
+    }
+
+    async function toggleDriverSetting(uid, field, newValue) {
+        const updates = {};
+        updates[`drivers/${uid}/${field}`] = newValue;
+        updates[`driver_locations/${uid}/${field}`] = newValue;
+        try {
+            await database.ref().update(updates);
+            const driver = allDrivers.find(d => d.uid === uid);
+            if (driver) driver[field] = newValue;
+            showToast(`Setting ${field} untuk ${driver ? driver.name : uid} diubah menjadi ${newValue ? 'ON' : 'OFF'}`);
+        } catch(err) { showToast(`Gagal: ${err.message}`, true); }
+    }
+
+    function renderDriverTable(drivers) {
+        const tbody = document.getElementById('driverTableBody');
+        if (!drivers.length) { tbody.innerHTML = '<tr class="empty-row"><td colspan="14">Tidak ada driver</tr>'; return; }
+        tbody.innerHTML = '';
+        drivers.forEach(d => {
+            const row = tbody.insertRow();
+            const img = document.createElement('img'); img.src = d.photoURL || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png'; img.className = 'driver-photo'; img.onerror = () => img.src = 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png';
+            row.insertCell(0).appendChild(img);
+            row.insertCell(1).textContent = d.name;
+            row.insertCell(2).textContent = d.phone;
+            row.insertCell(3).textContent = d.email;
+            row.insertCell(4).textContent = d.vehicle_type;
+            row.insertCell(5).textContent = d.plate_number;
+            row.insertCell(6).textContent = d.rating.toFixed(1);
+            row.insertCell(7).textContent = d.perjalanan;
+            row.insertCell(8).innerHTML = `<strong>${formatRupiah(d.balance)}</strong>`;
+            const statusSpan = document.createElement('span');
+            let statusClass = d.status === 'active' ? 'accepted' : d.status;
+            statusSpan.className = `status-badge status-${statusClass}`;
+            statusSpan.textContent = d.status.toUpperCase();
+            row.insertCell(9).appendChild(statusSpan);
+            const reasonInput = document.createElement('input'); reasonInput.type = 'text'; reasonInput.className = 'reason-input'; reasonInput.placeholder = 'Alasan'; reasonInput.value = d.ketGagal || '';
+            row.insertCell(10).appendChild(reasonInput);
+            // Tracking toggle
+            const trackingToggle = document.createElement('label'); trackingToggle.className = 'toggle-switch';
+            const trackingCheck = document.createElement('input'); trackingCheck.type = 'checkbox'; trackingCheck.checked = d.tracking_enabled === true;
+            trackingCheck.onchange = () => toggleDriverSetting(d.uid, 'tracking_enabled', trackingCheck.checked);
+            trackingToggle.appendChild(trackingCheck); trackingToggle.appendChild(document.createElement('span')).className = 'toggle-slider';
+            row.insertCell(11).appendChild(trackingToggle);
+            // Autobid toggle
+            const autobidToggle = document.createElement('label'); autobidToggle.className = 'toggle-switch';
+            const autobidCheck = document.createElement('input'); autobidCheck.type = 'checkbox'; autobidCheck.checked = d.autobid_enabled === true;
+            autobidCheck.onchange = () => toggleDriverSetting(d.uid, 'autobid_enabled', autobidCheck.checked);
+            autobidToggle.appendChild(autobidCheck); autobidToggle.appendChild(document.createElement('span')).className = 'toggle-slider';
+            row.insertCell(12).appendChild(autobidToggle);
+            // Aksi
+            const actionDiv = document.createElement('div'); actionDiv.className = 'action-buttons';
+            const updateBtn = document.createElement('button'); updateBtn.textContent = 'Update Status'; updateBtn.className = 'update-status-btn';
+            const editBtn = document.createElement('button'); editBtn.textContent = 'Edit Data'; editBtn.className = 'edit-btn';
+            const topupBtn = document.createElement('button'); topupBtn.innerHTML = 'Atur Saldo'; topupBtn.className = 'topup-btn';
+            const notifBtn = document.createElement('button'); notifBtn.innerHTML = 'Kirim Notif'; notifBtn.className = 'send-notif-btn';
+            actionDiv.append(updateBtn, editBtn, topupBtn, notifBtn);
+            row.insertCell(13).appendChild(actionDiv);
+            updateBtn.onclick = async () => { /* update status */ 
+                const newStatus = prompt("Masukkan status baru (accepted, pending, rejected, blocked):", d.status);
+                if (!newStatus) return;
+                const newReason = reasonInput.value.trim();
+                updateBtn.disabled = true;
+                try {
+                    const updates = {};
+                    updates[`drivers/${d.uid}/status`] = newStatus;
+                    if (newStatus === 'rejected' || newStatus === 'blocked') updates[`drivers/${d.uid}/ketGagal`] = newReason || (newStatus === 'rejected' ? 'Ditolak admin' : 'Diblokir admin');
+                    else updates[`drivers/${d.uid}/ketGagal`] = null;
+                    await database.ref().update(updates);
+                    let message = `Status Anda diubah menjadi ${newStatus.toUpperCase()}.`;
+                    await saveDriverNotification(d.uid, 'Status Berubah', message, 'status');
+                    const playerId = await getDriverPlayerId(d.uid);
+                    if (playerId) await sendPushNotification(playerId, 'Status Akun', message);
+                    d.status = newStatus; d.ketGagal = updates[`drivers/${d.uid}/ketGagal`] || null;
+                    applyDriverFilter();
+                    showToast(`Status ${d.name} => ${newStatus}`);
+                } catch(err) { showToast(err.message, true); } finally { updateBtn.disabled = false; }
+            };
+            editBtn.onclick = () => openDriverEditModal(d);
+            topupBtn.onclick = () => openTopupModal(d);
+            notifBtn.onclick = () => openNotifModal(d);
+        });
+    }
+
+    function openDriverEditModal(driver) {
+        document.getElementById('editDriverUid').value = driver.uid;
+        document.getElementById('editDriverName').value = driver.name;
+        document.getElementById('editDriverPhone').value = driver.phone;
+        document.getElementById('editDriverEmail').value = driver.email;
+        document.getElementById('editDriverDob').value = driver.date_of_birth || '';
+        document.getElementById('editDriverVehicleType').value = driver.vehicle_type === '-' ? '' : driver.vehicle_type;
+        document.getElementById('editDriverVehicleBrand').value = driver.vehicle_brand === '-' ? '' : driver.vehicle_brand;
+        document.getElementById('editDriverVehicleYear').value = driver.vehicle_year || '';
+        document.getElementById('editDriverPlate').value = driver.plate_number === '-' ? '' : driver.plate_number;
+        document.getElementById('editDriverRating').value = driver.rating;
+        document.getElementById('editDriverTrips').value = driver.perjalanan;
+        document.getElementById('editDriverBalance').value = driver.balance;
+        document.getElementById('editDriverStatus').value = driver.status;
+        document.getElementById('editDriverModal').style.display = 'flex';
+    }
+
+    async function saveDriverEdit() {
+        const uid = document.getElementById('editDriverUid').value;
+        if (!uid) return;
+        const data = {
+            name: document.getElementById('editDriverName').value.trim(),
+            phone: document.getElementById('editDriverPhone').value.trim(),
+            email: document.getElementById('editDriverEmail').value.trim(),
+            date_of_birth: document.getElementById('editDriverDob').value,
+            vehicle_type: document.getElementById('editDriverVehicleType').value.trim().toLowerCase() || 'motor',
+            vehicle_brand: document.getElementById('editDriverVehicleBrand').value.trim(),
+            vehicle_year: parseInt(document.getElementById('editDriverVehicleYear').value) || 0,
+            plate_number: document.getElementById('editDriverPlate').value.trim().toUpperCase(),
+            rating: parseFloat(document.getElementById('editDriverRating').value) || 0,
+            perjalanan: parseInt(document.getElementById('editDriverTrips').value) || 0,
+            balance: parseInt(document.getElementById('editDriverBalance').value) || 0,
+            status: document.getElementById('editDriverStatus').value
+        };
+        if (!data.name || !data.phone) { showToast('Nama dan telepon wajib diisi', true); return; }
+        const btn = document.getElementById('saveDriverBtn'); btn.disabled = true; btn.textContent = 'Menyimpan...';
+        try {
+            await database.ref(`drivers/${uid}`).update(data);
+            const idx = allDrivers.findIndex(d => d.uid === uid);
+            if (idx !== -1) Object.assign(allDrivers[idx], data);
+            await saveDriverNotification(uid, 'Data Diperbarui', 'Data Anda telah diubah oleh admin.', 'edit');
+            const playerId = await getDriverPlayerId(uid);
+            if (playerId) await sendPushNotification(playerId, 'Data Diperbarui', 'Silakan cek aplikasi untuk perubahan data.');
+            applyDriverFilter();
+            showToast('Data driver disimpan');
+            document.getElementById('editDriverModal').style.display = 'none';
+        } catch(err) { showToast(err.message, true); } finally { btn.disabled = false; btn.textContent = 'Simpan'; }
+    }
+
+    function openNotifModal(driver) {
+        document.getElementById('notifDriverUid').value = driver.uid;
+        document.getElementById('notifTargetName').value = driver.name;
+        document.getElementById('notifTitle').value = '';
+        document.getElementById('notifMessage').value = '';
+        document.getElementById('notifDriverModal').style.display = 'flex';
+    }
+
+    async function sendManualNotification() {
+        const uid = document.getElementById('notifDriverUid').value;
+        const title = document.getElementById('notifTitle').value.trim();
+        const message = document.getElementById('notifMessage').value.trim();
+        if (!title || !message) { showToast('Judul dan pesan harus diisi', true); return; }
+        const driver = allDrivers.find(d => d.uid === uid);
+        if (!driver) return;
+        const btn = document.getElementById('sendNotifNowBtn');
+        btn.disabled = true; btn.textContent = 'Mengirim...';
+        try {
+            await saveDriverNotification(uid, title, message, 'manual');
+            const playerId = await getDriverPlayerId(uid);
+            if (playerId) { await sendPushNotification(playerId, title, message, { manual: true }); showToast(`Notifikasi terkirim ke ${driver.name}`); }
+            else { showToast(`Driver ${driver.name} tidak memiliki Player ID, notifikasi hanya tersimpan.`, true); }
+            document.getElementById('notifDriverModal').style.display = 'none';
+        } catch(err) { showToast(`Gagal: ${err.message}`, true); } finally { btn.disabled = false; btn.textContent = 'Kirim Sekarang'; }
+    }
+
+    async function broadcastToAllDrivers() {
+        const title = prompt("Masukkan judul notifikasi broadcast:", "Pengumuman dari Admin");
+        if (!title) return;
+        const message = prompt("Masukkan pesan broadcast:");
+        if (!message) return;
+        if (!confirm(`Kirim broadcast ke ${allDrivers.length} driver?\nJudul: ${title}\nPesan: ${message}`)) return;
+        let success = 0, fail = 0;
+        for (const driver of allDrivers) {
+            try {
+                await saveDriverNotification(driver.uid, title, message, 'broadcast');
+                const playerId = await getDriverPlayerId(driver.uid);
+                if (playerId) { await sendPushNotification(playerId, title, message, { broadcast: true }); success++; } else fail++;
+                await new Promise(r => setTimeout(r, 200));
+            } catch(e) { fail++; }
+        }
+        showToast(`Broadcast selesai: ${success} terkirim push, ${fail} hanya tersimpan.`);
+    }
+
+    async function activateAllDrivers() {
+        if (!allDrivers.length) { showToast('Tidak ada driver', true); return; }
+        const btn = document.getElementById('activateAllBtn');
+        btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-pulse"></i> Memproses...';
+        let successCount = 0, errorCount = 0;
+        for (const driver of allDrivers) {
+            try {
+                const updates = {};
+                updates[`drivers/${driver.uid}/tracking_enabled`] = true; updates[`drivers/${driver.uid}/autobid_enabled`] = true;
+                updates[`driver_locations/${driver.uid}/tracking_enabled`] = true; updates[`driver_locations/${driver.uid}/autobid_enabled`] = true;
+                await database.ref().update(updates);
+                driver.tracking_enabled = true; driver.autobid_enabled = true;
+                successCount++;
+            } catch(err) { errorCount++; }
+        }
+        applyDriverFilter();
+        btn.disabled = false; btn.innerHTML = '<i class="fas fa-check-double"></i> Aktifkan Semua';
+        showToast(`Berhasil mengaktifkan ${successCount} driver. Gagal: ${errorCount}`);
+    }
+
+    // Topup modal
+    function openTopupModal(driver) {
+        currentDriverForTopup = driver;
+        document.getElementById('topupDriverUid').value = driver.uid;
+        document.getElementById('topupDriverName').value = driver.name;
+        document.getElementById('currentBalance').value = formatRupiah(driver.balance);
+        document.getElementById('topupAmount').value = '';
+        document.getElementById('topupNote').value = '';
+        document.getElementById('transactionType').value = 'add';
+        updateBalancePreview();
+        document.getElementById('topupModal').style.display = 'flex';
+    }
+    function updateBalancePreview() {
+        const currentBalance = currentDriverForTopup ? currentDriverForTopup.balance : 0;
+        const type = document.getElementById('transactionType').value;
+        let amount = parseInt(document.getElementById('topupAmount').value) || 0;
+        let newBalance = type === 'add' ? currentBalance + amount : currentBalance - amount;
+        document.getElementById('newBalancePreview').innerHTML = formatRupiah(newBalance);
+    }
+    document.getElementById('confirmTopupBtn').onclick = async () => {
+        const uid = document.getElementById('topupDriverUid').value;
+        const amount = parseInt(document.getElementById('topupAmount').value);
+        const note = document.getElementById('topupNote').value.trim();
+        const type = document.getElementById('transactionType').value;
+        if (!uid || isNaN(amount) || amount <= 0) { showToast('Nominal valid wajib diisi', true); return; }
+        if (!note) { showToast('Keterangan wajib diisi', true); return; }
+        const btn = document.getElementById('confirmTopupBtn');
+        btn.disabled = true; btn.textContent = 'Memproses...';
+        try {
+            const driverSnap = await database.ref(`drivers/${uid}`).once('value');
+            const driverData = driverSnap.val();
+            const oldBalance = driverData.balance || 0;
+            let newBalance = type === 'add' ? oldBalance + amount : oldBalance - amount;
+            if (type === 'subtract' && amount > oldBalance) throw new Error('Saldo tidak cukup');
+            await database.ref(`drivers/${uid}/balance`).set(newBalance);
+            await database.ref(`driver_balance_logs/${uid}`).push({
+                type: type === 'add' ? 'topup_admin' : 'deduct_admin',
+                amount: type === 'add' ? amount : -amount,
+                old_balance: oldBalance, new_balance: newBalance, note, admin_id: auth.currentUser.uid,
+                timestamp: firebase.database.ServerValue.TIMESTAMP
+            });
+            const title = type === 'add' ? "Saldo Bertambah" : "Saldo Berkurang";
+            const message = `Saldo Anda ${type === 'add' ? 'bertambah' : 'berkurang'} Rp ${amount.toLocaleString()}. Keterangan: ${note}`;
+            await saveDriverNotification(uid, title, message, type === 'add' ? 'topup' : 'deduct');
+            const playerId = await getDriverPlayerId(uid);
+            if (playerId) await sendPushNotification(playerId, title, message);
+            const idx = allDrivers.findIndex(d => d.uid === uid);
+            if (idx !== -1) allDrivers[idx].balance = newBalance;
+            if (currentDriverForTopup && currentDriverForTopup.uid === uid) currentDriverForTopup.balance = newBalance;
+            applyDriverFilter();
+            document.getElementById('topupModal').style.display = 'none';
+            showToast(`Saldo berhasil ${type === 'add' ? 'ditambah' : 'dikurangi'} Rp ${amount.toLocaleString()}`);
+        } catch(err) { showToast(err.message, true); } finally { btn.disabled = false; btn.textContent = 'Proses & Kirim Notif'; }
+    };
+    document.getElementById('topupAmount')?.addEventListener('input', updateBalancePreview);
+    document.getElementById('transactionType')?.addEventListener('change', updateBalancePreview);
+
+    // Initialize
+    auth.onAuthStateChanged(async (user) => {
+        if (!user) { window.location.href = 'login_admin.html'; return; }
+        const adminSnap = await database.ref(`admins/${user.uid}`).once('value');
+        if (!adminSnap.exists()) { showToast('Bukan admin', true); await auth.signOut(); setTimeout(() => window.location.href = 'login_admin.html', 1500); return; }
+        await getOneSignalApiKey();
+        await loadDrivers();
+        document.getElementById('refreshDriversBtn').onclick = loadDrivers;
+        document.getElementById('activateAllBtn').onclick = activateAllDrivers;
+        document.getElementById('broadcastNotifBtn').onclick = broadcastToAllDrivers;
+        document.getElementById('driverSearch').addEventListener('input', applyDriverFilter);
+        document.getElementById('vehicleFilter').addEventListener('change', applyDriverFilter);
+        document.getElementById('saveDriverBtn').onclick = saveDriverEdit;
+        document.getElementById('sendNotifNowBtn').onclick = sendManualNotification;
+        document.getElementById('logoutBtn').onclick = async () => { await auth.signOut(); window.location.href = 'login_admin.html'; };
+        // close modals
+        document.querySelectorAll('.close-driver-modal, .close-notif-modal, .close-topup-modal').forEach(el => el.addEventListener('click', (e) => { document.getElementById('editDriverModal').style.display = 'none'; document.getElementById('notifDriverModal').style.display = 'none'; document.getElementById('topupModal').style.display = 'none'; }));
+        window.addEventListener('click', (e) => { if (e.target.classList.contains('modal')) e.target.style.display = 'none'; });
+    });
+</script>
+</body>
+</html>
