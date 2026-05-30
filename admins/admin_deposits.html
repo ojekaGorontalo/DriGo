@@ -131,35 +131,59 @@
 
     // ========== CLEANUP EXPIRED DEPOSITS (LEBIH DARI 24 JAM) ==========
     async function cleanupExpiredDeposits() {
-        const now = Date.now();
-        const ONE_DAY = 24 * 60 * 60 * 1000;
-        let expiredCount = 0;
-        try {
-            const logsSnap = await database.ref('driver_balance_logs').once('value');
-            const updates = {};
-            logsSnap.forEach(driverChild => {
-                const driverId = driverChild.key;
-                driverChild.forEach(logChild => {
-                    const log = logChild.val();
-                    if (log.type === 'deposit_request' && log.status === 'pending') {
-                        const depositTime = log.timestamp || 0;
-                        if (now - depositTime > ONE_DAY) {
-                            updates[`driver_balance_logs/${driverId}/${logChild.key}/status`] = 'expired';
-                            expiredCount++;
-                        }
+    const now = Date.now();
+    const ONE_DAY = 24 * 60 * 60 * 1000;
+    let expiredCount = 0;
+    try {
+        const logsSnap = await database.ref('driver_balance_logs').once('value');
+        const updates = {};
+        
+        // Kumpulkan update status expired terlebih dahulu
+        logsSnap.forEach(driverChild => {
+            const driverId = driverChild.key;
+            driverChild.forEach(logChild => {
+                const log = logChild.val();
+                if (log.type === 'deposit_request' && log.status === 'pending') {
+                    const depositTime = log.timestamp || 0;
+                    if (now - depositTime > ONE_DAY) {
+                        updates[`driver_balance_logs/${driverId}/${logChild.key}/status`] = 'expired';
+                        expiredCount++;
+                        
+                        // =====================================================
+                        // 🔔 KIRIM NOTIFIKASI EXPIRED KE DRIVER (LANGSUNG DI SINI)
+                        // =====================================================
+                        (async () => {
+                            try {
+                                // Simpan notifikasi ke database driver
+                                await saveDriverNotification(driverId, '⏰ Deposit Kadaluarsa', 
+                                    `Permintaan deposit Rp ${log.amount?.toLocaleString()} telah kadaluarsa karena tidak dibayar dalam 24 jam. Silakan ajukan deposit baru.`, 'expired');
+                                
+                                // Kirim push notification via OneSignal
+                                const playerId = await getDriverPlayerId(driverId);
+                                if (playerId) {
+                                    await sendPushNotification(playerId, 'Deposit Kadaluarsa', 
+                                        `Deposit Rp ${log.amount?.toLocaleString()} expired. Ajukan deposit ulang.`);
+                                }
+                            } catch(err) {
+                                console.error("Gagal kirim notifikasi expired:", err);
+                            }
+                        })();
+                        // =====================================================
                     }
-                });
+                }
             });
-            if (expiredCount > 0) {
-                await database.ref().update(updates);
-                console.log(`✅ ${expiredCount} deposit expired otomatis`);
-                showToast(`${expiredCount} permintaan deposit kadaluarsa (lebih 24 jam)`, false);
-                await loadDepositRequests(); // refresh tampilan
-            }
-        } catch(err) {
-            console.error("Gagal cleanup expired deposits:", err);
+        });
+        
+        if (expiredCount > 0) {
+            await database.ref().update(updates);
+            console.log(`✅ ${expiredCount} deposit expired otomatis`);
+            showToast(`${expiredCount} permintaan deposit kadaluarsa (lebih 24 jam)`, false);
+            await loadDepositRequests();
         }
+    } catch(err) {
+        console.error("Gagal cleanup expired deposits:", err);
     }
+}
 
     // ========== LOAD DEPOSIT REQUESTS (HANYA PENDING & BELUM EXPIRED) ==========
     async function loadDepositRequests() {
