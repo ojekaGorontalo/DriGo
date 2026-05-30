@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>JeGo Admin - Dashboard</title>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif; background: #f0f2f5; padding: 20px; }
+        .dashboard-container { max-width: 1400px; margin: 0 auto; }
+        .header { background: linear-gradient(135deg, #FF9800, #FFB74D); border-radius: 20px; padding: 20px 28px; color: white; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; margin-bottom: 28px; }
+        .header h1 { font-size: 1.8rem; display: flex; align-items: center; gap: 12px; }
+        .admin-info { background: rgba(255,255,255,0.2); padding: 8px 18px; border-radius: 40px; font-weight: 500; display: flex; align-items: center; gap: 12px; }
+        .logout-btn { background: rgba(255,255,255,0.25); border: none; color: white; padding: 8px 20px; border-radius: 40px; cursor: pointer; font-weight: 600; }
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 20px; margin-bottom: 32px; }
+        .stat-card { background: white; border-radius: 24px; padding: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); display: flex; align-items: center; justify-content: space-between; }
+        .stat-info h3 { font-size: 0.85rem; font-weight: 600; color: #64748b; margin-bottom: 8px; }
+        .stat-number { font-size: 2.2rem; font-weight: 800; color: #1e293b; }
+        .stat-icon { width: 56px; height: 56px; background: #FFF3E0; border-radius: 28px; display: flex; align-items: center; justify-content: center; font-size: 28px; color: #FF9800; }
+        .section-title { font-size: 1.3rem; font-weight: 700; margin: 28px 0 16px 0; color: #1e293b; display: flex; align-items: center; gap: 10px; }
+        .actions-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 32px; }
+        .action-card { background: white; border-radius: 20px; padding: 18px 12px; text-align: center; cursor: pointer; border: 1px solid #e9ecef; transition: 0.2s; }
+        .action-card:hover { background: #FFF8F0; border-color: #FF9800; transform: scale(1.02); }
+        .action-card i { font-size: 2rem; color: #FF9800; margin-bottom: 10px; }
+        .action-card span { font-weight: 600; color: #1e293b; display: block; }
+        .two-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 32px; }
+        .card-panel { background: white; border-radius: 24px; padding: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+        .card-panel h3 { font-size: 1.1rem; font-weight: 700; margin-bottom: 16px; border-left: 4px solid #FF9800; padding-left: 12px; }
+        .recent-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+        .recent-table th, .recent-table td { padding: 10px 6px; text-align: left; border-bottom: 1px solid #edf2f7; }
+        .badge-pending { background: #fff3cd; color: #b45309; padding: 4px 10px; border-radius: 20px; font-size: 0.7rem; font-weight: 600; }
+        .debug-panel { background: #1e1e2f; color: #eee; border-radius: 20px; margin-top: 30px; overflow: hidden; }
+        .debug-header { background: #FF9800; padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; font-weight: bold; }
+        .debug-header i { transition: transform 0.2s; }
+        .debug-content { max-height: 0; overflow: auto; transition: max-height 0.3s ease; background: #2d2d3a; font-family: monospace; font-size: 12px; }
+        .debug-content.open { max-height: 500px; padding: 16px; }
+        .debug-content pre { margin: 0; white-space: pre-wrap; word-wrap: break-word; color: #bbffbb; }
+        .toast { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); background: #1e293b; color: white; padding: 10px 20px; border-radius: 40px; z-index: 1000; opacity: 0; transition: opacity 0.2s; pointer-events: none; }
+        .toast.show { opacity: 1; }
+        @media (max-width: 800px) { .two-columns { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+<div class="dashboard-container">
+    <div class="header">
+        <h1><i class="fas fa-chalkboard-user"></i> Dashboard JeGo</h1>
+        <div style="display: flex; gap: 12px; align-items: center;">
+            <div class="admin-info"><i class="fas fa-user-shield"></i> <span id="adminEmail">Admin</span></div>
+            <button class="logout-btn" id="logoutBtn"><i class="fas fa-sign-out-alt"></i> Logout</button>
+        </div>
+    </div>
+
+    <div class="stats-grid" id="statsGrid">
+        <div class="stat-card"><div class="stat-info"><h3>👨‍✈️ TOTAL DRIVER</h3><div class="stat-number" id="totalDrivers">-</div></div><div class="stat-icon"><i class="fas fa-taxi"></i></div></div>
+        <div class="stat-card"><div class="stat-info"><h3>🟢 DRIVER AKTIF (Online)</h3><div class="stat-number" id="activeDrivers">-</div></div><div class="stat-icon"><i class="fas fa-circle"></i></div></div>
+        <div class="stat-card"><div class="stat-info"><h3>👥 TOTAL CUSTOMER</h3><div class="stat-number" id="totalCustomers">-</div></div><div class="stat-icon"><i class="fas fa-users"></i></div></div>
+        <div class="stat-card"><div class="stat-info"><h3>📦 ORDER HARI INI</h3><div class="stat-number" id="todayOrders">-</div></div><div class="stat-icon"><i class="fas fa-calendar-day"></i></div></div>
+        <div class="stat-card"><div class="stat-info"><h3>💰 PENDAPATAN HARI INI</h3><div class="stat-number" id="todayRevenue">Rp 0</div></div><div class="stat-icon"><i class="fas fa-chart-line"></i></div></div>
+        <div class="stat-card"><div class="stat-info"><h3>⏳ DEPOSIT PENDING</h3><div class="stat-number" id="pendingDeposit">-</div></div><div class="stat-icon"><i class="fas fa-money-bill-wave"></i></div></div>
+    </div>
+
+    <div class="section-title"><i class="fas fa-bolt"></i> Akses Cepat</div>
+    <div class="actions-grid">
+        <div class="action-card" data-link="drivers"><i class="fas fa-taxi"></i><span>Manajemen Driver</span></div>
+        <div class="action-card" data-link="customers"><i class="fas fa-user-friends"></i><span>Manajemen Customer</span></div>
+        <div class="action-card" data-link="deposits"><i class="fas fa-money-bill-wave"></i><span>Permintaan Deposit</span></div>
+        <div class="action-card" data-link="orders"><i class="fas fa-truck"></i><span>Semua Order</span></div>
+        <div class="action-card" data-link="broadcast"><i class="fas fa-bullhorn"></i><span>Broadcast Ke Driver</span></div>
+        <div class="action-card" data-link="settings"><i class="fas fa-sliders-h"></i><span>Pengaturan Fee/Pajak</span></div>
+    </div>
+
+    <div class="two-columns">
+        <div class="card-panel">
+            <h3><i class="fas fa-chart-simple"></i> Order per Hari (7 hari terakhir)</h3>
+            <canvas id="orderChart" style="max-height: 250px; width:100%"></canvas>
+        </div>
+        <div class="card-panel">
+            <h3><i class="fas fa-clock"></i> Order Terbaru</h3>
+            <div style="overflow-x: auto;">
+                <table class="recent-table" id="recentOrdersTable">
+                    <thead><tr><th>ID</th><th>Customer</th><th>Harga</th><th>Status</th></tr></thead>
+                    <tbody><tr><td colspan="4" class="loading-overlay"><div class="spinner"></div></td></tr></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="card-panel">
+        <h3><i class="fas fa-triangle-exclamation"></i> Log Aktivitas Terakhir</h3>
+        <div id="activityLog" style="max-height: 200px; overflow-y: auto; font-size: 0.75rem; background: #f8fafc; border-radius: 16px; padding: 12px;">
+            <i class="fas fa-spinner fa-pulse"></i> Memuat log...
+        </div>
+    </div>
+
+    <!-- DEBUG PANEL -->
+    <div class="debug-panel">
+        <div class="debug-header" id="debugHeader">
+            <span><i class="fas fa-bug"></i> Debug: Data Driver Locations (mentah)</span>
+            <i class="fas fa-chevron-down" id="debugIcon"></i>
+        </div>
+        <div class="debug-content" id="debugContent">
+            <pre id="debugRawData">Loading...</pre>
+        </div>
+    </div>
+</div>
+<div id="toastMsg" class="toast"></div>
+
+<script>
+    const firebaseConfig = {
+        apiKey: "AIzaSyCD0pgeZio-LdKqYDtWxcdXcZwyL4ngYQI",
+        authDomain: "jego-35a2b.firebaseapp.com",
+        databaseURL: "https://jego-35a2b-default-rtdb.asia-southeast1.firebasedatabase.app",
+        projectId: "jego-35a2b",
+        storageBucket: "jego-35a2b.firebasestorage.app",
+        messagingSenderId: "600037007040",
+        appId: "1:600037007040:web:ac3243ad9b472647ffd725"
+    };
+    if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const database = firebase.database();
+
+    let orderChart = null;
+
+    function showToast(msg, isError = false) {
+        const toast = document.getElementById('toastMsg');
+        toast.textContent = msg;
+        toast.style.background = isError ? '#b91c1c' : '#1e293b';
+        toast.classList.add('show');
+        setTimeout(() => toast.classList.remove('show'), 3000);
+    }
+    function formatRupiah(amount) { return 'Rp ' + (amount || 0).toLocaleString('id-ID'); }
+    function escapeHtml(str) { if (!str) return ''; return str.replace(/[&<>]/g, m => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;' }[m])); }
+
+    async function loadDashboardData() {
+        try {
+            // Ambil driver_locations untuk debug dan hitung aktif
+            const locSnap = await database.ref('driver_locations').once('value');
+            const locObj = locSnap.val() || {};
+            const now = Date.now();
+            let activeCount = 0;
+            let debugInfo = {};
+
+            for (const [uid, loc] of Object.entries(locObj)) {
+                // Simpan data mentah untuk debug
+                debugInfo[uid] = {
+                    tracking_enabled: loc.tracking_enabled,
+                    has_lat: !!loc.latitude,
+                    has_lng: !!loc.longitude,
+                    last_update_raw: loc.last_update,
+                    last_update_parsed: loc.last_update ? new Date(loc.last_update).toISOString() : null,
+                    age_seconds: loc.last_update ? (now - new Date(loc.last_update).getTime())/1000 : null
+                };
+                // Kriteria aktif
+                if (loc.tracking_enabled === true && loc.latitude && loc.longitude) {
+                    let lastUpdate = loc.last_update ? new Date(loc.last_update).getTime() : 0;
+                    if (now - lastUpdate < 5 * 60 * 1000) {
+                        activeCount++;
+                        debugInfo[uid].is_active = true;
+                    } else {
+                        debugInfo[uid].is_active = false;
+                        debugInfo[uid].reason = `last_update >5 menit (${((now - lastUpdate)/1000).toFixed(0)} detik)`;
+                    }
+                } else {
+                    debugInfo[uid].is_active = false;
+                    if (loc.tracking_enabled !== true) debugInfo[uid].reason = 'tracking_enabled false';
+                    else if (!loc.latitude || !loc.longitude) debugInfo[uid].reason = 'latitude/longitude null';
+                }
+            }
+            document.getElementById('activeDrivers').innerText = activeCount;
+
+            // Tampilkan debug data
+            const pre = document.getElementById('debugRawData');
+            pre.innerHTML = JSON.stringify(debugInfo, null, 2);
+
+            // Total driver
+            const driversSnap = await database.ref('drivers').once('value');
+            const driversObj = driversSnap.val() || {};
+            let totalDrivers = 0;
+            for (let [uid, d] of Object.entries(driversObj)) if (d.role === 'driver') totalDrivers++;
+            document.getElementById('totalDrivers').innerText = totalDrivers;
+
+            // Customer
+            const usersSnap = await database.ref('users').once('value');
+            const usersObj = usersSnap.val() || {};
+            let customerCount = 0;
+            for (let [uid, u] of Object.entries(usersObj)) if (u.role !== 'driver' && u.role !== 'admin') customerCount++;
+            document.getElementById('totalCustomers').innerText = customerCount;
+
+            // Order hari ini & pendapatan
+            const ordersSnap = await database.ref('orders').once('value');
+            const ordersObj = ordersSnap.val() || {};
+            const todayStart = new Date(); todayStart.setHours(0,0,0,0);
+            let todayOrderCount = 0, todayRevenue = 0;
+            const last7Days = {};
+            for (let i=0; i<7; i++) { let d = new Date(); d.setDate(d.getDate()-i); d.setHours(0,0,0,0); last7Days[d.toISOString().split('T')[0]] = 0; }
+            for (let [id, order] of Object.entries(ordersObj)) {
+                if (order.created_at) {
+                    const orderDate = new Date(order.created_at);
+                    if (orderDate >= todayStart) {
+                        todayOrderCount++;
+                        if (order.status === 'completed' && order.price) todayRevenue += order.price;
+                    }
+                    const dateKey = orderDate.toISOString().split('T')[0];
+                    if (last7Days.hasOwnProperty(dateKey)) last7Days[dateKey]++;
+                }
+            }
+            document.getElementById('todayOrders').innerText = todayOrderCount;
+            document.getElementById('todayRevenue').innerHTML = formatRupiah(todayRevenue);
+
+            // Deposit pending
+            const logsSnap = await database.ref('driver_balance_logs').once('value');
+            let pendingDeposits = 0;
+            logsSnap.forEach(driverChild => { driverChild.forEach(logChild => { const log = logChild.val(); if (log.type === 'deposit_request' && log.status === 'pending') pendingDeposits++; }); });
+            document.getElementById('pendingDeposit').innerText = pendingDeposits;
+
+            // Chart
+            const labels = Object.keys(last7Days).sort();
+            const dataValues = labels.map(l => last7Days[l]);
+            if (orderChart) orderChart.destroy();
+            const ctx = document.getElementById('orderChart').getContext('2d');
+            orderChart = new Chart(ctx, {
+                type: 'line',
+                data: { labels: labels.map(l => l.slice(5)), datasets: [{ label: 'Jumlah Order', data: dataValues, borderColor: '#FF9800', backgroundColor: 'rgba(255,152,0,0.1)', tension: 0.3, fill: true }] },
+                options: { responsive: true, maintainAspectRatio: true }
+            });
+
+            // Tabel order terbaru
+            const recentOrders = Object.entries(ordersObj).sort((a,b) => (b[1].created_at || 0) - (a[1].created_at || 0)).slice(0,5);
+            const tbody = document.querySelector('#recentOrdersTable tbody');
+            if (recentOrders.length) {
+                tbody.innerHTML = recentOrders.map(([id, o]) => `<tr><td>${id.substring(0,8)}</td><td>${escapeHtml(o.customer_name || '-')}</td><td>${formatRupiah(o.price)}</td><td><span class="badge-pending">${o.status}</span></td></tr>`).join('');
+            } else {
+                tbody.innerHTML = '<tr><td colspan="4">Belum ada order</td></tr>';
+            }
+
+            // Log aktivitas (contoh dari admin_logs/activity jika ada)
+            try {
+                const logSnap = await database.ref('admin_logs/activity').limitToLast(10).once('value');
+                const logs = logSnap.val() || {};
+                const logDiv = document.getElementById('activityLog');
+                if (Object.keys(logs).length) {
+                    let html = '';
+                    for (let key in logs) {
+                        const l = logs[key];
+                        html += `<div><i class="far fa-clock"></i> ${new Date(l.timestamp).toLocaleString()} - ${escapeHtml(l.message)}</div>`;
+                    }
+                    logDiv.innerHTML = html;
+                } else {
+                    logDiv.innerHTML = '<i class="fas fa-info-circle"></i> Belum ada log aktivitas.';
+                }
+            } catch(e) { document.getElementById('activityLog').innerHTML = '<i class="fas fa-database"></i> Tidak dapat memuat log.'; }
+
+        } catch(err) {
+            console.error(err);
+            showToast('Gagal memuat data dashboard', true);
+        }
+    }
+
+    // Navigasi
+    function navigateTo(page) {
+        if (page === 'drivers') window.location.href = 'admin_drivers.html';
+        else if (page === 'customers') window.location.href = 'admin_customers.html';
+        else if (page === 'deposits') window.location.href = 'admin_deposits.html';
+        else if (page === 'orders') window.location.href = 'admin_jego.html';
+        else if (page === 'broadcast') broadcastToDrivers();
+        else if (page === 'settings') openSettings();
+    }
+
+    async function broadcastToDrivers() {
+        const title = prompt("Judul Broadcast:", "Pengumuman Admin");
+        if (!title) return;
+        const message = prompt("Pesan Broadcast:");
+        if (!message) return;
+        if (!confirm(`Kirim ke semua driver?`)) return;
+        showToast(`Mengirim broadcast...`);
+        // ambil semua playerId dari driver_locations
+        const locSnap = await database.ref('driver_locations').once('value');
+        const locs = locSnap.val() || {};
+        const apiKeySnap = await database.ref('data-jego/PushKey').once('value');
+        const onesignalKey = apiKeySnap.val();
+        if (!onesignalKey) { showToast("API Key OneSignal tidak ditemukan", true); return; }
+        let success = 0;
+        for (let [uid, d] of Object.entries(locs)) {
+            if (d.playerId) {
+                try {
+                    await fetch("https://onesignal.com/api/v1/notifications", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json", "Authorization": `Basic ${onesignalKey}` },
+                        body: JSON.stringify({ app_id: "007d7eba-9cfc-40d1-a92e-f2299f770282", include_player_ids: [d.playerId], headings: { en: title }, contents: { en: message }, priority: 10 })
+                    });
+                    success++;
+                } catch(e) {}
+                await new Promise(r => setTimeout(r, 100));
+            }
+        }
+        showToast(`Broadcast selesai: ${success} terkirim`);
+    }
+
+    async function openSettings() {
+        const potonganSnap = await database.ref('data-jego/potongan').once('value');
+        const pajakSnap = await database.ref('data-jego/pajak').once('value');
+        let newFee = prompt("Persentase fee driver (%)", potonganSnap.val() || 20);
+        if (newFee && !isNaN(parseFloat(newFee))) await database.ref('data-jego/potongan').set(parseFloat(newFee));
+        let newTax = prompt("Persentase pajak dari fee (%)", pajakSnap.val() || 11);
+        if (newTax && !isNaN(parseFloat(newTax))) await database.ref('data-jego/pajak').set(parseFloat(newTax));
+        showToast("Pengaturan disimpan");
+    }
+
+    // Debug panel toggle
+    function initDebugPanel() {
+        const header = document.getElementById('debugHeader');
+        const content = document.getElementById('debugContent');
+        const icon = document.getElementById('debugIcon');
+        let isOpen = false;
+        header.addEventListener('click', () => {
+            isOpen = !isOpen;
+            if (isOpen) {
+                content.classList.add('open');
+                icon.classList.remove('fa-chevron-down');
+                icon.classList.add('fa-chevron-up');
+            } else {
+                content.classList.remove('open');
+                icon.classList.remove('fa-chevron-up');
+                icon.classList.add('fa-chevron-down');
+            }
+        });
+    }
+
+    auth.onAuthStateChanged(async (user) => {
+        if (!user) { window.location.href = 'login_admin.html'; return; }
+        const adminSnap = await database.ref(`admins/${user.uid}`).once('value');
+        if (!adminSnap.exists()) { showToast('Bukan admin', true); await auth.signOut(); setTimeout(() => window.location.href = 'login_admin.html', 1500); return; }
+        document.getElementById('adminEmail').innerText = user.email;
+        await loadDashboardData();
+        initDebugPanel();
+        document.getElementById('logoutBtn').onclick = () => { auth.signOut(); window.location.href = 'login_admin.html'; };
+        document.querySelectorAll('.action-card').forEach(card => card.addEventListener('click', () => navigateTo(card.getAttribute('data-link'))));
+        setInterval(() => { if (document.visibilityState === 'visible') loadDashboardData(); }, 30000);
+    });
+</script>
+</body>
+</html>
