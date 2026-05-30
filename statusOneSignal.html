@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-    <title>Jego Notifikasi</title>
+    <title>Jego Notifikasi + Debug</title>
     <!-- Firebase SDKs -->
     <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-auth-compat.js"></script>
@@ -23,7 +23,7 @@
         }
 
         .container {
-            max-width: 520px;
+            max-width: 550px;
             margin: 0 auto;
         }
 
@@ -142,7 +142,6 @@
             font-size: 1rem;
             cursor: pointer;
             transition: 0.2s;
-            text-align: center;
             margin-top: 12px;
         }
 
@@ -199,6 +198,47 @@
             white-space: nowrap;
             box-shadow: 0 4px 12px rgba(0,0,0,0.1);
         }
+
+        /* Panel debug */
+        .debug-panel {
+            background: #1e293b;
+            color: #e2e8f0;
+            border-radius: 24px;
+            padding: 16px;
+            margin-top: 24px;
+            text-align: left;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 250px;
+            overflow-y: auto;
+        }
+
+        .debug-title {
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #facc15;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .debug-line {
+            border-bottom: 1px solid #334155;
+            padding: 4px 0;
+            word-break: break-word;
+        }
+
+        .debug-error {
+            color: #f87171;
+        }
+
+        .debug-success {
+            color: #4ade80;
+        }
+
+        .debug-info {
+            color: #60a5fa;
+        }
     </style>
 </head>
 <body>
@@ -238,6 +278,15 @@
         <button id="refreshBtn" class="btn btn-secondary">🔄 Refresh Status</button>
         <button id="resetBtn" class="btn btn-outline" style="margin-top: 8px;">🗑️ Reset & Daftar Ulang</button>
     </div>
+
+    <!-- PANEL DEBUG -->
+    <div class="debug-panel" id="debugPanel">
+        <div class="debug-title">
+            <span>🐞</span> LOG REAL TIME
+        </div>
+        <div id="debugLog">⏳ Menunggu aksi...</div>
+    </div>
+
     <div class="footer-note">
         ⚡ Jego akan mengirim order terdekat ke notifikasi HP anda
     </div>
@@ -262,7 +311,24 @@
     let isProcessing = false;
     let medianReady = false;
 
-    // Helper: Toast sederhana
+    // Helper debug
+    function addDebugLog(message, type = 'info') {
+        const debugContainer = document.getElementById('debugLog');
+        const time = new Date().toLocaleTimeString();
+        let colorClass = '';
+        if (type === 'error') colorClass = 'debug-error';
+        else if (type === 'success') colorClass = 'debug-success';
+        else colorClass = 'debug-info';
+        
+        const logLine = document.createElement('div');
+        logLine.className = 'debug-line';
+        logLine.innerHTML = `<span style="color:#94a3b8;">[${time}]</span> <span class="${colorClass}">${message}</span>`;
+        debugContainer.appendChild(logLine);
+        // scroll to bottom
+        debugContainer.scrollTop = debugContainer.scrollHeight;
+        console.log(message);
+    }
+
     function showToast(message, isError = false) {
         let toast = document.querySelector('.toast-message');
         if (toast) toast.remove();
@@ -274,63 +340,60 @@
         setTimeout(() => toast.remove(), 3000);
     }
 
-    // ========== Menunggu median.onesignal siap ==========
-    function waitForMedian() {
+    // ========== Menunggu median.onesignal ==========
+    async function waitForMedian() {
         return new Promise((resolve) => {
             if (typeof median !== 'undefined' && median.onesignal) {
                 medianReady = true;
+                addDebugLog("✅ median.onesignal READY (langsung)", "success");
                 resolve(true);
                 return;
             }
-            const checkInterval = setInterval(() => {
+            addDebugLog("⏳ Menunggu median.onesignal...", "info");
+            let attempts = 0;
+            const interval = setInterval(() => {
+                attempts++;
                 if (typeof median !== 'undefined' && median.onesignal) {
-                    clearInterval(checkInterval);
+                    clearInterval(interval);
                     medianReady = true;
+                    addDebugLog("✅ median.onesignal siap setelah " + attempts + " detik", "success");
                     resolve(true);
-                }
-            }, 200);
-            setTimeout(() => {
-                clearInterval(checkInterval);
-                if (!medianReady) {
-                    console.warn("Median OneSignal tidak tersedia setelah timeout");
+                } else if (attempts > 30) {
+                    clearInterval(interval);
+                    addDebugLog("❌ Timeout: median.onesignal tidak tersedia", "error");
                     resolve(false);
                 }
-            }, 5000);
+            }, 500);
         });
     }
 
-    // ========== Ambil Player ID dari OneSignal SDK (dengan retry & jeda, tanpa register ulang) ==========
-    async function fetchPlayerIdFromSDK(retries = 5, delayMs = 1500) {
-        if (!medianReady || !median.onesignal) return null;
-        for (let attempt = 1; attempt <= retries; attempt++) {
+    // Ambil player ID dari SDK (sama persis dengan getPlayerID.html)
+    async function fetchPlayerIdWithRetry(retries = 5, delay = 2000) {
+        for (let i = 1; i <= retries; i++) {
+            addDebugLog(`🔍 Ambil player ID percobaan ${i}/${retries}...`, "info");
             try {
                 const info = await median.onesignal.onesignalInfo();
+                addDebugLog(`📦 onesignalInfo: ${JSON.stringify(info)}`, "info");
                 let playerId = info?.oneSignalUserId || info?.userId || null;
-                if (playerId) return playerId;
-                if (attempt < retries) await new Promise(r => setTimeout(r, delayMs));
+                if (playerId) {
+                    addDebugLog(`✅ Mendapatkan Player ID: ${playerId}`, "success");
+                    return playerId;
+                } else {
+                    addDebugLog(`⚠️ Belum ada Player ID (percobaan ${i})`, "info");
+                }
             } catch (err) {
-                console.warn(`fetchPlayerId attempt ${attempt} error:`, err);
-                if (attempt < retries) await new Promise(r => setTimeout(r, delayMs));
+                addDebugLog(`❌ Error onesignalInfo: ${err.message}`, "error");
+            }
+            if (i < retries) {
+                addDebugLog(`⏳ Tunggu ${delay}ms sebelum retry...`, "info");
+                await new Promise(r => setTimeout(r, delay));
             }
         }
+        addDebugLog("❌ Gagal mendapatkan Player ID setelah retry", "error");
         return null;
     }
 
-    // Ambil status lengkap (playerId + subscribed)
-    async function getSdkPlayerStatus() {
-        if (!medianReady || !median.onesignal) return { playerId: null, isSubscribed: false };
-        try {
-            const info = await median.onesignal.onesignalInfo();
-            const playerId = info?.oneSignalUserId || info?.userId || null;
-            const isSubscribed = info?.oneSignalSubscribed === true;
-            return { playerId, isSubscribed };
-        } catch (err) {
-            console.warn("onesignalInfo error:", err);
-            return { playerId: null, isSubscribed: false };
-        }
-    }
-
-    // ========== Operasi Firebase ==========
+    // ========== Firebase operations ==========
     async function getFirebasePlayerId() {
         if (!currentUid) return null;
         let snap = await database.ref(`driver_locations/${currentUid}`).once('value');
@@ -348,67 +411,83 @@
         if (!currentUid || !playerId) return;
         await database.ref(`drivers/${currentUid}`).update({ playerId: playerId, subscriptionId: playerId, last_update: new Date().toISOString() });
         await database.ref(`driver_locations/${currentUid}`).update({ playerId: playerId, subscriptionId: playerId, last_update: new Date().toISOString() });
+        addDebugLog(`💾 Player ID disimpan ke Firebase: ${playerId}`, "success");
     }
 
     async function clearFirebasePlayerId() {
         if (!currentUid) return;
         await database.ref(`drivers/${currentUid}`).update({ playerId: null, subscriptionId: null });
         await database.ref(`driver_locations/${currentUid}`).update({ playerId: null, subscriptionId: null });
+        addDebugLog("🗑️ Data Player ID di Firebase dihapus", "info");
     }
 
-    // ========== PROSES AKTIVASI UTAMA (mengikuti metode sukses dari getPlayerID.html) ==========
+    // ========== Aktivasi notifikasi (metode sukses dari getPlayerID) ==========
     async function activateNotifications() {
-        if (isProcessing) return showToast("Proses sedang berjalan, harap tunggu");
-        if (!currentUid) return showToast("Driver belum login", true);
-        if (!medianReady || !median.onesignal) return showToast("SDK OneSignal tidak siap. Coba lagi nanti.", true);
-        
+        if (isProcessing) {
+            addDebugLog("⛔ Proses sedang berjalan, abaikan", "error");
+            return showToast("Proses sedang berjalan");
+        }
+        if (!currentUid) {
+            addDebugLog("❌ Driver belum login", "error");
+            return showToast("Driver belum login", true);
+        }
+        if (!medianReady || !median.onesignal) {
+            addDebugLog("❌ SDK OneSignal tidak siap", "error");
+            return showToast("SDK OneSignal tidak siap", true);
+        }
+
         isProcessing = true;
         const actionBtn = document.getElementById('actionBtn');
         const originalText = actionBtn.innerText;
-        actionBtn.innerText = "⏳ Mengaktifkan...";
+        actionBtn.innerText = "⏳ Memproses...";
         actionBtn.disabled = true;
-        
+        addDebugLog("🚀 MEMULAI PROSES AKTIVASI NOTIFIKASI", "success");
+
         try {
-            // 1. Bersihkan data lama di Firebase
+            // 1. Hapus data lama di Firebase
             await clearFirebasePlayerId();
-            
-            // 2. Beri consent (wajib)
+
+            // 2. Set consent (wajib)
             if (median.onesignal.setConsentGiven) {
+                addDebugLog("🔐 Menyetel consent = true", "info");
                 await median.onesignal.setConsentGiven(true);
+                addDebugLog("✅ Consent diberikan", "success");
             }
-            
+
             // 3. Register ke OneSignal
+            addDebugLog("📲 Memanggil median.onesignal.register()...", "info");
             await median.onesignal.register();
-            
-            // 4. Minta izin notifikasi (akan muncul dialog jika belum pernah)
+            addDebugLog("✅ register() selesai", "success");
+
+            // 4. Minta izin notifikasi
             if (median.onesignal.promptForPushNotificationsWithUserResponse) {
-                await median.onesignal.promptForPushNotificationsWithUserResponse();
+                addDebugLog("🔔 Meminta izin notifikasi ke pengguna...", "info");
+                const granted = await median.onesignal.promptForPushNotificationsWithUserResponse();
+                addDebugLog(`📌 Hasil izin: ${granted ? "GRANTED" : "DENIED"}`, granted ? "success" : "error");
+            } else {
+                addDebugLog("⚠️ promptForPushNotifications tidak tersedia", "error");
             }
-            
-            // 5. Tunggu sinkronisasi (8 detik seperti di getPlayerID.html)
-            showToast("Memproses izin, tunggu sebentar...");
+
+            // 5. Tunggu 8 detik (persis seperti di getPlayerID.html)
+            addDebugLog("⏳ Menunggu 8 detik untuk sinkronisasi OneSignal...", "info");
             await new Promise(r => setTimeout(r, 8000));
-            
-            // 6. Ambil Player ID dengan retry (maks 5x, jeda 2 detik)
-            let playerId = null;
-            for (let attempt = 1; attempt <= 5; attempt++) {
-                const info = await median.onesignal.onesignalInfo();
-                playerId = info?.oneSignalUserId || info?.userId || null;
-                if (playerId) break;
-                if (attempt < 5) await new Promise(r => setTimeout(r, 2000));
-            }
+
+            // 6. Ambil Player ID dengan retry (5x, jeda 2 detik)
+            const playerId = await fetchPlayerIdWithRetry(5, 2000);
             
             if (playerId) {
                 await savePlayerIdToFirebase(playerId);
+                addDebugLog("🎉 NOTIFIKASI BERHASIL DIAKTIFKAN!", "success");
                 showToast("Notifikasi berhasil diaktifkan! 🎉");
                 await refreshStatus();
             } else {
-                showToast("Gagal mendapatkan Player ID. Coba ulangi atau periksa koneksi.", true);
+                addDebugLog("❌ GAGAL MENDAPATKAN PLAYER ID. Coba ulangi.", "error");
+                showToast("Gagal mendapatkan Player ID. Coba lagi.", true);
                 await refreshStatus();
             }
         } catch (err) {
-            console.error(err);
-            showToast("Error: " + (err.message || "Gagal mengaktifkan notifikasi"), true);
+            addDebugLog(`❌ ERROR umum: ${err.message}`, "error");
+            showToast("Error: " + err.message, true);
             await refreshStatus();
         } finally {
             isProcessing = false;
@@ -416,48 +495,41 @@
             actionBtn.disabled = false;
         }
     }
-    
-    // Sinkron manual (jika Player ID sudah ada di SDK tapi beda dengan Firebase)
+
     async function syncPlayerId() {
         if (isProcessing) return showToast("Tunggu proses lain selesai");
-        if (!currentUid) return showToast("Driver belum login", true);
-        if (!medianReady || !median.onesignal) return showToast("SDK tidak siap", true);
-        
+        if (!currentUid || !medianReady) return;
         isProcessing = true;
-        const actionBtn = document.getElementById('actionBtn');
-        const originalText = actionBtn.innerText;
-        actionBtn.innerText = "⏳ Sinkronisasi...";
-        actionBtn.disabled = true;
-        
+        addDebugLog("🔄 Sinkronisasi manual dimulai", "info");
         try {
-            const status = await getSdkPlayerStatus();
-            if (status.playerId && status.isSubscribed) {
-                await savePlayerIdToFirebase(status.playerId);
-                showToast("Sinkron berhasil! Notifikasi aktif.");
-                await refreshStatus();
+            const info = await median.onesignal.onesignalInfo();
+            const playerId = info?.oneSignalUserId || info?.userId;
+            const isSubscribed = info?.oneSignalSubscribed === true;
+            if (playerId && isSubscribed) {
+                await savePlayerIdToFirebase(playerId);
+                showToast("Sinkron berhasil!");
+                addDebugLog("✅ Sinkron sukses, Player ID tersimpan", "success");
             } else {
-                showToast("Tidak ada Player ID aktif. Silakan aktifkan notifikasi.", true);
-                await refreshStatus();
+                addDebugLog("⚠️ Tidak ada Player ID aktif atau belum subscribe", "error");
+                showToast("Tidak ada Player ID aktif. Aktifkan notifikasi dulu.", true);
             }
         } catch (err) {
-            showToast("Gagal sinkron: " + err.message, true);
+            addDebugLog(`❌ Sync error: ${err.message}`, "error");
         } finally {
             isProcessing = false;
-            actionBtn.innerText = originalText;
-            actionBtn.disabled = false;
+            await refreshStatus();
         }
     }
-    
-    // Reset: hapus data Firebase
+
     async function resetAndReRegister() {
-        if (!confirm("Reset akan menghapus data notifikasi. Anda harus mengaktifkan ulang. Lanjutkan?")) return;
-        if (!currentUid) return showToast("Driver belum login", true);
+        if (!confirm("Reset akan menghapus data notifikasi. Lanjutkan?")) return;
         await clearFirebasePlayerId();
         showToast("Data direset. Silakan klik 'Aktifkan Notifikasi'", false);
+        addDebugLog("🗑️ Data Firebase direset oleh user", "info");
         await refreshStatus();
     }
-    
-    // ========== UPDATE UI ==========
+
+    // ========== Update UI ==========
     async function refreshStatus() {
         if (!currentUid) {
             document.getElementById('driverName').innerText = "(Belum login)";
@@ -467,30 +539,28 @@
             document.getElementById('deviceStatusText').innerHTML = "-";
             return;
         }
-        
-        // Ambil nama driver dari Firebase
+
         const driverSnap = await database.ref(`drivers/${currentUid}`).once('value');
         const driverData = driverSnap.val();
         document.getElementById('driverName').innerText = driverData?.name || driverData?.fullName || "Driver";
-        
-        // Ambil status dari SDK dan Firebase
+
         const firebaseId = await getFirebasePlayerId();
         let sdkStatus = { playerId: null, isSubscribed: false };
         if (medianReady && median.onesignal) {
-            sdkStatus = await getSdkPlayerStatus();
-        } else {
-            // jika median belum siap, coba tunggu sebentar (tapi jangan blocking)
-            if (!medianReady) waitForMedian().then(() => refreshStatus());
+            try {
+                const info = await median.onesignal.onesignalInfo();
+                sdkStatus.playerId = info?.oneSignalUserId || info?.userId || null;
+                sdkStatus.isSubscribed = info?.oneSignalSubscribed === true;
+            } catch(e) {}
         }
-        
+
         const isMatch = (firebaseId && sdkStatus.playerId && firebaseId === sdkStatus.playerId);
         const isActive = (isMatch && sdkStatus.isSubscribed);
-        
         const badgeElem = document.getElementById('statusBadge');
         const statusIconElem = document.getElementById('statusIcon');
         const deviceStatusSpan = document.getElementById('deviceStatusText');
         const actionBtn = document.getElementById('actionBtn');
-        
+
         if (isActive) {
             badgeElem.innerHTML = "✅ Notifikasi Aktif";
             badgeElem.className = "status-badge badge-active";
@@ -500,7 +570,6 @@
             actionBtn.disabled = true;
             actionBtn.classList.remove("btn-primary");
             actionBtn.classList.add("btn-secondary");
-            // Hapus onclick override
             actionBtn.onclick = null;
         } 
         else if (sdkStatus.playerId && sdkStatus.isSubscribed && !isMatch) {
@@ -526,49 +595,32 @@
             actionBtn.onclick = () => activateNotifications();
         }
     }
-    
-    // ========== AUTH STATE + INISIALISASI ==========
+
+    // ========== Auth & Init ==========
     async function init() {
-        // Tunggu median siap
+        addDebugLog("🚀 Inisialisasi halaman...", "info");
         await waitForMedian();
-        // Pasang listener auth
         auth.onAuthStateChanged(async (user) => {
             if (user) {
                 currentUid = user.uid;
+                addDebugLog(`✅ Login sebagai: ${currentUid}`, "success");
                 await refreshStatus();
             } else {
                 currentUid = null;
-                document.getElementById('driverName').innerText = "(Belum login)";
-                document.getElementById('statusBadge').innerHTML = "❌ Driver belum login";
-                document.getElementById('statusBadge').className = "status-badge badge-inactive";
-                document.getElementById('statusIcon').innerHTML = "🔒";
-                document.getElementById('deviceStatusText').innerHTML = "-";
-                const actionBtn = document.getElementById('actionBtn');
-                actionBtn.disabled = true;
-                actionBtn.innerHTML = "🔔 Login terlebih dahulu";
-                actionBtn.classList.remove("btn-primary");
-                actionBtn.classList.add("btn-secondary");
-                actionBtn.onclick = null;
+                addDebugLog("⚠️ Belum login ke Firebase", "info");
+                await refreshStatus();
             }
         });
-        
-        // Tombol refresh dan reset
-        document.getElementById('refreshBtn').addEventListener('click', () => refreshStatus());
-        document.getElementById('resetBtn').addEventListener('click', () => resetAndReRegister());
-        
-        // Jika sudah login sebelum event auth terpicu (misal user cached)
-        const currentUser = auth.currentUser;
-        if (currentUser && !currentUid) {
-            currentUid = currentUser.uid;
+        document.getElementById('refreshBtn').addEventListener('click', refreshStatus);
+        document.getElementById('resetBtn').addEventListener('click', resetAndReRegister);
+        if (auth.currentUser) {
+            currentUid = auth.currentUser.uid;
             await refreshStatus();
         }
     }
-    
-    // Jalankan init setelah DOM siap
+
     document.addEventListener('DOMContentLoaded', init);
-    // Tambahkan fallback deviceready untuk lingkungan Cordova
     document.addEventListener('deviceready', function() {
-        // Jika median belum siap via waitForMedian, panggil ulang
         if (!medianReady) init();
     });
 </script>
