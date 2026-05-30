@@ -1,102 +1,576 @@
 <!DOCTYPE html>
-<html>
+<html lang="id">
 <head>
-  <meta charset="UTF-8">
-  <title>Debug Notifikasi</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>Jego Notifikasi</title>
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-database-compat.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, 'Segoe UI', Roboto, Helvetica, sans-serif;
+            background: #f7f9fc;
+            padding: 24px 16px;
+            color: #1a2c3e;
+        }
+
+        .container {
+            max-width: 520px;
+            margin: 0 auto;
+        }
+
+        .card {
+            background: white;
+            border-radius: 36px;
+            padding: 32px 24px;
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.05);
+            text-align: center;
+            transition: all 0.2s;
+        }
+
+        .status-icon {
+            font-size: 80px;
+            margin-bottom: 16px;
+        }
+
+        h1 {
+            font-size: 1.9rem;
+            font-weight: 700;
+            color: #f97316;
+            letter-spacing: -0.5px;
+            margin-bottom: 8px;
+        }
+
+        .subhead {
+            color: #5a6e7c;
+            font-size: 0.9rem;
+            margin-bottom: 24px;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 10px 24px;
+            border-radius: 100px;
+            font-weight: 600;
+            font-size: 1rem;
+            margin: 16px 0 20px;
+        }
+
+        .badge-active {
+            background: #e1f7e3;
+            color: #1f7b4d;
+            border: 1px solid #b2e0b2;
+        }
+
+        .badge-warning {
+            background: #fff0db;
+            color: #c26b00;
+            border: 1px solid #ffddb0;
+        }
+
+        .badge-inactive {
+            background: #ffe6e5;
+            color: #b91c1c;
+            border: 1px solid #fbc5c5;
+        }
+
+        .driver-info {
+            background: #f0f4f8;
+            border-radius: 28px;
+            padding: 18px;
+            margin: 20px 0;
+            text-align: left;
+        }
+
+        .driver-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            font-size: 0.95rem;
+        }
+
+        .driver-label {
+            font-weight: 500;
+            color: #2c3e50;
+        }
+
+        .driver-name {
+            font-weight: 700;
+            color: #f97316;
+        }
+
+        .tips-box {
+            background: #fef7e0;
+            border-radius: 24px;
+            padding: 16px 20px;
+            margin: 24px 0 16px;
+            text-align: left;
+            border-left: 5px solid #f97316;
+        }
+
+        .tips-title {
+            font-weight: 700;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #c26b00;
+        }
+
+        .tips-text {
+            font-size: 0.85rem;
+            color: #5a4a1a;
+            line-height: 1.4;
+        }
+
+        .btn {
+            display: block;
+            width: 100%;
+            padding: 14px 16px;
+            border: none;
+            border-radius: 60px;
+            font-weight: 700;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: 0.2s;
+            text-align: center;
+            margin-top: 12px;
+        }
+
+        .btn-primary {
+            background: #f97316;
+            color: white;
+            box-shadow: 0 2px 8px rgba(249, 115, 22, 0.3);
+        }
+
+        .btn-primary:hover {
+            background: #ea580c;
+            transform: translateY(-1px);
+        }
+
+        .btn-secondary {
+            background: #e9edf2;
+            color: #2c3e50;
+        }
+
+        .btn-secondary:hover {
+            background: #dee4ea;
+        }
+
+        .btn-outline {
+            background: transparent;
+            border: 1px solid #d0d8e3;
+            color: #4a627a;
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .footer-note {
+            font-size: 0.7rem;
+            color: #8a9bb0;
+            text-align: center;
+            margin-top: 24px;
+        }
+
+        .toast-message {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #1a2c3e;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 40px;
+            font-size: 0.8rem;
+            z-index: 1000;
+            white-space: nowrap;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+    </style>
 </head>
 <body>
+<div class="container">
+    <div class="card">
+        <div class="status-icon" id="statusIcon">🔔</div>
+        <h1>Jego Notifikasi</h1>
+        <div class="subhead">Pastikan tetap terhubung dengan order</div>
+        
+        <div id="statusBadge" class="status-badge badge-inactive">Memeriksa...</div>
+        
+        <div class="driver-info">
+            <div class="driver-row">
+                <span class="driver-label">👤 Driver</span>
+                <span class="driver-name" id="driverName">-</span>
+            </div>
+            <div class="driver-row">
+                <span class="driver-label">📱 Status perangkat</span>
+                <span id="deviceStatusText" style="font-weight:500;">-</span>
+            </div>
+        </div>
 
-<h2>Debug Notifikasi</h2>
+        <div class="tips-box">
+            <div class="tips-title">
+                <span>📍</span> Tips agar tidak melewatkan order dekat anda
+            </div>
+            <div class="tips-text">
+                ✅ Pastikan layar status ini menunjukkan <strong>"Notifikasi Aktif"</strong>.<br>
+                ✅ Aktifkan <strong>Tracking & Autobid</strong> di aplikasi Jego (pengaturan driver).<br>
+                ✅ Dengan Autobid aktif, Anda tetap bisa menerima order meskipun aplikasi ditutup.<br>
+                ✅ Izinkan notifikasi dari pengaturan HP jika belum.<br>
+                ✅ Semakin dekat lokasi anda dengan customer, semakin besar peluang dapat order.
+            </div>
+        </div>
 
-<button onclick="aktifkan()">Aktifkan Notifikasi</button>
-
-<h3>Player ID:</h3>
-<div id="playerId">-</div>
-
-<h3>Log:</h3>
-<pre id="log"></pre>
+        <button id="actionBtn" class="btn btn-primary">🔔 Aktifkan Notifikasi</button>
+        <button id="refreshBtn" class="btn btn-secondary">🔄 Refresh Status</button>
+        <button id="resetBtn" class="btn btn-outline" style="margin-top: 8px;">🗑️ Reset & Daftar Ulang</button>
+    </div>
+    <div class="footer-note">
+        ⚡ Jego akan mengirim order terdekat ke notifikasi HP anda
+    </div>
+</div>
 
 <script>
-function log(text){
-  const waktu = new Date().toLocaleTimeString();
-  document.getElementById("log").innerHTML += `[${waktu}] ${text}\n`;
-}
+    // ========== Firebase Config ==========
+    const firebaseConfig = {
+        apiKey: "AIzaSyCD0pgeZio-LdKqYDtWxcdXcZwyL4ngYQI",
+        authDomain: "jego-35a2b.firebaseapp.com",
+        databaseURL: "https://jego-35a2b-default-rtdb.asia-southeast1.firebasedatabase.app",
+        projectId: "jego-35a2b",
+        storageBucket: "jego-35a2b.firebasestorage.app",
+        messagingSenderId: "600037007040",
+        appId: "1:600037007040:web:ac3243ad9b472647ffd725"
+    };
+    if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+    const database = firebase.database();
+    const auth = firebase.auth();
 
-// Tunggu Median Ready
-document.addEventListener("deviceready", function(){
-  log("✅ median ready");
-});
+    let currentUid = null;
+    let isProcessing = false;
+    let medianReady = false;
 
-// 🔥 FUNCTION UTAMA (UPDATED)
-async function aktifkan(){
-  log("START");
-
-  try {
-    log("CEK median: " + typeof median);
-
-    if(!median || !median.onesignal){
-      log("❌ onesignal tidak ada");
-      return;
+    // Helper: Toast sederhana
+    function showToast(message, isError = false) {
+        let toast = document.querySelector('.toast-message');
+        if (toast) toast.remove();
+        toast = document.createElement('div');
+        toast.className = 'toast-message';
+        toast.textContent = message;
+        toast.style.background = isError ? '#b91c1c' : '#1f7b4d';
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 3000);
     }
 
-    log("✅ onesignal ADA");
-
-    // 🔐 1. PAKSA CONSENT
-    if(median.onesignal.setConsentGiven){
-      log("🔐 set consent TRUE...");
-      await median.onesignal.setConsentGiven(true);
-      log("✅ consent diberikan");
+    // ========== Menunggu median.onesignal siap ==========
+    function waitForMedian() {
+        return new Promise((resolve) => {
+            if (typeof median !== 'undefined' && median.onesignal) {
+                medianReady = true;
+                resolve(true);
+                return;
+            }
+            const checkInterval = setInterval(() => {
+                if (typeof median !== 'undefined' && median.onesignal) {
+                    clearInterval(checkInterval);
+                    medianReady = true;
+                    resolve(true);
+                }
+            }, 200);
+            setTimeout(() => {
+                clearInterval(checkInterval);
+                if (!medianReady) {
+                    console.warn("Median OneSignal tidak tersedia setelah timeout");
+                    resolve(false);
+                }
+            }, 5000);
+        });
     }
 
-    // 📲 2. REGISTER
-    log("📲 CALL register...");
-    await median.onesignal.register();
-    log("✅ register SELESAI");
-
-    // 🔔 3. REQUEST IZIN NOTIF
-    if(median.onesignal.promptForPushNotificationsWithUserResponse){
-      log("🔔 meminta izin notifikasi...");
-      await median.onesignal.promptForPushNotificationsWithUserResponse();
-      log("✅ izin notifikasi diminta");
+    // ========== Ambil Player ID dari OneSignal SDK (dengan retry & jeda, tanpa register ulang) ==========
+    async function fetchPlayerIdFromSDK(retries = 5, delayMs = 1500) {
+        if (!medianReady || !median.onesignal) return null;
+        for (let attempt = 1; attempt <= retries; attempt++) {
+            try {
+                const info = await median.onesignal.onesignalInfo();
+                let playerId = info?.oneSignalUserId || info?.userId || null;
+                if (playerId) return playerId;
+                if (attempt < retries) await new Promise(r => setTimeout(r, delayMs));
+            } catch (err) {
+                console.warn(`fetchPlayerId attempt ${attempt} error:`, err);
+                if (attempt < retries) await new Promise(r => setTimeout(r, delayMs));
+            }
+        }
+        return null;
     }
 
-    // ⏳ 4. TUNGGU
-    log("⏳ menunggu sinkronisasi...");
-    await new Promise(r => setTimeout(r, 8000));
-
-    // 🔍 5. AMBIL DATA (RETRY)
-    let info = null;
-    let id = null;
-
-    for(let i=0; i<3; i++){
-      log("🔍 cek data ke-" + (i+1));
-
-      info = await median.onesignal.onesignalInfo();
-      log("DATA: " + JSON.stringify(info));
-
-      if(info?.userId) id = info.userId;
-      else if(info?.oneSignalUserId) id = info.oneSignalUserId;
-      else if(info?.subscription?.id) id = info.subscription.id;
-
-      if(id) break;
-
-      log("⏳ Player ID belum ada, tunggu lagi...");
-      await new Promise(r => setTimeout(r, 5000));
+    // Ambil status lengkap (playerId + subscribed)
+    async function getSdkPlayerStatus() {
+        if (!medianReady || !median.onesignal) return { playerId: null, isSubscribed: false };
+        try {
+            const info = await median.onesignal.onesignalInfo();
+            const playerId = info?.oneSignalUserId || info?.userId || null;
+            const isSubscribed = info?.oneSignalSubscribed === true;
+            return { playerId, isSubscribed };
+        } catch (err) {
+            console.warn("onesignalInfo error:", err);
+            return { playerId: null, isSubscribed: false };
+        }
     }
 
-    // 🎯 6. HASIL
-    if(id){
-      log("🎉 SUCCESS Player ID: " + id);
-      document.getElementById("playerId").innerText = id;
-    }else{
-      log("❌ Player ID tidak ditemukan");
+    // ========== Operasi Firebase ==========
+    async function getFirebasePlayerId() {
+        if (!currentUid) return null;
+        let snap = await database.ref(`driver_locations/${currentUid}`).once('value');
+        let data = snap.val();
+        let pid = data?.playerId || data?.subscriptionId || null;
+        if (!pid) {
+            snap = await database.ref(`drivers/${currentUid}`).once('value');
+            data = snap.val();
+            pid = data?.playerId || data?.subscriptionId || null;
+        }
+        return pid;
     }
 
-  } catch(e){
-    log("❌ ERROR: " + e.message);
-  }
-}
+    async function savePlayerIdToFirebase(playerId) {
+        if (!currentUid || !playerId) return;
+        await database.ref(`drivers/${currentUid}`).update({ playerId: playerId, subscriptionId: playerId, last_update: new Date().toISOString() });
+        await database.ref(`driver_locations/${currentUid}`).update({ playerId: playerId, subscriptionId: playerId, last_update: new Date().toISOString() });
+    }
+
+    async function clearFirebasePlayerId() {
+        if (!currentUid) return;
+        await database.ref(`drivers/${currentUid}`).update({ playerId: null, subscriptionId: null });
+        await database.ref(`driver_locations/${currentUid}`).update({ playerId: null, subscriptionId: null });
+    }
+
+    // ========== PROSES AKTIVASI UTAMA (mengikuti metode sukses dari getPlayerID.html) ==========
+    async function activateNotifications() {
+        if (isProcessing) return showToast("Proses sedang berjalan, harap tunggu");
+        if (!currentUid) return showToast("Driver belum login", true);
+        if (!medianReady || !median.onesignal) return showToast("SDK OneSignal tidak siap. Coba lagi nanti.", true);
+        
+        isProcessing = true;
+        const actionBtn = document.getElementById('actionBtn');
+        const originalText = actionBtn.innerText;
+        actionBtn.innerText = "⏳ Mengaktifkan...";
+        actionBtn.disabled = true;
+        
+        try {
+            // 1. Bersihkan data lama di Firebase
+            await clearFirebasePlayerId();
+            
+            // 2. Beri consent (wajib)
+            if (median.onesignal.setConsentGiven) {
+                await median.onesignal.setConsentGiven(true);
+            }
+            
+            // 3. Register ke OneSignal
+            await median.onesignal.register();
+            
+            // 4. Minta izin notifikasi (akan muncul dialog jika belum pernah)
+            if (median.onesignal.promptForPushNotificationsWithUserResponse) {
+                await median.onesignal.promptForPushNotificationsWithUserResponse();
+            }
+            
+            // 5. Tunggu sinkronisasi (8 detik seperti di getPlayerID.html)
+            showToast("Memproses izin, tunggu sebentar...");
+            await new Promise(r => setTimeout(r, 8000));
+            
+            // 6. Ambil Player ID dengan retry (maks 5x, jeda 2 detik)
+            let playerId = null;
+            for (let attempt = 1; attempt <= 5; attempt++) {
+                const info = await median.onesignal.onesignalInfo();
+                playerId = info?.oneSignalUserId || info?.userId || null;
+                if (playerId) break;
+                if (attempt < 5) await new Promise(r => setTimeout(r, 2000));
+            }
+            
+            if (playerId) {
+                await savePlayerIdToFirebase(playerId);
+                showToast("Notifikasi berhasil diaktifkan! 🎉");
+                await refreshStatus();
+            } else {
+                showToast("Gagal mendapatkan Player ID. Coba ulangi atau periksa koneksi.", true);
+                await refreshStatus();
+            }
+        } catch (err) {
+            console.error(err);
+            showToast("Error: " + (err.message || "Gagal mengaktifkan notifikasi"), true);
+            await refreshStatus();
+        } finally {
+            isProcessing = false;
+            actionBtn.innerText = originalText;
+            actionBtn.disabled = false;
+        }
+    }
+    
+    // Sinkron manual (jika Player ID sudah ada di SDK tapi beda dengan Firebase)
+    async function syncPlayerId() {
+        if (isProcessing) return showToast("Tunggu proses lain selesai");
+        if (!currentUid) return showToast("Driver belum login", true);
+        if (!medianReady || !median.onesignal) return showToast("SDK tidak siap", true);
+        
+        isProcessing = true;
+        const actionBtn = document.getElementById('actionBtn');
+        const originalText = actionBtn.innerText;
+        actionBtn.innerText = "⏳ Sinkronisasi...";
+        actionBtn.disabled = true;
+        
+        try {
+            const status = await getSdkPlayerStatus();
+            if (status.playerId && status.isSubscribed) {
+                await savePlayerIdToFirebase(status.playerId);
+                showToast("Sinkron berhasil! Notifikasi aktif.");
+                await refreshStatus();
+            } else {
+                showToast("Tidak ada Player ID aktif. Silakan aktifkan notifikasi.", true);
+                await refreshStatus();
+            }
+        } catch (err) {
+            showToast("Gagal sinkron: " + err.message, true);
+        } finally {
+            isProcessing = false;
+            actionBtn.innerText = originalText;
+            actionBtn.disabled = false;
+        }
+    }
+    
+    // Reset: hapus data Firebase
+    async function resetAndReRegister() {
+        if (!confirm("Reset akan menghapus data notifikasi. Anda harus mengaktifkan ulang. Lanjutkan?")) return;
+        if (!currentUid) return showToast("Driver belum login", true);
+        await clearFirebasePlayerId();
+        showToast("Data direset. Silakan klik 'Aktifkan Notifikasi'", false);
+        await refreshStatus();
+    }
+    
+    // ========== UPDATE UI ==========
+    async function refreshStatus() {
+        if (!currentUid) {
+            document.getElementById('driverName').innerText = "(Belum login)";
+            document.getElementById('statusBadge').innerHTML = "⚠️ Driver belum login";
+            document.getElementById('statusBadge').className = "status-badge badge-inactive";
+            document.getElementById('statusIcon').innerHTML = "🔒";
+            document.getElementById('deviceStatusText').innerHTML = "-";
+            return;
+        }
+        
+        // Ambil nama driver dari Firebase
+        const driverSnap = await database.ref(`drivers/${currentUid}`).once('value');
+        const driverData = driverSnap.val();
+        document.getElementById('driverName').innerText = driverData?.name || driverData?.fullName || "Driver";
+        
+        // Ambil status dari SDK dan Firebase
+        const firebaseId = await getFirebasePlayerId();
+        let sdkStatus = { playerId: null, isSubscribed: false };
+        if (medianReady && median.onesignal) {
+            sdkStatus = await getSdkPlayerStatus();
+        } else {
+            // jika median belum siap, coba tunggu sebentar (tapi jangan blocking)
+            if (!medianReady) waitForMedian().then(() => refreshStatus());
+        }
+        
+        const isMatch = (firebaseId && sdkStatus.playerId && firebaseId === sdkStatus.playerId);
+        const isActive = (isMatch && sdkStatus.isSubscribed);
+        
+        const badgeElem = document.getElementById('statusBadge');
+        const statusIconElem = document.getElementById('statusIcon');
+        const deviceStatusSpan = document.getElementById('deviceStatusText');
+        const actionBtn = document.getElementById('actionBtn');
+        
+        if (isActive) {
+            badgeElem.innerHTML = "✅ Notifikasi Aktif";
+            badgeElem.className = "status-badge badge-active";
+            statusIconElem.innerHTML = "✅🔔";
+            deviceStatusSpan.innerHTML = "Siap menerima order";
+            actionBtn.innerHTML = "✅ Notifikasi Aktif";
+            actionBtn.disabled = true;
+            actionBtn.classList.remove("btn-primary");
+            actionBtn.classList.add("btn-secondary");
+            // Hapus onclick override
+            actionBtn.onclick = null;
+        } 
+        else if (sdkStatus.playerId && sdkStatus.isSubscribed && !isMatch) {
+            badgeElem.innerHTML = "🔄 Perlu Sinkronisasi";
+            badgeElem.className = "status-badge badge-warning";
+            statusIconElem.innerHTML = "🔄";
+            deviceStatusSpan.innerHTML = "Klik tombol di bawah untuk sinkron";
+            actionBtn.innerHTML = "🔄 Sinkronkan Sekarang";
+            actionBtn.disabled = false;
+            actionBtn.classList.remove("btn-secondary");
+            actionBtn.classList.add("btn-primary");
+            actionBtn.onclick = () => syncPlayerId();
+        }
+        else {
+            badgeElem.innerHTML = "🔕 Notifikasi Tidak Aktif";
+            badgeElem.className = "status-badge badge-inactive";
+            statusIconElem.innerHTML = "🔕";
+            deviceStatusSpan.innerHTML = "Belum diaktifkan";
+            actionBtn.innerHTML = "🔔 Aktifkan Notifikasi";
+            actionBtn.disabled = false;
+            actionBtn.classList.remove("btn-secondary");
+            actionBtn.classList.add("btn-primary");
+            actionBtn.onclick = () => activateNotifications();
+        }
+    }
+    
+    // ========== AUTH STATE + INISIALISASI ==========
+    async function init() {
+        // Tunggu median siap
+        await waitForMedian();
+        // Pasang listener auth
+        auth.onAuthStateChanged(async (user) => {
+            if (user) {
+                currentUid = user.uid;
+                await refreshStatus();
+            } else {
+                currentUid = null;
+                document.getElementById('driverName').innerText = "(Belum login)";
+                document.getElementById('statusBadge').innerHTML = "❌ Driver belum login";
+                document.getElementById('statusBadge').className = "status-badge badge-inactive";
+                document.getElementById('statusIcon').innerHTML = "🔒";
+                document.getElementById('deviceStatusText').innerHTML = "-";
+                const actionBtn = document.getElementById('actionBtn');
+                actionBtn.disabled = true;
+                actionBtn.innerHTML = "🔔 Login terlebih dahulu";
+                actionBtn.classList.remove("btn-primary");
+                actionBtn.classList.add("btn-secondary");
+                actionBtn.onclick = null;
+            }
+        });
+        
+        // Tombol refresh dan reset
+        document.getElementById('refreshBtn').addEventListener('click', () => refreshStatus());
+        document.getElementById('resetBtn').addEventListener('click', () => resetAndReRegister());
+        
+        // Jika sudah login sebelum event auth terpicu (misal user cached)
+        const currentUser = auth.currentUser;
+        if (currentUser && !currentUid) {
+            currentUid = currentUser.uid;
+            await refreshStatus();
+        }
+    }
+    
+    // Jalankan init setelah DOM siap
+    document.addEventListener('DOMContentLoaded', init);
+    // Tambahkan fallback deviceready untuk lingkungan Cordova
+    document.addEventListener('deviceready', function() {
+        // Jika median belum siap via waitForMedian, panggil ulang
+        if (!medianReady) init();
+    });
 </script>
-
 </body>
 </html>
