@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>JeGo Admin - Data Order Lengkap</title>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f0f2f5; padding: 20px; }
+        .container { max-width: 1400px; margin: 0 auto; background: white; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); overflow: hidden; display: flex; flex-direction: column; height: calc(100vh - 40px); }
+        .header { background: linear-gradient(135deg, #FF9800, #FFB74D); padding: 16px 24px; color: white; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; }
+        .header h1 { font-size: 1.5rem; display: flex; align-items: center; gap: 12px; }
+        .logout-btn { background: rgba(255,255,255,0.2); border: none; color: white; padding: 6px 16px; border-radius: 30px; cursor: pointer; font-weight: 600; transition: 0.2s; }
+        .toolbar { padding: 12px 20px; background: #f8f9fa; border-bottom: 1px solid #e9ecef; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
+        .search-box { padding: 8px 14px; border: 1px solid #ddd; border-radius: 30px; width: 260px; outline: none; font-size: 0.85rem; }
+        .stats-badge { background: #e9ecef; padding: 5px 14px; border-radius: 30px; font-size: 0.8rem; font-weight: 500; color: #1e293b; }
+        .refresh-btn { background: #FF9800; color: white; border: none; padding: 6px 16px; border-radius: 30px; cursor: pointer; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; }
+        .table-wrapper { flex: 1; overflow-y: auto; padding: 0 0 10px 0; position: relative; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+        th, td { padding: 10px 8px; text-align: left; border-bottom: 1px solid #edf2f7; vertical-align: middle; }
+        th { background: #f8fafc; font-weight: 600; color: #1e293b; position: sticky; top: 0; z-index: 10; }
+        tr:hover { background: #fef9e6; }
+        .status-badge { display: inline-block; padding: 4px 12px; border-radius: 30px; font-size: 0.7rem; font-weight: 600; }
+        .status-waiting { background: #fff3cd; color: #b45309; }
+        .status-accepted { background: #cfe2ff; color: #1e3a8a; }
+        .status-on_the_way { background: #e2d5f3; color: #5b21b6; }
+        .status-arrived { background: #ffe0b3; color: #b45309; }
+        .status-on_trip { background: #d1e7dd; color: #0e5a3a; }
+        .status-completed { background: #dcfce7; color: #15803d; }
+        .status-cancelled, .status-cancelled_by_user, .status-cancelled_by_driver { background: #fee2e2; color: #b91c1c; }
+        .loading-indicator { text-align: center; padding: 20px; color: #64748b; font-size: 0.85rem; }
+        .toast { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); background: #1e293b; color: white; padding: 10px 20px; border-radius: 40px; font-size: 0.85rem; z-index: 1000; opacity: 0; transition: opacity 0.2s; pointer-events: none; }
+        .toast.show { opacity: 1; }
+        .footer-note { padding: 8px 20px; background: #f8fafc; text-align: center; font-size: 0.7rem; color: #475569; border-top: 1px solid #e2e8f0; }
+        @media (max-width: 700px) { th, td { padding: 6px; font-size: 0.7rem; } .search-box { width: 180px; } }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1><i class="fas fa-database"></i> Data Order Lengkap</h1>
+        <button class="logout-btn" id="logoutBtn"><i class="fas fa-sign-out-alt"></i> Logout Admin</button>
+    </div>
+    <div class="toolbar">
+        <input type="text" id="searchOrder" class="search-box" placeholder="Cari ID, customer, driver, alamat...">
+        <div style="display: flex; gap: 12px; align-items: center;">
+            <div class="stats-badge" id="orderStats">Menampilkan <span id="displayCount">0</span> dari <span id="totalCount">0</span> order</div>
+            <button class="refresh-btn" id="refreshBtn"><i class="fas fa-sync-alt"></i> Refresh</button>
+        </div>
+    </div>
+    <div class="table-wrapper" id="tableWrapper">
+        <table id="ordersTable">
+            <thead>
+                <tr><th>ID Order</th><th>Customer</th><th>Driver</th><th>Alamat Jemput</th><th>Tujuan</th><th>Harga</th><th>Status</th><th>Dibuat</th><th>Selesai</th></tr>
+            </thead>
+            <tbody id="ordersTableBody">
+                <tr><td colspan="9" class="loading-indicator"><i class="fas fa-spinner fa-pulse"></i> Memuat data...</td></tr>
+            </tbody>
+        </table>
+        <div id="loadMoreTrigger" style="height: 10px;"></div>
+        <div id="loadingMore" class="loading-indicator" style="display: none;">Memuat lebih banyak...</div>
+    </div>
+    <div class="footer-note">
+        <i class="fas fa-arrow-down"></i> Scroll ke bawah untuk memuat data lama. Order baru muncul otomatis di atas.
+    </div>
+</div>
+<div id="toastMsg" class="toast"></div>
+
+<script>
+    // Firebase Config
+    const firebaseConfig = {
+        apiKey: "AIzaSyCD0pgeZio-LdKqYDtWxcdXcZwyL4ngYQI",
+        authDomain: "jego-35a2b.firebaseapp.com",
+        databaseURL: "https://jego-35a2b-default-rtdb.asia-southeast1.firebasedatabase.app",
+        projectId: "jego-35a2b",
+        storageBucket: "jego-35a2b.firebasestorage.app",
+        messagingSenderId: "600037007040",
+        appId: "1:600037007040:web:ac3243ad9b472647ffd725"
+    };
+    if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const database = firebase.database();
+
+    // State
+    let allOrders = [];            // menyimpan semua order yang sudah dimuat (terbaru di index 0)
+    let lastLoadedKey = null;      // key order terakhir yang dimuat (untuk load more)
+    let isLoadingMore = false;
+    let hasMore = true;
+    let searchKeyword = '';
+    let orderListenerRef = null;
+    const BATCH_SIZE = 20;          // jumlah order per load
+
+    // Helper
+    function showToast(msg, isError = false) {
+        const toast = document.getElementById('toastMsg');
+        toast.textContent = msg;
+        toast.style.background = isError ? '#b91c1c' : '#1e293b';
+        toast.classList.add('show');
+        setTimeout(() => toast.classList.remove('show'), 3000);
+    }
+
+    function formatRupiah(amount) { return 'Rp ' + (amount || 0).toLocaleString('id-ID'); }
+    function formatDate(timestamp) {
+        if (!timestamp) return '-';
+        try { return new Date(timestamp).toLocaleString('id-ID'); } catch(e) { return timestamp; }
+    }
+
+    function getStatusClass(status) {
+        if (!status) return '';
+        const s = status.toLowerCase();
+        if (s === 'waiting') return 'status-waiting';
+        if (s === 'accepted') return 'status-accepted';
+        if (s === 'on_the_way') return 'status-on_the_way';
+        if (s === 'arrived') return 'status-arrived';
+        if (s === 'on_trip') return 'status-on_trip';
+        if (s === 'completed') return 'status-completed';
+        if (s.includes('cancelled')) return 'status-cancelled';
+        return '';
+    }
+
+    function escapeHtml(str) { if (!str) return ''; return str.replace(/[&<>]/g, m => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;' }[m])); }
+
+    // Render tabel berdasarkan filter dan data
+    function renderTable() {
+        const tbody = document.getElementById('ordersTableBody');
+        const filtered = searchKeyword ? allOrders.filter(order => 
+            (order.id && order.id.toLowerCase().includes(searchKeyword)) ||
+            (order.customer_name && order.customer_name.toLowerCase().includes(searchKeyword)) ||
+            (order.driver_name && order.driver_name.toLowerCase().includes(searchKeyword)) ||
+            (order.pickup_address && order.pickup_address.toLowerCase().includes(searchKeyword))
+        ) : [...allOrders];
+
+        document.getElementById('displayCount').innerText = filtered.length;
+        document.getElementById('totalCount').innerText = allOrders.length;
+
+        if (filtered.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="9" class="loading-indicator">Tidak ada order yang cocok</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = filtered.map(order => `
+            <tr>
+                <td><code>${order.id.substring(0, 12)}...</code></td>
+                <td>${escapeHtml(order.customer_name || '-')}</td>
+                <td>${escapeHtml(order.driver_name || (order.driver_id ? order.driver_id.substring(0,8) : '-'))}</td>
+                <td>${escapeHtml(order.pickup_address || '-')}</td>
+                <td>${escapeHtml(order.destination_address || '-')}</td>
+                <td>${formatRupiah(order.price)}</td>
+                <td><span class="status-badge ${getStatusClass(order.status)}">${order.status || '-'}</span></td>
+                <td>${formatDate(order.created_at)}</td>
+                <td>${order.completed_at ? formatDate(order.completed_at) : '-'}</td>
+            </tr>
+        `).join('');
+    }
+
+    // Fungsi untuk menambahkan order baru (dari listener) ke atas daftar jika belum ada
+    function addNewOrder(order, orderId) {
+        // Cek apakah order sudah ada di allOrders
+        const exists = allOrders.some(o => o.id === orderId);
+        if (exists) return;
+
+        // Pastikan order memiliki created_at (timestamp)
+        const timestamp = order.created_at ? new Date(order.created_at).getTime() : Date.now();
+        const newOrder = { id: orderId, ...order, _timestamp: timestamp };
+        
+        // Cari posisi yang tepat berdasarkan timestamp (descending)
+        let insertIndex = 0;
+        while (insertIndex < allOrders.length && (allOrders[insertIndex]._timestamp || 0) > timestamp) {
+            insertIndex++;
+        }
+        allOrders.splice(insertIndex, 0, newOrder);
+        
+        // Jika search aktif, tetap tampilkan filter
+        renderTable();
+        console.log(`📦 Order baru ditambahkan: ${orderId} (timestamp: ${new Date(timestamp).toLocaleString()})`);
+        showToast(`Order baru dari ${order.customer_name || 'customer'} muncul di atas`, false);
+    }
+
+    // Memuat batch data awal (terbaru) dan setup listener
+    async function loadInitialOrders() {
+        return new Promise((resolve, reject) => {
+            // Ambil data terbaru dengan limitToLast BATCH_SIZE (karena kita ingin descending, kita ambil data terakhir lalu reverse)
+            const query = database.ref('orders').orderByChild('created_at').limitToLast(BATCH_SIZE);
+            query.once('value', (snapshot) => {
+                const orders = [];
+                snapshot.forEach(child => {
+                    const order = child.val();
+                    const timestamp = order.created_at ? new Date(order.created_at).getTime() : 0;
+                    orders.push({ id: child.key, ...order, _timestamp: timestamp });
+                });
+                // Urutkan descending berdasarkan timestamp
+                orders.sort((a, b) => (b._timestamp || 0) - (a._timestamp || 0));
+                allOrders = orders;
+                
+                // Tentukan lastLoadedKey untuk load more (order paling tua dari batch ini)
+                if (orders.length > 0) {
+                    const oldest = orders[orders.length - 1];
+                    lastLoadedKey = oldest.id;
+                    // Simpan timestamp tertua untuk query selanjutnya
+                    window.lastLoadedTimestamp = oldest._timestamp;
+                } else {
+                    hasMore = false;
+                }
+                
+                renderTable();
+                console.log(`✅ Load awal: ${orders.length} order dimuat. total order di memori: ${allOrders.length}`);
+                resolve();
+            }, (error) => {
+                console.error("Gagal load initial orders:", error);
+                reject(error);
+            });
+        });
+    }
+
+    // Load more data (order lebih lama) ketika scroll mendekati bawah
+    async function loadMoreOrders() {
+        if (isLoadingMore || !hasMore) return;
+        isLoadingMore = true;
+        document.getElementById('loadingMore').style.display = 'block';
+        
+        try {
+            // Gunakan endBefore berdasarkan timestamp terakhir yang sudah dimuat
+            let query;
+            if (window.lastLoadedTimestamp && window.lastLoadedTimestamp > 0) {
+                // Ambil data dengan created_at kurang dari timestamp terakhir, limit ke BATCH_SIZE
+                query = database.ref('orders')
+                    .orderByChild('created_at')
+                    .endBefore(window.lastLoadedTimestamp)
+                    .limitToLast(BATCH_SIZE);
+            } else if (lastLoadedKey) {
+                // Fallback menggunakan key
+                query = database.ref('orders')
+                    .orderByKey()
+                    .endBefore(lastLoadedKey)
+                    .limitToLast(BATCH_SIZE);
+            } else {
+                query = database.ref('orders').limitToLast(BATCH_SIZE);
+            }
+            
+            const snapshot = await query.once('value');
+            const newOrders = [];
+            snapshot.forEach(child => {
+                const order = child.val();
+                const timestamp = order.created_at ? new Date(order.created_at).getTime() : 0;
+                newOrders.push({ id: child.key, ...order, _timestamp: timestamp });
+            });
+            
+            if (newOrders.length === 0) {
+                hasMore = false;
+                console.log("🏁 Tidak ada data lagi untuk dimuat.");
+                document.getElementById('loadingMore').style.display = 'none';
+                isLoadingMore = false;
+                return;
+            }
+            
+            // Urutkan descending
+            newOrders.sort((a, b) => (b._timestamp || 0) - (a._timestamp || 0));
+            
+            // Gabungkan dengan data existing, hindari duplikat
+            const existingIds = new Set(allOrders.map(o => o.id));
+            const uniqueNew = newOrders.filter(o => !existingIds.has(o.id));
+            if (uniqueNew.length === 0) {
+                hasMore = false;
+                document.getElementById('loadingMore').style.display = 'none';
+                isLoadingMore = false;
+                return;
+            }
+            
+            // Karena newOrders adalah data yang lebih lama, tambahkan ke akhir array (allOrders sudah descending)
+            allOrders.push(...uniqueNew);
+            // Update lastLoadedKey dan timestamp
+            const oldestNew = uniqueNew[uniqueNew.length - 1];
+            lastLoadedKey = oldestNew.id;
+            window.lastLoadedTimestamp = oldestNew._timestamp;
+            
+            renderTable();
+            console.log(`📄 Load more: ${uniqueNew.length} order ditambahkan. Total sekarang: ${allOrders.length}`);
+            
+            if (uniqueNew.length < BATCH_SIZE) {
+                hasMore = false;
+                console.log("🏁 Semua data telah dimuat.");
+            }
+        } catch (err) {
+            console.error("Gagal load more:", err);
+            showToast("Gagal memuat data lama", true);
+        } finally {
+            isLoadingMore = false;
+            document.getElementById('loadingMore').style.display = 'none';
+        }
+    }
+
+    // Setup listener untuk order baru (child_added) -> untuk realtime update di atas
+    function setupRealtimeListener() {
+        if (orderListenerRef) orderListenerRef.off(); // hapus listener lama
+        // Dengarkan semua order baru yang ditambahkan (termasuk yang lama sekaligus saat awal, tapi kita filter)
+        // Kita hanya ingin order yang timestamp > order teratas saat ini
+        // Cara: gunakan orderByChild('created_at').startAfter(timestamp teratas) tapi karena descending, kita bisa simpan timestamp tertinggi
+        let latestTimestamp = allOrders.length > 0 ? allOrders[0]._timestamp : 0;
+        const query = database.ref('orders').orderByChild('created_at').startAfter(latestTimestamp);
+        orderListenerRef = query.on('child_added', (snapshot) => {
+            const order = snapshot.val();
+            const orderId = snapshot.key;
+            const timestamp = order.created_at ? new Date(order.created_at).getTime() : 0;
+            if (timestamp > latestTimestamp) {
+                addNewOrder(order, orderId);
+                latestTimestamp = timestamp; // update timestamp tertinggi
+            }
+        });
+        console.log("👂 Listener realtime order baru aktif");
+    }
+
+    // Inisialisasi ulang (refresh)
+    async function refreshAll() {
+        // Matikan listener sementara
+        if (orderListenerRef) orderListenerRef.off();
+        isLoadingMore = false;
+        hasMore = true;
+        lastLoadedKey = null;
+        window.lastLoadedTimestamp = null;
+        allOrders = [];
+        document.getElementById('ordersTableBody').innerHTML = '<tr><td colspan="9" class="loading-indicator"><i class="fas fa-spinner fa-pulse"></i> Memuat data...</td></tr>';
+        try {
+            await loadInitialOrders();
+            setupRealtimeListener();
+            showToast("Data berhasil diperbarui", false);
+        } catch (err) {
+            showToast("Gagal refresh data", true);
+            console.error(err);
+        }
+    }
+
+    // Intersection Observer untuk infinite scroll
+    function initInfiniteScroll() {
+        const trigger = document.getElementById('loadMoreTrigger');
+        if (!trigger) return;
+        const observer = new IntersectionObserver((entries) => {
+            if (entries[0].isIntersecting && !isLoadingMore && hasMore) {
+                loadMoreOrders();
+            }
+        }, { root: document.getElementById('tableWrapper'), threshold: 0.1 });
+        observer.observe(trigger);
+    }
+
+    // Search handler
+    document.getElementById('searchOrder').addEventListener('input', (e) => {
+        searchKeyword = e.target.value.toLowerCase();
+        renderTable();
+    });
+
+    // Refresh button
+    document.getElementById('refreshBtn').addEventListener('click', refreshAll);
+
+    // Logout
+    document.getElementById('logoutBtn').addEventListener('click', async () => {
+        await auth.signOut();
+        window.location.href = 'login_admin.html';
+    });
+
+    // Auth & Start
+    auth.onAuthStateChanged(async (user) => {
+        if (!user) { window.location.href = 'login_admin.html'; return; }
+        const adminSnap = await database.ref(`admins/${user.uid}`).once('value');
+        if (!adminSnap.exists()) { showToast('Bukan admin', true); await auth.signOut(); setTimeout(() => window.location.href = 'login_admin.html', 1500); return; }
+        
+        await loadInitialOrders();
+        setupRealtimeListener();
+        initInfiniteScroll();
+        console.log(`🚀 Dashboard order siap. Total order awal: ${allOrders.length}`);
+    });
+</script>
+</body>
+</html>
