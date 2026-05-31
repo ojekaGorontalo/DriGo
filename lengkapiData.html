@@ -27,7 +27,7 @@
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background: linear-gradient(135deg, #FFF3E0, #FFE0B2);
             min-height: 100vh;
-            padding: 0; /* tidak ada padding */
+            padding: 0;
             margin: 0;
         }
         .container {
@@ -37,7 +37,7 @@
         }
         .card {
             background: white;
-            border-radius: 0; /* full width, tanpa lengkungan */
+            border-radius: 0;
             padding: 28px 20px;
             box-shadow: none;
             width: 100%;
@@ -183,6 +183,11 @@
         <div id="alertBox" class="alert"></div>
 
         <form id="driverForm">
+            <!-- NAMA LENGKAP (WAJIB) -->
+            <div class="form-group">
+                <label>Nama Lengkap (sesuai KTP) <span class="required-star">*</span></label>
+                <input type="text" id="fullName" placeholder="Contoh: Ahmad Wijaya" required>
+            </div>
             <div class="form-group">
                 <label>Jenis Kendaraan <span class="required-star">*</span></label>
                 <select id="vehicleType" required>
@@ -247,6 +252,7 @@
     const form = document.getElementById('driverForm');
     const submitBtn = document.getElementById('submitBtn');
     const alertBox = document.getElementById('alertBox');
+    const fullNameInput = document.getElementById('fullName');
     const vehicleType = document.getElementById('vehicleType');
     const plateNumber = document.getElementById('plateNumber');
     const vehicleBrand = document.getElementById('vehicleBrand');
@@ -262,7 +268,7 @@
     let imgbbApiKey = null;
     let currentCustomer = null;
 
-    // Ambil data customer dari localStorage
+    // Ambil data customer dari localStorage (hanya untuk UID dan referensi)
     function getCustomerData() {
         const customerStr = localStorage.getItem('jego_logged_in_user');
         if (!customerStr) return null;
@@ -273,10 +279,11 @@
         }
     }
 
-    // Prefill data dari customer jika ada
+    // Prefill hanya nomor telepon dan alamat dari customer (opsional, tidak wajib)
     function prefillFromCustomer(customer) {
         if (customer.phone) phone.value = customer.phone.replace(/^\+62/, '0');
         if (customer.address) address.value = customer.address;
+        // Nama tidak diisi otomatis, biarkan user mengisi ulang dengan nama asli
     }
 
     // Ambil API key ImgBB dari database
@@ -416,12 +423,12 @@
         return cleaned;
     }
 
-    // Simpan data driver ke Firebase
-    async function saveDriverData(uid, customerData, formData) {
+    // Simpan data driver ke Firebase (dengan nama yang diinput, bukan dari customer)
+    async function saveDriverData(uid, formData) {
         const driverRecord = {
             uid: uid,
-            name: customerData.name,
-            email: customerData.email,
+            name: formData.fullName,
+            email: formData.email,
             phone: formData.phone,
             address: formData.address,
             vehicle_type: formData.vehicleType,
@@ -449,12 +456,17 @@
         if (submitBtn.disabled) return;
 
         // Validasi input
+        const fullName = fullNameInput.value.trim();
         const vehType = vehicleType.value;
         const plate = plateNumber.value.trim().toUpperCase();
         const vehBrand = vehicleBrand.value.trim();
         const addr = address.value.trim();
         const phoneRaw = phone.value.trim();
 
+        if (!fullName) {
+            showAlert('Nama lengkap harus diisi (sesuai KTP)', 'error');
+            return;
+        }
         if (!vehType || !plate || !addr || !phoneRaw) {
             showAlert('Harap isi semua field yang wajib (jenis kendaraan, plat nomor, alamat, nomor telepon)', 'error');
             return;
@@ -472,15 +484,15 @@
             return;
         }
 
-        // Ambil data customer dari localStorage
+        // Ambil data customer dari localStorage (hanya untuk UID dan email)
         const customer = getCustomerData();
         if (!customer || !customer.uid) {
             showAlert('Sesi tidak valid. Silakan login ulang sebagai customer.', 'error');
             setTimeout(() => window.location.href = 'loginUser.html', 2000);
             return;
         }
-        currentCustomer = customer;
         const uid = customer.uid;
+        const email = customer.email;
 
         // Pastikan Firebase Auth user ada
         let firebaseUser = auth.currentUser;
@@ -499,6 +511,8 @@
 
         try {
             const formData = {
+                fullName: fullName,
+                email: email,
                 vehicleType: vehType,
                 plateNumber: plate,
                 vehicleBrand: vehBrand,
@@ -507,14 +521,14 @@
                 photoURL: uploadedPhotoURL
             };
 
-            await saveDriverData(uid, customer, formData);
+            await saveDriverData(uid, formData);
 
             // Buat session driver
             const driverSession = {
                 uid: uid,
-                name: customer.name,
+                name: fullName,
                 phone: formattedPhone,
-                email: customer.email,
+                email: email,
                 address: addr,
                 vehicleType: vehType,
                 plateNumber: plate,
@@ -553,11 +567,7 @@
         prefillFromCustomer(customer);
         await fetchImgbbApiKey();
         if (!auth.currentUser) {
-            try {
-                // Coba sign in dengan email yang tersimpan? Tidak perlu, karena customer sudah login via localStorage.
-                // Kita hanya perlu memastikan auth.currentUser ada.
-                console.warn('Firebase Auth user belum tersedia, mungkin perlu refresh');
-            } catch(e) {}
+            console.warn('Firebase Auth user belum tersedia, mungkin perlu refresh');
         }
     };
 </script>
