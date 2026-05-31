@@ -107,16 +107,15 @@
 
     // ==================== GLOBAL VARIABLES ====================
     let processedOrderIds = new Set();
-    let fallbackTimers = new Map();
-    let fallbackProcessed = new Set();
-    let processedDeductionOrders = new Set();
-    let ordersListener = false;
-    let ONESIGNAL_API_KEY = "";
-    const ONESIGNAL_APP_ID = "007d7eba-9cfc-40d1-a92e-f2299f770282";
-    const FALLBACK_DELAY_SECONDS = 20;
-    
-    // Untuk notifikasi stale driver berbasis order (cooldown 30 menit)
-    let lastStaleNotifTime = new Map(); // driverId -> timestamp
+let fallbackTimers = new Map();
+let fallbackProcessed = new Set();
+let processedDeductionOrders = new Set();
+let ordersListener = false;
+let ONESIGNAL_API_KEY = "";
+const ONESIGNAL_APP_ID = "007d7eba-9cfc-40d1-a92e-f2299f770282";
+const FALLBACK_DELAY_SECONDS = 20;
+let lastStaleNotifTime = new Map();
+let checkedCancelledOrders = new Set();
 
     // ==================== UI LOG (TERBARU DI ATAS) ====================
     function addLog(msg, type = "info") {
@@ -478,6 +477,80 @@
             processedDeductionOrders.add(orderId);
         } catch(err) { addLog(`❌ Auto deduct error: ${err.message}`, "error"); }
     }
+    // ==================== OFF-APP TRIP DETECTION ====================
+async function checkOffAppSuspicion(orderId, orderData) {
+    if (!orderData || orderData.status !== 'cancelled') return;
+    if (checkedCancelledOrders.has(orderId)) return;
+    const cancelledBy = orderData.cancelled_by;
+    if (cancelledBy !== 'customer') return; // hanya jika customer yang batalkan
+    
+    const driverId = orderData.driver_id;
+    const destLat = orderData.dest_lat;
+    const destLng = orderData.dest_lng;
+    if (!driverId || !destLat) return;
+    
+    const cancelledAt = orderData.cancelled_at ? new Date(orderData.cancelled_at).getTime() : Date.now();
+    // Tunggu 5 menit setelah pembatalan, lalu cek lokasi driver
+    setTimeout(async () => {
+        const locationsSnap = await database.ref(`driver_locations/${driverId}`).orderByChild('last_update').limitToLast(10).once('value');
+        let nearDestination = false;
+        let latestLoc = null;
+        locationsSnap.forEach(child => {
+            const loc = child.val();
+            if (loc.latitude && loc.longitude) {
+                latestLoc = loc;
+                const dist = getDistance(loc.latitude, loc.longitude, destLat, destLng);
+                if (dist < 0.2) nearDestination = true;
+            }
+        });
+        if (nearDestination) {
+            const reportData = {
+                orderId, driverId, cancelledBy, cancelledAt,
+                destination: { lat: destLat, lng: destLng },
+                driverLocation: latestLoc ? { lat: latestLoc.latitude, lng: latestLoc.longitude, time: latestLoc.last_update } : null,
+                reason: 'Driver mendekati tujuan setelah pembatalan oleh customer',
+                detectedAt: Date.now(),
+                status: 'pending_review'
+            };
+            await database.ref(`reports/offapp_suspicion/${orderId}`).set(reportData);
+            addLog(`⚠️ [OFF-APP] Indikasi off-app trip: order ${orderId.substring(0,8)} driver ${driverId.substring(0,8)} mendekati tujuan setelah dibatalkan customer.`, "warning");
+        } else {
+            addLog(`✅ [OFF-APP] Order ${orderId.substring(0,8)}: driver tidak mendekati tujuan.`, "success");
+        }
+        checkedCancelledOrders.add(orderId);
+    }, 5 * 60 * 1000);
+}
+
+async function onOrderChangedForOffApp(snapshot) {
+    const order = snapshot.val();
+    const orderId = snapshot.key;
+    if (order && order.status === 'cancelled' && order.cancelled_by === 'customer') {
+        const reportSnap = await database.ref(`reports/offapp_suspicion/${orderId}`).once('value');
+        if (!reportSnap.exists()) {
+            await checkOffAppSuspicion(orderId, order);
+        }
+    }
+}
+
+async function scanRecentCancelledOrders() {
+    const thirtyMinAgo = Date.now() - 30 * 60 * 1000;
+    const ordersSnap = await database.ref('orders').once('value');
+    const orders = ordersSnap.val() || {};
+    let count = 0;
+    for (const [id, order] of Object.entries(orders)) {
+        if (order.status === 'cancelled' && order.cancelled_by === 'customer') {
+            const cancelledAt = order.cancelled_at ? new Date(order.cancelled_at).getTime() : 0;
+            if (cancelledAt > thirtyMinAgo) {
+                const reportSnap = await database.ref(`reports/offapp_suspicion/${id}`).once('value');
+                if (!reportSnap.exists()) {
+                    await checkOffAppSuspicion(id, order);
+                    count++;
+                }
+            }
+        }
+    }
+    if (count > 0) addLog(`🔍 [OFF-APP] Scan selesai, memeriksa ${count} order yang baru dibatalkan.`, "info");
+}
 
     // ==================== UPDATE STATISTIK ====================
     async function updateDriverStats(driverId) {
@@ -580,47 +653,52 @@
     }
 
     function startListeners() {
-        database.ref('orders').on('child_changed', async (snap) => {
-            const order = snap.val(); const id = snap.key;
-            if (!order) return;
-            
-            if (order.status === 'on_trip') await autoDeductOnTrip(id, order);
-            if (order.status === 'completed' && order.driver_id) await updateDriverStats(order.driver_id);
-            
-            // 🔔 KIRIM NOTIFIKASI KE DRIVER SAAT CUSTOMER MENERIMA PENAWARAN
-            if (order.status === 'accepted' && order.driver_id) {
-                const playerId = await getDriverPlayerId(order.driver_id);
-                if (playerId) {
-                    await sendPushNotification(playerId, "Penawaran Diterima ✅", "Customer menerima penawaran Anda, silakan buka aplikasi.");
-                    addLog(`📨 Notifikasi diterima ke driver ${order.driver_id} untuk order ${id}`, "success");
-                } else {
-                    addLog(`⚠️ Gagal mengirim notifikasi ke driver ${order.driver_id}: playerId tidak ditemukan`, "warning");
-                }
+    database.ref('orders').on('child_changed', async (snap) => {
+        const order = snap.val(); const id = snap.key;
+        if (!order) return;
+        
+        if (order.status === 'on_trip') await autoDeductOnTrip(id, order);
+        if (order.status === 'completed' && order.driver_id) await updateDriverStats(order.driver_id);
+        
+        if (order.status === 'accepted' && order.driver_id) {
+            const playerId = await getDriverPlayerId(order.driver_id);
+            if (playerId) {
+                await sendPushNotification(playerId, "Penawaran Diterima ✅", "Customer menerima penawaran Anda, silakan buka aplikasi.");
+                addLog(`📨 Notifikasi diterima ke driver ${order.driver_id} untuk order ${id}`, "success");
+            } else {
+                addLog(`⚠️ Gagal mengirim notifikasi ke driver ${order.driver_id}: playerId tidak ditemukan`, "warning");
             }
-        });
-        database.ref('ratings').on('child_added', async (snap) => {
-            const ratingData = snap.val();
-            if (ratingData?.driver_rating?.driver_id) await updateDriverStats(ratingData.driver_rating.driver_id);
-            if (ratingData?.customer_rating?.customer_id) await updateCustomerStats(ratingData.customer_rating.customer_id);
-        });
-        database.ref('ratings').on('child_changed', async (snap) => {
-            const ratingData = snap.val();
-            if (ratingData?.driver_rating?.driver_id) await updateDriverStats(ratingData.driver_rating.driver_id);
-            if (ratingData?.customer_rating?.customer_id) await updateCustomerStats(ratingData.customer_rating.customer_id);
-        });
-    }
+        }
+        
+        // ========== TAMBAHKAN BARIS INI UNTUK DETEKSI OFF-APP ==========
+        await onOrderChangedForOffApp(snap);
+    });
+    
+    database.ref('ratings').on('child_added', async (snap) => {
+        const ratingData = snap.val();
+        if (ratingData?.driver_rating?.driver_id) await updateDriverStats(ratingData.driver_rating.driver_id);
+        if (ratingData?.customer_rating?.customer_id) await updateCustomerStats(ratingData.customer_rating.customer_id);
+    });
+    database.ref('ratings').on('child_changed', async (snap) => {
+        const ratingData = snap.val();
+        if (ratingData?.driver_rating?.driver_id) await updateDriverStats(ratingData.driver_rating.driver_id);
+        if (ratingData?.customer_rating?.customer_id) await updateCustomerStats(ratingData.customer_rating.customer_id);
+    });
+}
 
     // ==================== INIT ====================
     async function initCore() {
-        await getOneSignalApiKey();
-        startListeningOrders();
-        startListeners();
-        await processMissedDeductions();   // 🔧 CEK ORDER TERLEWAT
-        setInterval(cleanupExpiredOffers, 10000);
-        setInterval(deleteExpiredOrders, 10 * 60 * 1000);
-        addLog("✅ Semua sistem core berjalan (auto offer, fallback, deduct, cleanup, missed check)", "success");
-        document.getElementById("statusBadge").innerHTML = "🟢 Aktif 24 Jam";
-    }
+    await getOneSignalApiKey();
+    startListeningOrders();
+    startListeners();
+    await processMissedDeductions();
+    await scanRecentCancelledOrders();                     // <-- TAMBAHKAN
+    setInterval(cleanupExpiredOffers, 10000);
+    setInterval(deleteExpiredOrders, 10 * 60 * 1000);
+    setInterval(scanRecentCancelledOrders, 10 * 60 * 1000); // <-- TAMBAHKAN
+    addLog("✅ Semua sistem core berjalan (auto offer, fallback, deduct, cleanup, missed check, off-app detection)", "success");
+    document.getElementById("statusBadge").innerHTML = "🟢 Aktif 24 Jam";
+}
 
     // ==================== AUTH ====================
     auth.onAuthStateChanged(async (user) => {
