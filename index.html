@@ -1946,12 +1946,65 @@ if (modePenumpangBtn) {
     const konfirmasi = confirm('Beralih ke mode penumpang akan mengeluarkan Anda dari akun driver. Lanjutkan?');
     if (konfirmasi) {
       try {
+        const uid = globalCurrentUid;
+        if (!uid) throw new Error('UID driver tidak ditemukan.');
+
+        // 1. Cek apakah sudah punya akun customer
+        const customerSnap = await database.ref(`users/${uid}`).once('value');
+        if (!customerSnap.exists()) {
+          // 2. Ambil data driver dari database
+          const driverSnap = await database.ref(`drivers/${uid}`).once('value');
+          const driverData = driverSnap.val();
+          if (!driverData) throw new Error('Data driver tidak ditemukan.');
+
+          // 3. Buat data customer (gunakan data driver)
+          const customerData = {
+            name: driverData.name || '',
+            email: driverData.email || '',
+            phone: driverData.phone || '',
+            address: driverData.address || '',
+            gender: driverData.gender || '',
+            uid: uid,
+            status: 'active',
+            photoURL: driverData.photoURL || '',
+            rating: driverData.rating || 5,
+            perjalanan: driverData.perjalanan || 0,
+            createdAt: new Date().toISOString(),
+            isDriverConverted: true  // opsional, menandai dari driver
+          };
+          await database.ref(`users/${uid}`).set(customerData);
+          console.log('✅ Akun customer berhasil dibuat dari data driver');
+        }
+
+        // 4. Ambil data customer (bisa dari hasil create atau yang sudah ada)
+        const finalCustomerSnap = await database.ref(`users/${uid}`).once('value');
+        const finalCustomerData = finalCustomerSnap.val();
+
+        // 5. Simpan session customer
+        const sessionCustomer = {
+          userId: uid,
+          uid: uid,
+          name: finalCustomerData.name,
+          phone: finalCustomerData.phone,
+          email: finalCustomerData.email,
+          address: finalCustomerData.address,
+          gender: finalCustomerData.gender || '',
+          status: finalCustomerData.status,
+          photoURL: finalCustomerData.photoURL || '',
+          rating: finalCustomerData.rating || 5,
+          perjalanan: finalCustomerData.perjalanan || 0
+        };
+        localStorage.setItem('jego_logged_in_user', JSON.stringify(sessionCustomer));
+
+        // 6. Logout driver
         await auth.signOut();
         localStorage.removeItem('jego_logged_in_driver');
         localStorage.removeItem('autobid_offered_orders');
-        window.location.href = 'customer/loginUser.html';
+
+        // 7. Redirect ke halaman customer
+        window.location.href = 'customer/jenis_kenderaan.html';
       } catch (err) {
-        console.error('Gagal logout:', err);
+        console.error('❌ Gagal beralih mode:', err);
         alert('Gagal beralih mode: ' + err.message);
       }
     }
