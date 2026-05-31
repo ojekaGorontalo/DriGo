@@ -1965,40 +1965,16 @@ if (sidebarHeader) {
 window.addEventListener('beforeunload', () => { if (locationWatchId) navigator.geolocation.clearWatch(locationWatchId); });
 if (gpsLoadingInterval) clearInterval(gpsLoadingInterval);
 // ==================== HANDLE BACK BUTTON DENGAN KONFIRMASI ====================
-function exitApp() {
-    // Coba tutup menggunakan bridge median.co
-    if (window.Median && typeof window.Median.close === 'function') {
-        window.Median.close();
-    } else if (window.Median && typeof window.Median.exitApp === 'function') {
-        window.Median.exitApp();
+document.addEventListener("backbutton", function () {
+    if (
+        window.location.pathname === "/" ||
+        window.location.pathname === "/index.html"
+    ) {
+        navigator.app.exitApp();
     } else {
-        // Fallback: arahkan ke halaman kosong
-        window.location.href = 'about:blank';
+        history.back();
     }
-}
-
-function confirmExit() {
-    // Gunakan confirm bawaan browser (sederhana)
-    if (confirm("Apakah Anda yakin ingin keluar dari aplikasi JeGo?")) {
-        exitApp();
-    }
-}
-
-// Tangani event popstate (tekan tombol back)
-let backPressedOnce = false;
-window.addEventListener('popstate', function(event) {
-    if (history.length <= 1 || !document.referrer) {
-        if (!backPressedOnce) {
-            backPressedOnce = true;
-            confirmExit();  // Tampilkan dialog konfirmasi
-            // Reset setelah 1 detik agar bisa dipencet lagi
-            setTimeout(() => { backPressedOnce = false; }, 1000);
-        }
-    }
-});
-
-// Buat state awal
-history.pushState(null, null, location.href);
+}, false);
 </script>
 </body>
 </html>
