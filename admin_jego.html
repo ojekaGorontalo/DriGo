@@ -2,304 +2,96 @@
 <html lang="id">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>JeGo Admin Panel - Dashboard Order</title>
-    <!-- Firebase SDK -->
-    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-auth-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-database-compat.js"></script>
-    <!-- Font Awesome -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>JeGo Core - Auto System 24 Jam</title>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: #f0f2f5;
-            height: 100vh;
-            overflow: hidden;
-        }
-        .app { display: flex; height: 100vh; }
-        .sidebar {
-            width: 280px;
-            background: linear-gradient(180deg, #1e1e2f 0%, #2a2a3b 100%);
-            color: #eee;
-            display: flex;
-            flex-direction: column;
-            box-shadow: 2px 0 12px rgba(0,0,0,0.1);
-            overflow-y: auto;
-            flex-shrink: 0;
-        }
-        .sidebar-header {
-            padding: 20px;
-            border-bottom: 1px solid #FF9800;
-            margin-bottom: 10px;
-        }
-        .sidebar-header h2 {
-            color: #FF9800;
-            font-size: 1.4rem;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-        .sidebar-menu {
-            flex: 1;
-            padding: 10px 0;
-        }
-        .menu-item {
-            padding: 12px 20px;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            cursor: pointer;
-            transition: all 0.3s;
-            border-left: 3px solid transparent;
-        }
-        .menu-item i { width: 24px; font-size: 1.2rem; }
-        .menu-item:hover {
-            background: rgba(255,152,0,0.2);
-            border-left-color: #FF9800;
-        }
-        .menu-item.active {
-            background: rgba(255,152,0,0.3);
-            border-left-color: #FF9800;
-            font-weight: bold;
-        }
-        .main-content {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-            background: #f0f2f5;
-        }
-        .top-bar {
-            background: white;
-            padding: 12px 24px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.05);
-            z-index: 10;
-        }
-        .page-title {
-            font-size: 1.4rem;
-            font-weight: 600;
-            color: #FF9800;
-        }
-        .logout-top {
-            background: #f44336;
-            color: white;
-            border: none;
-            padding: 8px 16px;
-            border-radius: 8px;
-            cursor: pointer;
-            font-weight: bold;
-        }
-        .table-container {
-            flex: 1;
-            margin: 20px;
-            background: white;
-            border-radius: 12px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-        }
-        .table-toolbar {
-            padding: 12px 20px;
-            background: #f8f9fa;
-            border-bottom: 1px solid #e9ecef;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 10px;
-        }
-        .search-box {
-            padding: 8px 12px;
-            border: 1px solid #ddd;
-            border-radius: 20px;
-            width: 250px;
-            outline: none;
-        }
-        .export-btn {
-            background: #28a745;
-            color: white;
-            border: none;
-            padding: 8px 16px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-weight: bold;
-        }
-        .action-btn {
-            background: #FF9800;
-            color: white;
-            border: none;
-            padding: 6px 12px;
-            border-radius: 6px;
-            cursor: pointer;
-            margin: 0 4px;
-        }
-        .table-wrapper {
-            overflow: auto;
-            flex: 1;
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 0.8rem;
             font-family: 'Segoe UI', monospace;
-        }
-        th, td {
-            padding: 10px 12px;
-            text-align: left;
-            border-bottom: 1px solid #eee;
-        }
-        th {
-            background: #f8f9fa;
-            font-weight: 600;
-            position: sticky;
-            top: 0;
-            cursor: pointer;
-            user-select: none;
-            border-top: 1px solid #e9ecef;
-        }
-        table tr:hover {
-            background: #f5f5f5;
-        }
-        table td, table th {
-            border-right: 1px solid #e9ecef;
-        }
-        table td:last-child, table th:last-child {
-            border-right: none;
-        }
-        .status-waiting { background-color: #fff3cd !important; }
-        .status-accepted { background-color: #cfe2ff !important; }
-        .status-on_the_way { background-color: #e2d5f3 !important; }
-        .status-arrived { background-color: #ffe0b3 !important; }
-        .status-on_trip { background-color: #d1e7dd !important; }
-        .status-completed { background-color: #ffffff !important; }
-        .status-cancelled { background-color: #f8d7da !important; }
-        .inline-form {
-            background: #fff;
-            padding: 15px;
-            border-radius: 8px;
-            margin-bottom: 15px;
-            display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
-            align-items: flex-end;
-        }
-        .inline-form select, .inline-form button, .inline-form input, .inline-form textarea {
-            padding: 8px 12px;
-            border-radius: 6px;
-            border: 1px solid #ccc;
-        }
-        .inline-form textarea { width: 100%; min-width: 200px; }
-        .compact-log {
-            background: #1e1e2f;
-            color: #eee;
-            padding: 10px;
-            font-size: 11px;
-            font-family: monospace;
-            max-height: 150px;
-            overflow-y: auto;
-            margin: 10px;
-            border-radius: 8px;
-        }
-        .compact-log .log-entry {
-            border-bottom: 1px solid #444;
-            padding: 3px 0;
-        }
-        .notif-form-card {
-            background: white;
-            border-radius: 12px;
+            background: #0a0f1e;
+            color: #e0e0e0;
             padding: 20px;
-            margin: 20px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
         }
-        .notif-form-card h3 {
-            margin-bottom: 15px;
+        .header {
+            background: #1e293b;
+            padding: 12px 20px;
+            border-radius: 16px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .header h1 {
+            font-size: 1.3rem;
             color: #FF9800;
         }
-        .form-group {
-            margin-bottom: 15px;
+        .status-badge {
+            background: #2d3a4e;
+            padding: 6px 12px;
+            border-radius: 40px;
+            font-size: 0.8rem;
         }
-        .form-group label {
-            font-weight: 600;
-            display: block;
-            margin-bottom: 5px;
-        }
-        .form-group input, .form-group textarea, .form-group select {
-            width: 100%;
-            padding: 10px;
-            border-radius: 8px;
-            border: 1px solid #ccc;
-        }
-        .radio-group {
+        .log-container {
+            flex: 1;
+            background: #0f1724;
+            border-radius: 20px;
+            padding: 16px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 0.75rem;
+            border: 1px solid #2d3a4e;
             display: flex;
-            gap: 20px;
-            align-items: center;
+            flex-direction: column;
         }
-        .bonus-amount { font-weight: bold; color: #2E7D32; }
-        .adjust-bonus-btn { background: #2196F3; }
-        .modal {
-            display: none;
-            position: fixed;
-            top: 0; left: 0;
-            width: 100%; height: 100%;
-            background: rgba(0,0,0,0.5);
-            align-items: center;
-            justify-content: center;
-            z-index: 1000;
+        .log-entry {
+            border-bottom: 1px solid #1e2a3a;
+            padding: 6px 0;
+            color: #b0c4de;
         }
-        .modal-content {
-            background: white;
-            padding: 20px;
-            border-radius: 12px;
-            width: 350px;
+        .log-entry.success { color: #86efac; }
+        .log-entry.error { color: #fca5a5; }
+        .log-entry.warning { color: #fcd34d; }
+        button {
+            background: #FF9800;
+            border: none;
+            padding: 6px 14px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-weight: bold;
         }
-        .form-input { width: 100%; padding: 8px; margin: 8px 0; border: 1px solid #ccc; border-radius: 6px; }
+        button:hover { opacity: 0.9; }
+        .footer {
+            text-align: center;
+            font-size: 0.7rem;
+            margin-top: 12px;
+            color: #5b6e8c;
+        }
     </style>
 </head>
 <body>
-<div class="app">
-    <div class="sidebar">
-        <div class="sidebar-header">
-            <h2><i class="fas fa-tachometer-alt"></i> JeGo Admin</h2>
-            <div style="font-size: 12px; margin-top: 8px;">Auto Deduct & Fallback</div>
-        </div>
-        <div class="sidebar-menu">
-            <div class="menu-item" data-view="dashboard"><i class="fas fa-chart-line"></i> <span>Dashboard</span></div>
-            <div class="menu-item" data-view="waiting_orders"><i class="fas fa-clock"></i> <span>Order Waiting</span></div>
-            <div class="menu-item" data-view="drivers_list"><i class="fas fa-users"></i> <span>Data Driver</span></div>
-            <div class="menu-item" data-view="send_offer"><i class="fas fa-paper-plane"></i> <span>Kirim Penawaran Manual</span></div>
-            <div class="menu-item" data-view="auto_deduct_log"><i class="fas fa-cut"></i> <span>Log Auto Deduct</span></div>
-            <div class="menu-item" data-view="statistik_driver"><i class="fas fa-star"></i> <span>Statistik Rating</span></div>
-            <div class="menu-item" data-view="fallback_log"><i class="fas fa-history"></i> <span>Fallback Log</span></div>
-            <div class="menu-item" data-view="realtime_log"><i class="fas fa-terminal"></i> <span>Real-time Log</span></div>
-            <div class="menu-item" data-view="tools"><i class="fas fa-tools"></i> <span>Tools</span></div>
-            <div class="menu-item" data-view="send_notif_customer"><i class="fas fa-bell"></i> <span>Notifikasi Customer</span></div>
-            <div class="menu-item" data-view="manage_bonus"><i class="fas fa-gift"></i> <span>Bonus Customer</span></div>
-            <div class="menu-item" data-view="referral_settings"><i class="fas fa-sliders-h"></i> <span>Pengaturan Referral</span></div>
-        </div>
-        <div style="padding: 20px;">
-            <button id="sidebarLogout" class="action-btn" style="background:#f44336; width:100%"><i class="fas fa-sign-out-alt"></i> Logout</button>
-        </div>
-    </div>
-
-    <div id="logMessages" style="display:none;"></div>
-
-    <div class="main-content">
-        <div class="top-bar">
-            <div class="page-title" id="pageTitle">Dashboard</div>
-            <button class="logout-top" id="topLogoutBtn"><i class="fas fa-power-off"></i> Logout</button>
-        </div>
-        <div id="viewContainer" style="flex:1; display: flex; flex-direction: column; overflow: hidden;"></div>
-    </div>
+<div class="header">
+    <h1><i class="fas fa-microchip"></i> JeGo Core Engine (24/7) - Log Terbaru di Atas</h1>
+    <div class="status-badge" id="statusBadge">🟢 Aktif</div>
+    <button id="logoutBtn">Logout Admin</button>
+</div>
+<div class="log-container" id="logContainer">
+    <div class="log-entry">🚀 Memulai sistem core... (listener order, auto offer, fallback, deduct)</div>
+    <div class="log-entry">⏳ Menunggu autentikasi admin...</div>
+</div>
+<div class="footer">
+    <i class="fas fa-arrow-up"></i> Log terbaru muncul di ATAS | Sistem berjalan 24 jam | Auto offer & fallback aktif
 </div>
 
 <script>
-    // ==================== KONFIGURASI ====================
+    // ==================== FIREBASE CONFIG ====================
     const firebaseConfig = {
         apiKey: "AIzaSyCD0pgeZio-LdKqYDtWxcdXcZwyL4ngYQI",
         authDomain: "jego-35a2b.firebaseapp.com",
@@ -313,53 +105,47 @@
     const auth = firebase.auth();
     const database = firebase.database();
 
-    // OneSignal
-    const ONESIGNAL_APP_ID = "007d7eba-9cfc-40d1-a92e-f2299f770282";
-    let ONESIGNAL_API_KEY = "";
-
-    let allDrivers = {};
-    let allWaitingOrders = {};
+    // ==================== GLOBAL VARIABLES ====================
+    let processedOrderIds = new Set();
+    let fallbackTimers = new Map();
+    let fallbackProcessed = new Set();
+    let processedDeductionOrders = new Set();
     let ordersListener = false;
-    const processedOrderIds = new Set();
-    const fallbackTimers = new Map();
-    const fallbackProcessed = new Set();
-    const processedDeductionOrders = new Set();
+    let ONESIGNAL_API_KEY = "";
+    const ONESIGNAL_APP_ID = "007d7eba-9cfc-40d1-a92e-f2299f770282";
     const FALLBACK_DELAY_SECONDS = 20;
-    let currentView = 'dashboard';
+    
+    // Untuk notifikasi stale driver berbasis order (cooldown 30 menit)
+    let lastStaleNotifTime = new Map(); // driverId -> timestamp
 
+    // ==================== UI LOG (TERBARU DI ATAS) ====================
     function addLog(msg, type = "info") {
-        const logDiv = document.getElementById("logMessages");
+        const logDiv = document.getElementById("logContainer");
         if (!logDiv) return;
         const entry = document.createElement("div");
         entry.className = "log-entry";
+        if (type === "success") entry.classList.add("success");
+        else if (type === "error") entry.classList.add("error");
+        else if (type === "warning") entry.classList.add("warning");
         const time = new Date().toLocaleTimeString();
-        let color = "#66aaff";
-        if (type === "success") color = "#66ff66";
-        if (type === "error") color = "#ff6666";
-        if (type === "warning") color = "#ffaa66";
-        entry.style.color = color;
         entry.textContent = `[${time}] ${msg}`;
-        logDiv.appendChild(entry);
-        entry.scrollIntoView({ behavior: "smooth", block: "nearest" });
-        while (logDiv.children.length > 200) logDiv.removeChild(logDiv.firstChild);
+        logDiv.prepend(entry);
+        while (logDiv.children.length > 500) logDiv.removeChild(logDiv.lastChild);
+        entry.scrollIntoView({ behavior: "smooth", block: "start" });
     }
 
-    // ========== API Key & Notifikasi ==========
-    async function fetchOneSignalApiKey() {
+    // ==================== ONE SIGNAL ====================
+    async function getOneSignalApiKey() {
+        if (ONESIGNAL_API_KEY) return ONESIGNAL_API_KEY;
         try {
             const snap = await database.ref('data-jego/PushKey').once('value');
-            const key = snap.val();
-            if (key) {
-                ONESIGNAL_API_KEY = key;
-                addLog("🔑 OneSignal API Key loaded", "success");
-                return true;
-            } else {
-                addLog("⚠️ PushKey tidak ditemukan", "error");
-                return false;
-            }
+            ONESIGNAL_API_KEY = snap.val();
+            if (ONESIGNAL_API_KEY) addLog("🔑 OneSignal API Key loaded", "success");
+            else addLog("⚠️ PushKey tidak ditemukan", "error");
+            return ONESIGNAL_API_KEY;
         } catch(e) {
             addLog(`❌ Gagal memuat PushKey: ${e.message}`, "error");
-            return false;
+            return null;
         }
     }
 
@@ -368,40 +154,46 @@
         try {
             const res = await fetch("https://onesignal.com/api/v1/notifications", {
                 method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "Authorization": `Basic ${ONESIGNAL_API_KEY}`
-                },
+                headers: { "Content-Type": "application/json", "Authorization": `Basic ${ONESIGNAL_API_KEY}` },
                 body: JSON.stringify({
                     app_id: ONESIGNAL_APP_ID,
                     include_player_ids: [playerId],
                     headings: { en: title },
                     contents: { en: message },
-                    data: { type: "admin_broadcast", ...extraData },
+                    data: { type: "auto_system", ...extraData },
                     priority: 10,
                     android_priority: "high",
-                    android_channel_id: "022cc65d-3fb9-4939-85df-07e7cf3df0b8",
-                    small_icon: "ic_stat_onesignal_default",
-                    large_icon: "https://ojekaGorontalo.github.io/Logo/logo.png",
-                    android_sound: "default",
-                    android_vibration_pattern: [300, 500]
+                    android_channel_id: "022cc65d-3fb9-4939-85df-07e7cf3df0b8"
                 })
             });
             const result = await res.json();
-            if (result.errors) {
-                addLog(`Gagal notif: ${JSON.stringify(result.errors)}`, "error");
-                return false;
-            } else {
-                addLog(`✅ Notif terkirim ke ${playerId.substring(0,8)}...`, "success");
-                return true;
-            }
-        } catch(err) {
-            addLog(`Error API: ${err.message}`, "error");
-            return false;
-        }
+            if (result.errors) { addLog(`⚠️ Notif gagal: ${JSON.stringify(result.errors)}`, "warning"); return false; }
+            return true;
+        } catch(err) { addLog(`❌ Error notif: ${err.message}`, "error"); return false; }
     }
 
-    // ========== FUNGSI JARAK ==========
+    async function getDriverPlayerId(driverId) {
+        try {
+            const locSnap = await database.ref(`driver_locations/${driverId}/playerId`).once('value');
+            let pid = locSnap.val();
+            if (!pid) {
+                const driverSnap = await database.ref(`drivers/${driverId}/playerId`).once('value');
+                pid = driverSnap.val();
+            }
+            return pid;
+        } catch(e) { return null; }
+    }
+
+    async function saveDriverNotification(driverId, title, message, type = 'system') {
+        if (!driverId) return;
+        try {
+            await database.ref(`driver_notifications/${driverId}`).push({
+                title, message, timestamp: firebase.database.ServerValue.TIMESTAMP, read: false, type
+            });
+        } catch(e) { console.error(e); }
+    }
+
+    // ==================== UTILITY ====================
     function getDistance(lat1, lon1, lat2, lon2) {
         if (!lat1 || !lon1 || !lat2 || !lon2) return Infinity;
         const R = 6371;
@@ -412,7 +204,6 @@
         return R * c;
     }
 
-    // ========== CEK KESESUAIAN TIPE KENDARAAN ==========
     function isVehicleTypeMatch(driverType, orderType) {
         if (!driverType || !orderType) return false;
         driverType = driverType.toLowerCase();
@@ -425,7 +216,11 @@
         return false;
     }
 
-    // ========== FUNGSI HITUNG TOTAL POTONGAN ==========
+    function isKurirOrder(orderData) {
+        const tipe = orderData.transport_type || orderData.vehicle || '';
+        return tipe.includes('kurir');
+    }
+
     async function hitungTotalPotongan(hargaOrder) {
         try {
             const potonganSnap = await database.ref('data-jego/potongan').once('value');
@@ -435,85 +230,59 @@
             const potonganRupiah = hargaOrder * (feePersen / 100);
             const pajakRupiah = potonganRupiah * (pajakPersen / 100);
             return { total: potonganRupiah + pajakRupiah, feePersen, pajakPersen };
-        } catch(e) {
-            console.warn("Gagal ambil fee/pajak:", e);
-            return { total: 0, feePersen: 0, pajakPersen: 0 };
-        }
+        } catch(e) { return { total: 0, feePersen: 0, pajakPersen: 0 }; }
     }
 
-    // ========== FUNGSI CEK ORDER KURIR ==========
-    function isKurirOrder(orderData) {
-        const tipe = orderData.transport_type || orderData.vehicle || '';
-        return tipe.includes('kurir');
-    }
-
-    // ========== CEK JIKA DRIVER SEDANG MENUNGGU KONFIRMASI ==========
-    async function isDriverWaitingForConfirmation(driverId) {
-        const ordersSnap = await database.ref('orders').orderByChild('status').equalTo('waiting').once('value');
-        const waitingOrders = ordersSnap.val() || {};
-        for (let orderId in waitingOrders) {
-            const order = waitingOrders[orderId];
-            const offers = order.driver_offers || {};
-            if (offers[driverId] && offers[driverId].status === 'offered') {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    // ========== CEK JIKA DRIVER SEDANG MEMILIKI ORDER AKTIF ==========
-    async function isDriverOnActiveOrder(driverId) {
-        const activeStatuses = ['accepted', 'on_the_way', 'arrived', 'on_trip'];
-        const ordersSnap = await database.ref('orders').once('value');
-        const orders = ordersSnap.val() || {};
-        for (let orderId in orders) {
-            const order = orders[orderId];
-            if (order.driver_id === driverId && activeStatuses.includes(order.status)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    // ========== FUNGSI AMBIL DRIVER AKTIF (dengan filter lokasi <5 menit) ==========
-async function loadActiveDrivers() {
-    const snap = await database.ref("driver_locations").once("value");
-    const all = snap.val() || {};
-    const activeDrivers = [];
-    const now = Date.now();
-    const MAX_AGE = 5 * 60 * 1000;
-
-    for (const uid in all) {
-        const d = all[uid];
-        if (d.tracking_enabled === true && d.playerId && d.latitude && d.longitude) {
-            let isFresh = false;
-            if (d.last_update) {
-                const lastUpdate = new Date(d.last_update).getTime();
+    // ==================== LOAD ACTIVE DRIVERS (FRESH <5 MENIT) ====================
+    async function loadActiveDrivers() {
+        const snap = await database.ref("driver_locations").once("value");
+        const all = snap.val() || {};
+        const activeDrivers = [];
+        const now = Date.now();
+        const MAX_AGE = 5 * 60 * 1000;
+        for (const [uid, d] of Object.entries(all)) {
+            if (d.tracking_enabled === true && d.latitude && d.longitude) {
+                let lastUpdate = d.last_update ? new Date(d.last_update).getTime() : 0;
                 if (now - lastUpdate < MAX_AGE) {
-                    isFresh = true;
-                } else {
-                    addLog(`⏸️ Driver ${uid} diabaikan karena lokasi terakhir >5 menit`, "warning");
+                    activeDrivers.push({
+                        uid, playerId: d.playerId, latitude: d.latitude, longitude: d.longitude,
+                        name: d.fullName || uid, autobid_enabled: d.autobid_enabled === true
+                    });
                 }
-            } else {
-                addLog(`⏸️ Driver ${uid} diabaikan karena tidak punya last_update`, "warning");
             }
-            if (isFresh) {
-                activeDrivers.push({
-                    uid: uid,
-                    playerId: d.playerId,
-                    latitude: d.latitude,
-                    longitude: d.longitude,
-                    name: d.fullName || uid,
-                    autobid_enabled: d.autobid_enabled === true
+        }
+        return activeDrivers;
+    }
+
+    // ==================== LOAD STALE DRIVERS DALAM RADIUS ====================
+    async function loadStaleDriversInRadius(lat, lng, radiusKm = 5) {
+        const snap = await database.ref("driver_locations").once("value");
+        const all = snap.val() || {};
+        const staleDrivers = [];
+        const now = Date.now();
+        const MAX_AGE = 5 * 60 * 1000;
+        for (const [uid, d] of Object.entries(all)) {
+            if (d.tracking_enabled !== true) continue;
+            if (!d.latitude || !d.longitude) continue;
+            const lastUpdate = d.last_update ? new Date(d.last_update).getTime() : 0;
+            const isStale = (now - lastUpdate) >= MAX_AGE;
+            if (!isStale) continue;
+            const dist = getDistance(lat, lng, d.latitude, d.longitude);
+            if (dist <= radiusKm) {
+                let driverName = d.fullName || uid;
+                try {
+                    const nameSnap = await database.ref(`drivers/${uid}/name`).once('value');
+                    if (nameSnap.exists()) driverName = nameSnap.val();
+                } catch(e) {}
+                staleDrivers.push({
+                    uid, playerId: d.playerId, name: driverName, distance: dist, last_update: d.last_update
                 });
             }
         }
+        return staleDrivers;
     }
-    addLog(`Driver aktif (tracking ON dan lokasi fresh <5 menit): ${activeDrivers.length}`, "info");
-    return activeDrivers;
-}
 
-    // ========== FUNGSI AUTO FALLBACK ==========
+    // ==================== AUTO FALLBACK ====================
     async function sendFallbackOffer(orderId, orderData) {
         if (isKurirOrder(orderData)) {
             addLog(`🚫 Fallback dibatalkan untuk order Kurir ${orderId.substring(0,8)}`, "warning");
@@ -534,16 +303,10 @@ async function loadActiveDrivers() {
             if (data.tracking_enabled !== true) continue;
             if (!data.latitude || !data.longitude) continue;
             const dist = getDistance(pickupLat, pickupLng, data.latitude, data.longitude);
-            if (dist < 3) {
-                eligibleDrivers.push({ uid, ...data, distance: dist });
-            }
+            if (dist < 3) eligibleDrivers.push({ uid, ...data, distance: dist });
         }
-        if (eligibleDrivers.length === 0) {
-            addLog(`⚠️ Order ${orderId.substring(0,8)}: Tidak ada driver dalam radius 3 km.`, "warning");
-            return false;
-        }
+        if (eligibleDrivers.length === 0) return false;
         eligibleDrivers.sort((a,b) => a.distance - b.distance);
-
         let selectedDriver = null;
         for (const driver of eligibleDrivers) {
             const driverSnap = await database.ref(`drivers/${driver.uid}`).once('value');
@@ -551,68 +314,44 @@ async function loadActiveDrivers() {
             if (!driverData) continue;
             const driverType = driverData.vehicle_type || '';
             const orderType = order.transport_type || order.vehicle || 'motor';
-            if (!isVehicleTypeMatch(driverType, orderType)) {
-                addLog(`⚠️ Fallback skipped: tipe kendaraan ${driverData.name || driver.uid} (${driverType}) tidak cocok dengan order ${orderType}`, "warning");
-                continue;
-            }
+            if (!isVehicleTypeMatch(driverType, orderType)) continue;
             const potonganInfo = await hitungTotalPotongan(order.price || 0);
             const saldoDriver = driverData.balance || 0;
             if (saldoDriver >= potonganInfo.total) {
                 selectedDriver = { uid: driver.uid, data: driverData, distance: driver.distance, playerId: driver.playerId };
                 break;
-            } else {
-                addLog(`⚠️ Driver ${driverData.name || driver.uid} saldo tidak cukup (${saldoDriver} < ${potonganInfo.total}), dilewati.`, "warning");
             }
         }
-
-        if (!selectedDriver) {
-            addLog(`🚨 Auto fallback gagal: Tidak ada driver dengan saldo cukup dalam radius 3 km untuk order ${orderId.substring(0,8)}.`, "error");
-            return false;
-        }
-
+        if (!selectedDriver) return false;
         const offerData = {
-            driver_id: selectedDriver.uid,
-            driver_name: selectedDriver.data.name || "Driver",
-            driver_plate: selectedDriver.data.plate_number || '',
-            driver_type: selectedDriver.data.vehicle_type || '',
-            driver_rating: selectedDriver.data.rating || 5,
-            driver_trips: selectedDriver.data.perjalanan || 0,
-            driver_photo: selectedDriver.data.photoURL || '',
-            offered_at: new Date().toISOString(),
-            status: 'offered',
-            auto_fallback_by_admin: true,
-            bid_price: order.price,
-            bid_percent: 0,
-            bid_requested: true,
-            expired_at: Date.now() + 30000
+            driver_id: selectedDriver.uid, driver_name: selectedDriver.data.name || "Driver",
+            driver_plate: selectedDriver.data.plate_number || '', driver_type: selectedDriver.data.vehicle_type || '',
+            driver_rating: selectedDriver.data.rating || 5, driver_trips: selectedDriver.data.perjalanan || 0,
+            driver_photo: selectedDriver.data.photoURL || '', offered_at: new Date().toISOString(),
+            status: 'offered', auto_fallback_by_admin: true, bid_price: order.price,
+            bid_percent: 0, bid_requested: true, expired_at: Date.now() + 30000
         };
-
         try {
             await database.ref(`orders/${orderId}/driver_offers/${selectedDriver.uid}`).set(offerData);
-            addLog(`🤖 AUTO FALLBACK: offer ke ${offerData.driver_name} (${selectedDriver.uid}) jarak ${selectedDriver.distance.toFixed(2)}km, saldo cukup ✅`, "success");
+            addLog(`🤖 AUTO FALLBACK: offer ke ${offerData.driver_name} (${selectedDriver.uid}) jarak ${selectedDriver.distance.toFixed(2)}km`, "success");
             if (selectedDriver.playerId) {
-                const title = "🚖 Order Baru (Auto Offer dari Admin)";
-                const message = `Halo ${selectedDriver.data.name}, admin mengirim penawaran order dari ${order.customer_name || 'Customer'} (Rp ${order.price?.toLocaleString()}) karena tidak ada driver merespon.`;
-                await sendPushNotification(selectedDriver.playerId, title, message, { auto_fallback: true, orderId });
+                await sendPushNotification(selectedDriver.playerId, "🚖 Order Baru (Auto Offer Admin)", `Halo ${offerData.driver_name}, admin mengirim penawaran order dari ${order.customer_name || 'Customer'} karena tidak ada driver merespon.`, { auto_fallback: true, orderId });
             }
             return true;
-        } catch(err) {
-            addLog(`❌ Gagal fallback: ${err.message}`, "error");
-            return false;
-        }
+        } catch(err) { addLog(`❌ Fallback gagal: ${err.message}`, "error"); return false; }
     }
 
-    // ========== PROSES ORDER BARU ==========
+    // ==================== PROSES ORDER BARU ====================
     async function processNewOrder(orderId, orderData) {
         if (processedOrderIds.has(orderId)) return;
         if (orderData.status !== "waiting" && orderData.status !== "searching") return;
         const lat = orderData.pickup_lat || orderData.from_lat;
         const lng = orderData.pickup_lng || orderData.from_lng;
         if (!lat || !lng) return;
-
         const isKurir = isKurirOrder(orderData);
         addLog(`📦 Order baru: ${orderId.substring(0,8)}${isKurir ? ' (KURIR)' : ''}`, "info");
 
+        // Cek driver yang sedang sibuk
         const activeStatuses = ['accepted', 'on_the_way', 'arrived', 'on_trip'];
         const ordersSnap = await database.ref('orders').once('value');
         const allOrders = ordersSnap.val() || {};
@@ -620,22 +359,17 @@ async function loadActiveDrivers() {
         const waitingDriverIds = new Set();
         for (let orderIdLoop in allOrders) {
             const order = allOrders[orderIdLoop];
-            if (order.driver_id && activeStatuses.includes(order.status)) {
-                activeDriverIds.add(order.driver_id);
-            }
+            if (order.driver_id && activeStatuses.includes(order.status)) activeDriverIds.add(order.driver_id);
             if (order.status === 'waiting' && order.driver_offers) {
                 for (let driverId in order.driver_offers) {
-                    if (order.driver_offers[driverId].status === 'offered') {
-                        waitingDriverIds.add(driverId);
-                    }
+                    if (order.driver_offers[driverId].status === 'offered') waitingDriverIds.add(driverId);
                 }
             }
         }
 
+        // Driver fresh (aktif)
         const drivers = await loadActiveDrivers();
-        let notifiedCount = 0;
-        let autoOfferCount = 0;
-
+        let notifiedCount = 0, autoOfferCount = 0;
         for (const driver of drivers) {
             const dist = getDistance(lat, lng, driver.latitude, driver.longitude);
             if (dist < 3) {
@@ -643,73 +377,67 @@ async function loadActiveDrivers() {
                 const harga = orderData.price || 0;
                 await sendPushNotification(driver.playerId, "🚖 Order Baru Dekat Anda!", `${cust} Rp ${harga.toLocaleString()} jarak ${dist.toFixed(1)}km`, { orderId });
                 notifiedCount++;
-
                 if (driver.autobid_enabled && !isKurir) {
-                    if (waitingDriverIds.has(driver.uid)) {
-                        addLog(`⏸️ Auto offer skipped: driver ${driver.name} sedang menunggu konfirmasi order lain, lewat.`, "warning");
-                        continue;
-                    }
-                    if (activeDriverIds.has(driver.uid)) {
-                        addLog(`⏸️ Auto offer skipped: driver ${driver.name} sedang dalam perjalanan (order aktif), lewat.`, "warning");
-                        continue;
-                    }
-
+                    if (waitingDriverIds.has(driver.uid) || activeDriverIds.has(driver.uid)) continue;
                     const driverSnap = await database.ref(`drivers/${driver.uid}`).once('value');
                     const driverData = driverSnap.val();
                     if (!driverData) continue;
                     const driverType = driverData.vehicle_type || '';
                     const orderType = orderData.transport_type || orderData.vehicle || 'motor';
-                    if (!isVehicleTypeMatch(driverType, orderType)) {
-                        addLog(`⚠️ Auto offer skipped: tipe kendaraan ${driver.name} (${driverType}) tidak cocok dengan order ${orderType}`, "warning");
-                        continue;
-                    }
+                    if (!isVehicleTypeMatch(driverType, orderType)) continue;
                     const potonganInfo = await hitungTotalPotongan(orderData.price || 0);
                     const saldoDriver = driverData.balance || 0;
                     if (saldoDriver >= potonganInfo.total) {
                         const existingOffer = await database.ref(`orders/${orderId}/driver_offers/${driver.uid}`).once('value');
                         if (!existingOffer.exists()) {
                             const offerData = {
-                                driver_id: driver.uid,
-                                driver_name: driverData.name || "Driver",
-                                driver_plate: driverData.plate_number || '',
-                                driver_type: driverData.vehicle_type || '',
-                                driver_rating: driverData.rating || 5,
-                                driver_trips: driverData.perjalanan || 0,
-                                driver_photo: driverData.photoURL || '',
-                                offered_at: new Date().toISOString(),
-                                status: 'offered',
-                                auto_offer_by_admin: true,
-                                bid_price: orderData.price,
-                                bid_percent: 0,
-                                bid_requested: true,
-                                expired_at: Date.now() + 30000
+                                driver_id: driver.uid, driver_name: driverData.name || "Driver",
+                                driver_plate: driverData.plate_number || '', driver_type: driverData.vehicle_type || '',
+                                driver_rating: driverData.rating || 5, driver_trips: driverData.perjalanan || 0,
+                                driver_photo: driverData.photoURL || '', offered_at: new Date().toISOString(),
+                                status: 'offered', auto_offer_by_admin: true, bid_price: orderData.price,
+                                bid_percent: 0, bid_requested: true, expired_at: Date.now() + 30000
                             };
                             await database.ref(`orders/${orderId}/driver_offers/${driver.uid}`).set(offerData);
                             addLog(`🤖 AUTO OFFER (autobid ON): ke ${driver.name} jarak ${dist.toFixed(2)}km`, "success");
                             autoOfferCount++;
                         }
                     } else {
-                        addLog(`⚠️ Autobid skipped: saldo driver ${driver.name} tidak cukup (${saldoDriver} < ${potonganInfo.total})`, "warning");
+                        addLog(`⚠️ Autobid skipped: saldo driver ${driver.name} tidak cukup`, "warning");
                     }
                 }
             }
         }
-        addLog(`✅ Order ${orderId.substring(0,8)}: notif ke ${notifiedCount} driver, auto offer ke ${autoOfferCount} driver`, "success");
+        addLog(`✅ Notif ke ${notifiedCount} driver, auto offer ke ${autoOfferCount} driver`, "success");
 
+        // Notifikasi untuk driver stale dalam radius 5 km (cooldown 30 menit)
+        const staleDriversNearby = await loadStaleDriversInRadius(lat, lng, 5);
+        const nowTime = Date.now();
+        const COOLDOWN_MS = 30 * 60 * 1000;
+        for (const stale of staleDriversNearby) {
+            const lastNotif = lastStaleNotifTime.get(stale.uid);
+            if (lastNotif && (nowTime - lastNotif) < COOLDOWN_MS) continue;
+            if (stale.playerId) {
+                const title = "🚖 Ada Order di Dekat Lokasi Terakhirmu";
+                const message = `Halo ${stale.name}, ada order dari ${orderData.customer_name || 'Customer'} (Rp ${orderData.price?.toLocaleString()}) di sekitar lokasi terakhirmu. Buka aplikasi dan aktifkan lokasi agar bisa menerima order.`;
+                await sendPushNotification(stale.playerId, title, message, { orderId, stale_location: true });
+                addLog(`📢 Notifikasi stale driver: ${stale.name} (jarak ${stale.distance.toFixed(1)}km dari lokasi terakhir)`, "info");
+                lastStaleNotifTime.set(stale.uid, nowTime);
+            }
+        }
+
+        // Timer fallback
         if (!isKurir && !fallbackProcessed.has(orderId)) {
             if (fallbackTimers.has(orderId)) clearTimeout(fallbackTimers.get(orderId));
             const timer = setTimeout(async () => {
                 const cur = await database.ref(`orders/${orderId}`).once('value');
                 const curOrder = cur.val();
-                if (!curOrder || curOrder.status !== 'waiting') {
-                    fallbackTimers.delete(orderId);
-                    return;
-                }
+                if (!curOrder || curOrder.status !== 'waiting') { fallbackTimers.delete(orderId); return; }
                 const offers = await database.ref(`orders/${orderId}/driver_offers`).once('value');
                 if (offers.exists() && Object.keys(offers.val()).length > 0) {
                     addLog(`✅ Order ${orderId.substring(0,8)} sudah ada penawaran`, "success");
                 } else {
-                    addLog(`🚨 Tidak ada penawaran (termasuk autobid), kirim fallback`, "warning");
+                    addLog(`🚨 Tidak ada penawaran, kirim fallback`, "warning");
                     await sendFallbackOffer(orderId, curOrder);
                     fallbackProcessed.add(orderId);
                 }
@@ -717,13 +445,11 @@ async function loadActiveDrivers() {
             }, FALLBACK_DELAY_SECONDS * 1000);
             fallbackTimers.set(orderId, timer);
             addLog(`⏲️ Timer fallback ${FALLBACK_DELAY_SECONDS}s untuk order ${orderId.substring(0,8)}`, "info");
-        } else if (isKurir) {
-            addLog(`🚫 Order Kurir: auto fallback dinonaktifkan (harus manual)`, "info");
-        }
+        } else if (isKurir) addLog(`🚫 Order Kurir: auto fallback dinonaktifkan`, "info");
         processedOrderIds.add(orderId);
     }
 
-    // ========== AUTO DEDUCT ==========
+    // ==================== AUTO DEDUCT ON TRIP ====================
     async function autoDeductOnTrip(orderId, orderData) {
         if (processedDeductionOrders.has(orderId)) return;
         if (orderData.status !== 'on_trip') return;
@@ -739,881 +465,80 @@ async function loadActiveDrivers() {
             const potonganRupiah = hargaOrder * (feePersen / 100);
             const pajakRupiah = potonganRupiah * (pajakPersen / 100);
             let totalPotongan = potonganRupiah + pajakRupiah;
-            const totalPotonganInt10 = Math.round(totalPotongan * 10);
             const balanceSnap = await database.ref(`drivers/${driverId}/balance`).once('value');
             let currentBalance = balanceSnap.val() || 0;
-            let currentBalanceInt10 = Math.round(currentBalance * 10);
-            if (currentBalanceInt10 < totalPotonganInt10) {
-                addLog(`⚠️ Auto deduct: Saldo driver ${driverId} tidak cukup`, "warning");
-                return;
-            }
-            await database.ref(`drivers/${driverId}/balance`).transaction(cur => {
-                let curInt10 = Math.round((cur || 0) * 10);
-                return (curInt10 - totalPotonganInt10) / 10;
-            });
+            if (currentBalance < totalPotongan) { addLog(`⚠️ Auto deduct: Saldo driver ${driverId} tidak cukup`, "warning"); return; }
+            await database.ref(`drivers/${driverId}/balance`).set(currentBalance - totalPotongan);
             await database.ref(`orders/${orderId}`).update({ balance_deducted: true, deducted_at: new Date().toISOString() });
             await database.ref(`driver_deductions/${driverId}/${orderId}`).set({
-                amount: totalPotongan,
-                order_price: hargaOrder,
-                fee_percentage: feePersen,
-                tax_percentage: pajakPersen,
+                amount: totalPotongan, order_price: hargaOrder, fee_percentage: feePersen, tax_percentage: pajakPersen,
                 timestamp: firebase.database.ServerValue.TIMESTAMP
             });
             addLog(`💰 OTOMATIS: Potong saldo driver ${driverId} sebesar Rp ${totalPotongan.toFixed(1)}`, "success");
             processedDeductionOrders.add(orderId);
-        } catch(err) {
-            addLog(`❌ Auto deduct error: ${err.message}`, "error");
-        }
+        } catch(err) { addLog(`❌ Auto deduct error: ${err.message}`, "error"); }
     }
 
-    // ========== UPDATE STATISTIK DRIVER ==========
+    // ==================== UPDATE STATISTIK ====================
     async function updateDriverStats(driverId) {
         if (!driverId) return;
         try {
             const ordersSnap = await database.ref('orders').orderByChild('driver_id').equalTo(driverId).once('value');
-            const orders = ordersSnap.val();
             let completed = 0;
-            if (orders) {
-                for (let o of Object.values(orders)) {
-                    if (o.status === 'completed') completed++;
-                }
-            }
+            ordersSnap.forEach(o => { if (o.val().status === 'completed') completed++; });
             const ratingsSnap = await database.ref('ratings').once('value');
             let totalRating = 0, ratingCount = 0;
             for (let [rid, r] of Object.entries(ratingsSnap.val() || {})) {
-                let dr = r.driver_rating;
-                if (dr && dr.driver_id === driverId && dr.rating) {
-                    totalRating += dr.rating;
+                if (r.driver_rating?.driver_id === driverId && r.driver_rating?.rating) {
+                    totalRating += r.driver_rating.rating;
                     ratingCount++;
                 }
             }
             let avg = ratingCount ? totalRating / ratingCount : 0;
-            const currentData = (await database.ref(`drivers/${driverId}`).once('value')).val();
-            if (currentData && currentData.rating === avg && currentData.ratingCount === ratingCount) {
-                return;
-            }
-            await database.ref(`drivers/${driverId}`).update({
-                perjalanan: completed,
-                rating: avg,
-                ratingCount: ratingCount,
-                last_stats_update: new Date().toISOString()
-            });
-            addLog(`📊 Update statistik driver ${driverId}: perjalanan=${completed}, rating=${avg.toFixed(1)} (${ratingCount} ulasan)`, "success");
-        } catch(e) {
-            addLog(`❌ Gagal update statistik: ${e.message}`, "error");
-        }
+            await database.ref(`drivers/${driverId}`).update({ perjalanan: completed, rating: avg, ratingCount, last_stats_update: new Date().toISOString() });
+            addLog(`📊 Update statistik driver ${driverId}: perjalanan=${completed}, rating=${avg.toFixed(1)}`, "success");
+        } catch(e) { addLog(`❌ Gagal update statistik: ${e.message}`, "error"); }
     }
 
-    // ========== UPDATE RATING CUSTOMER ==========
     async function updateCustomerStats(customerId) {
         if (!customerId) return;
         try {
             const ratingsSnap = await database.ref('ratings').once('value');
-            let totalRating = 0;
-            let ratingCount = 0;
+            let totalRating = 0, ratingCount = 0;
             for (let [orderId, ratingObj] of Object.entries(ratingsSnap.val() || {})) {
-                const customerRating = ratingObj.customer_rating;
-                if (customerRating && customerRating.customer_id === customerId && customerRating.rating) {
-                    totalRating += customerRating.rating;
+                const cr = ratingObj.customer_rating;
+                if (cr?.customer_id === customerId && cr?.rating) {
+                    totalRating += cr.rating;
                     ratingCount++;
                 }
             }
-            const avgRating = ratingCount ? totalRating / ratingCount : 0;
-            await database.ref(`users/${customerId}`).update({
-                rating: avgRating,
-                ratingCount: ratingCount,
-                last_rating_update: new Date().toISOString()
-            });
-            addLog(`⭐ Customer ${customerId.substring(0,8)} -> rating rata-rata: ${avgRating.toFixed(1)} (dari ${ratingCount} ulasan)`, "success");
-        } catch(err) {
-            addLog(`❌ Gagal update rating customer ${customerId}: ${err.message}`, "error");
-        }
+            const avg = ratingCount ? totalRating / ratingCount : 0;
+            await database.ref(`users/${customerId}`).update({ rating: avg, ratingCount, last_rating_update: new Date().toISOString() });
+            addLog(`⭐ Customer ${customerId.substring(0,8)} rating rata-rata: ${avg.toFixed(1)}`, "success");
+        } catch(err) { addLog(`❌ Gagal update rating customer: ${err.message}`, "error"); }
     }
 
-    // ========== RESYNC RATING CUSTOMER (TOOLS) ==========
-    async function resyncAllCustomerRatings() {
-        addLog("🔄 Memulai sinkronisasi ulang rating semua customer...", "info");
+    // ==================== CLEANUP EXPIRED OFFERS & STALE ORDERS ====================
+    async function cleanupExpiredOffers() {
         try {
-            const usersSnap = await database.ref('users').once('value');
-            const users = usersSnap.val() || {};
-            let count = 0;
-            for (const userId of Object.keys(users)) {
-                await updateCustomerStats(userId);
-                count++;
-                await new Promise(r => setTimeout(r, 100));
-            }
-            addLog(`✅ Sinkronisasi rating selesai untuk ${count} customer`, "success");
-            alert(`✅ Selesai! Rating ${count} customer telah diperbarui.`);
-            if (currentView === 'tools') showView('tools');
-        } catch(err) {
-            addLog("❌ Gagal sinkronisasi rating customer: " + err.message, "error");
-            alert("❌ Gagal: " + err.message);
-        }
-    }
-
-    // ========== RESYNC PERJALANAN DRIVER ==========
-    async function resyncAllDriverTrips() {
-        addLog("🔄 Memulai sinkronisasi ulang perjalanan driver...", "info");
-        try {
-            const driversSnap = await database.ref('drivers').once('value');
-            const drivers = driversSnap.val() || {};
-            const ordersSnap = await database.ref('orders').once('value');
-            const orders = ordersSnap.val() || {};
-            const completedOrdersByDriver = {};
-            for (const [orderId, order] of Object.entries(orders)) {
-                if (order.status === 'completed' && order.driver_id) {
-                    completedOrdersByDriver[order.driver_id] = (completedOrdersByDriver[order.driver_id] || 0) + 1;
-                }
-            }
-            for (const [driverId, count] of Object.entries(completedOrdersByDriver)) {
-                await database.ref(`drivers/${driverId}/perjalanan`).set(count);
-                addLog(`🔄 Sinkronisasi: Driver ${driverId} perjalanan = ${count}`, "success");
-            }
-            addLog("✅ Sinkronisasi ulang perjalanan driver selesai.", "success");
-            alert("✅ Sinkronisasi selesai. Data perjalanan driver telah diperbarui.");
-            if (currentView === 'drivers_list' || currentView === 'statistik_driver') {
-                showView(currentView);
-            }
-        } catch(err) {
-            addLog("❌ Gagal sinkronisasi: " + err.message, "error");
-            alert("❌ Gagal sinkronisasi: " + err.message);
-        }
-    }
-
-    // ========== LISTENER ==========
-    // ========== LISTENER ==========
-function startListeningOrders() {
-    if (ordersListener) return;
-    database.ref("orders").on("child_added", async (snap) => await processNewOrder(snap.key, snap.val()));
-    ordersListener = true;
-    addLog("👂 Listener order aktif (auto fallback, notifikasi awal, auto offer)", "success");
-}
-
-function startListeners() {
-    database.ref('orders').on('child_changed', async (snap) => {
-        const order = snap.val(); const id = snap.key;
-        if (!order) return;
-        if (order.status === 'on_trip') await autoDeductOnTrip(id, order);
-        if (order.status === 'accepted' && order.driver_id) {
-            addLog(`🎉 Order ${id} diterima driver ${order.driver_id}`, "success");
-        }
-        if (order.status === 'completed' && order.driver_id) await updateDriverStats(order.driver_id);
-        if (currentView === 'dashboard') refreshDashboardOrders();
-    });
-
-    database.ref('ratings').on('child_added', async (snap) => {
-        const ratingData = snap.val();
-        if (ratingData?.driver_rating?.driver_id) {
-            addLog(`⭐ Rating baru untuk driver ${ratingData.driver_rating.driver_id}`, "info");
-            await updateDriverStats(ratingData.driver_rating.driver_id);
-        }
-        if (ratingData?.customer_rating?.customer_id) {
-            addLog(`⭐ Rating baru untuk customer ${ratingData.customer_rating.customer_id}`, "info");
-            await updateCustomerStats(ratingData.customer_rating.customer_id);
-        }
-    });
-    database.ref('ratings').on('child_changed', async (snap) => {
-        const ratingData = snap.val();
-        if (ratingData?.driver_rating?.driver_id) {
-            addLog(`🔄 Rating berubah untuk driver ${ratingData.driver_rating.driver_id}`, "info");
-            await updateDriverStats(ratingData.driver_rating.driver_id);
-        }
-        if (ratingData?.customer_rating?.customer_id) {
-            addLog(`🔄 Rating customer ${ratingData.customer_rating.customer_id} berubah`, "info");
-            await updateCustomerStats(ratingData.customer_rating.customer_id);
-        }
-    });
-}
-
-// ========== NOTIFIKASI DRIVER STALE (LOKASI KADALUARSA) ==========
-async function notifyStaleDrivers() {
-    const snap = await database.ref("driver_locations").once("value");
-    const all = snap.val() || {};
-    const now = Date.now();
-    const MAX_AGE = 5 * 60 * 1000;
-    for (const [uid, d] of Object.entries(all)) {
-        if (d.tracking_enabled === true && d.playerId) {
-            const lastUpdate = d.last_update ? new Date(d.last_update).getTime() : 0;
-            if (now - lastUpdate >= MAX_AGE) {
-                await sendPushNotification(d.playerId, "⚠️ Lokasi Tidak Terupdate", "Aplikasi JeGo Anda terdeteksi tidak mengirim lokasi. Buka aplikasi agar tetap dapat menerima order.");
-                // Cek notifikasi terakhir untuk hindari spam
-                const lastNotifSnap = await database.ref(`driver_notifications/${uid}`).orderByKey().limitToLast(1).once('value');
-                let lastNotif = null;
-                lastNotifSnap.forEach(child => { lastNotif = child.val(); });
-                const isDuplicate = lastNotif && lastNotif.type === 'stale_location' && (now - lastNotif.timestamp) < 30*60*1000;
-                if (!isDuplicate) {
-                    await database.ref(`driver_notifications/${uid}`).push({
-                        title: "Lokasi Kadaluarsa",
-                        message: "Aplikasi tidak mengirim lokasi dalam 5 menit terakhir. Buka aplikasi untuk tetap aktif.",
-                        timestamp: firebase.database.ServerValue.TIMESTAMP,
-                        read: false,
-                        type: "stale_location"
-                    });
-                    addLog(`📢 Notifikasi lokasi kadaluarsa dikirim ke driver ${uid}`, "info");
-                } else {
-                    addLog(`⏭️ Lewati notifikasi duplikat untuk driver ${uid}`, "info");
-                }
-            }
-        }
-    }
-}
-    // ========== DASHBOARD ==========
-    async function loadAllOrders() {
-        const snap = await database.ref('orders').once('value');
-        const orders = snap.val() || {};
-        const ordersArray = Object.entries(orders).map(([id, o]) => ({
-            id, customer: o.customer_name || '-', pickup: o.pickup_address || '-',
-            destination: o.destination_address || '-', price: o.price || 0,
-            status: o.status || 'unknown', driver: o.driver_name || (o.driver_id ? o.driver_id.substring(0,8) : '-'),
-            created_at: o.created_at ? new Date(o.created_at).toLocaleString() : '-'
-        }));
-        ordersArray.sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
-        return ordersArray;
-    }
-
-    async function refreshDashboardOrders() {
-        const container = document.getElementById('viewContainer');
-        if (!container || currentView !== 'dashboard') return;
-        const orders = await loadAllOrders();
-        let html = `<div class="table-container">
-            <div class="table-toolbar">
-                <input type="text" class="search-box" placeholder="Cari order...">
-                <button class="export-btn"><i class="fas fa-download"></i> Export CSV</button>
-            </div>
-            <div class="table-wrapper">
-                <table id="dashboardOrdersTable">
-                    <thead>
-                        <tr><th data-col="id">Order ID</th><th data-col="customer">Customer</th>
-                            <th data-col="pickup">Alamat Jemput</th><th data-col="destination">Tujuan</th>
-                            <th data-col="price">Harga</th><th data-col="status">Status</th>
-                            <th data-col="driver">Driver</th><th data-col="created_at">Dibuat</th>
-                           </tr>
-                    </thead>
-                    <tbody>${orders.map(order => {
-                        let statusClass = '';
-                        switch(order.status) {
-                            case 'waiting': statusClass = 'status-waiting'; break;
-                            case 'accepted': statusClass = 'status-accepted'; break;
-                            case 'on_the_way': statusClass = 'status-on_the_way'; break;
-                            case 'arrived': statusClass = 'status-arrived'; break;
-                            case 'on_trip': statusClass = 'status-on_trip'; break;
-                            case 'completed': statusClass = 'status-completed'; break;
-                            case 'cancelled': statusClass = 'status-cancelled'; break;
-                            default: statusClass = '';
-                        }
-                        return `<tr class="${statusClass}">
-                            <td>${order.id.substring(0,8)}...</td>
-                            <td>${escapeHtml(order.customer)}</td>
-                            <td>${escapeHtml(order.pickup)}</td>
-                            <td>${escapeHtml(order.destination)}</td>
-                            <td>Rp ${order.price.toLocaleString()}</td>
-                            <td><strong>${order.status}</strong></td>
-                            <td>${order.driver}</td>
-                            <td>${order.created_at}</td>
-                            </tr>`;
-                    }).join('')}</tbody>
-                </table>
-            </div>
-        </div>`;
-        container.innerHTML = html;
-        const searchBox = container.querySelector('.search-box');
-        const exportBtn = container.querySelector('.export-btn');
-        const table = container.querySelector('#dashboardOrdersTable');
-        if (searchBox) {
-            searchBox.addEventListener('input', (e) => {
-                const keyword = e.target.value.toLowerCase();
-                const rows = table.querySelectorAll('tbody tr');
-                rows.forEach(row => {
-                    const text = row.innerText.toLowerCase();
-                    row.style.display = text.includes(keyword) ? '' : 'none';
-                });
-            });
-        }
-        if (exportBtn) {
-            exportBtn.addEventListener('click', () => {
-                const rows = Array.from(table.querySelectorAll('tbody tr'));
-                const csvRows = [['Order ID','Customer','Pickup','Destination','Harga','Status','Driver','Dibuat']];
-                rows.forEach(row => {
-                    if (row.style.display === 'none') return;
-                    const cols = row.querySelectorAll('td');
-                    const rowData = Array.from(cols).map(td => `"${td.innerText.replace(/"/g, '""')}"`);
-                    csvRows.push(rowData.join(','));
-                });
-                const blob = new Blob([csvRows.map(r=>r.join(',')).join('\n')], { type: 'text/csv' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url; a.download = 'dashboard_orders.csv'; a.click(); URL.revokeObjectURL(url);
-            });
-        }
-    }
-
-    function escapeHtml(str) { if (!str) return ''; return str.replace(/[&<>]/g, function(m) { if (m === '&') return '&amp;'; if (m === '<') return '&lt;'; if (m === '>') return '&gt;'; return m; }); }
-
-    // ========== DATA UNTUK VIEW LAIN ==========
-    async function loadDriversTable() {
-        const snap = await database.ref('drivers').once('value');
-        const drivers = snap.val() || {};
-        const data = [];
-        for (let [id, d] of Object.entries(drivers)) {
-            data.push({
-                id, name: d.name || '-', phone: d.phone || '-', vehicle: d.vehicle_type || '-',
-                plate: d.plate_number || '-', rating: d.rating ? parseFloat(d.rating).toFixed(2) : 0, perjalanan: d.perjalanan || 0,
-                balance: d.balance || 0, status: d.status || 'active'
-            });
-        }
-        return data;
-    }
-
-    async function loadWaitingOrdersTable() {
-        const snap = await database.ref('orders').once('value');
-        const orders = snap.val() || {};
-        const data = [];
-        for (let [id, o] of Object.entries(orders)) {
-            if (o.status === 'waiting') {
-                data.push({
-                    id, customer: o.customer_name || '-', pickup: o.pickup_address || '-',
-                    dest: o.destination_address || '-', price: o.price || 0,
-                    created: new Date(o.created_at).toLocaleString()
-                });
-            }
-        }
-        return data;
-    }
-
-    async function loadAutoDeductLog() {
-        const snap = await database.ref('driver_deductions').once('value');
-        const deductions = snap.val() || {};
-        let logs = [];
-        for (let [driverId, orders] of Object.entries(deductions)) {
-            for (let [orderId, d] of Object.entries(orders)) {
-                logs.push({ driverId, orderId, amount: d.amount, timestamp: new Date(d.timestamp).toLocaleString() });
-            }
-        }
-        logs.sort((a,b)=>b.timestamp.localeCompare(a.timestamp));
-        return logs;
-    }
-
-    function renderTable(columns, data, searchable = true, exportable = true) {
-        let html = `<div class="table-container">
-            <div class="table-toolbar">
-                ${searchable ? '<input type="text" class="search-box" placeholder="Cari...">' : ''}
-                ${exportable ? '<button class="export-btn"><i class="fas fa-download"></i> Export CSV</button>' : ''}
-            </div>
-            <div class="table-wrapper">
-                <table id="dynamicTable">
-                    <thead><tr>${columns.map(col => `<th data-col="${col.key}">${col.label} ${col.sortable !== false ? '🔼' : ''}</th>`).join('')}</tr></thead>
-                    <tbody>${data.map(row => `<tr>${columns.map(col => `<td>${row[col.key] ?? ''}</td>`).join('')}</tr>`).join('')}</tbody>
-                </table>
-            </div>
-        </div>`;
-        return html;
-    }
-
-    function attachTableEvents(container, columns, data) {
-        const searchBox = container.querySelector('.search-box');
-        const exportBtn = container.querySelector('.export-btn');
-        const table = container.querySelector('#dynamicTable');
-        let currentData = [...data];
-        function renderBody(filteredData) { const tbody = table.querySelector('tbody'); tbody.innerHTML = filteredData.map(row => `<tr>${columns.map(col => `<td>${row[col.key] ?? ''}</td>`).join('')}</tr>`).join(''); }
-        if (searchBox) {
-            searchBox.addEventListener('input', (e) => {
-                const keyword = e.target.value.toLowerCase();
-                const filtered = currentData.filter(row => Object.values(row).some(v => String(v).toLowerCase().includes(keyword)));
-                renderBody(filtered);
-            });
-        }
-        if (exportBtn) {
-            exportBtn.addEventListener('click', () => {
-                const csvRows = [columns.map(c=>c.label).join(',')];
-                for (let row of currentData) {
-                    const values = columns.map(c => `"${String(row[c.key] ?? '').replace(/"/g, '""')}"`);
-                    csvRows.push(values.join(','));
-                }
-                const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a'); a.href = url; a.download = 'export.csv'; a.click(); URL.revokeObjectURL(url);
-            });
-        }
-        const headers = table.querySelectorAll('th');
-        headers.forEach((th, idx) => {
-            th.style.cursor = 'pointer';
-            th.addEventListener('click', () => {
-                const key = columns[idx].key;
-                const sortAsc = th.getAttribute('data-sort') !== 'desc';
-                currentData.sort((a,b) => {
-                    let valA = a[key], valB = b[key];
-                    if (typeof valA === 'number') return sortAsc ? valA - valB : valB - valA;
-                    return sortAsc ? String(valA).localeCompare(String(valB)) : String(valB).localeCompare(String(valA));
-                });
-                th.setAttribute('data-sort', sortAsc ? 'asc' : 'desc');
-                renderBody(currentData);
-            });
-        });
-    }
-
-    // ========== KIRIM NOTIFIKASI KE CUSTOMER ==========
-    async function loadCustomersForNotif() {
-        const snap = await database.ref('users').once('value');
-        const users = snap.val() || {};
-        const customers = [];
-        for (const [uid, data] of Object.entries(users)) {
-            if (data.role !== 'admin') {
-                customers.push({
-                    uid: uid,
-                    name: data.name || data.fullName || 'Unknown',
-                    phone: data.phone || '-',
-                    playerId: data.playerId || null
-                });
-            }
-        }
-        return customers;
-    }
-
-    async function renderSendNotifCustomer() {
-        const customers = await loadCustomersForNotif();
-        const container = document.getElementById('viewContainer');
-        let html = `
-            <div class="notif-form-card">
-                <h3><i class="fas fa-bell"></i> Kirim Notifikasi ke Customer</h3>
-                <div class="form-group">
-                    <label>Pilih Penerima</label>
-                    <select id="notifCustomerSelect">
-                        <option value="all">📢 SEMUA CUSTOMER (Broadcast)</option>
-                        ${customers.map(c => `<option value="${c.uid}" ${!c.playerId ? 'disabled' : ''}>${escapeHtml(c.name)} (${c.phone}) ${!c.playerId ? '❌ no playerId' : '✅'}</option>`).join('')}
-                    </select>
-                    <small style="color:gray;">Customer yang tidak memiliki playerId tidak dapat dikirimi notifikasi.</small>
-                </div>
-                <div class="form-group">
-                    <label>Judul Notifikasi</label>
-                    <input type="text" id="notifTitle" placeholder="Contoh: Promo Spesial Akhir Pekan" value="📢 Pengumuman dari JeGo">
-                </div>
-                <div class="form-group">
-                    <label>Pesan</label>
-                    <textarea id="notifMessage" rows="3" placeholder="Tulis pesan promosi atau informasi..."></textarea>
-                </div>
-                <div class="form-group">
-                    <label>Data Tambahan (opsional)</label>
-                    <input type="text" id="notifData" placeholder='{"promo_code": "JEGO10"}' value="">
-                </div>
-                <button id="sendNotifBtn" class="action-btn" style="background:#4CAF50;"><i class="fas fa-paper-plane"></i> Kirim Notifikasi</button>
-                <div id="notifResult" style="margin-top: 15px; padding: 10px; border-radius: 8px; background: #f0f0f0;"></div>
-            </div>
-            <div class="table-container">
-                <div class="table-toolbar">
-                    <span>Daftar Customer Terdaftar</span>
-                    <input type="text" id="searchCustomer" class="search-box" placeholder="Cari customer...">
-                </div>
-                <div class="table-wrapper">
-                    <table id="customerTable">
-                        <thead><tr><th>Nama</th><th>Telepon</th><th>Player ID</th><th>Status</th></tr></thead>
-                        <tbody>
-                            ${customers.map(c => `<tr>
-                                <td>${escapeHtml(c.name)}</td>
-                                <td>${c.phone}</td>
-                                <td>${c.playerId ? c.playerId.substring(0,15)+'...' : '-'}</td>
-                                <td>${c.playerId ? '<span style="color:green;">✅ Siap notif</span>' : '<span style="color:red;">❌ Tidak ada</span>'}</td>
-                            </tr>`).join('')}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        `;
-        container.innerHTML = html;
-        document.getElementById('sendNotifBtn').onclick = async () => {
-            const target = document.getElementById('notifCustomerSelect').value;
-            const title = document.getElementById('notifTitle').value.trim();
-            const message = document.getElementById('notifMessage').value.trim();
-            const extraDataRaw = document.getElementById('notifData').value.trim();
-            let extraData = {};
-            if (extraDataRaw) {
-                try { extraData = JSON.parse(extraDataRaw); } catch(e) { addLog("Data tambahan tidak valid JSON", "error"); }
-            }
-            if (!title || !message) {
-                alert("Judul dan pesan harus diisi");
-                return;
-            }
-            const resultDiv = document.getElementById('notifResult');
-            resultDiv.innerHTML = '<span>Mengirim...</span>';
-            if (target === 'all') {
-                const customersWithId = customers.filter(c => c.playerId);
-                if (customersWithId.length === 0) {
-                    resultDiv.innerHTML = '<span style="color:red;">Tidak ada customer dengan playerId</span>';
-                    return;
-                }
-                let successCount = 0;
-                for (const cust of customersWithId) {
-                    const sent = await sendPushNotification(cust.playerId, title, message, { ...extraData, broadcast: true });
-                    if (sent) successCount++;
-                    await new Promise(r => setTimeout(r, 200));
-                }
-                resultDiv.innerHTML = `<span style="color:green;">✅ Broadcast terkirim ke ${successCount} dari ${customersWithId.length} customer.</span>`;
-                addLog(`Broadcast notifikasi ke ${successCount} customer`, "success");
-            } else {
-                const customer = customers.find(c => c.uid === target);
-                if (!customer || !customer.playerId) {
-                    resultDiv.innerHTML = '<span style="color:red;">Customer tidak memiliki playerId</span>';
-                    return;
-                }
-                const sent = await sendPushNotification(customer.playerId, title, message, { ...extraData, customer_id: target });
-                if (sent) {
-                    resultDiv.innerHTML = `<span style="color:green;">✅ Notifikasi terkirim ke ${customer.name}</span>`;
-                    addLog(`Notifikasi manual ke customer ${customer.name}`, "success");
-                } else {
-                    resultDiv.innerHTML = `<span style="color:red;">❌ Gagal mengirim notifikasi</span>`;
-                }
-            }
-        };
-        const searchInput = document.getElementById('searchCustomer');
-        if (searchInput) {
-            searchInput.addEventListener('input', (e) => {
-                const keyword = e.target.value.toLowerCase();
-                const rows = document.querySelectorAll('#customerTable tbody tr');
-                rows.forEach(row => {
-                    const text = row.innerText.toLowerCase();
-                    row.style.display = text.includes(keyword) ? '' : 'none';
-                });
-            });
-        }
-    }
-
-    // ========== FITUR MANAJEMEN BONUS CUSTOMER ==========
-    async function loadAllCustomersForBonus() {
-        const snap = await database.ref('users').once('value');
-        const users = snap.val() || {};
-        const customers = [];
-        for (const [uid, data] of Object.entries(users)) {
-            if (!data.vehicle_type && data.role !== 'admin') {
-                customers.push({
-                    uid,
-                    name: data.name || 'Tanpa Nama',
-                    phone: data.phone || '-',
-                    bonusTotal: data.referral_bonus_total || 0,
-                    status: data.status || 'active'
-                });
-            }
-        }
-        return customers;
-    }
-
-    async function renderManageBonus() {
-        const customers = await loadAllCustomersForBonus();
-        const container = document.getElementById('viewContainer');
-        const html = `
-            <div class="table-container">
-                <div class="table-toolbar">
-                    <input type="text" id="searchBonusCustomer" class="search-box" placeholder="Cari customer...">
-                    <button id="exportBonusCsv" class="export-btn"><i class="fas fa-download"></i> Export CSV</button>
-                </div>
-                <div class="table-wrapper">
-                    <table id="bonusCustomerTable">
-                        <thead>
-                            <tr><th>UID</th><th>Nama</th><th>Telepon</th><th>Saldo Bonus (Rp)</th><th>Status</th><th>Aksi</th></tr>
-                        </thead>
-                        <tbody>
-                            ${customers.map(c => `
-                            <tr data-uid="${c.uid}">
-                                <td>${c.uid.substring(0,8)}...</td>
-                                <td>${escapeHtml(c.name)}</td>
-                                <td>${c.phone}</td>
-                                <td class="bonus-amount">${formatRupiah(c.bonusTotal)}</td>
-                                <td>${c.status}</td>
-                                <td><button class="action-btn adjust-bonus-btn" data-uid="${c.uid}" data-name="${escapeHtml(c.name)}" data-bonus="${c.bonusTotal}">✏️ Atur Bonus</button></td>
-                            </tr>
-                            `).join('')}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-            <div id="bonusModal" class="modal">
-                <div class="modal-content">
-                    <h3>Atur Bonus Customer</h3>
-                    <p id="bonusModalName"></p>
-                    <label>Saldo Bonus Baru (Rp)</label>
-                    <input type="number" id="newBonusAmount" class="form-input">
-                    <div style="display:flex; gap:10px; margin-top:15px;">
-                        <button id="saveBonusBtn" class="action-btn">Simpan</button>
-                        <button id="closeBonusModal" class="action-btn" style="background:#ccc;">Batal</button>
-                    </div>
-                </div>
-            </div>
-        `;
-        container.innerHTML = html;
-        document.getElementById('searchBonusCustomer')?.addEventListener('input', (e) => {
-            const keyword = e.target.value.toLowerCase();
-            const rows = document.querySelectorAll('#bonusCustomerTable tbody tr');
-            rows.forEach(row => {
-                const text = row.innerText.toLowerCase();
-                row.style.display = text.includes(keyword) ? '' : 'none';
-            });
-        });
-        document.getElementById('exportBonusCsv')?.addEventListener('click', () => {
-            const rows = Array.from(document.querySelectorAll('#bonusCustomerTable tbody tr'));
-            const csvRows = [['UID','Nama','Telepon','Saldo Bonus','Status']];
-            rows.forEach(row => {
-                if (row.style.display === 'none') return;
-                const cols = row.querySelectorAll('td');
-                const uid = cols[0].innerText;
-                const name = cols[1].innerText;
-                const phone = cols[2].innerText;
-                const bonus = cols[3].innerText;
-                const status = cols[4].innerText;
-                csvRows.push([uid, name, phone, bonus, status].map(c => `"${c.replace(/"/g, '""')}"`).join(','));
-            });
-            const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a'); a.href = url; a.download = 'bonus_customers.csv'; a.click(); URL.revokeObjectURL(url);
-        });
-        const modal = document.getElementById('bonusModal');
-        const closeModal = () => modal.style.display = 'none';
-        document.getElementById('closeBonusModal')?.addEventListener('click', closeModal);
-        document.getElementById('saveBonusBtn')?.addEventListener('click', async () => {
-            const uid = modal.getAttribute('data-uid');
-            const newBonusRaw = document.getElementById('newBonusAmount').value;
-            const newBonus = parseInt(newBonusRaw);
-            if (isNaN(newBonus)) return alert('Masukkan angka yang valid');
-            try {
-                await database.ref(`users/${uid}/referral_bonus_total`).set(newBonus);
-                addLog(`✅ Saldo bonus customer ${uid} diubah menjadi Rp ${newBonus.toLocaleString()}`, "success");
-                closeModal();
-                await renderManageBonus();
-            } catch(err) {
-                addLog(`❌ Gagal update bonus: ${err.message}`, "error");
-                alert('Gagal update bonus');
-            }
-        });
-        document.querySelectorAll('.adjust-bonus-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-                const uid = btn.getAttribute('data-uid');
-                const name = btn.getAttribute('data-name');
-                const currentBonus = btn.getAttribute('data-bonus');
-                modal.setAttribute('data-uid', uid);
-                document.getElementById('bonusModalName').innerText = `Customer: ${name}`;
-                document.getElementById('newBonusAmount').value = currentBonus;
-                modal.style.display = 'flex';
-            });
-        });
-    }
-
-    // ========== FITUR PENGATURAN REFERRAL ==========
-    async function renderReferralSettings() {
-        const container = document.getElementById('viewContainer');
-        let currentPercent = 0.5;
-        try {
-            const snap = await database.ref('data-jego/referral_bonus_percent').once('value');
-            if (snap.exists()) currentPercent = parseFloat(snap.val());
-        } catch(e) {}
-        const html = `
-            <div class="notif-form-card">
-                <h3>⚙️ Pengaturan Bonus Referral</h3>
-                <div class="form-group">
-                    <label>Persentase Bonus (%) untuk setiap order downline</label>
-                    <input type="number" id="bonusPercent" step="0.1" value="${currentPercent}" style="width:150px;">
-                    <small>Contoh: 0.5 berarti bonus = 0.5% dari nilai order teman.</small>
-                </div>
-                <button id="savePercentBtn" class="action-btn"><i class="fas fa-save"></i> Simpan</button>
-                <div id="percentResult" style="margin-top:15px;"></div>
-            </div>
-        `;
-        container.innerHTML = html;
-        document.getElementById('savePercentBtn').onclick = async () => {
-            const newPercent = parseFloat(document.getElementById('bonusPercent').value);
-            if (isNaN(newPercent) || newPercent < 0) return alert('Masukkan angka valid');
-            await database.ref('data-jego/referral_bonus_percent').set(newPercent);
-            addLog(`📊 Persentase bonus referral diubah menjadi ${newPercent}%`, "success");
-            document.getElementById('percentResult').innerHTML = '<span style="color:green;">✅ Berhasil disimpan</span>';
-            setTimeout(() => document.getElementById('percentResult').innerHTML = '', 2000);
-        };
-    }
-
-    // ========== VIEW HANDLER ==========
-    async function showView(view) {
-        currentView = view;
-        const container = document.getElementById('viewContainer');
-        const titleMap = {
-            dashboard: 'Dashboard - Semua Order',
-            waiting_orders: 'Order Waiting',
-            drivers_list: 'Data Driver',
-            send_offer: 'Kirim Penawaran Manual',
-            auto_deduct_log: 'Log Auto Deduct',
-            statistik_driver: 'Statistik Rating & Perjalanan',
-            fallback_log: 'Log Auto Fallback (Aktif di background)',
-            realtime_log: 'Real-time Log',
-            tools: 'Tools & Utilitas',
-            send_notif_customer: 'Kirim Notifikasi ke Customer',
-            manage_bonus: 'Manajemen Bonus Customer',
-            referral_settings: 'Pengaturan Persentase Referral'
-        };
-        document.getElementById('pageTitle').innerText = titleMap[view] || 'Admin';
-
-        if (view === 'dashboard') {
-            await refreshDashboardOrders();
-            return;
-        } else if (view === 'drivers_list') {
-            const data = await loadDriversTable();
-            const columns = [ { key: 'name', label: 'Nama' }, { key: 'phone', label: 'Telepon' }, { key: 'vehicle', label: 'Kendaraan' }, { key: 'plate', label: 'Plat' }, { key: 'rating', label: 'Rating' }, { key: 'perjalanan', label: 'Perjalanan' }, { key: 'balance', label: 'Saldo' }, { key: 'status', label: 'Status' } ];
-            container.innerHTML = renderTable(columns, data, true, true);
-            attachTableEvents(container, columns, data);
-        } else if (view === 'waiting_orders') {
-            const data = await loadWaitingOrdersTable();
-            const columns = [ { key: 'id', label: 'Order ID' }, { key: 'customer', label: 'Customer' }, { key: 'pickup', label: 'Alamat Jemput' }, { key: 'dest', label: 'Tujuan' }, { key: 'price', label: 'Harga' }, { key: 'created', label: 'Dibuat' } ];
-            container.innerHTML = renderTable(columns, data, true, true);
-            attachTableEvents(container, columns, data);
-        } else if (view === 'auto_deduct_log') {
-            const data = await loadAutoDeductLog();
-            const columns = [ { key: 'driverId', label: 'Driver ID' }, { key: 'orderId', label: 'Order ID' }, { key: 'amount', label: 'Potongan' }, { key: 'timestamp', label: 'Waktu' } ];
-            container.innerHTML = renderTable(columns, data, true, true);
-            attachTableEvents(container, columns, data);
-        } else if (view === 'statistik_driver') {
-            const data = await loadDriversTable();
-            const columns = [ { key: 'name', label: 'Nama' }, { key: 'rating', label: 'Rating' }, { key: 'perjalanan', label: 'Total Perjalanan' }, { key: 'balance', label: 'Saldo' } ];
-            container.innerHTML = renderTable(columns, data, true, true);
-            attachTableEvents(container, columns, data);
-        } else if (view === 'send_offer') {
-            await loadDriversForSelect(); await loadWaitingOrdersForSelect();
-            container.innerHTML = `<div class="inline-form">
-                <select id="adminDriverSelect" style="flex:2"><option value="">-- Pilih Driver --</option></select>
-                <select id="adminOrderSelect" style="flex:2"><option value="">-- Pilih Order (waiting) --</option></select>
-                <button id="adminSendOfferBtn" class="action-btn"><i class="fas fa-paper-plane"></i> Kirim Penawaran</button>
-            </div><div id="adminOfferResult" style="padding:10px;"></div><div class="table-wrapper"><p>Hasil pengiriman akan tampil di sini dan log.</p></div>`;
-            document.getElementById("adminSendOfferBtn").onclick = sendAdminOffer;
-            async function loadDriversForSelect() {
-                const snap = await database.ref('drivers').once('value');
-                const drvs = snap.val() || {};
-                const select = document.getElementById('adminDriverSelect');
-                select.innerHTML = '<option value="">-- Pilih Driver --</option>';
-                for (let [uid, d] of Object.entries(drvs)) {
-                    if (d.name && d.vehicle_type) select.innerHTML += `<option value="${uid}">${d.name} (${d.vehicle_type}) - ${d.plate_number || ''}</option>`;
-                }
-            }
-            async function loadWaitingOrdersForSelect() {
-                const snap = await database.ref('orders').once('value');
-                const ords = snap.val() || {};
-                const select = document.getElementById('adminOrderSelect');
-                select.innerHTML = '<option value="">-- Pilih Order (waiting) --</option>';
-                for (let [oid, o] of Object.entries(ords)) {
-                    if (o.status === 'waiting') select.innerHTML += `<option value="${oid}">${oid.substring(0,8)} - ${o.pickup_address?.substring(0,30)}</option>`;
-                }
-            }
-            window.sendAdminOffer = async function() {
-                const driverId = document.getElementById('adminDriverSelect').value;
-                const orderId = document.getElementById('adminOrderSelect').value;
-                const resultDiv = document.getElementById('adminOfferResult');
-                if (!driverId || !orderId) {
-                    resultDiv.innerHTML = '<span style="color:#ffaa66;">⚠️ Pilih driver dan order</span>';
-                    return;
-                }
-                const driver = allDrivers[driverId];
-                const order = allWaitingOrders[orderId];
-                if (!driver || !order) {
-                    resultDiv.innerHTML = '<span style="color:#ff6666;">❌ Data tidak valid</span>';
-                    return;
-                }
-                const locSnap = await database.ref(`driver_locations/${driverId}`).once('value');
-                const loc = locSnap.val();
-                if (!loc || loc.tracking_enabled !== true) {
-                    resultDiv.innerHTML = '<span style="color:#ffaa66;">⚠️ Driver tidak aktif (tracking mati)</span>';
-                    return;
-                }
-                const potonganInfo = await hitungTotalPotongan(order.price || 0);
-                const saldoDriver = driver.balance || 0;
-                if (saldoDriver < potonganInfo.total) {
-                    resultDiv.innerHTML = `<span style="color:#ff6666;">❌ Saldo driver tidak cukup! Saldo: Rp ${saldoDriver.toLocaleString()}, Potongan: Rp ${potonganInfo.total.toLocaleString()} (fee ${potonganInfo.feePersen}% + pajak ${potonganInfo.pajakPersen}%)</span>`;
-                    addLog(`⚠️ Gagal kirim offer manual: saldo driver ${driver.name} tidak cukup`, "warning");
-                    return;
-                }
-                const dist = getDistance(loc.latitude, loc.longitude, order.pickup_lat, order.pickup_lng);
-                if (dist > 3) {
-                    resultDiv.innerHTML = `<span style="color:#ffaa66;">⚠️ Jarak ${dist.toFixed(1)} km >3 km, offer batal</span>`;
-                    return;
-                }
-                const existing = await database.ref(`orders/${orderId}/driver_offers/${driverId}`).once('value');
-                if (existing.exists()) {
-                    resultDiv.innerHTML = '<span style="color:#ffaa66;">⚠️ Driver sudah pernah offer</span>';
-                    return;
-                }
-                const offerData = {
-                    driver_id: driverId,
-                    driver_name: driver.name || "Driver",
-                    driver_plate: driver.plate_number || '',
-                    driver_type: driver.vehicle_type || '',
-                    driver_rating: driver.rating || 5,
-                    driver_trips: driver.perjalanan || 0,
-                    driver_photo: driver.photoURL || '',
-                    offered_at: new Date().toISOString(),
-                    status: 'offered',
-                    bid_price: order.price,
-                    bid_percent: 0,
-                    bid_requested: true,
-                    expired_at: Date.now() + 30000
-                };
-                try {
-                    await database.ref(`orders/${orderId}/driver_offers/${driverId}`).set(offerData);
-                    resultDiv.innerHTML = `<span style="color:#66ff66;">✅ Penawaran dikirim ke ${driver.name} (saldo cukup)</span>`;
-                    addLog(`Admin MANUAL offer ke ${driver.name} untuk order ${orderId.substring(0,8)} (saldo cukup)`, "success");
-                    if (loc.playerId) {
-                        await sendPushNotification(loc.playerId, "📢 Penawaran Dikirim oleh Admin", `Halo ${driver.name}, admin mengirim penawaran untuk order dari ${order.customer_name || 'customer'}. Segera cek aplikasi.`, { orderId });
+            const ordersSnap = await database.ref('orders').orderByChild('status').equalTo('waiting').once('value');
+            const waitingOrders = ordersSnap.val() || {};
+            const now = Date.now();
+            let removed = 0;
+            for (const [orderId, order] of Object.entries(waitingOrders)) {
+                const offers = order.driver_offers || {};
+                for (const [driverId, offer] of Object.entries(offers)) {
+                    if (offer.status === 'offered' && offer.expired_at && offer.expired_at < now) {
+                        await database.ref(`orders/${orderId}/driver_offers/${driverId}`).remove();
+                        removed++;
                     }
-                } catch(e) {
-                    resultDiv.innerHTML = `<span style="color:#ff6666;">❌ Gagal: ${e.message}</span>`;
-                    addLog(`Gagal kirim offer admin: ${e.message}`, "error");
                 }
-            };
-        } else if (view === 'tools') {
-            container.innerHTML = `<div class="inline-form">
-                <button id="testNotifBtn" class="action-btn"><i class="fas fa-bell"></i> Test Notifikasi (driver pertama)</button>
-                <button id="cleanupOrdersBtn" class="action-btn" style="background:#f44336;"><i class="fas fa-trash"></i> Hapus Order Kadaluarsa</button>
-                <button id="clearLogBtn" class="action-btn"><i class="fas fa-eraser"></i> Bersihkan Log</button>
-                <button id="refreshDataBtn" class="action-btn"><i class="fas fa-sync"></i> Refresh Data Driver & Order</button>
-                <button id="resyncTripsBtn" class="action-btn" style="background:#2196F3;"><i class="fas fa-chart-line"></i> Sinkronisasi Perjalanan Driver</button>
-                <button id="resyncCustomerRatingsBtn" class="action-btn" style="background:#9C27B0;"><i class="fas fa-star"></i> Sinkronisasi Rating Customer</button>
-            </div><div id="toolResult" style="padding:10px;"></div>`;
-            document.getElementById('testNotifBtn').onclick = async () => {
-                if (!ONESIGNAL_API_KEY) { addLog("API Key tidak tersedia", "error"); return; }
-                const drivers = await loadActiveDrivers();
-                const first = drivers[0];
-                if (first) await sendPushNotification(first.playerId, "🧪 Test Notifikasi JeGo", "Test dari admin panel");
-                else addLog("Tidak ada driver online", "warning");
-            };
-            document.getElementById('cleanupOrdersBtn').onclick = deleteExpiredOrders;
-            document.getElementById('clearLogBtn').onclick = () => { document.getElementById('logMessages').innerHTML = ''; addLog("Log dibersihkan", "info"); };
-            document.getElementById('refreshDataBtn').onclick = async () => { await loadDriversForSelectGlobal(); await loadWaitingOrdersForSelectGlobal(); addLog("Data driver & order direfresh", "success"); };
-            document.getElementById('resyncTripsBtn').onclick = resyncAllDriverTrips;
-            document.getElementById('resyncCustomerRatingsBtn').onclick = resyncAllCustomerRatings;
-        } else if (view === 'fallback_log') {
-            container.innerHTML = `<div style="padding:20px;">Log auto fallback tercatat di area log realtime di bawah. Setiap order baru yang tidak mendapat offer setelah ${FALLBACK_DELAY_SECONDS} detik akan diproses otomatis.</div>`;
-        } else if (view === 'realtime_log') {
-            const logMessages = document.getElementById('logMessages');
-            let logHtml = `<div class="table-container">
-                <div class="table-toolbar"><button id="clearLogViewBtn" class="action-btn"><i class="fas fa-eraser"></i> Bersihkan Log</button></div>
-                <div class="compact-log" style="background:#1e1e2f; color:#eee; padding:15px; font-family:monospace; font-size:12px; max-height:70vh; overflow-y:auto; margin:10px; border-radius:8px;">
-                    <div id="logMessagesView">${logMessages ? logMessages.innerHTML : '▶️ Log kosong...'}</div>
-                </div>
-            </div>`;
-            container.innerHTML = logHtml;
-            const sourceLog = document.getElementById('logMessages');
-            const targetLog = document.getElementById('logMessagesView');
-            if (sourceLog && targetLog) targetLog.innerHTML = sourceLog.innerHTML;
-            document.getElementById('clearLogViewBtn')?.addEventListener('click', () => {
-                const target = document.getElementById('logMessagesView');
-                const source = document.getElementById('logMessages');
-                if (target) target.innerHTML = '';
-                if (source) source.innerHTML = '';
-                addLog("Log dibersihkan", "info");
-            });
-        } else if (view === 'send_notif_customer') {
-            await renderSendNotifCustomer();
-        } else if (view === 'manage_bonus') {
-            await renderManageBonus();
-        } else if (view === 'referral_settings') {
-            await renderReferralSettings();
-        }
+            }
+            if (removed) addLog(`🗑️ Bersihkan ${removed} offer expired`, "success");
+        } catch(err) { addLog(`❌ Gagal cleanup expired offers: ${err.message}`, "error"); }
     }
-
-    async function loadDriversForSelectGlobal() { const snap = await database.ref('drivers').once('value'); allDrivers = snap.val() || {}; }
-    async function loadWaitingOrdersForSelectGlobal() { const snap = await database.ref('orders').once('value'); const orders = snap.val() || {}; allWaitingOrders = {}; for (let [id, o] of Object.entries(orders)) if (o.status === 'waiting') allWaitingOrders[id] = o; }
 
     async function deleteExpiredOrders() {
-        addLog("🕒 Mengecek order kadaluarsa (>30 menit)", "info");
         const now = new Date();
         const thirtyMinAgo = new Date(now.getTime() - 30*60*1000);
         const ordersRef = database.ref('orders');
@@ -1626,68 +551,95 @@ async function notifyStaleDrivers() {
                 del++;
             }
         }
-        addLog(`✅ Hapus ${del} order kadaluarsa`, "success");
+        if (del) addLog(`🗑️ Hapus ${del} order kadaluarsa (>30 menit)`, "success");
     }
 
-    function formatRupiah(amount) {
-        return 'Rp ' + (parseInt(amount) || 0).toLocaleString('id-ID');
+    // ==================== CEK ORDER ON_TRIP YANG TERLEWAT POTONG ====================
+    async function processMissedDeductions() {
+        addLog("🔍 Memeriksa order on_trip yang belum dipotong...", "info");
+        const ordersSnap = await database.ref('orders').once('value');
+        const orders = ordersSnap.val() || {};
+        let processed = 0;
+        for (const [id, order] of Object.entries(orders)) {
+            if (order.status === 'on_trip' && !order.balance_deducted && order.driver_id) {
+                addLog(`🔄 Memproses order missed: ${id.substring(0,8)}`, "warning");
+                await autoDeductOnTrip(id, order);
+                processed++;
+            }
+        }
+        if (processed > 0) addLog(`✅ Berhasil memotong ${processed} order missed`, "success");
+        else addLog("✅ Tidak ada order missed", "success");
     }
 
-    function initUI() {
-        document.querySelectorAll('.menu-item').forEach(item => {
-            item.addEventListener('click', () => {
-                document.querySelectorAll('.menu-item').forEach(m => m.classList.remove('active'));
-                item.classList.add('active');
-                const view = item.getAttribute('data-view');
-                showView(view);
-            });
-        });
-        document.getElementById('sidebarLogout').onclick = () => { auth.signOut(); window.location.href='login_admin.html'; };
-        document.getElementById('topLogoutBtn').onclick = () => { auth.signOut(); window.location.href='login_admin.html'; };
-        showView('dashboard');
+    // ==================== LISTENER ====================
+    function startListeningOrders() {
+        if (ordersListener) return;
+        database.ref("orders").on("child_added", async (snap) => await processNewOrder(snap.key, snap.val()));
+        ordersListener = true;
+        addLog("👂 Listener order aktif (auto offer, fallback, notifikasi stale)", "success");
     }
 
-    // ========== CLEANUP EXPIRED OFFERS ==========
-    async function cleanupExpiredOffers() {
-        try {
-            const ordersSnap = await database.ref('orders').orderByChild('status').equalTo('waiting').once('value');
-            const waitingOrders = ordersSnap.val() || {};
-            const now = Date.now();
-            let removedCount = 0;
-            for (const [orderId, order] of Object.entries(waitingOrders)) {
-                const offers = order.driver_offers || {};
-                for (const [driverId, offer] of Object.entries(offers)) {
-                    if (offer.status === 'offered' && offer.expired_at && offer.expired_at < now) {
-                        await database.ref(`orders/${orderId}/driver_offers/${driverId}`).remove();
-                        removedCount++;
-                        addLog(`🗑️ Hapus offer expired dari driver ${driverId.substring(0,8)} untuk order ${orderId.substring(0,8)}`, "info");
-                    }
+    function startListeners() {
+        database.ref('orders').on('child_changed', async (snap) => {
+            const order = snap.val(); const id = snap.key;
+            if (!order) return;
+            
+            if (order.status === 'on_trip') await autoDeductOnTrip(id, order);
+            if (order.status === 'completed' && order.driver_id) await updateDriverStats(order.driver_id);
+            
+            // 🔔 KIRIM NOTIFIKASI KE DRIVER SAAT CUSTOMER MENERIMA PENAWARAN
+            if (order.status === 'accepted' && order.driver_id) {
+                const playerId = await getDriverPlayerId(order.driver_id);
+                if (playerId) {
+                    await sendPushNotification(playerId, "Penawaran Diterima ✅", "Customer menerima penawaran Anda, silakan buka aplikasi.");
+                    addLog(`📨 Notifikasi diterima ke driver ${order.driver_id} untuk order ${id}`, "success");
+                } else {
+                    addLog(`⚠️ Gagal mengirim notifikasi ke driver ${order.driver_id}: playerId tidak ditemukan`, "warning");
                 }
             }
-            if (removedCount > 0) {
-                addLog(`✅ Bersihkan ${removedCount} offer expired`, "success");
-            }
-        } catch (err) {
-            addLog(`❌ Gagal cleanup expired offers: ${err.message}`, "error");
-        }
+        });
+        database.ref('ratings').on('child_added', async (snap) => {
+            const ratingData = snap.val();
+            if (ratingData?.driver_rating?.driver_id) await updateDriverStats(ratingData.driver_rating.driver_id);
+            if (ratingData?.customer_rating?.customer_id) await updateCustomerStats(ratingData.customer_rating.customer_id);
+        });
+        database.ref('ratings').on('child_changed', async (snap) => {
+            const ratingData = snap.val();
+            if (ratingData?.driver_rating?.driver_id) await updateDriverStats(ratingData.driver_rating.driver_id);
+            if (ratingData?.customer_rating?.customer_id) await updateCustomerStats(ratingData.customer_rating.customer_id);
+        });
     }
 
-    // ========== AUTENTIKASI & START ==========
+    // ==================== INIT ====================
+    async function initCore() {
+        await getOneSignalApiKey();
+        startListeningOrders();
+        startListeners();
+        await processMissedDeductions();   // 🔧 CEK ORDER TERLEWAT
+        setInterval(cleanupExpiredOffers, 10000);
+        setInterval(deleteExpiredOrders, 10 * 60 * 1000);
+        addLog("✅ Semua sistem core berjalan (auto offer, fallback, deduct, cleanup, missed check)", "success");
+        document.getElementById("statusBadge").innerHTML = "🟢 Aktif 24 Jam";
+    }
+
+    // ==================== AUTH ====================
     auth.onAuthStateChanged(async (user) => {
         if (!user) { window.location.href = 'login_admin.html'; return; }
         const adminSnap = await database.ref(`admins/${user.uid}`).once('value');
-        if (!adminSnap.exists()) { await auth.signOut(); window.location.href = 'login_admin.html'; return; }
-        addLog(`Admin ${user.email} berhasil login.`, "success");
-        await fetchOneSignalApiKey();
-        await loadDriversForSelectGlobal();
-        await loadWaitingOrdersForSelectGlobal();
-        startListeningOrders();
-        startListeners();
-        initUI();
-        setInterval(deleteExpiredOrders, 10*60*1000);
-        setInterval(cleanupExpiredOffers, 10000);
-        setInterval(notifyStaleDrivers, 10 * 60 * 1000);
+        if (!adminSnap.exists()) {
+            addLog("❌ Bukan admin, logout...", "error");
+            await auth.signOut();
+            setTimeout(() => window.location.href = 'login_admin.html', 1500);
+            return;
+        }
+        addLog(`✅ Admin ${user.email} berhasil login. Sistem core dimulai.`, "success");
+        await initCore();
     });
+
+    document.getElementById("logoutBtn").onclick = async () => {
+        await auth.signOut();
+        window.location.href = 'login_admin.html';
+    };
 </script>
 </body>
 </html>
