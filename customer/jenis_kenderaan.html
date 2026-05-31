@@ -831,6 +831,9 @@
         <div class="sidebar-item" data-link="logout">
             <span class="icon">🚪</span> Logout
         </div>
+        <div class="sidebar-item" id="modeDriverBtn">
+    <span class="icon">🚗</span> Mode Pengemudi
+</div>
     </div>
 </div>
 
@@ -1051,6 +1054,83 @@
         const whatsappUrl = `https://api.whatsapp.com/send?text=${encodedMessage}`;
         window.open(whatsappUrl, '_blank');
     }
+    async function switchToDriver() {
+    // Ambil data customer dari localStorage
+    const customerDataStr = localStorage.getItem('jego_logged_in_user');
+    if (!customerDataStr) {
+        alert('Anda belum login sebagai customer. Silakan login terlebih dahulu.');
+        window.location.href = 'loginUser.html';
+        return;
+    }
+    let customerData;
+    try {
+        customerData = JSON.parse(customerDataStr);
+    } catch(e) {
+        alert('Data sesi tidak valid. Silakan login ulang.');
+        window.location.href = 'loginUser.html';
+        return;
+    }
+    const uid = customerData.uid;
+    if (!uid) {
+        alert('UID tidak ditemukan. Silakan login ulang.');
+        window.location.href = 'loginUser.html';
+        return;
+    }
+
+    showGlobalLoading(true);
+
+    try {
+        // Pastikan Firebase sudah diinisialisasi
+        if (!firebaseDatabase) {
+            await initializeFirebase();
+        }
+        // Cek apakah sudah punya akun driver
+        const driverSnap = await firebaseDatabase.ref(`drivers/${uid}`).once('value');
+        if (!driverSnap.exists()) {
+            // Belum pernah daftar driver, arahkan ke halaman lengkapi data
+            showGlobalLoading(false);
+            window.location.href = 'lengkapiData.html';
+            return;
+        }
+
+        const driverData = driverSnap.val();
+        // Cek kelengkapan data minimal: vehicle_type, plate_number, phone, address
+        const isComplete = driverData.vehicle_type && driverData.plate_number && driverData.phone && driverData.address;
+        if (!isComplete) {
+            showGlobalLoading(false);
+            window.location.href = 'lengkapiData.html';
+            return;
+        }
+
+        // Data lengkap, buat session driver
+        const driverSession = {
+            uid: uid,
+            name: driverData.name || customerData.name,
+            phone: driverData.phone || customerData.phone,
+            email: driverData.email || customerData.email,
+            address: driverData.address || customerData.address,
+            vehicleType: driverData.vehicle_type,
+            plateNumber: driverData.plate_number,
+            vehicleBrand: driverData.vehicle_brand || '',
+            status: driverData.status || 'pending',
+            rating: driverData.rating || 5,
+            perjalanan: driverData.perjalanan || 0,
+            Balance: driverData.balance || 0,
+            Potongan: driverData.potongan || 0,
+            profilePhotoUrl: driverData.photoURL || '',
+            fotoProfilURL: driverData.photoURL || ''
+        };
+        localStorage.setItem('jego_logged_in_driver', JSON.stringify(driverSession));
+        // Hapus session customer
+        localStorage.removeItem('jego_logged_in_user');
+        // Redirect ke halaman driver
+        window.location.href = 'index.html';
+    } catch (err) {
+        console.error('Gagal beralih ke driver:', err);
+        showGlobalLoading(false);
+        alert('Terjadi kesalahan: ' + err.message);
+    }
+}
 
     function setupBottomNav() {
         const currentPath = window.location.pathname.split('/').pop();
@@ -1078,39 +1158,46 @@
     }
 
     function setupSidebarActions() {
-        const menuItems = document.querySelectorAll('.sidebar-item');
-        menuItems.forEach(item => {
-            item.addEventListener('click', async (e) => {
-                const link = item.getAttribute('data-link');
-                if (item.id === 'shareToFriend') {
-                    toggleSidebar(false);
-                    shareToWhatsApp();
-                    return;
-                }
+    const menuItems = document.querySelectorAll('.sidebar-item');
+    menuItems.forEach(item => {
+        item.addEventListener('click', async (e) => {
+            const link = item.getAttribute('data-link');
+            if (item.id === 'shareToFriend') {
                 toggleSidebar(false);
-                if (link === 'profile') {
-                    window.location.href = 'userAccount.html';
-                } else if (link === 'referral') {
-                    window.location.href = 'programReferral.html';
-                } else if (link === 'help') {
-                    window.location.href = 'cs_jego.html';
-                } else if (link === 'about') {
-                    alert('JeGo v1.0 - Aplikasi transportasi & ekspedisi.');
-                } else if (link === 'logout') {
-                    if (firebaseAuth) {
-                        await firebaseAuth.signOut();
-                    }
-                    localStorage.removeItem('jego_logged_in_user');
-                    localStorage.removeItem('current_order_id');
-                    window.location.href = 'loginUser.html';
+                shareToWhatsApp();
+                return;
+            }
+            // Tangani tombol Mode Pengemudi berdasarkan ID
+            if (item.id === 'modeDriverBtn') {
+                e.stopPropagation();
+                toggleSidebar(false);
+                await switchToDriver();
+                return;
+            }
+            toggleSidebar(false);
+            if (link === 'profile') {
+                window.location.href = 'userAccount.html';
+            } else if (link === 'referral') {
+                window.location.href = 'programReferral.html';
+            } else if (link === 'help') {
+                window.location.href = 'cs_jego.html';
+            } else if (link === 'about') {
+                alert('JeGo v1.0 - Aplikasi transportasi & ekspedisi.');
+            } else if (link === 'logout') {
+                if (firebaseAuth) {
+                    await firebaseAuth.signOut();
                 }
-            });
+                localStorage.removeItem('jego_logged_in_user');
+                localStorage.removeItem('current_order_id');
+                window.location.href = 'loginUser.html';
+            }
         });
-        
-        document.getElementById('menuButton').addEventListener('click', () => toggleSidebar(true));
-        document.getElementById('closeSidebar').addEventListener('click', () => toggleSidebar(false));
-        document.getElementById('sidebarOverlay').addEventListener('click', () => toggleSidebar(false));
-    }
+    });
+
+    document.getElementById('menuButton').addEventListener('click', () => toggleSidebar(true));
+    document.getElementById('closeSidebar').addEventListener('click', () => toggleSidebar(false));
+    document.getElementById('sidebarOverlay').addEventListener('click', () => toggleSidebar(false));
+}
 
     async function cekOrderAktifDanRedirect() {
         const orderId = localStorage.getItem('current_order_id');
