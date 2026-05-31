@@ -4,11 +4,13 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
   <title>Login - JeGo</title>
-<script src="app_check/check_app.js"></script>
+  <script src="app_check/check_app.js"></script>
   <!-- Firebase SDK (Auth + Database) -->
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+  <!-- Font Awesome 6 -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
 
   <style>
     * {
@@ -28,18 +30,21 @@
       --white: #FFFFFF;
       --danger: #E74C3C;
       --success: #2ECC71;
+      --surface: #ffffff;
+      --border-light: #e9ecef;
+      --text-secondary: #6c757d;
     }
 
-    /* Status bar transparan untuk Android native */
     body {
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
       background: linear-gradient(135deg, #FFF3E0, #FFE0B2);
       min-height: 100vh;
-      padding-top: env(safe-area-inset-top, 0px);
-      background-attachment: fixed;
+      padding: 0;
+      margin: 0;
+      overflow-x: hidden;
     }
 
-    /* Toolbar ala Android ActionBar */
+    /* Toolbar ala Android */
     .android-toolbar {
       position: sticky;
       top: 0;
@@ -52,9 +57,8 @@
     .toolbar-container {
       display: flex;
       align-items: center;
-      justify-content: center;
+      justify-content: space-between;
       padding: 14px 20px;
-      position: relative;
       min-height: 56px;
     }
 
@@ -63,22 +67,41 @@
       font-weight: 700;
       color: white;
       letter-spacing: 0.5px;
-      text-shadow: 0 1px 2px rgba(0,0,0,0.1);
     }
 
-    /* Konten utama */
+    .menu-button {
+      background: rgba(255,255,255,0.2);
+      width: 40px;
+      height: 40px;
+      border-radius: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 24px;
+      color: white;
+      border: none;
+    }
+
+    /* Konten utama - card full width */
+    .main-content {
+      padding: 0;
+      width: 100%;
+    }
+
     .auth-container {
-      max-width: 450px;
-      margin: 24px auto;
-      padding: 0 20px;
+      width: 100%;
+      margin: 0;
+      padding: 20px;
     }
 
+    /* Card full width (tanpa margin kiri-kanan) */
     .card {
       background: var(--white);
-      border-radius: 32px;
+      border-radius: 0;
       box-shadow: 0 20px 40px rgba(0, 0, 0, 0.12), 0 4px 12px rgba(0, 0, 0, 0.05);
       overflow: hidden;
-      transition: transform 0.2s ease;
+      width: 100%;
     }
 
     .card-header {
@@ -111,13 +134,11 @@
     .card-header h1 {
       font-size: 1.8rem;
       font-weight: 700;
-      letter-spacing: -0.5px;
     }
 
     .card-header p {
       font-size: 0.9rem;
       opacity: 0.9;
-      margin-top: 4px;
     }
 
     .card-body {
@@ -214,14 +235,11 @@
       margin-bottom: 20px;
       font-size: 0.85rem;
       display: none;
-      background: #FFF3CD;
-      border-left: 4px solid #FFC107;
-      color: #856404;
     }
 
     .alert.error {
       background: #FEE2E2;
-      border-left-color: var(--danger);
+      border-left: 4px solid var(--danger);
       color: #991B1B;
     }
 
@@ -247,6 +265,128 @@
       transition: width 0.3s;
     }
 
+    /* ========== SIDEBAR ========== */
+    .sidebar-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.5);
+      z-index: 1000;
+      display: none;
+      backdrop-filter: blur(2px);
+    }
+    .sidebar {
+      position: fixed;
+      top: 0;
+      left: -280px;
+      width: 280px;
+      height: 100%;
+      background: var(--surface);
+      box-shadow: 2px 0 12px rgba(0,0,0,0.15);
+      z-index: 1001;
+      transition: left 0.3s ease;
+      display: flex;
+      flex-direction: column;
+      padding-top: 60px;
+    }
+    .sidebar.open {
+      left: 0;
+    }
+    .sidebar-header {
+      padding: 20px;
+      border-bottom: 1px solid var(--border-light);
+      background: linear-gradient(135deg, var(--primary-dark), var(--primary));
+      color: white;
+      margin-top: -60px;
+      padding-top: 60px;
+    }
+    .sidebar-header h3 {
+      font-size: 1.2rem;
+    }
+    .sidebar-menu {
+      flex: 1;
+      padding: 16px 0;
+    }
+    .sidebar-item {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 14px 24px;
+      cursor: pointer;
+      transition: background 0.2s;
+      color: var(--text-primary);
+      font-weight: 500;
+    }
+    .sidebar-item:active {
+      background: var(--light);
+    }
+    .sidebar-item .icon {
+      font-size: 22px;
+      width: 28px;
+    }
+    .close-sidebar {
+      position: absolute;
+      top: 16px;
+      right: 20px;
+      font-size: 24px;
+      cursor: pointer;
+      color: white;
+      z-index: 1002;
+    }
+
+    /* Card Mode Penumpang (oranye) */
+    .mode-penumpang-card {
+      background: linear-gradient(135deg, #FF9800, #FF5722);
+      border-radius: 16px;
+      padding: 16px;
+      margin: 16px 16px 8px 16px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 12px rgba(255, 152, 0, 0.3);
+    }
+    .mode-penumpang-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 16px rgba(255, 152, 0, 0.4);
+    }
+    .mode-penumpang-card:active {
+      transform: scale(0.98);
+    }
+    .mode-penumpang-icon {
+      width: 48px;
+      height: 48px;
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      color: white;
+    }
+    .mode-penumpang-text {
+      flex: 1;
+    }
+    .mode-penumpang-title {
+      font-size: 1rem;
+      font-weight: 700;
+      color: white;
+      margin-bottom: 4px;
+    }
+    .mode-penumpang-desc {
+      font-size: 0.7rem;
+      color: rgba(255, 255, 255, 0.8);
+    }
+    .mode-penumpang-arrow {
+      font-size: 1.5rem;
+      font-weight: bold;
+      color: white;
+      opacity: 0.8;
+    }
+
     @media (max-width: 480px) {
       .card-body {
         padding: 24px 20px;
@@ -262,45 +402,88 @@
 </head>
 <body>
 
-<!-- Toolbar ala Android -->
+<!-- Toolbar dengan tombol menu -->
 <div class="android-toolbar">
   <div class="toolbar-container">
+    <button class="menu-button" id="menuButton">☰</button>
     <div class="toolbar-title">JeGo</div>
+    <div style="width: 40px;"></div> <!-- spacer -->
   </div>
 </div>
 
-<div class="auth-container">
-  <div class="card">
-    <div class="card-header">
-      <div class="logo-wrapper">
-        <div class="logo-icon">🚗</div>
-        <h1>JeGo</h1>
-      </div>
-      <p>Masuk ke akun Anda</p>
+<!-- SIDEBAR -->
+<div class="sidebar-overlay" id="sidebarOverlay"></div>
+<div class="sidebar" id="sidebar">
+  <div class="close-sidebar" id="closeSidebar">✕</div>
+  <div class="sidebar-header">
+    <h3>Menu JeGo</h3>
+    <p style="font-size:0.8rem; opacity:0.9;">Menu</p>
+  </div>
+  <div class="sidebar-menu">
+    <div class="sidebar-item" data-url="perlindunganCustomer.html">
+      <span class="icon">🛡️</span> Perlindungan
     </div>
-    <div class="card-body">
-      <div class="alert" id="statusMessage"></div>
-      <div class="progress-container" id="progressContainer">
-        <div class="progress-bar" id="progressBar"></div>
+    <div class="sidebar-item" data-url="feedback.html">
+      <span class="icon">📝</span> Feedback
+    </div>
+    <div class="sidebar-item" data-url="https://whatsapp.com/channel/0029VbCtkcaEQIaidcHMTy0G" data-external="true">
+      <span class="icon"><i class="fab fa-whatsapp"></i></span> WhatsApp
+    </div>
+    <div class="sidebar-item" data-url="https://www.facebook.com/share/18gp8qJRdM/" data-external="true">
+      <span class="icon"><i class="fab fa-facebook"></i></span> Facebook
+    </div>
+    <div class="sidebar-item" data-url="https://www.tiktok.com" data-external="true">
+      <span class="icon"><i class="fab fa-tiktok"></i></span> TikTok
+    </div>
+    <!-- Tombol Mode Pengemudi (card oranye) -->
+    <div class="mode-penumpang-card" id="modeDriverBtn">
+      <div class="mode-penumpang-icon">
+        <i class="fas fa-exchange-alt"></i>
       </div>
+      <div class="mode-penumpang-text">
+        <div class="mode-penumpang-title">Mode Pengemudi</div>
+        <div class="mode-penumpang-desc">Beralih ke aplikasi driver</div>
+      </div>
+      <div class="mode-penumpang-arrow">›</div>
+    </div>
+  </div>
+</div>
 
-      <form id="loginForm">
-        <div class="form-group">
-          <label class="form-label" for="emailInput">Email</label>
-          <input type="email" id="emailInput" class="form-control" placeholder="contoh@email.com" required autocomplete="email">
+<!-- Konten utama - card full width -->
+<div class="main-content">
+  <div class="auth-container">
+    <div class="card">
+      <div class="card-header">
+        <div class="logo-wrapper">
+          <div class="logo-icon">🚗</div>
+          <h1>JeGo</h1>
         </div>
-        <div class="form-group">
-          <label class="form-label" for="passwordInput">Password</label>
-          <div class="input-group">
-            <input type="password" id="passwordInput" class="form-control" placeholder="********" required autocomplete="current-password">
-            <button type="button" class="toggle-password" id="togglePassword">👁️</button>
+        <p>Masuk ke akun Anda</p>
+      </div>
+      <div class="card-body">
+        <div class="alert" id="statusMessage"></div>
+        <div class="progress-container" id="progressContainer">
+          <div class="progress-bar" id="progressBar"></div>
+        </div>
+
+        <form id="loginForm">
+          <div class="form-group">
+            <label class="form-label" for="emailInput">Email</label>
+            <input type="email" id="emailInput" class="form-control" placeholder="contoh@email.com" required autocomplete="email">
           </div>
-        </div>
-        <button type="submit" class="btn-login" id="loginBtn">Login</button>
-      </form>
+          <div class="form-group">
+            <label class="form-label" for="passwordInput">Password</label>
+            <div class="input-group">
+              <input type="password" id="passwordInput" class="form-control" placeholder="********" required autocomplete="current-password">
+              <button type="button" class="toggle-password" id="togglePassword">👁️</button>
+            </div>
+          </div>
+          <button type="submit" class="btn-login" id="loginBtn">Login</button>
+        </form>
 
-      <div class="register-link">
-        Belum punya akun? <a href="registrasi_jego.html">Daftar sekarang</a>
+        <div class="register-link">
+          Belum punya akun? <a href="registrasi_jego.html">Daftar sekarang</a>
+        </div>
       </div>
     </div>
   </div>
@@ -356,6 +539,7 @@
     return snapshot.val();
   }
 
+  // Login customer
   document.getElementById('loginForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const email = document.getElementById('emailInput').value.trim();
@@ -371,8 +555,6 @@
 
     try {
       await initFirebase();
-
-      // Persistensi LOCAL agar sesi tetap setelah aplikasi ditutup
       await firebaseAuth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
 
       showProgress(50);
@@ -430,12 +612,11 @@
       btn.innerText = 'Login';
       hideProgress();
     } finally {
-      // Jangan lupa reset disable jika sukses juga sudah di timeout
       btn.disabled = false;
     }
   });
 
-  // Toggle password visibility
+  // Toggle password
   const togglePwdBtn = document.getElementById('togglePassword');
   const pwdInput = document.getElementById('passwordInput');
   togglePwdBtn.addEventListener('click', () => {
@@ -444,11 +625,48 @@
     togglePwdBtn.textContent = type === 'password' ? '👁️' : '🙈';
   });
 
-  // Inisialisasi awal: hapus session lama (opsional, karena login baru akan overwrite)
+  // ========== SIDEBAR FUNCTIONS ==========
+  function toggleSidebar(open) {
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('sidebarOverlay');
+    if (open) {
+      sidebar.classList.add('open');
+      overlay.style.display = 'block';
+    } else {
+      sidebar.classList.remove('open');
+      overlay.style.display = 'none';
+    }
+  }
+
+  // Sidebar item click handlers
+  document.querySelectorAll('.sidebar-item').forEach(item => {
+    item.addEventListener('click', () => {
+      const url = item.getAttribute('data-url');
+      const isExternal = item.getAttribute('data-external') === 'true';
+      toggleSidebar(false);
+      if (url) {
+        if (isExternal) {
+          window.open(url, '_blank');
+        } else {
+          window.location.href = url;
+        }
+      }
+    });
+  });
+
+  // Tombol Mode Pengemudi
+  document.getElementById('modeDriverBtn').addEventListener('click', () => {
+    toggleSidebar(false);
+    window.location.href = 'loginDriver.html';
+  });
+
+  // Tombol menu buka sidebar
+  document.getElementById('menuButton').addEventListener('click', () => toggleSidebar(true));
+  document.getElementById('closeSidebar').addEventListener('click', () => toggleSidebar(false));
+  document.getElementById('sidebarOverlay').addEventListener('click', () => toggleSidebar(false));
+
   window.onload = () => {
-    // Tidak perlu hapus localStorage agar tidak logout paksa, tapi kita biarkan saja
-    // Untuk pengalaman native, kita tidak hapus otomatis
-    // localStorage.removeItem('jego_logged_in_user'); // Hapus jika ingin force login ulang setiap kali buka app
+    // Tidak hapus session
   };
 </script>
 </body>
