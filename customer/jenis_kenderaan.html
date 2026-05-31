@@ -1087,14 +1087,13 @@
         // Cek apakah sudah punya akun driver
         const driverSnap = await firebaseDatabase.ref(`drivers/${uid}`).once('value');
         if (!driverSnap.exists()) {
-            // Belum pernah daftar driver, arahkan ke halaman lengkapi data
             showGlobalLoading(false);
             window.location.href = '../lengkapiData.html';
             return;
         }
 
         const driverData = driverSnap.val();
-        // Cek kelengkapan data minimal: vehicle_type, plate_number, phone, address
+        // Cek kelengkapan data minimal
         const isComplete = driverData.vehicle_type && driverData.plate_number && driverData.phone && driverData.address;
         if (!isComplete) {
             showGlobalLoading(false);
@@ -1121,17 +1120,22 @@
             fotoProfilURL: driverData.photoURL || ''
         };
         localStorage.setItem('jego_logged_in_driver', JSON.stringify(driverSession));
-        // Hapus session customer
         localStorage.removeItem('jego_logged_in_user');
-        // Redirect ke halaman driver
-        window.location.href = '../index.html';
+
+        // ✅ PERBAIKAN: Redirect berdasarkan status driver
+        const statusDriver = driverData.status || 'pending';
+        if (statusDriver === 'active' || statusDriver === 'accepted') {
+            window.location.href = '../index.html';
+        } else {
+            // pending, rejected, blocked → semua ke halaman verifikasi
+            window.location.href = '../verifikasi_driver.html';
+        }
     } catch (err) {
-        console.error('Gagal beralih ke driver:', err);
+        console.error('Gagal beralih ke mode driver:', err);
         showGlobalLoading(false);
-        alert('Terjadi kesalahan: ' + err.message);
+        alert('Terjadi kesalahan, silakan coba lagi.');
     }
 }
-
     function setupBottomNav() {
         const currentPath = window.location.pathname.split('/').pop();
         const navHome = document.getElementById('navHome');
