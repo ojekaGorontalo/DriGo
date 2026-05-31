@@ -335,7 +335,37 @@
 
   <script>
     (function() {
-      // --- SPLASH SCREEN FULLSCREEN NATIVE ---
+      // ========== CEK SESSION LOGIN SEBELUM MENAMPILKAN SPLASH ==========
+      // Jika sudah login sebagai driver (status active) => langsung ke index.html
+      // Jika sudah login sebagai customer => langsung ke jenis_kenderaan.html
+      try {
+        const driverSession = localStorage.getItem('jego_logged_in_driver');
+        if (driverSession) {
+          const driver = JSON.parse(driverSession);
+          if (driver.status === 'active') {
+            // Redirect ke halaman driver
+            window.location.href = 'index.html';
+            return; // hentikan eksekusi script lebih lanjut
+          } else {
+            // Session tidak aktif, hapus agar tidak menggangu
+            localStorage.removeItem('jego_logged_in_driver');
+          }
+        }
+        
+        const customerSession = localStorage.getItem('jego_logged_in_user');
+        if (customerSession) {
+          // Redirect ke halaman customer (sesuai dengan redirect di loginUser.html)
+          window.location.href = 'jenis_kenderaan.html';
+          return;
+        }
+      } catch (e) {
+        console.warn('Gagal parse session login:', e);
+        // Hapus session yang rusak
+        localStorage.removeItem('jego_logged_in_driver');
+        localStorage.removeItem('jego_logged_in_user');
+      }
+
+      // ========== SPLASH SCREEN (hanya jika belum login) ==========
       const splashElement = document.getElementById('splashScreen');
       const splashAudio = document.getElementById('splashAudio');
       const bodyElement = document.body;
@@ -343,13 +373,11 @@
 
       function hideSplashAndStart() {
         if (!splashElement) return;
-        // Tambahkan class untuk fade out
         splashElement.classList.add('hide-splash');
-        // Setelah animasi selesai, hapus splash dari DOM dan kembalikan scroll body
         setTimeout(() => {
           splashElement.style.display = 'none';
-          bodyElement.classList.remove('splash-active'); // Izinkan scroll lagi
-        }, 600); // Durasi sama dengan transition
+          bodyElement.classList.remove('splash-active');
+        }, 600);
       }
 
       function playSplashAudio() {
@@ -363,17 +391,15 @@
         }
       }
 
-      // Mainkan audio setelah 0.5 detik (tidak mengganggu)
       setTimeout(() => {
         playSplashAudio();
       }, 500);
 
-      // Tampilkan splash minimal 2 detik, lalu hilangkan
       setTimeout(() => {
         hideSplashAndStart();
-      }, 2500); // Durasi 2.5 detik cukup untuk fullscreen native
+      }, 2500);
 
-      // --- FUNGSI UTAMA (GEOLOKASI DAN REDIRECT) ---
+      // ========== FUNGSI GEOLOKASI DAN REDIRECT (sama seperti sebelumnya) ==========
       const msgDiv = document.getElementById('loadingMsg');
       const locationAddressDiv = document.getElementById('currentLocationAddress');
       const refreshBtn = document.getElementById('refreshLocationBtn');
@@ -451,7 +477,7 @@
           localStorage.setItem('jego_last_pickup_lng', lng);
           localStorage.setItem('jego_last_pickup_address', locationAddressDiv.innerText);
         }
-        redirectWithMessage('customer/jenis_kenderaan.html', 'Penumpang');
+        redirectWithMessage('jenis_kenderaan.html', 'Penumpang');
       });
 
       document.getElementById('driverBtn').addEventListener('click', function(e) {
