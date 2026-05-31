@@ -1868,25 +1868,36 @@
         }
         const newOrderRef = database.ref('orders').push();
         currentOrderId = newOrderRef.key;
-        const orderData = {
-            user_id: currentUser.id,
-            customer_name: currentUser.name,
-            transport_type: transportType,
-            pickup_address: pickupAddress,
-            pickup_lat: pickupCoord[1],
-            pickup_lng: pickupCoord[0],
-            destination_address: destAddress,
-            dest_lat: destCoord[1],
-            dest_lng: destCoord[0],
-            distance_meters: currentRoute.distance,
-            duration_seconds: currentRoute.duration,
-            price: currentPrice,
-            status: 'waiting',
-            created_at: new Date().toISOString(),
-            passenger_rating: currentUser.rating,
-            perjalanan: currentUser.perjalanan,
-            photoURL: currentUser.photoURL || ''
-        };
+        // Ambil fee & pajak terkini dari data-jego
+let feePercent = 7, taxPercent = 11;
+try {
+  const potonganSnap = await database.ref('data-jego/potongan').once('value');
+  feePercent = potonganSnap.exists() ? parseFloat(potonganSnap.val()) : 7;
+  const pajakSnap = await database.ref('data-jego/pajak').once('value');
+  taxPercent = pajakSnap.exists() ? parseFloat(pajakSnap.val()) : 11;
+} catch(e) { console.warn('Gagal ambil fee, pakai default'); }
+
+const orderData = {
+  user_id: currentUser.id,
+  customer_name: currentUser.name,
+  transport_type: transportType,
+  pickup_address: pickupAddress,
+  pickup_lat: pickupCoord[1],
+  pickup_lng: pickupCoord[0],
+  destination_address: destAddress,
+  dest_lat: destCoord[1],
+  dest_lng: destCoord[0],
+  distance_meters: currentRoute.distance,
+  duration_seconds: currentRoute.duration,
+  price: currentPrice,
+  fee_percent: feePercent,   // <-- simpan fee saat order dibuat
+  tax_percent: taxPercent,   // <-- simpan pajak saat order dibuat
+  status: 'waiting',
+  created_at: new Date().toISOString(),
+  passenger_rating: currentUser.rating,
+  perjalanan: currentUser.perjalanan,
+  photoURL: currentUser.photoURL || ''
+};
         if (isCourier && deliveryData) {
             orderData.sender_phone = deliveryData.senderPhone;
             orderData.receiver_phone = deliveryData.receiverPhone;
