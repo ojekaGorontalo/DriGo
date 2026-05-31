@@ -1964,6 +1964,36 @@ if (sidebarHeader) {
 
 window.addEventListener('beforeunload', () => { if (locationWatchId) navigator.geolocation.clearWatch(locationWatchId); });
 if (gpsLoadingInterval) clearInterval(gpsLoadingInterval);
+// ==================== HANDLE BACK BUTTON UNTUK KELUAR APLIKASI ====================
+// Fungsi ini akan menutup aplikasi ketika pengguna menekan back dari halaman utama
+function exitApp() {
+    // Coba gunakan bridge median.co jika tersedia
+    if (window.Median && typeof window.Median.close === 'function') {
+        window.Median.close();
+    } else if (window.Median && typeof window.Median.exitApp === 'function') {
+        window.Median.exitApp();
+    } else {
+        // Fallback: arahkan ke halaman kosong (tidak disarankan untuk PWA)
+        window.location.href = 'about:blank';
+        // Alternatif: coba tutup jendela (hanya berfungsi jika dibuka oleh script)
+        window.close();
+    }
+}
+
+// Tangani event popstate (tekan tombol back di browser/WebView)
+let backPressedOnce = false;
+window.addEventListener('popstate', function(event) {
+    // Jika tidak ada state sebelumnya (atau panjang history == 0), berarti sudah di halaman pertama
+    if (history.length <= 1 || !document.referrer) {
+        if (!backPressedOnce) {
+            backPressedOnce = true;
+            exitApp();
+        }
+    }
+});
+
+// Buat state awal agar popstate bisa terdeteksi saat pertama kali
+history.pushState(null, null, location.href);
 </script>
 </body>
 </html>
