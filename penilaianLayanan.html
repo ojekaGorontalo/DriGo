@@ -23,6 +23,22 @@
       --gray: #64748b;
       --gray-light: #e2e8f0;
       --bg: #f1f5f9;
+      --card-bg: #ffffff;
+      --text-primary: #1e2a3e;
+      --text-secondary: #64748b;
+      --border: #edf2f7;
+    }
+
+    /* Dark Mode */
+    body.dark-mode {
+      --primary: #FFB74D;
+      --primary-dark: #FF9800;
+      --bg: #121212;
+      --card-bg: #1e1e1e;
+      --text-primary: #e9ecef;
+      --text-secondary: #adb5bd;
+      --border: #343a40;
+      --gray-light: #2c2c2c;
     }
 
     * {
@@ -34,10 +50,11 @@
     body {
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
       background-color: var(--bg);
-      color: var(--dark);
+      color: var(--text-primary);
       line-height: 1.4;
       font-size: 0.8rem;
       padding: 0;
+      transition: background 0.2s, color 0.2s;
     }
 
     /* Header */
@@ -97,15 +114,15 @@
       padding: 0;
     }
 
-    /* Rating Summary - lebih kompak */
+    /* Rating Summary */
     .rating-summary {
-      background: white;
+      background: var(--card-bg);
       border-radius: 20px;
       padding: 14px 12px;
       box-shadow: 0 2px 8px rgba(0,0,0,0.04);
       margin-bottom: 16px;
       text-align: center;
-      border: 1px solid #edf2f7;
+      border: 1px solid var(--border);
     }
     .overall-rating {
       font-size: 2.5rem;
@@ -121,13 +138,13 @@
     }
     .star {
       font-size: 1.2rem;
-      color: #e2e8f0;
+      color: var(--gray-light);
     }
     .star.filled {
       color: var(--accent);
     }
     .rating-count {
-      color: var(--gray);
+      color: var(--text-secondary);
       font-size: 0.7rem;
       margin-bottom: 10px;
     }
@@ -143,19 +160,20 @@
       transition: all 0.2s;
     }
 
-    /* Rating List - card lebih kecil dan rapat */
+    /* Rating List */
     .rating-list {
       display: flex;
       flex-direction: column;
       gap: 10px;
     }
     .rating-card {
-      background: white;
+      background: var(--card-bg);
       border-radius: 16px;
       padding: 10px 12px;
       box-shadow: 0 1px 4px rgba(0,0,0,0.04);
       border-left: 3px solid var(--primary);
       transition: none;
+      border: 1px solid var(--border);
     }
     .rating-header {
       display: flex;
@@ -183,7 +201,7 @@
     .passenger-name {
       font-weight: 700;
       font-size: 0.8rem;
-      color: var(--dark);
+      color: var(--text-primary);
     }
     .rating-meta {
       display: flex;
@@ -199,24 +217,24 @@
     }
     .small-star {
       font-size: 0.75rem;
-      color: #e2e8f0;
+      color: var(--gray-light);
     }
     .small-star.filled {
       color: var(--accent);
     }
     .rating-comment {
-      color: #334155;
+      color: var(--text-primary);
       font-size: 0.75rem;
       line-height: 1.4;
       margin-bottom: 6px;
       padding: 8px 10px;
-      background-color: #f8fafc;
+      background-color: var(--bg);
       border-radius: 12px;
       border-left: 2px solid var(--info);
       word-break: break-word;
     }
     .rating-date {
-      color: var(--gray);
+      color: var(--text-secondary);
       font-size: 0.65rem;
       text-align: right;
       display: flex;
@@ -225,12 +243,13 @@
       gap: 4px;
     }
 
-    /* Empty & Loading States - juga kompak */
+    /* Empty & Loading States */
     .empty-state, .loading, .error-state {
-      background: white;
+      background: var(--card-bg);
       border-radius: 20px;
       padding: 30px 16px;
       text-align: center;
+      border: 1px solid var(--border);
     }
     .empty-state-icon {
       font-size: 2.5rem;
@@ -265,12 +284,33 @@
     <div class="logo">🚗</div>
     <div class="header-title">Penilaian Layanan</div>
   </div>
+  <button class="back-btn" id="backBtn"><span>←</span> Kembali</button>
 </div>
 <div class="container" id="mainContainer">
   <div class="loading"><div class="spinner"></div><div>Memuat data penilaian...</div></div>
 </div>
 
 <script>
+  // ========== DARK MODE SINKRON DENGAN localStorage ==========
+  const THEME_KEY = 'jego_driver_theme';
+
+  function applyTheme(theme) {
+    if (theme === 'dark') {
+      document.body.classList.add('dark-mode');
+    } else {
+      document.body.classList.remove('dark-mode');
+    }
+  }
+
+  function loadTheme() {
+    let theme = localStorage.getItem(THEME_KEY);
+    if (theme !== 'dark' && theme !== 'light') {
+      theme = 'light';
+      localStorage.setItem(THEME_KEY, theme);
+    }
+    applyTheme(theme);
+  }
+
   // ========== KONFIGURASI FIREBASE ==========
   const firebaseConfig = {
     apiKey: "AIzaSyCD0pgeZio-LdKqYDtWxcdXcZwyL4ngYQI",
@@ -494,7 +534,22 @@
     document.getElementById('retryBtn')?.addEventListener('click', loadRatings);
   }
 
+  // Tombol kembali
+  document.getElementById('backBtn')?.addEventListener('click', () => {
+    window.history.back();
+  });
+
   document.addEventListener('DOMContentLoaded', () => {
+    // Terapkan tema gelap/terang
+    loadTheme();
+
+    // Sinkronkan tema jika berubah di localStorage (dari tab lain)
+    window.addEventListener('storage', (e) => {
+      if (e.key === THEME_KEY) {
+        loadTheme();
+      }
+    });
+
     auth.onAuthStateChanged((user) => {
       if (user) {
         loadRatings();
