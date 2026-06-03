@@ -138,7 +138,7 @@
 
 <div class="header">
     <button class="back-btn" id="backBtn"><i class="fas fa-arrow-left"></i></button>
-    <h1><i class="fas fa-file-alt"></i> Dokumen Legal</h1>
+    <h1 id="headerTitle"><i class="fas fa-file-alt"></i> Dokumen Legal</h1>
     <div style="width: 36px;"></div>
 </div>
 
@@ -147,7 +147,7 @@
         <div class="doc-item" id="syaratKetentuan">
             <div class="doc-left">
                 <i class="fas fa-file-contract"></i>
-                <span>Syarat & Ketentuan</span>
+                <span id="termsLabel">Syarat & Ketentuan</span>
             </div>
             <div class="doc-right">
                 <i class="fas fa-chevron-right"></i>
@@ -156,7 +156,7 @@
         <div class="doc-item" id="kebijakanPrivasi">
             <div class="doc-left">
                 <i class="fas fa-lock"></i>
-                <span>Kebijakan Privasi</span>
+                <span id="privacyLabel">Kebijakan Privasi</span>
             </div>
             <div class="doc-right">
                 <i class="fas fa-chevron-right"></i>
@@ -165,20 +165,49 @@
         <div class="doc-item" id="hakCipta">
             <div class="doc-left">
                 <i class="fas fa-copyright"></i>
-                <span>Hak Cipta & Lisensi</span>
+                <span id="licenseLabel">Hak Cipta & Lisensi</span>
             </div>
             <div class="doc-right">
                 <i class="fas fa-chevron-right"></i>
             </div>
         </div>
     </div>
-    <div class="footer-note">
+    <div class="footer-note" id="footerText">
         Dokumen ini berlaku untuk aplikasi JeGo Driver
     </div>
 </div>
 
 <script>
-    // ======================= DARK MODE (sinkron dari localStorage) =======================
+    // ======================= BAHASA (bilingual) =======================
+    const translations = {
+        id: {
+            headerTitle: "Dokumen Legal",
+            termsLabel: "Syarat & Ketentuan",
+            privacyLabel: "Kebijakan Privasi",
+            licenseLabel: "Hak Cipta & Lisensi",
+            footerText: "Dokumen ini berlaku untuk aplikasi JeGo Driver"
+        },
+        en: {
+            headerTitle: "Legal Documents",
+            termsLabel: "Terms & Conditions",
+            privacyLabel: "Privacy Policy",
+            licenseLabel: "Copyright & License",
+            footerText: "This document applies to the JeGo Driver application"
+        }
+    };
+
+    let currentLanguage = localStorage.getItem('jego_driver_lang') || 'id';
+
+    function applyLanguage() {
+        const t = translations[currentLanguage] || translations.id;
+        document.getElementById('headerTitle').innerHTML = `<i class="fas fa-file-alt"></i> ${t.headerTitle}`;
+        document.getElementById('termsLabel').innerText = t.termsLabel;
+        document.getElementById('privacyLabel').innerText = t.privacyLabel;
+        document.getElementById('licenseLabel').innerText = t.licenseLabel;
+        document.getElementById('footerText').innerText = t.footerText;
+    }
+
+    // ======================= DARK MODE =======================
     function applyTheme() {
         const savedTheme = localStorage.getItem('jego_driver_theme');
         if (savedTheme === 'dark') {
@@ -187,14 +216,23 @@
             document.body.classList.remove('dark');
         }
     }
-    applyTheme();
 
-    // Optional: jika ingin mendengarkan perubahan tema dari halaman lain (storage event)
-    window.addEventListener('storage', (e) => {
-        if (e.key === 'jego_driver_theme') {
-            applyTheme();
-        }
-    });
+    // ======================= INIT =======================
+    function init() {
+        applyTheme();
+        applyLanguage();
+        
+        // Sinkronisasi perubahan dari halaman lain
+        window.addEventListener('storage', (e) => {
+            if (e.key === 'jego_driver_theme') applyTheme();
+            if (e.key === 'jego_driver_lang') {
+                currentLanguage = localStorage.getItem('jego_driver_lang') || 'id';
+                applyLanguage();
+            }
+        });
+    }
+
+    init();
 
     // ======================= NAVIGASI =======================
     document.getElementById('backBtn').addEventListener('click', () => {
