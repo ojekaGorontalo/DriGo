@@ -579,35 +579,31 @@
             .order-notif-card { width: calc(100% - 32px); left: 16px; right: 16px; bottom: 80px; }
         }
         /* Nonaktifkan seleksi teks di seluruh UI (kecuali input dan textarea) */
-body {
-    user-select: none; /* Untuk browser modern */
-    -webkit-user-select: none; /* Safari */
-    -moz-user-select: none; /* Firefox */
-    -ms-user-select: none; /* IE/Edge */
-}
-
-/* Izinkan seleksi teks hanya pada elemen input dan textarea (jika ada form) */
-input, textarea {
-    user-select: text;
-    -webkit-user-select: text;
-    -moz-user-select: text;
-    -ms-user-select: text;
-}
-
-/* Opsional: tambahkan indikator kecil di pojok bahwa ini adalah Web App */
-.web-app-badge {
-    position: fixed;
-    bottom: 5px;
-    left: 5px;
-    font-size: 9px;
-    color: rgba(0,0,0,0.3);
-    background: transparent;
-    z-index: 9999;
-    pointer-events: none;
-}
-body.dark-mode .web-app-badge {
-    color: rgba(255,255,255,0.3);
-}
+        body {
+            user-select: none;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+        }
+        input, textarea {
+            user-select: text;
+            -webkit-user-select: text;
+            -moz-user-select: text;
+            -ms-user-select: text;
+        }
+        .web-app-badge {
+            position: fixed;
+            bottom: 5px;
+            left: 5px;
+            font-size: 9px;
+            color: rgba(0,0,0,0.3);
+            background: transparent;
+            z-index: 9999;
+            pointer-events: none;
+        }
+        body.dark-mode .web-app-badge {
+            color: rgba(255,255,255,0.3);
+        }
     </style>
 </head>
 <body>
@@ -667,7 +663,6 @@ body.dark-mode .web-app-badge {
             <div class="mode-group">
                 <label><input type="radio" name="darkMode" value="light"> Terang</label>
                 <label><input type="radio" name="darkMode" value="dark"> Gelap</label>
-                <label><input type="radio" name="darkMode" value="system"> Sistem</label>
             </div>
         </div>
         <div style="margin-top: 20px; text-align: center; font-size: 0.7rem; color: var(--text-secondary);">
@@ -835,51 +830,54 @@ body.dark-mode .web-app-badge {
         });
     }
 
-    // ========== DARK MODE ==========
-    function applyDarkMode(theme) {
+    // ========== DARK MODE SINKRON dengan index.html & pengaturandr.html ==========
+    const THEME_KEY = 'jego_driver_theme';
+
+    function applyTheme(theme) {
         if (theme === 'dark') {
             document.body.classList.add('dark-mode');
-            localStorage.setItem('jego_dark_mode', 'true');
-        } else if (theme === 'light') {
+        } else {
             document.body.classList.remove('dark-mode');
-            localStorage.setItem('jego_dark_mode', 'false');
-        } else if (theme === 'system') {
-            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-            if (prefersDark) {
-                document.body.classList.add('dark-mode');
-                localStorage.setItem('jego_dark_mode', 'true');
-            } else {
-                document.body.classList.remove('dark-mode');
-                localStorage.setItem('jego_dark_mode', 'false');
-            }
         }
     }
-    function loadDarkModeSetting() {
-        const saved = localStorage.getItem('jego_dark_mode');
-        if (saved === 'true') applyDarkMode('dark');
-        else if (saved === 'false') applyDarkMode('light');
-        else applyDarkMode('system');
+
+    function loadTheme() {
+        let theme = localStorage.getItem(THEME_KEY);
+        if (theme !== 'dark' && theme !== 'light') {
+            theme = 'light';
+            localStorage.setItem(THEME_KEY, theme);
+        }
+        applyTheme(theme);
     }
+
+    function saveTheme(theme) {
+        localStorage.setItem(THEME_KEY, theme);
+        applyTheme(theme);
+    }
+
     function loadSettingsFromLocal() {
         document.getElementById('tripSoundToggle').checked = localStorage.getItem('jego_trip_sound') === 'true';
         document.getElementById('requestChainToggle').checked = localStorage.getItem('jego_request_chain') === 'true';
         document.getElementById('shortcutToggle').checked = localStorage.getItem('jego_shortcut') === 'true';
-        const darkMode = localStorage.getItem('jego_dark_mode');
-        if (darkMode === 'true') document.querySelector('input[name="darkMode"][value="dark"]').checked = true;
-        else if (darkMode === 'false') document.querySelector('input[name="darkMode"][value="light"]').checked = true;
-        else document.querySelector('input[name="darkMode"][value="system"]').checked = true;
+        const theme = localStorage.getItem(THEME_KEY);
+        if (theme === 'dark') {
+            document.querySelector('input[name="darkMode"][value="dark"]').checked = true;
+        } else {
+            document.querySelector('input[name="darkMode"][value="light"]').checked = true;
+        }
     }
-    function saveSetting(key, value) { localStorage.setItem(key, value); }
+
     function initSettingsListeners() {
-        document.getElementById('tripSoundToggle').addEventListener('change', (e) => saveSetting('jego_trip_sound', e.target.checked));
-        document.getElementById('requestChainToggle').addEventListener('change', (e) => saveSetting('jego_request_chain', e.target.checked));
-        document.getElementById('shortcutToggle').addEventListener('change', (e) => saveSetting('jego_shortcut', e.target.checked));
+        document.getElementById('tripSoundToggle').addEventListener('change', (e) => localStorage.setItem('jego_trip_sound', e.target.checked));
+        document.getElementById('requestChainToggle').addEventListener('change', (e) => localStorage.setItem('jego_request_chain', e.target.checked));
+        document.getElementById('shortcutToggle').addEventListener('change', (e) => localStorage.setItem('jego_shortcut', e.target.checked));
         document.querySelectorAll('input[name="darkMode"]').forEach(radio => {
             radio.addEventListener('change', (e) => {
-                if (e.target.checked) applyDarkMode(e.target.value);
+                if (e.target.checked) saveTheme(e.target.value);
             });
         });
     }
+
     const modalSettings = document.getElementById('settingsModal');
     document.getElementById('settingsBtn').onclick = () => { loadSettingsFromLocal(); modalSettings.classList.add('active'); };
     document.getElementById('closeModalBtn').onclick = () => modalSettings.classList.remove('active');
@@ -911,7 +909,7 @@ body.dark-mode .web-app-badge {
     let globalUidStat = null;
     let ordersListenerStat = null;
     let gpsWatchIdStat = null;
-    let autobidEnabledStat = false;         // <--- Tambahan untuk autobid
+    let autobidEnabledStat = false;
     const STORAGE_AUTOBID = 'jego_autobid_enabled';
 
     function calculateDistanceStat(lat1, lon1, lat2, lon2) {
@@ -1032,7 +1030,6 @@ body.dark-mode .web-app-badge {
                 }
             }, 1000);
         } else {
-            // Jika tidak ada card (autobid tanpa card), kita tetap jalankan countdown di background
             if (countdownNotifInterval) clearInterval(countdownNotifInterval);
             countdownNotifInterval = setInterval(async () => {
                 timeLeft--;
@@ -1113,26 +1110,18 @@ body.dark-mode .web-app-badge {
             lastNotifiedOrderIds.add(order.id);
             currentOrderNotif = order;
 
-            // Jika autobid aktif dan order bukan kurir -> langsung kirim offer otomatis
             if (autobidEnabledStat && !orderType.includes('kurir')) {
-                // Mainkan suara (optional, bisa ditambahkan nanti)
-                // Kirim offer otomatis
                 const success = await sendOfferFromStat(order.id, order, true);
                 if (success) {
-                    // Tampilkan card notifikasi dengan countdown
                     createNotifCard(order, dist, true);
-                } else {
-                    // Jika gagal (saldo tidak cukup dll), jangan tampilkan card
                 }
             } else {
-                // Tampilkan card dengan tombol manual
                 createNotifCard(order, dist, false);
             }
         });
     }
 
     function createNotifCard(order, dist, isAutoSent) {
-        // Hapus card lama
         removeNotifCard();
         const card = document.createElement('div');
         card.className = 'order-notif-card';
@@ -1227,9 +1216,7 @@ body.dark-mode .web-app-badge {
     }
 
     function loadAutobidSettingStat() {
-        // Baca dari localStorage (sama seperti index.html)
         autobidEnabledStat = localStorage.getItem(STORAGE_AUTOBID) === 'true';
-        // Opsional: bisa juga sinkron dari Firebase jika diperlukan
         if (globalUidStat) {
             db.ref(`drivers/${globalUidStat}/autobid_enabled`).once('value').then(snap => {
                 if (snap.exists()) {
@@ -1258,7 +1245,7 @@ body.dark-mode .web-app-badge {
             return;
         }
         currentDriverUid = user.uid;
-        loadDarkModeSetting();
+        loadTheme();
         initSettingsListeners();
         await loadFeeSettings();
         await renderMainContent();
@@ -1266,9 +1253,8 @@ body.dark-mode .web-app-badge {
         db.ref(`drivers/${currentDriverUid}`).on('value', () => renderMainContent());
         db.ref('orders').orderByChild('driver_id').equalTo(currentDriverUid).on('value', () => renderMainContent());
 
-        // Inisialisasi notifikasi + autobid
         if (loadDriverDataStat()) {
-            loadAutobidSettingStat();    // baca status autobid dari localStorage
+            loadAutobidSettingStat();
             initDriverLocationStat();
             startListeningOrdersStat();
         }
