@@ -3,12 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Syarat & Ketentuan JeGo - Dinamis</title>
-    <!-- Firebase SDK (Realtime Database) -->
+    <title>Ketentuan JeGo Motor</title>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
     <style>
-        /* Tidak ada CSS tambahan, hanya default browser */
         body {
             font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
             line-height: 1.5;
@@ -16,21 +14,15 @@
             max-width: 900px;
             padding: 0 20px;
         }
-        hr {
-            margin: 24px 0;
-        }
-        /* Hanya untuk memisahkan visual, tidak mengubah desain inti */
+        hr { margin: 24px 0; }
     </style>
 </head>
 <body>
-
 <div id="dynamic-content">
     <p>⏳ Memuat dokumen dari database...</p>
 </div>
 
 <script>
-    // ======================= KONFIGURASI FIREBASE =======================
-    // GANTI dengan konfigurasi Firebase Realtime Database Anda sendiri
     const firebaseConfig = {
         apiKey: "AIzaSyCD0pgeZio-LdKqYDtWxcdXcZwyL4ngYQI",
         authDomain: "jego-35a2b.firebaseapp.com",
@@ -40,152 +32,51 @@
         messagingSenderId: "600037007040",
         appId: "1:600037007040:web:ac3243ad9b472647ffd725"
     };
-
-    // Inisialisasi Firebase
-    if (!firebase.apps.length) {
-        firebase.initializeApp(firebaseConfig);
-    }
+    if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
     const database = firebase.database();
+    const termsRef = database.ref('legal/terms_motor');
 
-    // Referensi ke path: legal/terms
-    const termsRef = database.ref('legal/terms');
-
-    // Container utama
     const container = document.getElementById('dynamic-content');
 
-    // Fungsi untuk merender dokumen
-    function renderTerms(data) {
+    function escapeHtml(str) {
+        if (!str) return '';
+        return str.replace(/[&<>]/g, function(m) {
+            if (m === '&') return '&amp;';
+            if (m === '<') return '&lt;';
+            if (m === '>') return '&gt;';
+            return m;
+        });
+    }
+
+    function renderContent(data) {
         if (!data) {
             container.innerHTML = '<p>Dokumen tidak tersedia.</p>';
             return;
         }
+        const pageTitle = data.pageTitle || 'Ketentuan JeGo Motor';
+        const mainTitle = data.mainTitle || 'Ketentuan Penggunaan JeGo Motor (Transportasi)';
+        const lastUpdated = data.lastUpdated || 'Diperbarui terakhir: -';
+        const copyright = data.copyright || '© JeGo Team. Hak cipta dilindungi undang-undang.';
+        const htmlContent = data.htmlContent || '<p>Konten belum tersedia.</p>';
 
-        const {
-            title = 'Syarat & Ketentuan JeGo',
-            version = '1.0',
-            last_update = '2026-06-07',
-            sections = {}
-        } = data;
-
-        // Jika sections kosong atau tidak ada properti sections
-        if (Object.keys(sections).length === 0) {
-            container.innerHTML = '<p>Dokumen tidak tersedia (tidak ada section).</p>';
-            return;
-        }
-
-        // Urutkan key section secara numerik (001, 002, 003, ...)
-        const sortedKeys = Object.keys(sections).sort((a, b) => Number(a) - Number(b));
-
-        // Buat daftar isi
-        let tableOfContents = '<h2>Daftar Isi</h2><ul>';
-        for (const key of sortedKeys) {
-            const section = sections[key];
-            if (section && section.title) {
-                tableOfContents += `<li><a href="#section-${key}">${escapeHtml(section.title)}</a></li>`;
-            }
-        }
-        tableOfContents += '</ul><hr>';
-
-        // Buat konten utama
-        let mainContent = `
-            <h1>${escapeHtml(title)}</h1>
-            <p><strong>Versi:</strong> ${escapeHtml(version)}</p>
-            <p><strong>Terakhir diperbarui:</strong> ${escapeHtml(last_update)}</p>
-            <p>Dokumen ini berlaku untuk seluruh pengguna JeGo, baik sebagai <strong>Penumpang</strong> maupun sebagai <strong>Mitra Driver</strong>.</p>
+        const fullHtml = `
+            <h1>${escapeHtml(pageTitle)}</h1>
+            <p><strong>${escapeHtml(mainTitle)}</strong></p>
+            <p><em>${escapeHtml(lastUpdated)}</em></p>
             <hr>
-            ${tableOfContents}
+            <div>${htmlContent}</div>
+            <hr>
+            <p style="font-size:0.85em;">${escapeHtml(copyright)}</p>
         `;
-
-        // Loop setiap section untuk menampilkan konten
-        for (const key of sortedKeys) {
-            const section = sections[key];
-            if (!section) continue;
-
-            const sectionTitle = section.title || 'Judul tidak tersedia';
-            let sectionContent = section.content || '<em>Konten tidak tersedia.</em>';
-
-            mainContent += `
-                <h2 id="section-${key}">${escapeHtml(sectionTitle)}</h2>
-                <div>${sectionContent}</div>
-                <hr>
-            `;
-        }
-
-        // Tambahkan footer sederhana (opsional)
-        mainContent += `<p style="font-size:0.85em;">© PT MOVEGO HLD (JeGo). Hak cipta dilindungi undang-undang.</p>`;
-
-        container.innerHTML = mainContent;
+        container.innerHTML = fullHtml;
     }
 
-    // Helper sederhana untuk menghindari XSS (meskipun content dari Firebase dianggap aman)
-    function escapeHtml(str) {
-        if (!str) return '';
-        return str
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;')
-            .replace(/'/g, '&#39;');
-    }
-
-    // Fungsi menangani error
-    function showError(err) {
-        console.error(err);
-        container.innerHTML = `<p>❌ Gagal memuat dokumen. Pastikan konfigurasi Firebase benar dan database memiliki path 'legal/terms'.<br>Detail: ${err.message}</p>`;
-    }
-
-    // Ambil data dari Firebase Realtime Database (sekali ambil, atau realtime? Kita gunakan once agar tidak terus-terusan update, tapi bisa juga onValue)
-    // Gunakan once('value') untuk performa, namun jika ingin perubahan otomatis bisa pakai on('value').
-    // Agar dinamis ketika admin mengubah, lebih baik gunakan on('value') agar halaman langsung update tanpa refresh.
     termsRef.on('value', (snapshot) => {
-        const data = snapshot.val();
-        renderTerms(data);
+        renderContent(snapshot.val());
     }, (error) => {
-        showError(error);
+        console.error(error);
+        container.innerHTML = '<p>❌ Gagal memuat dokumen. Periksa konfigurasi Firebase.</p>';
     });
 </script>
-
-<!--
-    STRUKTUR FIRBEASE REALTIME DATABASE YANG DIHARAPKAN:
-
-    {
-      "legal": {
-        "terms": {
-          "title": "Syarat & Ketentuan JeGo",
-          "version": "2.0",
-          "last_update": "2026-06-07",
-          "sections": {
-            "001": {
-              "title": "Ketentuan Umum",
-              "content": "<p>Isi ketentuan umum... bisa menggunakan HTML seperti paragraf, list, dll.</p>"
-            },
-            "002": {
-              "title": "Ketentuan Penumpang",
-              "content": "<ul><li>Kewajiban penumpang...</li><li>Pembatalan...</li></ul>"
-            },
-            "003": {
-              "title": "Ketentuan Mitra Driver",
-              "content": "<p>Driver adalah mitra independen...</p>"
-            },
-            "004": {
-              "title": "Batas Tanggung Jawab JeGo",
-              "content": "<p>JeGo tidak bertanggung jawab atas...</p>"
-            },
-            "005": {
-              "title": "Informasi Kontak",
-              "content": "<p>Email: cs.jego.app@gmail.com<br>WhatsApp: +62 823-1164-0444</p>"
-            }
-          }
-        }
-      }
-    }
-
-    CATATAN:
-    - Key section bisa berupa angka 001, 002, 010, 100 (akan diurutkan numerik otomatis).
-    - Property 'content' dapat berisi HTML (paragraf, list, tabel, dll) karena akan dimasukkan langsung ke innerHTML.
-    - Jika ingin menambah section baru, cukup tambahkan object dengan key baru (misal "006") di Firebase.
-    - Halaman akan otomatis menampilkan section baru tanpa perubahan kode.
-    - Jika data kosong atau tidak ada sections, akan tampil pesan "Dokumen tidak tersedia."
--->
 </body>
 </html>
