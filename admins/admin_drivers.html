@@ -178,6 +178,22 @@
     let onesignalApiKey = null;
     const ONESIGNAL_APP_ID = "007d7eba-9cfc-40d1-a92e-f2299f770282";
 
+    // ========== ADMIN LOG (ACTIVITY LOG) ==========
+    async function saveAdminLog(message) {
+        try {
+            const user = auth.currentUser;
+            if (!user) return;
+            await database.ref('admin_logs/activity').push({
+                message: message,
+                timestamp: firebase.database.ServerValue.TIMESTAMP,
+                admin: user.email || user.uid
+            });
+            console.log("✅ Admin log tersimpan:", message);
+        } catch (err) {
+            console.warn("Gagal menyimpan admin log:", err);
+        }
+    }
+
     async function getOneSignalApiKey() {
         if (onesignalApiKey) return onesignalApiKey;
         try {
@@ -248,7 +264,7 @@
             allDrivers = driversArray;
             populateVehicleFilter();
             applyDriverFilter();
-        } catch (err) { tbody.innerHTML = `<tr class="empty-row"><td colspan="14">⚠️ Gagal load driver: ${err.message}</tr>`; }
+        } catch (err) { tbody.innerHTML = `<tr class="empty-row"><td colspan="14">⚠️ Gagal load driver: ${err.message}</td>`; }
     }
 
     function populateVehicleFilter() {
@@ -276,6 +292,7 @@
             const driver = allDrivers.find(d => d.uid === uid);
             if (driver) driver[field] = newValue;
             showToast(`Setting ${field} untuk ${driver ? driver.name : uid} diubah menjadi ${newValue ? 'ON' : 'OFF'}`);
+            await saveAdminLog(`Admin mengubah ${field} driver ${driver?.name || uid} menjadi ${newValue ? 'ON' : 'OFF'}`);
         } catch(err) { showToast(`Gagal: ${err.message}`, true); }
     }
 
@@ -322,7 +339,7 @@
             const notifBtn = document.createElement('button'); notifBtn.innerHTML = 'Kirim Notif'; notifBtn.className = 'send-notif-btn';
             actionDiv.append(updateBtn, editBtn, topupBtn, notifBtn);
             row.insertCell(13).appendChild(actionDiv);
-            updateBtn.onclick = async () => { /* update status */ 
+            updateBtn.onclick = async () => {
                 const newStatus = prompt("Masukkan status baru (accepted, pending, rejected, blocked):", d.status);
                 if (!newStatus) return;
                 const newReason = reasonInput.value.trim();
@@ -338,6 +355,7 @@
                     const playerId = await getDriverPlayerId(d.uid);
                     if (playerId) await sendPushNotification(playerId, 'Status Akun', message);
                     d.status = newStatus; d.ketGagal = updates[`drivers/${d.uid}/ketGagal`] || null;
+                    await saveAdminLog(`Admin mengubah status driver ${d.name} (${d.uid}) menjadi ${newStatus}`);
                     applyDriverFilter();
                     showToast(`Status ${d.name} => ${newStatus}`);
                 } catch(err) { showToast(err.message, true); } finally { updateBtn.disabled = false; }
@@ -391,6 +409,7 @@
             await saveDriverNotification(uid, 'Data Diperbarui', 'Data Anda telah diubah oleh admin.', 'edit');
             const playerId = await getDriverPlayerId(uid);
             if (playerId) await sendPushNotification(playerId, 'Data Diperbarui', 'Silakan cek aplikasi untuk perubahan data.');
+            await saveAdminLog(`Admin mengedit data driver ${data.name} (${uid})`);
             applyDriverFilter();
             showToast('Data driver disimpan');
             document.getElementById('editDriverModal').style.display = 'none';
@@ -419,6 +438,7 @@
             const playerId = await getDriverPlayerId(uid);
             if (playerId) { await sendPushNotification(playerId, title, message, { manual: true }); showToast(`Notifikasi terkirim ke ${driver.name}`); }
             else { showToast(`Driver ${driver.name} tidak memiliki Player ID, notifikasi hanya tersimpan.`, true); }
+            await saveAdminLog(`Admin mengirim notifikasi manual ke driver ${driver.name} (${uid}) dengan judul: ${title}`);
             document.getElementById('notifDriverModal').style.display = 'none';
         } catch(err) { showToast(`Gagal: ${err.message}`, true); } finally { btn.disabled = false; btn.textContent = 'Kirim Sekarang'; }
     }
@@ -438,6 +458,7 @@
                 await new Promise(r => setTimeout(r, 200));
             } catch(e) { fail++; }
         }
+        await saveAdminLog(`Admin melakukan broadcast ke ${allDrivers.length} driver dengan judul: ${title}`);
         showToast(`Broadcast selesai: ${success} terkirim push, ${fail} hanya tersimpan.`);
     }
 
@@ -456,6 +477,7 @@
                 successCount++;
             } catch(err) { errorCount++; }
         }
+        await saveAdminLog(`Admin mengaktifkan tracking dan autobid untuk ${successCount} driver`);
         applyDriverFilter();
         btn.disabled = false; btn.innerHTML = '<i class="fas fa-check-double"></i> Aktifkan Semua';
         showToast(`Berhasil mengaktifkan ${successCount} driver. Gagal: ${errorCount}`);
@@ -507,6 +529,7 @@
             await saveDriverNotification(uid, title, message, type === 'add' ? 'topup' : 'deduct');
             const playerId = await getDriverPlayerId(uid);
             if (playerId) await sendPushNotification(playerId, title, message);
+            await saveAdminLog(`Admin ${type === 'add' ? 'menambah' : 'mengurangi'} saldo driver ${driverData.name} (${uid}) sebesar Rp ${amount.toLocaleString()} (${note})`);
             const idx = allDrivers.findIndex(d => d.uid === uid);
             if (idx !== -1) allDrivers[idx].balance = newBalance;
             if (currentDriverForTopup && currentDriverForTopup.uid === uid) currentDriverForTopup.balance = newBalance;
