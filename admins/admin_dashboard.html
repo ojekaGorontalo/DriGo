@@ -43,6 +43,11 @@
         .toast { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); background: #1e293b; color: white; padding: 10px 20px; border-radius: 40px; z-index: 1000; opacity: 0; transition: opacity 0.2s; pointer-events: none; }
         .toast.show { opacity: 1; }
         @media (max-width: 800px) { .two-columns { grid-template-columns: 1fr; } }
+        .activity-log-container { max-height: 300px; overflow-y: auto; }
+        .log-item { padding: 8px 12px; border-bottom: 1px solid #edf2f7; font-size: 0.75rem; display: flex; align-items: flex-start; gap: 8px; }
+        .log-time { color: #64748b; min-width: 140px; font-family: monospace; }
+        .log-message { flex: 1; word-break: break-word; }
+        .log-item:first-child { border-top: none; }
     </style>
 </head>
 <body>
@@ -92,8 +97,8 @@
 
     <div class="card-panel">
         <h3><i class="fas fa-triangle-exclamation"></i> Log Aktivitas Terakhir</h3>
-        <div id="activityLog" style="max-height: 200px; overflow-y: auto; font-size: 0.75rem; background: #f8fafc; border-radius: 16px; padding: 12px;">
-            <i class="fas fa-spinner fa-pulse"></i> Memuat log...
+        <div id="activityLog" class="activity-log-container">
+            <div style="padding: 12px; text-align: center;"><i class="fas fa-spinner fa-pulse"></i> Memuat log...</div>
         </div>
     </div>
 
@@ -136,121 +141,63 @@
     function formatRupiah(amount) { return 'Rp ' + (amount || 0).toLocaleString('id-ID'); }
     function escapeHtml(str) { if (!str) return ''; return str.replace(/[&<>]/g, m => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;' }[m])); }
 
-    // ========== FUNGSI NOTIFIKASI KE DATABASE (WAJIB) ==========
-    async function saveDriverNotification(driverId, title, message, type = 'broadcast') {
-        if (!driverId) return false;
+    // ========== ADMIN LOG (ACTIVITY LOG) ==========
+    async function saveAdminLog(message) {
         try {
-            await database.ref(`driver_notifications/${driverId}`).push({
-                title: title,
+            const user = auth.currentUser;
+            if (!user) return;
+            await database.ref('admin_logs/activity').push({
                 message: message,
                 timestamp: firebase.database.ServerValue.TIMESTAMP,
-                read: false,
-                type: type
+                admin: user.email || user.uid
             });
-            console.log(`✅ Notifikasi tersimpan untuk driver ${driverId}`);
-            return true;
+            console.log("✅ Admin log tersimpan:", message);
         } catch (err) {
-            console.error("Gagal simpan notifikasi:", err);
-            return false;
+            console.warn("Gagal menyimpan admin log:", err);
         }
     }
 
-    // ========== BROADCAST KE SEMUA DRIVER ==========
-    async function broadcastToDrivers() {
-        const title = prompt("Judul Broadcast:", "Pengumuman Admin");
-        if (!title) return;
-        const message = prompt("Pesan Broadcast:");
-        if (!message) return;
-        if (!confirm(`Kirim broadcast ke semua driver?`)) return;
-        
-        showToast(`Mengirim broadcast, mohon tunggu...`);
-        // Ambil semua driver location untuk mendapatkan playerId dan uid
-        const locSnap = await database.ref('driver_locations').once('value');
-        const locs = locSnap.val() || {};
-        
-        // Ambil juga data driver untuk memastikan uid valid (fallback)
-        const driversSnap = await database.ref('drivers').once('value');
-        const drivers = driversSnap.val() || {};
-        
-        const apiKeySnap = await database.ref('data-jego/PushKey').once('value');
-        const onesignalKey = apiKeySnap.val();
-        if (!onesignalKey) {
-            showToast("API Key OneSignal tidak ditemukan, broadcast gagal.", true);
-            return;
-        }
-        
-        let successPush = 0;
-        let successDb = 0;
-        let totalTarget = 0;
-        
-        // Kumpulkan semua driver uid dari drivers (hanya role driver)
-        const allDriverUids = [];
-        for (const [uid, data] of Object.entries(drivers)) {
-            if (data.role === 'driver') allDriverUids.push(uid);
-        }
-        
-        // Untuk setiap driver, simpan notifikasi ke database
-        for (const uid of allDriverUids) {
-            totalTarget++;
-            const saved = await saveDriverNotification(uid, title, message, 'broadcast_admin');
-            if (saved) successDb++;
+    // ========== LOAD ACTIVITY LOG (TERBARU DI ATAS) ==========
+    async function loadActivityLog() {
+        const logDiv = document.getElementById('activityLog');
+        try {
+            const snapshot = await database.ref('admin_logs/activity')
+                .orderByChild('timestamp')
+                .limitToLast(20)  // ambil 20 terbaru berdasarkan timestamp
+                .once('value');
+            const logs = snapshot.val() || {};
             
-            // Kirim push jika ada playerId
-            const driverLoc = locs[uid];
-            const playerId = driverLoc?.playerId;
-            if (playerId && onesignalKey) {
-                try {
-                    await fetch("https://onesignal.com/api/v1/notifications", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json", "Authorization": `Basic ${onesignalKey}` },
-                        body: JSON.stringify({
-                            app_id: "007d7eba-9cfc-40d1-a92e-f2299f770282",
-                            include_player_ids: [playerId],
-                            headings: { en: title },
-                            contents: { en: message },
-                            priority: 10,
-                            data: { type: "broadcast_admin" }
-                        })
-                    });
-                    successPush++;
-                } catch(e) { console.warn("Push gagal untuk", uid, e); }
-                await new Promise(r => setTimeout(r, 100));
+            // Ubah object jadi array, lalu urutkan descending (terbaru di atas)
+            const logsArray = Object.entries(logs).map(([key, value]) => ({
+                id: key,
+                message: value.message,
+                timestamp: value.timestamp,
+                admin: value.admin
+            }));
+            logsArray.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+            
+            if (logsArray.length === 0) {
+                logDiv.innerHTML = '<div style="padding: 12px; text-align: center; color: #64748b;"><i class="fas fa-info-circle"></i> Belum ada aktivitas tercatat.</div>';
+                return;
             }
+            
+            let html = '';
+            for (const log of logsArray) {
+                const date = log.timestamp ? new Date(log.timestamp).toLocaleString('id-ID') : '-';
+                html += `
+                    <div class="log-item">
+                        <div class="log-time">${escapeHtml(date)}</div>
+                        <div class="log-message">${escapeHtml(log.message)}</div>
+                    </div>
+                `;
+            }
+            logDiv.innerHTML = html;
+        } catch (err) {
+            console.error(err);
+            logDiv.innerHTML = '<div style="padding: 12px; text-align: center; color: #dc2626;"><i class="fas fa-exclamation-triangle"></i> Gagal memuat log.</div>';
         }
-        
-        showToast(`Broadcast selesai: Notifikasi tersimpan di database untuk ${successDb} driver, push terkirim ke ${successPush} driver.`);
-        
-        // Catat log aktivitas admin
-        try {
-            await database.ref('admin_logs/activity').push({
-                message: `Broadcast ke ${totalTarget} driver: "${title}"`,
-                timestamp: firebase.database.ServerValue.TIMESTAMP,
-                admin: auth.currentUser?.email || 'admin'
-            });
-        } catch(e) {}
     }
 
-    // ========== PENGATURAN FEE/PAJAK ==========
-    async function openSettings() {
-        const potonganSnap = await database.ref('data-jego/potongan').once('value');
-        const pajakSnap = await database.ref('data-jego/pajak').once('value');
-        let newFee = prompt("Persentase fee driver (%)", potonganSnap.val() || 20);
-        if (newFee && !isNaN(parseFloat(newFee))) await database.ref('data-jego/potongan').set(parseFloat(newFee));
-        let newTax = prompt("Persentase pajak dari fee (%)", pajakSnap.val() || 11);
-        if (newTax && !isNaN(parseFloat(newTax))) await database.ref('data-jego/pajak').set(parseFloat(newTax));
-        showToast("Pengaturan disimpan");
-        
-        // Log aktivitas
-        try {
-            await database.ref('admin_logs/activity').push({
-                message: `Mengubah fee menjadi ${newFee}% dan pajak menjadi ${newTax}%`,
-                timestamp: firebase.database.ServerValue.TIMESTAMP,
-                admin: auth.currentUser?.email || 'admin'
-            });
-        } catch(e) {}
-    }
-
-    // ========== LOAD DASHBOARD DATA ==========
     async function loadDashboardData() {
         try {
             // Ambil driver_locations untuk debug dan hitung aktif
@@ -351,22 +298,8 @@
                 tbody.innerHTML = '<tr><td colspan="4">Belum ada order</td></tr>';
             }
 
-            // Log aktivitas (contoh dari admin_logs/activity jika ada)
-            try {
-                const logSnap = await database.ref('admin_logs/activity').limitToLast(10).once('value');
-                const logs = logSnap.val() || {};
-                const logDiv = document.getElementById('activityLog');
-                if (Object.keys(logs).length) {
-                    let html = '';
-                    for (let key in logs) {
-                        const l = logs[key];
-                        html += `<div><i class="far fa-clock"></i> ${new Date(l.timestamp).toLocaleString()} - ${escapeHtml(l.message)}</div>`;
-                    }
-                    logDiv.innerHTML = html;
-                } else {
-                    logDiv.innerHTML = '<i class="fas fa-info-circle"></i> Belum ada log aktivitas.';
-                }
-            } catch(e) { document.getElementById('activityLog').innerHTML = '<i class="fas fa-database"></i> Tidak dapat memuat log.'; }
+            // Load activity log (sudah urut terbaru di atas)
+            await loadActivityLog();
 
         } catch(err) {
             console.error(err);
@@ -374,7 +307,70 @@
         }
     }
 
-    // Navigasi
+    // ========== BROADCAST KE DRIVER (dengan log) ==========
+    async function broadcastToDrivers() {
+        const title = prompt("Judul Broadcast:", "Pengumuman Admin");
+        if (!title) return;
+        const message = prompt("Pesan Broadcast:");
+        if (!message) return;
+        if (!confirm(`Kirim broadcast ke semua driver?`)) return;
+        
+        showToast(`Mengirim broadcast, mohon tunggu...`);
+        const locSnap = await database.ref('driver_locations').once('value');
+        const locs = locSnap.val() || {};
+        const driversSnap = await database.ref('drivers').once('value');
+        const drivers = driversSnap.val() || {};
+        const apiKeySnap = await database.ref('data-jego/PushKey').once('value');
+        const onesignalKey = apiKeySnap.val();
+        if (!onesignalKey) { showToast("API Key OneSignal tidak ditemukan", true); return; }
+        
+        let successPush = 0, successDb = 0;
+        const allDriverUids = [];
+        for (const [uid, data] of Object.entries(drivers)) if (data.role === 'driver') allDriverUids.push(uid);
+        
+        for (const uid of allDriverUids) {
+            try {
+                await database.ref(`driver_notifications/${uid}`).push({
+                    title, message, timestamp: firebase.database.ServerValue.TIMESTAMP, read: false, type: 'broadcast_admin'
+                });
+                successDb++;
+                const driverLoc = locs[uid];
+                const playerId = driverLoc?.playerId;
+                if (playerId && onesignalKey) {
+                    await fetch("https://onesignal.com/api/v1/notifications", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json", "Authorization": `Basic ${onesignalKey}` },
+                        body: JSON.stringify({
+                            app_id: "007d7eba-9cfc-40d1-a92e-f2299f770282",
+                            include_player_ids: [playerId],
+                            headings: { en: title },
+                            contents: { en: message },
+                            priority: 10,
+                            data: { type: "broadcast_admin" }
+                        })
+                    });
+                    successPush++;
+                }
+                await new Promise(r => setTimeout(r, 100));
+            } catch(e) {}
+        }
+        await saveAdminLog(`Admin melakukan broadcast ke ${allDriverUids.length} driver dengan judul: ${title}`);
+        showToast(`Broadcast selesai: Notif tersimpan di DB untuk ${successDb} driver, push terkirim ke ${successPush} driver.`);
+        await loadActivityLog(); // refresh log
+    }
+
+    async function openSettings() {
+        const potonganSnap = await database.ref('data-jego/potongan').once('value');
+        const pajakSnap = await database.ref('data-jego/pajak').once('value');
+        let newFee = prompt("Persentase fee driver (%)", potonganSnap.val() || 20);
+        if (newFee && !isNaN(parseFloat(newFee))) await database.ref('data-jego/potongan').set(parseFloat(newFee));
+        let newTax = prompt("Persentase pajak dari fee (%)", pajakSnap.val() || 11);
+        if (newTax && !isNaN(parseFloat(newTax))) await database.ref('data-jego/pajak').set(parseFloat(newTax));
+        await saveAdminLog(`Admin mengubah fee menjadi ${newFee}% dan pajak menjadi ${newTax}%`);
+        showToast("Pengaturan disimpan");
+        await loadActivityLog();
+    }
+
     function navigateTo(page) {
         if (page === 'drivers') window.location.href = 'admin_drivers.html';
         else if (page === 'customers') window.location.href = 'admin_customers.html';
@@ -384,7 +380,6 @@
         else if (page === 'settings') openSettings();
     }
 
-    // Debug panel toggle
     function initDebugPanel() {
         const header = document.getElementById('debugHeader');
         const content = document.getElementById('debugContent');
