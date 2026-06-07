@@ -27,9 +27,10 @@
         th { background: #f8fafc; font-weight: 600; color: #1e293b; position: sticky; top: 0; }
         tr:hover { background: #fef9e6; }
         .customer-photo { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; background: #f1f5f9; border: 1px solid #e2e8f0; }
-        .edit-btn, .send-notif-btn { border: none; padding: 6px 10px; border-radius: 8px; cursor: pointer; font-size: 0.7rem; font-weight: 600; transition: 0.2s; }
+        .edit-btn, .send-notif-btn, .delete-btn { border: none; padding: 6px 10px; border-radius: 8px; cursor: pointer; font-size: 0.7rem; font-weight: 600; transition: 0.2s; }
         .edit-btn { background: #3b82f6; color: white; }
         .send-notif-btn { background: #8b5cf6; color: white; }
+        .delete-btn { background: #ef4444; color: white; }
         .action-buttons { display: flex; gap: 6px; flex-wrap: wrap; }
         .toast { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); background: #1e293b; color: white; padding: 10px 20px; border-radius: 40px; font-size: 0.85rem; z-index: 1000; opacity: 0; transition: opacity 0.2s; pointer-events: none; }
         .toast.show { opacity: 1; }
@@ -72,15 +73,11 @@
     </div>
     <div class="table-wrapper">
         <table id="customerTable">
-            <thead>
-                <tr><th>Foto</th><th>Nama</th><th>Telepon</th><th>Email</th><th>Rating</th><th>Jumlah Rating</th><th>Player ID</th><th>Aksi</th> 
-            </thead>
-            <tbody id="customerTableBody"><tr class="empty-row"><td colspan="8"><div class="loading-overlay"><div class="spinner"></div></div></tr></tbody>
+            <thead><tr><th>Foto</th><th>Nama</th><th>Telepon</th><th>Email</th><th>Rating</th><th>Jumlah Rating</th><th>Player ID</th><th>Aksi</th> </thead>
+            <tbody id="customerTableBody"><tr class="empty-row"><td colspan="8"><div class="loading-overlay"><div class="spinner"></div></div> </td></tr></tbody>
         </table>
     </div>
-    <div class="footer-note">
-        <i class="fas fa-info-circle"></i> Klik <strong>Edit Data</strong> untuk mengubah nama, telepon, email customer. <strong>Kirim Notif</strong> untuk mengirim pesan manual ke customer via OneSignal.
-    </div>
+    <div class="footer-note"><i class="fas fa-info-circle"></i> Klik <strong>Edit Data</strong> untuk mengubah nama, telepon, email customer. <strong>Kirim Notif</strong> untuk mengirim pesan manual. <strong>Hapus</strong> akan menghapus data customer secara permanen.</div>
 </div>
 
 <!-- Modal Edit Customer -->
@@ -98,7 +95,7 @@
     </div>
 </div>
 
-<!-- Modal Kirim Notifikasi ke Customer -->
+<!-- Modal Kirim Notifikasi -->
 <div id="notifCustomerModal" class="modal">
     <div class="modal-content">
         <div class="modal-header"><h2><i class="fas fa-paper-plane"></i> Kirim Notifikasi ke Customer</h2><button class="modal-close close-notif-modal">&times;</button></div>
@@ -109,6 +106,21 @@
             <div class="form-group"><label>Pesan</label><textarea id="notifMessage" rows="4" placeholder="Tulis pesan..."></textarea></div>
         </div>
         <div class="modal-footer"><button class="modal-btn modal-btn-cancel close-notif-modal">Batal</button><button class="modal-btn modal-btn-save" id="sendNotifNowBtn">Kirim Sekarang</button></div>
+    </div>
+</div>
+
+<!-- Modal Konfirmasi Hapus -->
+<div id="deleteConfirmModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header"><h2><i class="fas fa-trash-alt"></i> Konfirmasi Hapus</h2><button class="modal-close close-delete-modal">&times;</button></div>
+        <div class="modal-body">
+            <p>Apakah Anda yakin ingin menghapus customer <strong id="deleteCustomerName"></strong>?</p>
+            <p style="color: #dc2626; font-size: 0.85rem;">Tindakan ini tidak dapat dibatalkan dan akan menghapus seluruh data customer.</p>
+        </div>
+        <div class="modal-footer">
+            <button class="modal-btn modal-btn-cancel close-delete-modal">Batal</button>
+            <button class="modal-btn modal-btn-save" id="confirmDeleteBtn" style="background:#dc2626;">Hapus Permanen</button>
+        </div>
     </div>
 </div>
 
@@ -129,10 +141,26 @@
     const database = firebase.database();
 
     let allCustomers = [];
+    let currentCustomerToDelete = null;
     let onesignalApiKey = null;
     const ONESIGNAL_APP_ID = "007d7eba-9cfc-40d1-a92e-f2299f770282";
 
-    // ========== ONE SIGNAL ==========
+    // ========== SAVE LOG (format yang dibaca dashboard) ==========
+    async function saveAdminLog(message) {
+        try {
+            const user = auth.currentUser;
+            if (!user) return;
+            await database.ref('admin_logs/activity').push({
+                message: message,
+                timestamp: firebase.database.ServerValue.TIMESTAMP,
+                admin: user.email || user.uid
+            });
+            console.log("✅ Admin log:", message);
+        } catch (err) {
+            console.warn("Gagal simpan log:", err);
+        }
+    }
+
     async function getOneSignalApiKey() {
         if (onesignalApiKey) return onesignalApiKey;
         try {
@@ -165,11 +193,7 @@
                 })
             });
             const result = await res.json();
-            if (result.errors) {
-                console.error("OneSignal error:", result.errors);
-                return false;
-            }
-            return true;
+            return !result.errors;
         } catch(err) {
             console.error(err);
             return false;
@@ -196,24 +220,17 @@
     // ========== LOAD CUSTOMERS ==========
     async function loadCustomers() {
         const tbody = document.getElementById('customerTableBody');
-        tbody.innerHTML = '<tr class="empty-row"><td colspan="8"><div class="loading-overlay"><div class="spinner"></div></div></tr>';
+        tbody.innerHTML = '<tr class="empty-row"><td colspan="8"><div class="loading-overlay"><div class="spinner"></div></div> </td></tr>';
         try {
             const snapshot = await database.ref('users').once('value');
             const usersObj = snapshot.val() || {};
             const customers = [];
             for (const [uid, data] of Object.entries(usersObj)) {
-                // Filter: bukan driver dan bukan admin
                 if (data.role !== 'driver' && data.role !== 'admin') {
                     customers.push({
-                        uid,
-                        name: data.name || '-',
-                        phone: data.phone || '-',
-                        email: data.email || '-',
-                        rating: data.rating || 0,
-                        ratingCount: data.ratingCount || 0,
-                        photoURL: data.photoURL || '',
-                        playerId: data.playerId || null,
-                        status: data.status || 'active'
+                        uid, name: data.name || '-', phone: data.phone || '-', email: data.email || '-',
+                        rating: data.rating || 0, ratingCount: data.ratingCount || 0,
+                        photoURL: data.photoURL || '', playerId: data.playerId || null, status: data.status || 'active'
                     });
                 }
             }
@@ -228,10 +245,7 @@
     function applyCustomerFilter() {
         const keyword = document.getElementById('customerSearch').value.toLowerCase();
         const filtered = allCustomers.filter(c => 
-            keyword === '' || 
-            (c.name && c.name.toLowerCase().includes(keyword)) || 
-            (c.phone && c.phone.toLowerCase().includes(keyword)) || 
-            (c.email && c.email.toLowerCase().includes(keyword))
+            keyword === '' || c.name.toLowerCase().includes(keyword) || c.phone.toLowerCase().includes(keyword) || c.email.toLowerCase().includes(keyword)
         );
         renderCustomerTable(filtered);
         document.getElementById('customerTotalCount').innerText = allCustomers.length;
@@ -241,13 +255,12 @@
     function renderCustomerTable(customers) {
         const tbody = document.getElementById('customerTableBody');
         if (!customers.length) {
-            tbody.innerHTML = '<tr class="empty-row"><td colspan="8">Tidak ada customer</tr>';
+            tbody.innerHTML = '<tr class="empty-row"><td colspan="8">Tidak ada customer</td></tr>';
             return;
         }
         tbody.innerHTML = '';
         customers.forEach(c => {
             const row = tbody.insertRow();
-            // Foto
             const img = document.createElement('img');
             img.src = c.photoURL || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png';
             img.className = 'customer-photo';
@@ -258,24 +271,20 @@
             row.insertCell(3).textContent = c.email;
             row.insertCell(4).textContent = c.rating.toFixed(1);
             row.insertCell(5).textContent = c.ratingCount;
-            // Player ID status
             const playerIdSpan = document.createElement('span');
-            if (c.playerId) {
-                playerIdSpan.innerHTML = `<span style="color:green;">✅ Ada</span>`;
-                playerIdSpan.title = c.playerId;
-            } else {
-                playerIdSpan.innerHTML = `<span style="color:red;">❌ Tidak ada</span>`;
-            }
+            if (c.playerId) playerIdSpan.innerHTML = `<span style="color:green;">✅ Ada</span>`;
+            else playerIdSpan.innerHTML = `<span style="color:red;">❌ Tidak ada</span>`;
             row.insertCell(6).appendChild(playerIdSpan);
-            // Aksi buttons
             const actionDiv = document.createElement('div'); actionDiv.className = 'action-buttons';
             const editBtn = document.createElement('button'); editBtn.textContent = 'Edit Data'; editBtn.className = 'edit-btn';
             const notifBtn = document.createElement('button'); notifBtn.innerHTML = 'Kirim Notif'; notifBtn.className = 'send-notif-btn';
-            actionDiv.append(editBtn, notifBtn);
+            const deleteBtn = document.createElement('button'); deleteBtn.innerHTML = 'Hapus'; deleteBtn.className = 'delete-btn';
+            actionDiv.append(editBtn, notifBtn, deleteBtn);
             row.insertCell(7).appendChild(actionDiv);
 
             editBtn.onclick = () => openCustomerEditModal(c);
             notifBtn.onclick = () => openNotifModal(c);
+            deleteBtn.onclick = () => openDeleteConfirmModal(c);
         });
     }
 
@@ -300,23 +309,16 @@
         try {
             await database.ref(`users/${uid}`).update({ name, phone, email });
             const idx = allCustomers.findIndex(c => c.uid === uid);
-            if (idx !== -1) {
-                allCustomers[idx].name = name;
-                allCustomers[idx].phone = phone;
-                allCustomers[idx].email = email;
-            }
+            if (idx !== -1) { allCustomers[idx].name = name; allCustomers[idx].phone = phone; allCustomers[idx].email = email; }
+            await saveAdminLog(`Admin mengedit data customer ${name} (${uid})`);
             applyCustomerFilter();
             showToast('Data customer disimpan');
             document.getElementById('editCustomerModal').style.display = 'none';
-        } catch(err) {
-            showToast(err.message, true);
-        } finally {
-            btn.disabled = false;
-            btn.textContent = 'Simpan';
-        }
+        } catch(err) { showToast(err.message, true); }
+        finally { btn.disabled = false; btn.textContent = 'Simpan'; }
     }
 
-    // ========== KIRIM NOTIFIKASI PER CUSTOMER ==========
+    // ========== KIRIM NOTIFIKASI ==========
     function openNotifModal(customer) {
         document.getElementById('notifCustomerUid').value = customer.uid;
         document.getElementById('notifTargetName').value = customer.name;
@@ -329,105 +331,102 @@
         const uid = document.getElementById('notifCustomerUid').value;
         const title = document.getElementById('notifTitle').value.trim();
         const message = document.getElementById('notifMessage').value.trim();
-        if (!title || !message) {
-            showToast('Judul dan pesan harus diisi', true);
-            return;
-        }
+        if (!title || !message) { showToast('Judul dan pesan harus diisi', true); return; }
         const customer = allCustomers.find(c => c.uid === uid);
         if (!customer) return;
-        if (!customer.playerId) {
-            showToast(`Customer ${customer.name} tidak memiliki Player ID, tidak bisa kirim notifikasi.`, true);
-            return;
-        }
+        if (!customer.playerId) { showToast(`Customer ${customer.name} tidak memiliki Player ID, tidak bisa kirim notifikasi.`, true); return; }
         const btn = document.getElementById('sendNotifNowBtn');
         btn.disabled = true; btn.textContent = 'Mengirim...';
         try {
-            // Simpan notifikasi ke database (opsional)
             await saveCustomerNotification(uid, title, message, 'manual');
             const sent = await sendPushNotification(customer.playerId, title, message, { customer_id: uid, manual: true });
             if (sent) {
                 showToast(`Notifikasi terkirim ke ${customer.name}`);
+                await saveAdminLog(`Admin mengirim notifikasi ke customer ${customer.name} (${uid}) dengan judul: ${title}`);
             } else {
                 showToast(`Gagal mengirim notifikasi ke ${customer.name}`, true);
             }
             document.getElementById('notifCustomerModal').style.display = 'none';
-        } catch(err) {
-            showToast(`Gagal: ${err.message}`, true);
-        } finally {
-            btn.disabled = false;
-            btn.textContent = 'Kirim Sekarang';
-        }
+        } catch(err) { showToast(`Gagal: ${err.message}`, true); }
+        finally { btn.disabled = false; btn.textContent = 'Kirim Sekarang'; }
     }
 
-    // ========== BROADCAST KE SEMUA CUSTOMER ==========
+    // ========== HAPUS CUSTOMER ==========
+    function openDeleteConfirmModal(customer) {
+        currentCustomerToDelete = customer;
+        document.getElementById('deleteCustomerName').innerText = customer.name;
+        document.getElementById('deleteConfirmModal').style.display = 'flex';
+    }
+
+    async function deleteCustomer() {
+        if (!currentCustomerToDelete) return;
+        const customer = currentCustomerToDelete;
+        const btn = document.getElementById('confirmDeleteBtn');
+        btn.disabled = true; btn.textContent = 'Menghapus...';
+        try {
+            await database.ref(`users/${customer.uid}`).remove();
+            await database.ref(`customer_notifications/${customer.uid}`).remove();
+            await saveAdminLog(`Admin menghapus customer ${customer.name} (${customer.uid})`);
+            const idx = allCustomers.findIndex(c => c.uid === customer.uid);
+            if (idx !== -1) allCustomers.splice(idx, 1);
+            applyCustomerFilter();
+            showToast(`Customer ${customer.name} berhasil dihapus`);
+            document.getElementById('deleteConfirmModal').style.display = 'none';
+            currentCustomerToDelete = null;
+        } catch(err) { showToast(`Gagal menghapus: ${err.message}`, true); }
+        finally { btn.disabled = false; btn.textContent = 'Hapus Permanen'; }
+    }
+
+    // ========== BROADCAST ==========
     async function broadcastToAllCustomers() {
         const title = prompt("Masukkan judul notifikasi broadcast:", "Pengumuman dari Admin");
         if (!title) return;
         const message = prompt("Masukkan pesan broadcast:");
         if (!message) return;
         const customersWithPlayerId = allCustomers.filter(c => c.playerId);
-        if (customersWithPlayerId.length === 0) {
-            showToast("Tidak ada customer yang memiliki Player ID", true);
-            return;
-        }
-        const confirmSend = confirm(`Kirim broadcast ke ${customersWithPlayerId.length} customer?\nJudul: ${title}\nPesan: ${message}`);
-        if (!confirmSend) return;
-        
+        if (customersWithPlayerId.length === 0) { showToast("Tidak ada customer yang memiliki Player ID", true); return; }
+        if (!confirm(`Kirim broadcast ke ${customersWithPlayerId.length} customer?`)) return;
         let success = 0, fail = 0;
         for (const customer of customersWithPlayerId) {
             try {
                 await saveCustomerNotification(customer.uid, title, message, 'broadcast');
                 const sent = await sendPushNotification(customer.playerId, title, message, { broadcast: true });
-                if (sent) success++;
-                else fail++;
-                // Delay untuk menghindari rate limit
+                if (sent) success++; else fail++;
                 await new Promise(r => setTimeout(r, 200));
-            } catch(e) {
-                fail++;
-            }
+            } catch(e) { fail++; }
         }
+        await saveAdminLog(`Admin melakukan broadcast ke ${customersWithPlayerId.length} customer dengan judul: ${title}`);
         showToast(`Broadcast selesai: ${success} terkirim, ${fail} gagal.`);
     }
 
-    // ========== INIT & AUTH ==========
     function closeModals() {
-        document.querySelectorAll('.close-customer-modal').forEach(el => {
-            el.addEventListener('click', () => document.getElementById('editCustomerModal').style.display = 'none');
-        });
-        document.querySelectorAll('.close-notif-modal').forEach(el => {
-            el.addEventListener('click', () => document.getElementById('notifCustomerModal').style.display = 'none');
+        document.querySelectorAll('.close-customer-modal, .close-notif-modal, .close-delete-modal').forEach(el => {
+            el.addEventListener('click', () => {
+                document.getElementById('editCustomerModal').style.display = 'none';
+                document.getElementById('notifCustomerModal').style.display = 'none';
+                document.getElementById('deleteConfirmModal').style.display = 'none';
+            });
         });
         window.addEventListener('click', (e) => {
             if (e.target === document.getElementById('editCustomerModal')) document.getElementById('editCustomerModal').style.display = 'none';
             if (e.target === document.getElementById('notifCustomerModal')) document.getElementById('notifCustomerModal').style.display = 'none';
+            if (e.target === document.getElementById('deleteConfirmModal')) document.getElementById('deleteConfirmModal').style.display = 'none';
         });
     }
 
     auth.onAuthStateChanged(async (user) => {
-        if (!user) {
-            window.location.href = 'login_admin.html';
-            return;
-        }
+        if (!user) { window.location.href = 'login_admin.html'; return; }
         const adminSnap = await database.ref(`admins/${user.uid}`).once('value');
-        if (!adminSnap.exists()) {
-            showToast('Bukan admin', true);
-            await auth.signOut();
-            setTimeout(() => window.location.href = 'login_admin.html', 1500);
-            return;
-        }
+        if (!adminSnap.exists()) { showToast('Bukan admin', true); await auth.signOut(); setTimeout(() => window.location.href = 'login_admin.html', 1500); return; }
         await getOneSignalApiKey();
         await loadCustomers();
-        
-        // Event listeners
         document.getElementById('refreshCustomersBtn').onclick = loadCustomers;
         document.getElementById('broadcastCustomerBtn').onclick = broadcastToAllCustomers;
         document.getElementById('customerSearch').addEventListener('input', applyCustomerFilter);
         document.getElementById('saveCustomerBtn').onclick = saveCustomerEdit;
         document.getElementById('sendNotifNowBtn').onclick = sendManualNotification;
-        document.getElementById('logoutBtn').onclick = async () => {
-            await auth.signOut();
-            window.location.href = 'login_admin.html';
-        };
+        document.getElementById('confirmDeleteBtn').onclick = deleteCustomer;
+        document.getElementById('logoutBtn').onclick = async () => { await auth.signOut(); window.location.href = 'login_admin.html'; };
         closeModals();
     });
 </script>
