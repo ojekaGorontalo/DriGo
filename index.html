@@ -1424,6 +1424,21 @@ async function showOrderDetail(orderObj, fromAuto = false) {
     return;
   }
   if (!checkDriverData() || !globalCurrentUid) return;
+  
+  // ========== TAMBAHKAN: PUTAR SUARA MANUAL POPUP JIKA BUKAN AUTOBID ==========
+  if (!fromAuto) {
+    const manualSound = document.getElementById('manualPopupSound');
+    if (manualSound) {
+      manualSound.currentTime = 0;
+      manualSound.play().catch(e => console.warn('Manual popup sound error:', e));
+    } else {
+      // Fallback ke beep jika manualSound tidak tersedia
+      const beep = document.getElementById('beekSound');
+      if (beep) beep.play().catch(e => console.warn('Beep fallback error:', e));
+    }
+  }
+  // ===========================================================================
+ 
   const { orderId, orderData } = orderObj;
  
   const snapshot = await database.ref(`orders/${orderId}`).once('value');
@@ -1566,13 +1581,7 @@ async function sendDriverOffer(isAuto = false, bidPrice = null, bidPercent = nul
     showToast('Sedang menunggu konfirmasi order lain, tidak bisa mengirim penawaran baru.', 'warning');
     return;
   }
-  // Putar suara manual popup jika ini bukan tawaran otomatis (autobid OFF)
-if (!isAuto) {
-    const manualSound = document.getElementById('manualPopupSound');
-    if (manualSound) {
-        manualSound.play().catch(e => console.log('Manual popup sound error:', e));
-    }
-}
+  
   if (!currentSelectedOrder || !globalCurrentUid) return;
   // Pastikan data driver dasar tersedia
   if (!checkDriverData()) return;
