@@ -892,8 +892,18 @@ body.dark ::-webkit-scrollbar-thumb {
     <div class="modal-body">
       <div class="modal-map" id="modalMap"></div>
       <div class="modal-details">
-        <div class="modal-route-point"><div class="modal-point-marker point-marker-a">A</div><div id="modalAddressA">-</div></div>
-        <div class="modal-route-point"><div class="modal-point-marker point-marker-b">B</div><div id="modalAddressB">-</div></div>
+  <div class="modal-route-point" id="modalAddressAContainer">
+    <div class="modal-point-marker point-marker-a">🟢</div>
+    <div id="modalAddressA">-</div>
+  </div>
+  <div class="modal-route-point" id="modalViaContainer" style="display:none;">
+    <div class="modal-point-marker" style="background-color:#2196F3;">🔵</div>
+    <div id="modalViaAddress"></div>
+  </div>
+  <div class="modal-route-point" id="modalAddressBContainer">
+    <div class="modal-point-marker point-marker-b">🟠</div>
+    <div id="modalAddressB">-</div>
+  </div>
         <div id="modalDeliveryInfo" style="display:none;"></div>
         <div class="modal-order-details">
           <div><span id="modalDuration">-</span><div class="detail-label">Durasi</div></div>
@@ -1245,7 +1255,7 @@ function loadOrders() {
           const isKurir = (order.transport_type || '').includes('kurir');
           const fromAuto = (autobidEnabled && !isKurir);
           // BUKA MODAL, dengan flag fromAuto yang sesuai
-          showOrderDetail({ orderId: order.id, orderData: order }, fromAuto, true);
+          showOrderDetail({ orderId: order.id, orderData: order }, fromAuto);
         }
       }
     });
@@ -1276,6 +1286,7 @@ function renderOrdersList(orders, ordersList) {
     const customerPhoto = order.photoURL || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png';
     const alamatA = order.pickup_address || '-';
     const alamatB = order.destination_address || '-';
+    const viaAddress = order.via_address || null;          // <-- TAMBAHAN
     const durasi = order.duration_seconds ? Math.round(order.duration_seconds / 60) + ' menit' : '-';
     const jarak = order.distance_meters ? (order.distance_meters / 1000).toFixed(1) + ' km' : '-';
     const harga = order.price || 0;
@@ -1293,22 +1304,46 @@ function renderOrdersList(orders, ordersList) {
     const orderItem = document.createElement('div');
     orderItem.className = 'order-item';
     orderItem.dataset.orderId = order.id;
+    
+    // --- Baris rute dengan dukungan via point ---
+    let routeHtml = `
+      <div class="route-point">
+        <div class="point-marker point-marker-a">🟢</div>
+        <div class="point-address point-address-a">${escapeHtml(alamatA)}</div>
+      </div>
+    `;
+    if (viaAddress) {
+      routeHtml += `
+        <div class="route-point">
+          <div class="point-marker point-marker-via" style="background-color:#2196F3;">🔵</div>
+          <div class="point-address"><strong>Lewat:</strong> ${escapeHtml(viaAddress)}</div>
+        </div>
+      `;
+    }
+    routeHtml += `
+      <div class="route-point">
+        <div class="point-marker point-marker-b">🟠</div>
+        <div class="point-address">${escapeHtml(alamatB)}</div>
+      </div>
+    `;
+
     orderItem.innerHTML = `
-      <div class="order-header"><div class="order-badges">${isKurir ? '<span class="kurir-badge">📦 KURIR</span>' : ''}</div></div>
+      <div class="order-header">
+        <div class="order-badges">${isKurir ? '<span class="kurir-badge">📦 KURIR</span>' : ''}</div>
+      </div>
       <div class="route-info-with-photo">
         <div class="customer-info-left">
           <img src="${customerPhoto}" class="customer-photo-left" onclick="showPhotoModal('${customerPhoto}', '${escapeHtml(customerName)}')">
           <div class="customer-name-left">${escapeHtml(customerName)}</div>
           <div class="customer-rating">
-  <span>★</span>
-  <span class="rating-value">${(order.passenger_rating || 0).toFixed(1)}</span>
-  <span class="trip-count">(${order.perjalanan || 0})</span>
-</div>
+            <span>★</span>
+            <span class="rating-value">${(order.passenger_rating || 0).toFixed(1)}</span>
+            <span class="trip-count">(${order.perjalanan || 0})</span>
+          </div>
           <div class="order-time">${new Date(order.created_at).toLocaleTimeString('id-ID', {hour:'2-digit',minute:'2-digit'})}</div>
         </div>
         <div class="route-addresses-right">
-          <div class="route-point"><div class="point-marker point-marker-a">A</div><div class="point-address point-address-a">${escapeHtml(alamatA)}</div></div>
-          <div class="route-point"><div class="point-marker point-marker-b">B</div><div class="point-address">${escapeHtml(alamatB)}</div></div>
+          ${routeHtml}
         </div>
       </div>
       ${deskripsiBarang}
@@ -1320,8 +1355,8 @@ function renderOrdersList(orders, ordersList) {
       </div>
     `;
     orderItem.addEventListener('click', () => {
-  showOrderDetail({ orderId: order.id, orderData: order }, false, false);
-});
+      showOrderDetail({ orderId: order.id, orderData: order }, false);
+    });
     ordersList.appendChild(orderItem);
   });
 }
@@ -1383,7 +1418,6 @@ function createBidOptions(originalPrice, currentOrderId) {
                 showToast('Sedang menunggu konfirmasi order lain, tidak bisa mengirim penawaran baru.', 'warning');
                 return;
             }
-            
             // Simpan teks asli dan ubah menjadi "Mengirim..."
             const originalText = btn.innerText;
             btn.dataset.originalText = originalText;
@@ -1417,27 +1451,13 @@ function hideBidOptions() {
   }
 }
 
-async function showOrderDetail(orderObj, fromAuto = false, playSound = false) {
+async function showOrderDetail(orderObj, fromAuto = false) {
   // CEK JIKA SEDANG MENUNGGU KONFIRMASI
   if (isWaitingForConfirmation) {
     showToast('Anda sedang memproses order lain, harap tunggu.', 'warning');
     return;
   }
   if (!checkDriverData() || !globalCurrentUid) return;
-  
-  // ========== PUTAR SUARA HANYA JIKA playSound = true DAN BUKAN AUTOBID ==========
-  if (playSound && !fromAuto) {
-    const manualSound = document.getElementById('manualPopupSound');
-    if (manualSound) {
-      manualSound.currentTime = 0;
-      manualSound.play().catch(e => console.warn('Manual popup sound error:', e));
-    } else {
-      const beep = document.getElementById('beekSound');
-      if (beep) beep.play().catch(e => console.warn('Beep fallback error:', e));
-    }
-  }
-  // ===========================================================================
- 
   const { orderId, orderData } = orderObj;
  
   const snapshot = await database.ref(`orders/${orderId}`).once('value');
@@ -1449,8 +1469,19 @@ async function showOrderDetail(orderObj, fromAuto = false, playSound = false) {
   }
   currentSelectedOrder = { orderId: orderId, orderData: currentOrder };
 
-  // Update UI modal
-  document.getElementById('modalAddressA').textContent = currentOrder.pickup_address || '-';
+  // Update UI modal dengan dukungan via point
+document.getElementById('modalAddressA').innerHTML = `<strong>🟢 Jemput:</strong> ${escapeHtml(currentOrder.pickup_address || '-')}`;
+const viaAddress = currentOrder.via_address;
+const viaContainer = document.getElementById('modalViaContainer');
+const viaAddressSpan = document.getElementById('modalViaAddress');
+if (viaAddress) {
+  viaAddressSpan.innerHTML = `<strong>🔵 Lewat:</strong> ${escapeHtml(viaAddress)}`;
+  viaContainer.style.display = 'flex';
+} else {
+  viaContainer.style.display = 'none';
+}
+document.getElementById('modalAddressB').innerHTML = `<strong>🟠 Tujuan:</strong> ${escapeHtml(currentOrder.destination_address || '-')}`;
+  
   document.getElementById('modalAddressB').textContent = currentOrder.destination_address || '-';
   document.getElementById('modalDuration').textContent = currentOrder.duration_seconds ? Math.round(currentOrder.duration_seconds / 60) + ' menit' : '-';
   document.getElementById('modalDistance').textContent = currentOrder.distance_meters ? (currentOrder.distance_meters / 1000).toFixed(1) + ' km' : '-';
@@ -1548,27 +1579,60 @@ function showRouteOnMapbox(order) {
   if (mapMarkers.length) mapMarkers.forEach(m => m.remove());
   if (modalMap.getLayer('route')) modalMap.removeLayer('route');
   if (modalMap.getSource('route')) modalMap.removeSource('route');
+
+  // Koordinat waypoints
+  const waypoints = [];
+  waypoints.push({ lng: order.pickup_lng, lat: order.pickup_lat });
+  if (order.via_lng && order.via_lat) {
+    waypoints.push({ lng: order.via_lng, lat: order.via_lat });
+  }
+  waypoints.push({ lng: order.dest_lng, lat: order.dest_lat });
+
+  // Buat marker untuk setiap titik
   const pickupIcon = 'https://cdn-icons-png.flaticon.com/128/5811/5811823.png';
+  const viaIcon = 'https://cdn-icons-png.flaticon.com/128/684/684908.png'; // opsional
   const destIcon = 'https://cdn-icons-png.flaticon.com/128/684/684908.png';
+
   const pickupEl = document.createElement('div');
   pickupEl.innerHTML = `<img src="${pickupIcon}" style="width:40px;">`;
-  const pickupMarker = new mapboxgl.Marker({ element: pickupEl }).setLngLat([order.pickup_lng, order.pickup_lat]).addTo(modalMap);
+  const pickupMarker = new mapboxgl.Marker({ element: pickupEl }).setLngLat([waypoints[0].lng, waypoints[0].lat]).addTo(modalMap);
   mapMarkers.push(pickupMarker);
+
+  if (waypoints.length === 3 && order.via_lng) {
+    const viaEl = document.createElement('div');
+    viaEl.innerHTML = `<img src="${viaIcon}" style="width:40px; filter: hue-rotate(200deg);">`;
+    const viaMarker = new mapboxgl.Marker({ element: viaEl }).setLngLat([waypoints[1].lng, waypoints[1].lat]).addTo(modalMap);
+    mapMarkers.push(viaMarker);
+  }
+
   const destEl = document.createElement('div');
   destEl.innerHTML = `<img src="${destIcon}" style="width:40px;">`;
-  const destMarker = new mapboxgl.Marker({ element: destEl }).setLngLat([order.dest_lng, order.dest_lat]).addTo(modalMap);
+  const destMarker = new mapboxgl.Marker({ element: destEl }).setLngLat([waypoints[waypoints.length-1].lng, waypoints[waypoints.length-1].lat]).addTo(modalMap);
   mapMarkers.push(destMarker);
-  const bounds = new mapboxgl.LngLatBounds().extend([order.pickup_lng, order.pickup_lat]).extend([order.dest_lng, order.dest_lat]);
+
+  // Zoom ke semua titik
+  const bounds = new mapboxgl.LngLatBounds();
+  waypoints.forEach(wp => bounds.extend([wp.lng, wp.lat]));
   modalMap.fitBounds(bounds, { padding: 40 });
-  const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${order.pickup_lng},${order.pickup_lat};${order.dest_lng},${order.dest_lat}?geometries=geojson&access_token=${mapboxAccessToken}`;
+
+  // Buat string koordinat untuk Directions API
+  let coordString = waypoints.map(wp => `${wp.lng},${wp.lat}`).join(';');
+  const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${coordString}?geometries=geojson&access_token=${mapboxAccessToken}`;
+
   fetch(url).then(res => res.json()).then(data => {
     if (data.routes && data.routes.length) {
       modalMap.addSource('route', { type: 'geojson', data: data.routes[0].geometry });
       modalMap.addLayer({ id: 'route', type: 'line', source: 'route', paint: { 'line-color': '#289672', 'line-width': 4 } });
     } else fallbackLine();
   }).catch(fallbackLine);
+
   function fallbackLine() {
-    modalMap.addSource('route', { type: 'geojson', data: { type: 'Feature', geometry: { type: 'LineString', coordinates: [[order.pickup_lng, order.pickup_lat], [order.dest_lng, order.dest_lat]] } } });
+    // Garis lurus antar waypoints
+    const lineGeo = {
+      type: 'Feature',
+      geometry: { type: 'LineString', coordinates: waypoints.map(wp => [wp.lng, wp.lat]) }
+    };
+    modalMap.addSource('route', { type: 'geojson', data: lineGeo });
     modalMap.addLayer({ id: 'route', type: 'line', source: 'route', paint: { 'line-color': '#289672', 'line-width': 4, 'line-dasharray': [2,1] } });
   }
 }
@@ -1580,7 +1644,6 @@ async function sendDriverOffer(isAuto = false, bidPrice = null, bidPercent = nul
     showToast('Sedang menunggu konfirmasi order lain, tidak bisa mengirim penawaran baru.', 'warning');
     return;
   }
-  
   if (!currentSelectedOrder || !globalCurrentUid) return;
   // Pastikan data driver dasar tersedia
   if (!checkDriverData()) return;
