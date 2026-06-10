@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Editor Legal JeGo - Kelola Semua Ketentuan</title>
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f7fb;
+            margin: 0;
+            padding: 20px;
+            color: #1e293b;
+        }
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 24px;
+            box-shadow: 0 10px 25px -5px rgba(0,0,0,0.05);
+            padding: 24px 32px;
+        }
+        h1 { font-size: 1.8rem; margin-top: 0; margin-bottom: 0.25rem; color: #0f172a; }
+        .sub { color: #475569; border-bottom: 1px solid #e2e8f0; padding-bottom: 16px; margin-bottom: 24px; }
+        .form-group { margin-bottom: 20px; }
+        label { display: block; font-weight: 600; margin-bottom: 6px; color: #0f172a; }
+        select, input, textarea {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #cbd5e1;
+            border-radius: 12px;
+            font-size: 0.95rem;
+            transition: 0.2s;
+            font-family: inherit;
+        }
+        select:focus, input:focus, textarea:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59,130,246,0.2);
+        }
+        textarea {
+            min-height: 200px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+        }
+        button {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 40px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: 0.2s;
+            margin-right: 12px;
+            margin-bottom: 12px;
+        }
+        button:hover { background: #2563eb; transform: translateY(-1px); }
+        button.secondary { background: #64748b; }
+        button.secondary:hover { background: #475569; }
+        button.danger { background: #ef4444; }
+        button.danger:hover { background: #dc2626; }
+        button.outline { background: transparent; border: 1px solid #cbd5e1; color: #1e293b; }
+        button.outline:hover { background: #f1f5f9; transform: none; }
+        .section-card {
+            background: #f8fafc;
+            border-radius: 20px;
+            padding: 20px;
+            margin-bottom: 20px;
+            border: 1px solid #e2e8f0;
+        }
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+        .section-title {
+            font-weight: 700;
+            background: white;
+            padding: 4px 12px;
+            border-radius: 40px;
+            font-size: 0.85rem;
+            color: #3b82f6;
+            border: 1px solid #bfdbfe;
+        }
+        .action-buttons { display: flex; gap: 8px; flex-wrap: wrap; }
+        .action-buttons button { margin: 0; padding: 6px 14px; font-size: 0.8rem; }
+        .add-section { margin-top: 24px; border-top: 2px dashed #cbd5e1; padding-top: 24px; text-align: center; }
+        .status { margin-top: 20px; padding: 12px; border-radius: 16px; background: #eef2ff; color: #1e40af; }
+        .login-box { max-width: 400px; margin: 40px auto; background: white; border-radius: 24px; padding: 32px; text-align: center; }
+        .login-box input { margin-bottom: 16px; }
+        hr { margin: 24px 0; }
+        .flex-between { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; }
+        .preview-hint { font-size: 0.75rem; color: #64748b; margin-top: 4px; }
+        footer { text-align: center; margin-top: 32px; font-size: 0.8rem; color: #94a3b8; }
+        .doc-type-selector { background: #eef2ff; padding: 16px; border-radius: 20px; margin-bottom: 24px; }
+    </style>
+</head>
+<body>
+<div id="app">
+    <div class="container" id="mainContainer"></div>
+</div>
+
+<script>
+    // Konfigurasi Firebase (sesuai proyek Anda)
+    const firebaseConfig = {
+        apiKey: "AIzaSyCD0pgeZio-LdKqYDtWxcdXcZwyL4ngYQI",
+        authDomain: "jego-35a2b.firebaseapp.com",
+        databaseURL: "https://jego-35a2b-default-rtdb.asia-southeast1.firebasedatabase.app",
+        projectId: "jego-35a2b",
+        storageBucket: "jego-35a2b.firebasestorage.app",
+        messagingSenderId: "600037007040",
+        appId: "1:600037007040:web:ac3243ad9b472647ffd725"
+    };
+
+    if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+    const database = firebase.database();
+    const auth = firebase.auth();
+
+    // Daftar jenis dokumen (ditambah terms_motor untuk transportasi motor)
+    const docTypes = {
+        'terms': { name: '📜 Umum (Syarat & Ketentuan Utama)', path: 'legal/terms', format: 'sections' },
+        'terms_mobil': { name: '🚗 Ketentuan Mobil', path: 'legal/terms_mobil', format: 'simple' },
+        'terms_motor': { name: '🛵 Ketentuan Motor', path: 'legal/terms_motor', format: 'simple' },
+        'terms_kurir_motor': { name: '📦 Ketentuan Kurir Motor', path: 'legal/terms_kurir_motor', format: 'simple' },
+        'terms_kurir_bentor': { name: '📦 Ketentuan Kurir Bentor', path: 'legal/terms_kurir_bentor', format: 'simple' },
+        'terms_bentor': { name: '🏍️ Ketentuan Bentor', path: 'legal/terms_bentor', format: 'simple' }
+    };
+
+    let currentDocType = 'terms';
+    let currentRef = null;
+    let currentData = null;
+    let currentSections = [];
+
+    const appDiv = document.getElementById('mainContainer');
+
+    function getTodayDate() {
+        return new Date().toISOString().slice(0,10);
+    }
+
+    function escapeHtml(str) {
+        if (!str) return '';
+        return str.replace(/[&<>]/g, m => m === '&' ? '&amp;' : m === '<' ? '&lt;' : '&gt;');
+    }
+
+    function showStatus(msg, isError) {
+        const statusDiv = document.getElementById('statusMsg');
+        if (statusDiv) {
+            statusDiv.innerText = msg;
+            statusDiv.style.backgroundColor = isError ? '#fee2e2' : '#dcfce7';
+            statusDiv.style.color = isError ? '#b91c1c' : '#166534';
+            statusDiv.style.display = 'block';
+            setTimeout(() => { if (statusDiv) statusDiv.style.display = 'none'; }, 4000);
+        } else alert(msg);
+    }
+
+    let loadingOverlay = null;
+    function showLoading(show) {
+        if (show) {
+            if (!loadingOverlay) {
+                loadingOverlay = document.createElement('div');
+                loadingOverlay.style.cssText = 'position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); display:flex; align-items:center; justify-content:center; z-index:9999;';
+                loadingOverlay.innerHTML = '<div style="background:white; padding:20px; border-radius:24px;">⏳ Memuat/Menyimpan...</div>';
+                document.body.appendChild(loadingOverlay);
+            }
+            loadingOverlay.style.display = 'flex';
+        } else if (loadingOverlay) loadingOverlay.style.display = 'none';
+    }
+
+    async function loadData() {
+        showLoading(true);
+        try {
+            const snapshot = await currentRef.once('value');
+            currentData = snapshot.val() || {};
+            if (docTypes[currentDocType].format === 'sections') {
+                if (currentData.sections) {
+                    const keys = Object.keys(currentData.sections).sort((a,b)=>Number(a)-Number(b));
+                    currentSections = keys.map(k => ({
+                        title: currentData.sections[k].title || '',
+                        content: currentData.sections[k].content || ''
+                    }));
+                } else {
+                    currentSections = [];
+                }
+                renderSectionsEditor();
+            } else {
+                renderSimpleEditor();
+            }
+        } catch (err) {
+            showStatus('Gagal memuat data: '+err.message, true);
+        } finally {
+            showLoading(false);
+        }
+    }
+
+    function renderSectionsEditor() {
+        const user = auth.currentUser;
+        let html = `
+            <div class="flex-between"><span>✅ ${user.email}</span><button class="outline" id="logoutBtn">Logout</button></div>
+            <div class="doc-type-selector">
+                <label>📁 Pilih Jenis Ketentuan</label>
+                <select id="docTypeSelect">${Object.entries(docTypes).map(([val,opt])=>`<option value="${val}" ${val===currentDocType?'selected':''}>${opt.name}</option>`).join('')}</select>
+            </div>
+            <div class="form-group"><label>📄 Judul Dokumen</label><input type="text" id="docTitle" value="${escapeHtml(currentData.title || 'Syarat & Ketentuan JeGo')}"></div>
+            <div class="form-group"><label>🏷️ Versi</label><input type="text" id="docVersion" value="${escapeHtml(currentData.version || '1.0')}"></div>
+            <div class="form-group"><label>📅 Terakhir diperbarui (YYYY-MM-DD)</label><input type="date" id="docLastUpdate" value="${currentData.last_update || getTodayDate()}"></div>
+            <hr><h3>📑 Bagian (Sections)</h3><div id="sectionsContainer"></div>
+            <div class="add-section"><button id="addSectionBtn" class="secondary">+ Tambah bagian baru</button></div>
+            <hr>
+            <div><button id="saveBtn">💾 Simpan</button><button id="reloadBtn" class="secondary">⟳ Muat ulang</button><button id="previewBtn" class="outline">👁️ Preview</button></div>
+            <div id="statusMsg" class="status" style="display:none;"></div>
+        `;
+        appDiv.innerHTML = html;
+        renderSectionsList();
+        attachEvents('sections');
+    }
+
+    function renderSectionsList() {
+        const container = document.getElementById('sectionsContainer');
+        if (!container) return;
+        if (currentSections.length === 0) {
+            container.innerHTML = '<div style="background:#f1f5f9; padding:20px; border-radius:20px; text-align:center;">Belum ada bagian. Klik "Tambah bagian baru"</div>';
+            return;
+        }
+        let html = '';
+        currentSections.forEach((sec, idx) => {
+            html += `
+                <div class="section-card">
+                    <div class="section-header">
+                        <span class="section-title">Bagian #${String(idx+1).padStart(3,'0')}</span>
+                        <div class="action-buttons">
+                            ${idx>0 ? `<button class="outline move-up" data-idx="${idx}">▲ Naik</button>` : ''}
+                            ${idx<currentSections.length-1 ? `<button class="outline move-down" data-idx="${idx}">▼ Turun</button>` : ''}
+                            <button class="danger delete-section" data-idx="${idx}">Hapus</button>
+                        </div>
+                    </div>
+                    <div class="form-group"><label>Judul Bagian</label><input type="text" class="section-title-input" data-idx="${idx}" value="${escapeHtml(sec.title)}"></div>
+                    <div class="form-group"><label>Konten (HTML)</label><textarea class="section-content-input" data-idx="${idx}" rows="5">${escapeHtml(sec.content)}</textarea></div>
+                </div>
+            `;
+        });
+        container.innerHTML = html;
+        document.querySelectorAll('.section-title-input').forEach(inp => {
+            inp.addEventListener('change', (e) => { currentSections[parseInt(e.target.dataset.idx)].title = e.target.value; });
+        });
+        document.querySelectorAll('.section-content-input').forEach(ta => {
+            ta.addEventListener('change', (e) => { currentSections[parseInt(e.target.dataset.idx)].content = e.target.value; });
+        });
+        document.querySelectorAll('.delete-section').forEach(btn => {
+            btn.addEventListener('click', (e) => { currentSections.splice(parseInt(btn.dataset.idx),1); renderSectionsList(); });
+        });
+        document.querySelectorAll('.move-up').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const idx = parseInt(btn.dataset.idx);
+                if(idx>0){ [currentSections[idx-1], currentSections[idx]] = [currentSections[idx], currentSections[idx-1]]; renderSectionsList(); }
+            });
+        });
+        document.querySelectorAll('.move-down').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const idx = parseInt(btn.dataset.idx);
+                if(idx<currentSections.length-1){ [currentSections[idx+1], currentSections[idx]] = [currentSections[idx], currentSections[idx+1]]; renderSectionsList(); }
+            });
+        });
+    }
+
+    function renderSimpleEditor() {
+        const user = auth.currentUser;
+        let html = `
+            <div class="flex-between"><span>✅ ${user.email}</span><button class="outline" id="logoutBtn">Logout</button></div>
+            <div class="doc-type-selector">
+                <label>📁 Pilih Jenis Ketentuan</label>
+                <select id="docTypeSelect">${Object.entries(docTypes).map(([val,opt])=>`<option value="${val}" ${val===currentDocType?'selected':''}>${opt.name}</option>`).join('')}</select>
+            </div>
+            <div class="form-group"><label>📄 Judul Halaman (pageTitle)</label><input type="text" id="pageTitle" value="${escapeHtml(currentData.pageTitle || '')}"></div>
+            <div class="form-group"><label>🏷️ Judul Utama (mainTitle)</label><input type="text" id="mainTitle" value="${escapeHtml(currentData.mainTitle || '')}"></div>
+            <div class="form-group"><label>📅 Terakhir diperbarui (lastUpdated)</label><input type="text" id="lastUpdated" value="${escapeHtml(currentData.lastUpdated || 'Diperbarui terakhir: '+getTodayDate())}"></div>
+            <div class="form-group"><label>© Hak Cipta (copyright)</label><input type="text" id="copyright" value="${escapeHtml(currentData.copyright || '© JeGo Team. Hak cipta dilindungi undang-undang.')}"></div>
+            <div class="form-group"><label>📝 Konten HTML (htmlContent)</label><textarea id="htmlContent" rows="12">${escapeHtml(currentData.htmlContent || '<p>Konten ketentuan di sini...</p>')}</textarea></div>
+            <hr>
+            <div><button id="saveBtn">💾 Simpan</button><button id="reloadBtn" class="secondary">⟳ Muat ulang</button><button id="previewBtn" class="outline">👁️ Preview</button></div>
+            <div id="statusMsg" class="status" style="display:none;"></div>
+        `;
+        appDiv.innerHTML = html;
+        attachEvents('simple');
+    }
+
+    function attachEvents(mode) {
+        document.getElementById('logoutBtn')?.addEventListener('click', () => auth.signOut().then(() => renderUI()));
+        const select = document.getElementById('docTypeSelect');
+        if(select) select.addEventListener('change', async (e) => {
+            currentDocType = e.target.value;
+            currentRef = database.ref(docTypes[currentDocType].path);
+            await loadData();
+        });
+        document.getElementById('saveBtn')?.addEventListener('click', saveData);
+        document.getElementById('reloadBtn')?.addEventListener('click', loadData);
+        document.getElementById('previewBtn')?.addEventListener('click', preview);
+        if(mode === 'sections') {
+            document.getElementById('addSectionBtn')?.addEventListener('click', () => {
+                currentSections.push({ title: 'Bagian baru', content: '<p>Isi konten...</p>' });
+                renderSectionsList();
+            });
+        }
+    }
+
+    async function saveData() {
+        showLoading(true);
+        try {
+            if (docTypes[currentDocType].format === 'sections') {
+                const title = document.getElementById('docTitle').value;
+                const version = document.getElementById('docVersion').value;
+                const last_update = document.getElementById('docLastUpdate').value;
+                const sectionsObj = {};
+                currentSections.forEach((sec, idx) => {
+                    sectionsObj[String(idx+1).padStart(3,'0')] = { title: sec.title, content: sec.content };
+                });
+                await currentRef.set({ title, version, last_update, sections: sectionsObj });
+            } else {
+                const pageTitle = document.getElementById('pageTitle').value;
+                const mainTitle = document.getElementById('mainTitle').value;
+                const lastUpdated = document.getElementById('lastUpdated').value;
+                const copyright = document.getElementById('copyright').value;
+                const htmlContent = document.getElementById('htmlContent').value;
+                await currentRef.set({ pageTitle, mainTitle, lastUpdated, copyright, htmlContent });
+            }
+            showStatus('✅ Berhasil disimpan ke Firebase!', false);
+        } catch (err) {
+            showStatus('❌ Gagal menyimpan: '+err.message, true);
+        } finally {
+            showLoading(false);
+        }
+    }
+
+    function preview() {
+        if (docTypes[currentDocType].format === 'sections') {
+            const title = document.getElementById('docTitle')?.value || 'Syarat & Ketentuan';
+            const version = document.getElementById('docVersion')?.value || '';
+            const lastUpdate = document.getElementById('docLastUpdate')?.value || '';
+            let sectionsHtml = '';
+            currentSections.forEach((sec, idx) => {
+                sectionsHtml += `<h2 id="section-${String(idx+1).padStart(3,'0')}">${escapeHtml(sec.title)}</h2><div>${sec.content}</div><hr>`;
+            });
+            const daftarIsi = currentSections.map((sec, idx) => `<li><a href="#section-${String(idx+1).padStart(3,'0')}">${escapeHtml(sec.title)}</a></li>`).join('');
+            const full = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${escapeHtml(title)}</title><style>body{font-family:system-ui;max-width:900px;margin:20px auto;padding:20px;}</style></head><body><h1>${escapeHtml(title)}</h1><p><strong>Versi:</strong> ${escapeHtml(version)}</p><p><strong>Terakhir diperbarui:</strong> ${escapeHtml(lastUpdate)}</p><hr><h2>Daftar Isi</h2><ul>${daftarIsi}</ul><hr>${sectionsHtml}<p style="font-size:0.85em;">© PT MOVEGO HLD (JeGo)</p></body></html>`;
+            const w = window.open(); w.document.write(full); w.document.close();
+        } else {
+            const pageTitle = document.getElementById('pageTitle')?.value || '';
+            const mainTitle = document.getElementById('mainTitle')?.value || '';
+            const lastUpdated = document.getElementById('lastUpdated')?.value || '';
+            const copyright = document.getElementById('copyright')?.value || '';
+            const htmlContent = document.getElementById('htmlContent')?.value || '';
+            const full = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${escapeHtml(pageTitle)}</title><style>body{font-family:system-ui;max-width:900px;margin:20px auto;padding:20px;}</style></head><body><h1>${escapeHtml(pageTitle)}</h1><p><strong>${escapeHtml(mainTitle)}</strong></p><p><em>${escapeHtml(lastUpdated)}</em></p><hr><div>${htmlContent}</div><hr><p style="font-size:0.85em;">${escapeHtml(copyright)}</p></body></html>`;
+            const w = window.open(); w.document.write(full); w.document.close();
+        }
+    }
+
+    function renderUI() {
+        const user = auth.currentUser;
+        if (!user) {
+            appDiv.innerHTML = `<div class="login-box"><h2>🔐 Login Admin</h2><p>Gunakan akun yang memiliki akses tulis ke <code>legal/...</code></p><div class="form-group"><label>Email</label><input type="email" id="loginEmail" placeholder="admin@example.com"></div><div class="form-group"><label>Password</label><input type="password" id="loginPassword" placeholder="password"></div><button id="loginBtn">Masuk</button><div id="loginError" class="status" style="background:#fee2e2;color:#b91c1c;display:none;"></div></div>`;
+            document.getElementById('loginBtn')?.addEventListener('click', async () => {
+                try {
+                    await auth.signInWithEmailAndPassword(document.getElementById('loginEmail').value, document.getElementById('loginPassword').value);
+                    document.getElementById('loginError').style.display = 'none';
+                    renderUI();
+                } catch (err) {
+                    const errDiv = document.getElementById('loginError');
+                    errDiv.innerText = 'Gagal login: ' + err.message;
+                    errDiv.style.display = 'block';
+                }
+            });
+            return;
+        }
+        currentDocType = 'terms';
+        currentRef = database.ref(docTypes[currentDocType].path);
+        loadData();
+    }
+
+    auth.onAuthStateChanged(() => renderUI());
+</script>
+<footer>Editor Legal JeGo - Kelola semua ketentuan (umum, mobil, motor transportasi, kurir motor, kurir bentor, bentor)</footer>
+</body>
+</html>
