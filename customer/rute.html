@@ -2,7 +2,7 @@
 <html lang="id">
 <head>
     <meta charset="utf-8" />
-    <title>Rute - JeGo (Mapbox Search)</title>
+    <title>Rute - JeGo (Mapbox Search) + Via Point</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
 
     <!-- Firebase SDKs -->
@@ -33,7 +33,7 @@
             --text-secondary: #757575;
         }
 
-        /* Dark Mode Variables (diaktifkan via body class) */
+        /* Dark Mode */
         body.dark-mode {
             --primary: #FF9800;
             --primary-dark: #F57C00;
@@ -138,7 +138,7 @@
             backdrop-filter: blur(4px);
         }
 
-        .input-container { margin-bottom: 12px; }
+        .input-container { margin-bottom: 12px; position: relative; }
 
         .search-input-box {
             width: 100%;
@@ -154,19 +154,31 @@
             outline: none;
             -webkit-tap-highlight-color: transparent;
             user-select: none;
+            padding-right: 40px;
         }
+
+        .clear-via-btn {
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            font-size: 18px;
+            cursor: pointer;
+            color: #999;
+            display: none;
+            padding: 6px;
+            border-radius: 50%;
+            z-index: 2;
+        }
+        .clear-via-btn:hover { background: #eee; }
+        body.dark-mode .clear-via-btn { color: #ccc; }
+        body.dark-mode .clear-via-btn:hover { background: #3a3a3a; }
 
         .search-input-box:active {
             background: #f0f0f0;
             border-color: var(--primary);
-        }
-
-        .driver-offer-card .driver-details div:last-child {
-            margin-bottom: 4px;
-        }
-
-        .driver-offer-card .driver-details [style*="color:var(--primary)"] {
-            font-weight: bold;
         }
 
         .search-input-box.pickup {
@@ -180,6 +192,14 @@
             background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="%23FF5722"><rect x="9" y="9" width="6" height="6"/></svg>');
             background-repeat: no-repeat;
             background-position: 14px center;
+            padding-left: 42px;
+        }
+
+        .search-input-box.via {
+            background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="%232196F3"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>');
+            background-repeat: no-repeat;
+            background-position: 14px center;
+            background-size: 18px;
             padding-left: 42px;
         }
 
@@ -491,7 +511,7 @@
             .panel, .route-details, .confirm-btn, .cancel-btn, #driverOffers { width: 95%; }
         }
 
-        /* OVERLAY PENCARIAN FULLSCREEN */
+        /* OVERLAY PENCARIAN */
         .search-overlay {
             position: fixed;
             top: 0;
@@ -630,7 +650,7 @@
             color: #999;
         }
 
-        /* PIN TENGAH PETA + TOMBOL SAMPING */
+        /* PIN TENGAH PETA */
         #mapCenterPin {
             position: fixed;
             top: 50%;
@@ -671,18 +691,17 @@
             100% { transform: translate(-50%, -100%); }
         }
 
-        /* Tombol aksi di samping pin */
         .pin-actions {
-    position: absolute;
-    top: 100%;          /* ditempatkan tepat di bawah pin */
-    left: 50%;
-    transform: translateX(-50%); /* agar center horizontal */
-    margin-top: 8px;    /* jarak dari pin */
-    display: flex;
-    gap: 8px;
-    pointer-events: auto;
-    white-space: nowrap;
-}
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            margin-top: 8px;
+            display: flex;
+            gap: 8px;
+            pointer-events: auto;
+            white-space: nowrap;
+        }
         .pin-action-btn {
             background: var(--surface);
             border: none;
@@ -712,7 +731,7 @@
 </head>
 <body>
 
-<!-- PIN TENGAH MODE PILIH PETA + TOMBOL SAMPING -->
+<!-- PIN TENGAH MODE PILIH PETA -->
 <div id="mapCenterPin">
     <div class="pin-bounce"></div>
     <div class="pin-shadow"></div>
@@ -722,13 +741,14 @@
     </div>
 </div>
 
-<!-- TOMBOL LAMA (TIDAK DIGUNAKAN LAGI, TAPI DISEMBUNYIKAN) -->
-<button id="useMapPickBtnOld" style="display:none;"></button>
-<button id="cancelMapPickBtnOld" style="display:none;"></button>
-
 <div class="panel">
     <div id="from-container" class="input-container">
         <input type="text" class="search-input-box pickup" id="pickupInput" placeholder="📍 Lokasi penjemputan" readonly />
+    </div>
+    <!-- VIA POINT -->
+    <div id="via-container" class="input-container">
+        <input type="text" class="search-input-box via" id="viaInput" placeholder="➕ Lewat mana? (Opsional)" readonly />
+        <button class="clear-via-btn" id="clearViaBtn" title="Hapus titik singgah">✕</button>
     </div>
     <div id="to-container" class="input-container">
         <input type="text" class="search-input-box destination" id="destInput" placeholder="🏁 Lokasi tujuan" readonly />
@@ -741,7 +761,7 @@
     </div>
 </div>
 
-<!-- OVERLAY PENCARIAN FULLSCREEN -->
+<!-- OVERLAY PENCARIAN -->
 <div class="search-overlay" id="searchOverlay">
     <div class="search-overlay-header">
         <button class="search-overlay-back" id="searchOverlayBack">←</button>
@@ -782,6 +802,10 @@
         <span class="label">Penjemputan:</span>
         <span class="value" id="routeFrom">-</span>
     </div>
+    <div class="route-address" id="viaAddressRow" style="display:none;">
+        <span class="label">Lewat:</span>
+        <span class="value" id="routeVia">-</span>
+    </div>
     <div class="route-address">
         <span class="label">Tujuan:</span>
         <span class="value" id="routeTo">-</span>
@@ -797,7 +821,7 @@
         </div>
     </div>
 
-    <!-- NEGOSIASI CUSTOMER (Input Angka) -->
+    <!-- NEGOSIASI -->
     <div id="negoSection" style="margin-top:12px; padding-top:8px; border-top:1px solid #eee;">
         <div style="display:flex; justify-content:space-between; font-size:0.8rem;">
             <span>💰 Harga rekomendasi:</span>
@@ -851,6 +875,11 @@
     let currentRoute = null;
     let pickupCoord = null, destCoord = null;
     let pickupAddress = '', destAddress = '';
+    // VIA POINT
+    let viaCoord = null;
+    let viaAddress = '';
+    let viaMarker = null;
+
     let routeLayer = null;
     let pickupMarker = null, destMarker = null;
     let selectedTransport = null;
@@ -875,7 +904,7 @@
     let mapPickCoords = null;
     let mapPickAddress = '';
     let mapPickResolveTimer = null;
-    let searchOverlayMode = 'pickup';
+    let searchOverlayMode = 'pickup'; // 'pickup', 'destination', 'via'
     let pickFromMapActive = false;
     let searchTimeout = null;
     let negoEnabled = true;
@@ -965,7 +994,7 @@
         return Math.round(price / 1000) * 1000;
     }
 
-    // ==================== NEGOSIASI CUSTOMER ====================
+    // ==================== NEGOSIASI ====================
     function initNegosiasi(originalPriceVal) {
         const minimalPrice = transportRate.minimal_price;
         const maxDiskon = originalPriceVal * 0.2;
@@ -1050,17 +1079,13 @@
             document.body.classList.add('dark-mode');
             if (map && mapboxAccessToken) {
                 map.setStyle('mapbox://styles/mapbox/navigation-night-v1');
-                map.once('styledata', () => {
-                    applyRoadColor();
-                });
+                map.once('styledata', () => { applyRoadColor(); });
             }
         } else {
             document.body.classList.remove('dark-mode');
             if (map && mapboxAccessToken) {
                 map.setStyle('mapbox://styles/mapbox/navigation-day-v1');
-                map.once('styledata', () => {
-                    applyRoadColor();
-                });
+                map.once('styledata', () => { applyRoadColor(); });
             }
         }
     }
@@ -1100,10 +1125,7 @@
         if (!map) return;
         const lat = location.latitude;
         const lng = location.longitude;
-        if (!isValidCoordinate(lat, lng)) {
-            console.warn(`⚠️ Koordinat tidak valid untuk driver ${driverId}: (${lat}, ${lng})`);
-            return;
-        }
+        if (!isValidCoordinate(lat, lng)) return;
         const iconUrl = getDriverIconUrl(vehicleType);
         const el = document.createElement('div');
         el.style.backgroundImage = `url(${iconUrl})`;
@@ -1207,6 +1229,20 @@
             destCoord = [order.dest_lng, order.dest_lat];
             pickupAddress = order.pickup_address;
             destAddress = order.destination_address;
+            if (order.via_lng && order.via_lat && order.via_address) {
+                viaCoord = [order.via_lng, order.via_lat];
+                viaAddress = order.via_address;
+                document.getElementById('viaInput').value = viaAddress;
+                document.getElementById('clearViaBtn').style.display = 'block';
+                document.getElementById('viaAddressRow').style.display = 'flex';
+                document.getElementById('routeVia').innerText = viaAddress;
+            } else {
+                viaCoord = null;
+                viaAddress = '';
+                document.getElementById('viaInput').value = '';
+                document.getElementById('clearViaBtn').style.display = 'none';
+                document.getElementById('viaAddressRow').style.display = 'none';
+            }
             currentPrice = order.price;
             transportType = order.transport_type;
             transportIconUrl = getDriverIconUrl(transportType);
@@ -1229,23 +1265,13 @@
 
             if (map && mapboxAccessToken) {
                 if (routeLayer) { try { map.removeLayer(routeLayer); } catch(e) {} try { map.removeSource('route'); } catch(e) {} }
-                const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${pickupCoord[0]},${pickupCoord[1]};${destCoord[0]},${destCoord[1]}?geometries=geojson&access_token=${mapboxAccessToken}`;
-                const resp = await fetch(url);
-                const data = await resp.json();
-                if (data.routes && data.routes.length) {
-                    const route = data.routes[0];
-                    map.addSource('route', { type: 'geojson', data: { type: 'Feature', geometry: route.geometry } });
-                    map.addLayer({ id: 'route', type: 'line', source: 'route', layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: { 'line-color': '#FF9800', 'line-width': 5 } });
-                    routeLayer = 'route';
-                    const bounds = new mapboxgl.LngLatBounds().extend(pickupCoord).extend(destCoord);
-                    map.fitBounds(bounds, { padding: { top: 160, bottom: 220, left: 50, right: 50 } });
-                }
+                await updateRoute();
             }
             return true;
         } catch(err) { return false; }
     }
 
-    // ==================== AMBIL DATA DARI DATABASE ====================
+    // ==================== FETCH MAPBOX TOKEN & TARIF ====================
     async function fetchMapboxToken() {
         try {
             const snapshot = await database.ref('data-jego/mapbox_acces_token').once('value');
@@ -1418,6 +1444,7 @@
     function updateMarkers() {
         if (pickupMarker) pickupMarker.remove();
         if (destMarker) destMarker.remove();
+        if (viaMarker) viaMarker.remove();
         if (pickupCoord) {
             const el = document.createElement('div');
             el.style.backgroundImage = `url(${transportIconUrl || 'https://cdn-icons-png.flaticon.com/128/5811/5811823.png'})`;
@@ -1431,12 +1458,31 @@
         if (destCoord) {
             destMarker = new mapboxgl.Marker({ color: '#FF9800' }).setLngLat(destCoord).addTo(map);
         }
+        if (viaCoord) {
+            const elVia = document.createElement('div');
+            elVia.style.backgroundColor = '#2196F3';
+            elVia.style.width = '30px';
+            elVia.style.height = '30px';
+            elVia.style.borderRadius = '50%';
+            elVia.style.border = '3px solid white';
+            elVia.style.boxShadow = '0 2px 6px rgba(0,0,0,0.3)';
+            elVia.style.cursor = 'pointer';
+            elVia.title = 'Titik singgah';
+            viaMarker = new mapboxgl.Marker({ element: elVia }).setLngLat(viaCoord).addTo(map);
+        }
     }
 
     async function updateRoute() {
         if (!pickupCoord || !destCoord) return;
         if (routeLayer) { try { map.removeLayer(routeLayer); } catch(e) {} try { map.removeSource('route'); } catch(e) {} }
-        const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${pickupCoord[0]},${pickupCoord[1]};${destCoord[0]},${destCoord[1]}?geometries=geojson&access_token=${mapboxAccessToken}`;
+
+        let coordinatesString = `${pickupCoord[0]},${pickupCoord[1]}`;
+        if (viaCoord && viaCoord.length === 2) {
+            coordinatesString += `;${viaCoord[0]},${viaCoord[1]}`;
+        }
+        coordinatesString += `;${destCoord[0]},${destCoord[1]}`;
+
+        const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${coordinatesString}?geometries=geojson&access_token=${mapboxAccessToken}`;
         try {
             const resp = await fetch(url);
             const data = await resp.json();
@@ -1446,18 +1492,28 @@
             currentPrice = price;
             initNegosiasi(price);
             currentRoute = { geometry: route.geometry, distance: route.distance, duration: route.duration, price: price };
+
             document.getElementById('routeFrom').innerText = pickupAddress;
             document.getElementById('routeTo').innerText = destAddress;
+            if (viaAddress && viaCoord) {
+                document.getElementById('viaAddressRow').style.display = 'flex';
+                document.getElementById('routeVia').innerText = viaAddress;
+            } else {
+                document.getElementById('viaAddressRow').style.display = 'none';
+            }
             document.getElementById('routeDuration').innerText = Math.round(route.duration / 60) + ' menit';
             document.getElementById('routePrice').innerHTML = formatRupiah(price);
             document.getElementById('routeDetails').style.display = 'block';
             document.getElementById('confirmBtn').disabled = false;
             document.getElementById('confirmBtn').innerHTML = `🚀 CARI DRIVER | ${formatRupiah(price)}`;
+
             map.addSource('route', { type: 'geojson', data: { type: 'Feature', geometry: route.geometry } });
             map.addLayer({ id: 'route', type: 'line', source: 'route', layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: { 'line-color': '#FF9800', 'line-width': 5 } });
             routeLayer = 'route';
             updateMarkers();
+
             const bounds = new mapboxgl.LngLatBounds().extend(pickupCoord).extend(destCoord);
+            if (viaCoord) bounds.extend(viaCoord);
             map.fitBounds(bounds, { padding: { top: 160, bottom: 220, left: 50, right: 50 } });
         } catch(err) { showPopup('Error', 'Gagal menghitung rute.'); }
     }
@@ -1478,7 +1534,9 @@
         resultList.innerHTML = '';
         loading.style.display = 'none';
         renderHistoryList();
-        input.placeholder = type === 'pickup' ? 'Cari lokasi penjemputan...' : 'Cari lokasi tujuan...';
+        if (type === 'pickup') input.placeholder = 'Cari lokasi penjemputan...';
+        else if (type === 'destination') input.placeholder = 'Cari lokasi tujuan...';
+        else input.placeholder = 'Cari titik singgah (opsional)...';
         overlay.classList.add('active');
         setTimeout(() => { input.focus(); }, 350);
     }
@@ -1563,6 +1621,7 @@
         const coords = feature.geometry.coordinates;
         const address = getFullAddress(feature);
         addSearchHistory(address, coords[0], coords[1]);
+
         if (searchOverlayMode === 'pickup') {
             pickupCoord = [coords[0], coords[1]];
             pickupAddress = address;
@@ -1570,11 +1629,18 @@
             updateMarkers();
             if (map) map.flyTo({ center: pickupCoord, zoom: 15, duration: 1000 });
             if (autoDriverSearchEnabled && pickupCoord) startAutoShowDrivers(pickupCoord, 3);
+        } else if (searchOverlayMode === 'via') {
+            viaCoord = [coords[0], coords[1]];
+            viaAddress = address;
+            document.getElementById('viaInput').value = viaAddress;
+            document.getElementById('clearViaBtn').style.display = 'block';
+            updateMarkers();
         } else {
             destCoord = [coords[0], coords[1]];
             destAddress = address;
             document.getElementById('destInput').value = destAddress;
         }
+
         if (pickupCoord && destCoord) updateRoute();
         closeSearchOverlay();
     }
@@ -1592,14 +1658,13 @@
         }, () => { showToast('❌ Gagal mendapatkan lokasi', 'error'); }, { enableHighAccuracy: true, timeout: 10000 });
     }
 
-    // ==================== FITUR PILIH DI PETA (dengan tombol samping pin) ====================
+    // ==================== FITUR PILIH DI PETA ====================
     function pickFromMap() {
         closeSearchOverlay();
         if (!map) return;
         mapPickActive = true;
         const pinContainer = document.getElementById('mapCenterPin');
         pinContainer.classList.add('active');
-        // Reset teks tombol
         const useBtn = document.getElementById('useMapPickBtn');
         useBtn.innerHTML = '📍 Pilih Lokasi';
         const center = map.getCenter();
@@ -1612,47 +1677,39 @@
     }
 
     function onMapMoveStart() {
-    if (!mapPickActive) return;
-    const pinContainer = document.getElementById('mapCenterPin');
-    if (pinContainer) pinContainer.classList.add('dragging');
-    const useBtn = document.getElementById('useMapPickBtn');
-    useBtn.innerHTML = 'Memuat...';   // tambahkan baris ini
-}
+        if (!mapPickActive) return;
+        const pinContainer = document.getElementById('mapCenterPin');
+        if (pinContainer) pinContainer.classList.add('dragging');
+        const useBtn = document.getElementById('useMapPickBtn');
+        useBtn.innerHTML = 'Memuat...';
+    }
 
     function onMapMoveEnd() {
-    if (!mapPickActive) return;
-    const pinContainer = document.getElementById('mapCenterPin');
-    if (pinContainer) {
-        pinContainer.classList.remove('dragging');
-        void pinContainer.offsetWidth;
-        pinContainer.classList.remove('active');
-        void pinContainer.offsetWidth;
-        pinContainer.classList.add('active');
+        if (!mapPickActive) return;
+        const pinContainer = document.getElementById('mapCenterPin');
+        if (pinContainer) {
+            pinContainer.classList.remove('dragging');
+            void pinContainer.offsetWidth;
+            pinContainer.classList.remove('active');
+            void pinContainer.offsetWidth;
+            pinContainer.classList.add('active');
+        }
+        const center = map.getCenter();
+        mapPickCoords = [center.lng, center.lat];
+        resolveCenterAddress();
+        const useBtn = document.getElementById('useMapPickBtn');
+        useBtn.innerHTML = '📍 Pilih Lokasi';
     }
-    const center = map.getCenter();
-    mapPickCoords = [center.lng, center.lat];
-    resolveCenterAddress();
-    // Kembalikan teks tombol ke statis
-    const useBtn = document.getElementById('useMapPickBtn');
-    useBtn.innerHTML = '📍 Pilih Lokasi';
-}
 
     async function resolveCenterAddress() {
-    if (!mapPickCoords) return;
-    const [lng, lat] = mapPickCoords;
-    if (mapPickResolveTimer) clearTimeout(mapPickResolveTimer);
-    mapPickResolveTimer = setTimeout(async () => {
-        const address = await reverseGeocode(lng, lat);
-        mapPickAddress = address || '(Alamat tidak ditemukan)';
-        // Hapus atau komentari 6 baris di bawah ini:
-        // const useBtn = document.getElementById('useMapPickBtn');
-        // if (useBtn) {
-        //     let shortAddress = mapPickAddress;
-        //     if (shortAddress.length > 35) shortAddress = shortAddress.substring(0,32)+'...';
-        //     useBtn.innerHTML = `📍 ${shortAddress}`;
-        // }
-    }, 300);
-}
+        if (!mapPickCoords) return;
+        const [lng, lat] = mapPickCoords;
+        if (mapPickResolveTimer) clearTimeout(mapPickResolveTimer);
+        mapPickResolveTimer = setTimeout(async () => {
+            const address = await reverseGeocode(lng, lat);
+            mapPickAddress = address || '(Alamat tidak ditemukan)';
+        }, 300);
+    }
 
     function confirmMapPick() {
         if (!mapPickCoords || !mapPickAddress) { showToast('❌ Alamat belum didapatkan', 'error'); return; }
@@ -1670,6 +1727,19 @@
         if (mapPickResolveTimer) clearTimeout(mapPickResolveTimer);
         mapPickCoords = null;
         mapPickAddress = '';
+    }
+
+    // Hapus titik singgah
+    function clearViaPoint() {
+        if (viaCoord) {
+            viaCoord = null;
+            viaAddress = '';
+            document.getElementById('viaInput').value = '';
+            document.getElementById('clearViaBtn').style.display = 'none';
+            if (viaMarker) { viaMarker.remove(); viaMarker = null; }
+            if (pickupCoord && destCoord) updateRoute();
+            showToast('🗑️ Titik singgah dihapus', 'info');
+        }
     }
 
     // ==================== RADAR ====================
@@ -1693,7 +1763,7 @@
             if (offer.bid_price && offer.bid_price > 0 && offer.bid_requested === true) {
                 bidPriceText = `<div class="bid-price-text">💰 Menawar: ${formatRupiah(offer.bid_price)}</div>`;
             }
-            
+
             let timerHtml = '';
             if (!isProcessed && offer.expired_at) {
                 const remaining = Math.max(0, offer.expired_at - Date.now());
@@ -1705,7 +1775,7 @@
                     </div>
                 `;
             }
-            
+
             const card = document.createElement('div');
             card.className = 'driver-offer-card';
             if (offer.expired_at) card.setAttribute('data-expired', offer.expired_at);
@@ -1816,12 +1886,8 @@
                 document.getElementById('driverOffers').style.display = 'block';
                 if (offerTimerInterval) clearInterval(offerTimerInterval);
                 if (cleanupInterval) clearInterval(cleanupInterval);
-                offerTimerInterval = setInterval(() => {
-                    updateOfferTimers();
-                }, 1000);
-                cleanupInterval = setInterval(() => {
-                    cleanupExpiredOffersCustomer();
-                }, 10000);
+                offerTimerInterval = setInterval(() => { updateOfferTimers(); }, 1000);
+                cleanupInterval = setInterval(() => { cleanupExpiredOffersCustomer(); }, 10000);
                 orderRef = database.ref(`orders/${currentOrderId}/status`);
                 orderStatusCallback = (snap) => {
                     const status = snap.val();
@@ -1868,36 +1934,41 @@
         }
         const newOrderRef = database.ref('orders').push();
         currentOrderId = newOrderRef.key;
-        // Ambil fee & pajak terkini dari data-jego
-let feePercent = 7, taxPercent = 11;
-try {
-  const potonganSnap = await database.ref('data-jego/potongan').once('value');
-  feePercent = potonganSnap.exists() ? parseFloat(potonganSnap.val()) : 7;
-  const pajakSnap = await database.ref('data-jego/pajak').once('value');
-  taxPercent = pajakSnap.exists() ? parseFloat(pajakSnap.val()) : 11;
-} catch(e) { console.warn('Gagal ambil fee, pakai default'); }
 
-const orderData = {
-  user_id: currentUser.id,
-  customer_name: currentUser.name,
-  transport_type: transportType,
-  pickup_address: pickupAddress,
-  pickup_lat: pickupCoord[1],
-  pickup_lng: pickupCoord[0],
-  destination_address: destAddress,
-  dest_lat: destCoord[1],
-  dest_lng: destCoord[0],
-  distance_meters: currentRoute.distance,
-  duration_seconds: currentRoute.duration,
-  price: currentPrice,
-  fee_percent: feePercent,   // <-- simpan fee saat order dibuat
-  tax_percent: taxPercent,   // <-- simpan pajak saat order dibuat
-  status: 'waiting',
-  created_at: new Date().toISOString(),
-  passenger_rating: currentUser.rating,
-  perjalanan: currentUser.perjalanan,
-  photoURL: currentUser.photoURL || ''
-};
+        let feePercent = 7, taxPercent = 11;
+        try {
+            const potonganSnap = await database.ref('data-jego/potongan').once('value');
+            feePercent = potonganSnap.exists() ? parseFloat(potonganSnap.val()) : 7;
+            const pajakSnap = await database.ref('data-jego/pajak').once('value');
+            taxPercent = pajakSnap.exists() ? parseFloat(pajakSnap.val()) : 11;
+        } catch(e) { console.warn('Gagal ambil fee, pakai default'); }
+
+        const orderData = {
+            user_id: currentUser.id,
+            customer_name: currentUser.name,
+            transport_type: transportType,
+            pickup_address: pickupAddress,
+            pickup_lat: pickupCoord[1],
+            pickup_lng: pickupCoord[0],
+            destination_address: destAddress,
+            dest_lat: destCoord[1],
+            dest_lng: destCoord[0],
+            distance_meters: currentRoute.distance,
+            duration_seconds: currentRoute.duration,
+            price: currentPrice,
+            fee_percent: feePercent,
+            tax_percent: taxPercent,
+            status: 'waiting',
+            created_at: new Date().toISOString(),
+            passenger_rating: currentUser.rating,
+            perjalanan: currentUser.perjalanan,
+            photoURL: currentUser.photoURL || ''
+        };
+        if (viaCoord && viaAddress) {
+            orderData.via_lat = viaCoord[1];
+            orderData.via_lng = viaCoord[0];
+            orderData.via_address = viaAddress;
+        }
         if (isCourier && deliveryData) {
             orderData.sender_phone = deliveryData.senderPhone;
             orderData.receiver_phone = deliveryData.receiverPhone;
@@ -1915,12 +1986,8 @@ const orderData = {
         document.getElementById('driverOffers').style.display = 'block';
         if (offerTimerInterval) clearInterval(offerTimerInterval);
         if (cleanupInterval) clearInterval(cleanupInterval);
-        offerTimerInterval = setInterval(() => {
-            updateOfferTimers();
-        }, 1000);
-        cleanupInterval = setInterval(() => {
-            cleanupExpiredOffersCustomer();
-        }, 10000);
+        offerTimerInterval = setInterval(() => { updateOfferTimers(); }, 1000);
+        cleanupInterval = setInterval(() => { cleanupExpiredOffersCustomer(); }, 10000);
         orderRef = database.ref(`orders/${currentOrderId}/status`);
         orderStatusCallback = (snap) => {
             const status = snap.val();
@@ -1971,14 +2038,8 @@ const orderData = {
         document.getElementById('radar').style.display = 'none';
         document.getElementById('radar').classList.remove('expanding');
         document.getElementById('driverOffers').style.display = 'none';
-        if (offerTimerInterval) {
-            clearInterval(offerTimerInterval);
-            offerTimerInterval = null;
-        }
-        if (cleanupInterval) {
-            clearInterval(cleanupInterval);
-            cleanupInterval = null;
-        }
+        if (offerTimerInterval) { clearInterval(offerTimerInterval); offerTimerInterval = null; }
+        if (cleanupInterval) { clearInterval(cleanupInterval); cleanupInterval = null; }
         const btn = document.getElementById('confirmBtn');
         btn.removeEventListener('click', cancelSearchHandler);
         btn.addEventListener('click', confirmRoute);
@@ -1989,11 +2050,7 @@ const orderData = {
         currentOrderId = null;
         deactivateRadarOnPickup();
         stopSlowZoomOut();
-        if (driversListener && driversRef) {
-            driversRef.off('value', driversListener);
-            driversListener = null;
-            driversRef = null;
-        }
+        if (driversListener && driversRef) { driversRef.off('value', driversListener); driversListener = null; driversRef = null; }
         if (autoDriverSearchEnabled && pickupCoord) startAutoShowDrivers(pickupCoord, 3);
     }
 
@@ -2008,6 +2065,7 @@ const orderData = {
         if (!loggedIn) return;
         const orderActive = await cekOrderAktifDanRedirect();
         await initMap();
+
         if (orderActive) {
             const loaded = await loadWaitingOrderData();
             if (!loaded) {
@@ -2022,11 +2080,15 @@ const orderData = {
             await autoFillPickupLocation();
             autoDriverSearchEnabled = true;
         }
-        // Pasang event listener untuk tombol baru
+
+        // Event listeners
         document.getElementById('useMapPickBtn').addEventListener('click', confirmMapPick);
         document.getElementById('cancelMapPickBtn').addEventListener('click', cancelMapPick);
         document.getElementById('pickupInput').addEventListener('click', () => { if (!isSearching) openSearchOverlay('pickup'); });
         document.getElementById('destInput').addEventListener('click', () => { if (!isSearching) openSearchOverlay('destination'); });
+        document.getElementById('viaInput').addEventListener('click', () => { if (!isSearching) openSearchOverlay('via'); });
+        document.getElementById('clearViaBtn').addEventListener('click', clearViaPoint);
+
         document.getElementById('searchOverlayBack').addEventListener('click', closeSearchOverlay);
         document.getElementById('searchOverlayClear').addEventListener('click', () => {
             document.getElementById('searchOverlayInput').value = '';
