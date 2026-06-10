@@ -1245,7 +1245,7 @@ function loadOrders() {
           const isKurir = (order.transport_type || '').includes('kurir');
           const fromAuto = (autobidEnabled && !isKurir);
           // BUKA MODAL, dengan flag fromAuto yang sesuai
-          showOrderDetail({ orderId: order.id, orderData: order }, fromAuto);
+          showOrderDetail({ orderId: order.id, orderData: order }, fromAuto, true);
         }
       }
     });
@@ -1320,8 +1320,8 @@ function renderOrdersList(orders, ordersList) {
       </div>
     `;
     orderItem.addEventListener('click', () => {
-      showOrderDetail({ orderId: order.id, orderData: order }, false);
-    });
+  showOrderDetail({ orderId: order.id, orderData: order }, false, false);
+});
     ordersList.appendChild(orderItem);
   });
 }
@@ -1417,7 +1417,7 @@ function hideBidOptions() {
   }
 }
 
-async function showOrderDetail(orderObj, fromAuto = false) {
+async function showOrderDetail(orderObj, fromAuto = false, playSound = false) {
   // CEK JIKA SEDANG MENUNGGU KONFIRMASI
   if (isWaitingForConfirmation) {
     showToast('Anda sedang memproses order lain, harap tunggu.', 'warning');
@@ -1425,14 +1425,13 @@ async function showOrderDetail(orderObj, fromAuto = false) {
   }
   if (!checkDriverData() || !globalCurrentUid) return;
   
-  // ========== TAMBAHKAN: PUTAR SUARA MANUAL POPUP JIKA BUKAN AUTOBID ==========
-  if (!fromAuto) {
+  // ========== PUTAR SUARA HANYA JIKA playSound = true DAN BUKAN AUTOBID ==========
+  if (playSound && !fromAuto) {
     const manualSound = document.getElementById('manualPopupSound');
     if (manualSound) {
       manualSound.currentTime = 0;
       manualSound.play().catch(e => console.warn('Manual popup sound error:', e));
     } else {
-      // Fallback ke beep jika manualSound tidak tersedia
       const beep = document.getElementById('beekSound');
       if (beep) beep.play().catch(e => console.warn('Beep fallback error:', e));
     }
