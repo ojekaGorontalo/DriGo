@@ -641,7 +641,6 @@
         </div>
       </div>
       <div class="route-card" id="routeCard">
-        <!-- Via point akan ditambahkan dinamis -->
         <div class="route-point" id="pickupPoint">
           <div class="route-icon pickup-icon">A</div>
           <div class="route-address">
@@ -745,6 +744,7 @@
   let isRatingSubmitted = false;
   let selectedRating = 0;
   let driverIdForRating = null;
+  let onesignalApiKey = null;
 
   let currentUserBonus = 0;
   let currentOrderPrice = 0;
@@ -856,6 +856,75 @@
     document.body.appendChild(toast);
     setTimeout(() => toast.style.opacity = '1', 10);
     setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 3000);
+  }
+
+  // ---- Ambil OneSignal API Key dari Firebase ----
+  async function getOneSignalApiKey() {
+    if (onesignalApiKey) return onesignalApiKey;
+    try {
+      const snap = await database.ref('data-jego/PushKey').once('value');
+      onesignalApiKey = snap.val();
+      if (!onesignalApiKey) console.warn("PushKey tidak ditemukan");
+      return onesignalApiKey;
+    } catch (e) {
+      console.error("Gagal ambil PushKey:", e);
+      return null;
+    }
+  }
+
+  // ---- Kirim notifikasi ke driver ----
+  async function sendNotificationToDriver(driverId, title, message, extraData = {}) {
+    if (!driverId) return false;
+    // Coba ambil playerId dari driver_locations dulu, lalu drivers
+    let playerId = null;
+    try {
+      const locSnap = await database.ref(`driver_locations/${driverId}/playerId`).once('value');
+      playerId = locSnap.val();
+      if (!playerId) {
+        const driverSnap = await database.ref(`drivers/${driverId}/playerId`).once('value');
+        playerId = driverSnap.val();
+      }
+    } catch (e) { console.warn('Gagal ambil playerId driver', e); }
+    if (!playerId) { console.warn("Driver tidak punya playerId"); return false; }
+    const apiKey = await getOneSignalApiKey();
+    if (!apiKey) { console.warn("OneSignal API Key tidak tersedia"); return false; }
+    try {
+      const res = await fetch("https://onesignal.com/api/v1/notifications", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Basic ${apiKey}` },
+        body: JSON.stringify({
+          app_id: "3357d683-8f6b-4558-9d42-2eeceed6204a",
+          include_player_ids: [playerId],
+          headings: { en: title },
+          contents: { en: message },
+          data: { orderId: orderId, type: "chat", ...extraData },
+          priority: 10,
+          android_priority: "high",
+          android_channel_id: "14488f7c-4003-4699-b220-dee4451568df",
+          small_icon: "ic_stat_onesignal_default",
+          large_icon: "https://ojekaGorontalo.github.io/Logo/logo.png",
+          android_sound: "default",
+          android_vibration_pattern: [300, 500]
+        })
+      });
+      const result = await res.json();
+      if (result.errors) throw new Error(JSON.stringify(result.errors));
+      console.log("Notifikasi chat ke driver terkirim");
+      return true;
+    } catch(err) { console.error("Gagal notif driver:", err); return false; }
+  }
+
+  // ---- Kirim notifikasi saat customer mengirim chat ----
+  async function notifyDriverOnChat(messageText) {
+    const driverId = orderData?.driver_id;
+    if (!driverId) return;
+    const customerName = orderData?.customer_name || 'Customer';
+    await sendNotificationToDriver(
+      driverId,
+      `💬 Pesan dari ${customerName}`,
+      messageText.length > 60 ? messageText.slice(0, 60) + '...' : messageText,
+      { chat: true, sender: 'customer' }
+    );
   }
 
   async function loadUserBonus() {
@@ -994,7 +1063,6 @@
       document.getElementById('pickupAddr').innerText = order.pickup_address || '-';
       document.getElementById('destAddr').innerText = order.destination_address || '-';
       
-      // Tampilkan via point jika ada
       const viaPointDiv = document.getElementById('viaPoint');
       const viaAddrSpan = document.getElementById('viaAddr');
       if (order.via_address) {
@@ -1158,15 +1226,25 @@
     container.scrollTop = container.scrollHeight;
   }
   function escapeHtml(str) { if (!str) return ''; return str.replace(/[&<>]/g, m => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;' }[m])); }
-  function sendChatMessage() {
+
+  // ----- Kirim chat customer -> notifikasi ke driver -----
+  async function sendCustomerChatMessage() {
     const input = document.getElementById('chatInput');
     const text = input.value.trim();
     if (!text) return;
     const user = auth.currentUser;
     if (!user) { alert('Anda belum login.'); return; }
-    chatRef.push({ sender: 'customer', sender_id: user.uid, message: text, timestamp: Date.now() });
-    input.value = '';
+    try {
+      await chatRef.push({ sender: 'customer', sender_id: user.uid, message: text, timestamp: Date.now() });
+      input.value = '';
+      // Kirim notifikasi ke driver
+      await notifyDriverOnChat(text);
+    } catch (err) {
+      console.error('Gagal mengirim chat:', err);
+      showToast('Gagal mengirim pesan');
+    }
   }
+
   async function cancelOrder() {
     if (document.getElementById('cancelBtn').classList.contains('disabled')) {
       alert('Perjalanan sudah dalam perjalanan atau selesai, tidak dapat dibatalkan.');
@@ -1196,7 +1274,8 @@
     });
     document.getElementById('chatBtn').onclick = openChat;
     document.getElementById('closeChatBtn').onclick = closeChat;
-    document.getElementById('sendChatBtn').onclick = sendChatMessage;
+    document.getElementById('sendChatBtn').onclick = sendCustomerChatMessage;
+    document.getElementById('chatInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); sendCustomerChatMessage(); } });
     document.getElementById('cancelBtn').onclick = cancelOrder;
     document.getElementById('retryBtn')?.addEventListener('click', () => window.location.reload());
     document.getElementById('applyBonusBtn')?.addEventListener('click', applyBonus);
