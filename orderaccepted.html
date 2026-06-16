@@ -9,6 +9,7 @@
   <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-database-compat.js"></script>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <style>
+    /* === SEMUA STYLE SEBELUMNYA TETAP === */
     * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
     body { font-family: 'Segoe UI', 'Roboto', system-ui, sans-serif; background: #F1F5F9; height: 100vh; overflow: hidden; }
     .app-container { display: flex; flex-direction: column; height: 100vh; width: 100%; background: #FFFFFF; position: relative; }
@@ -50,10 +51,31 @@
     .route-address { font-weight: 500; font-size: 0.9rem; color: #0f172a; cursor: pointer; text-decoration: underline; text-decoration-style: dotted; text-underline-offset: 4px; }
     .route-address:active { opacity: 0.7; }
     .action-bar { position: fixed; bottom: 0; left: 0; right: 0; background: rgba(255,255,255,0.96); backdrop-filter: blur(10px); padding: 12px 20px 28px 20px; border-top: 1px solid #edf2f7; box-shadow: 0 -4px 20px rgba(0,0,0,0.05); display: flex; justify-content: space-between; gap: 12px; z-index: 20; pointer-events: auto; }
-    .action-btn { flex: 1; padding: 12px; border-radius: 48px; font-weight: 700; font-size: 1rem; border: none; display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; transition: all 0.2s ease; box-shadow: 0 1px 3px rgba(0,0,0,0.1); pointer-events: auto; touch-action: manipulation; }
+    .action-btn { flex: 1; padding: 12px; border-radius: 48px; font-weight: 700; font-size: 1rem; border: none; display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; transition: all 0.2s ease; box-shadow: 0 1px 3px rgba(0,0,0,0.1); pointer-events: auto; touch-action: manipulation; position: relative; }
     .action-btn:active { transform: scale(0.97); }
     .btn-primary { background: linear-gradient(95deg, #FF9800, #F57C00); color: white; }
     .btn-secondary { background: #f1f5f9; color: #1e293b; }
+    /* BADGE UNREAD */
+    .badge-unread {
+      position: absolute;
+      top: -6px;
+      right: -6px;
+      background: #ef4444;
+      color: white;
+      font-size: 0.7rem;
+      font-weight: 700;
+      min-width: 20px;
+      height: 20px;
+      border-radius: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 5px;
+      box-shadow: 0 2px 6px rgba(239, 68, 68, 0.4);
+      transform: scale(1);
+      transition: transform 0.2s;
+    }
+    .badge-unread.hidden { display: none; }
     .modal-overlay { display: none; position: fixed; top:0;left:0;width:100%;height:100%; background: rgba(0,0,0,0.6); backdrop-filter: blur(3px); z-index: 1000; align-items: center; justify-content: center; }
     .modal-card { background: white; width: 85%; max-width: 320px; border-radius: 32px; padding: 24px; text-align: center; }
     .rating-stars { display: flex; justify-content: center; gap: 8px; font-size: 2rem; margin: 12px 0; }
@@ -61,103 +83,20 @@
     .rating-star.active { color: #FFB800; }
     .preset-btn { background: #F1F5F9; border: none; border-radius: 40px; padding: 6px 12px; font-size: 0.7rem; margin: 4px; }
     .toast { position: fixed; bottom: 100px; left: 20px; right: 20px; background: #1E293B; color: white; text-align: center; padding: 12px; border-radius: 40px; opacity: 0; transition: 0.2s; z-index: 1100; }
-    
-    /* ===== CHAT OVERLAY ===== */
-    .chat-overlay {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: white;
-      z-index: 2000;
-      display: none;
-      flex-direction: column;
-    }
-    .chat-overlay.open {
-      display: flex;
-    }
-    .chat-header {
-      background: linear-gradient(135deg, #FF9800, #F57C00);
-      color: white;
-      padding: 12px 15px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      font-weight: bold;
-      flex-shrink: 0;
-    }
-    .chat-header button {
-      background: none;
-      border: none;
-      color: white;
-      font-size: 24px;
-      cursor: pointer;
-    }
-    .chat-messages {
-      flex: 1;
-      overflow-y: auto;
-      padding: 12px;
-      background: #ECE5DD;
-      display: flex;
-      flex-direction: column;
-    }
-    /* PERBAIKAN: Driver (Anda) di kanan hijau, Customer di kiri putih */
-    .message.driver {
-      background: #DCF8C6;
-      align-self: flex-end;
-    }
-    .message.customer {
-      background: white;
-      align-self: flex-start;
-    }
-    .message {
-      max-width: 80%;
-      padding: 6px 10px;
-      border-radius: 18px;
-      margin-bottom: 6px;
-      font-size: 13px;
-      word-wrap: break-word;
-    }
-    .message small {
-      font-size: 9px;
-      color: #888;
-      display: block;
-      text-align: right;
-      margin-top: 3px;
-    }
-    .chat-input-area {
-      display: flex;
-      padding: 8px 12px;
-      background: white;
-      border-top: 1px solid #ddd;
-      gap: 8px;
-      flex-shrink: 0;
-    }
-    .chat-input {
-      flex: 1;
-      padding: 10px;
-      border: 1px solid #ddd;
-      border-radius: 25px;
-      font-size: 13px;
-      outline: none;
-    }
-    .chat-input:focus {
-      border-color: #FF9800;
-    }
-    .chat-send {
-      background: #FF9800;
-      color: white;
-      border: none;
-      border-radius: 25px;
-      padding: 0 18px;
-      font-weight: bold;
-      cursor: pointer;
-    }
-    .chat-send:active {
-      transform: scale(0.96);
-    }
-
+    .chat-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: white; z-index: 2000; display: none; flex-direction: column; }
+    .chat-overlay.open { display: flex; }
+    .chat-header { background: linear-gradient(135deg, #FF9800, #F57C00); color: white; padding: 12px 15px; display: flex; justify-content: space-between; align-items: center; font-weight: bold; flex-shrink: 0; }
+    .chat-header button { background: none; border: none; color: white; font-size: 24px; cursor: pointer; }
+    .chat-messages { flex: 1; overflow-y: auto; padding: 12px; background: #ECE5DD; display: flex; flex-direction: column; }
+    .message.driver { background: #DCF8C6; align-self: flex-end; }
+    .message.customer { background: white; align-self: flex-start; }
+    .message { max-width: 80%; padding: 6px 10px; border-radius: 18px; margin-bottom: 6px; font-size: 13px; word-wrap: break-word; }
+    .message small { font-size: 9px; color: #888; display: block; text-align: right; margin-top: 3px; }
+    .chat-input-area { display: flex; padding: 8px 12px; background: white; border-top: 1px solid #ddd; gap: 8px; flex-shrink: 0; }
+    .chat-input { flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 25px; font-size: 13px; outline: none; }
+    .chat-input:focus { border-color: #FF9800; }
+    .chat-send { background: #FF9800; color: white; border: none; border-radius: 25px; padding: 0 18px; font-weight: bold; cursor: pointer; }
+    .chat-send:active { transform: scale(0.96); }
     .spinner { border: 3px solid #FFE0B2; border-top-color: #FF9800; border-radius: 50%; width: 40px; height: 40px; animation: spin 0.8s linear infinite; margin: 0 auto; }
     @keyframes spin { to { transform: rotate(360deg); } }
   </style>
@@ -234,7 +173,10 @@
     </div>
   </div>
   <div class="action-bar" id="actionsSection" style="display: none;">
-    <button class="action-btn btn-secondary" id="chatIconBtn">💬 Chat</button>
+    <button class="action-btn btn-secondary" id="chatIconBtn">
+      💬 Chat
+      <span id="chatBadge" class="badge-unread hidden">0</span>
+    </button>
     <button class="action-btn btn-secondary" id="cancelTripBtn">❌ Batalkan</button>
   </div>
 </div>
@@ -259,6 +201,7 @@
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
+  // ==================== FIREBASE CONFIG ====================
   const firebaseConfig = {
     apiKey: "AIzaSyCD0pgeZio-LdKqYDtWxcdXcZwyL4ngYQI",
     authDomain: "jego-35a2b.firebaseapp.com",
@@ -271,6 +214,7 @@
   const auth = firebase.auth();
   const database = firebase.database();
 
+  // ==================== GLOBAL ====================
   let orderData = null, orderId = null, orderRef = null;
   let currentStatus = '';
   let orderMap = null, routePolyline = null;
@@ -279,12 +223,14 @@
   let chatRef = null;
   let chatOpen = false;
   let onesignalApiKey = null;
+  let driverUid = null; // untuk keperluan read status
 
-  function showToast(msg) { let t = document.getElementById('toast'); t.textContent = msg; t.style.opacity='1'; setTimeout(()=> t.style.opacity='0', 3500); }
+  // ==================== UI HELPERS ====================
+  function showToast(msg) { let t = document.getElementById('toast'); t.textContent = msg; t.style.opacity='1'; setTimeout(()=> t.style.opacity='0', 2500); }
   function getDriverData() { return JSON.parse(localStorage.getItem('jego_logged_in_driver') || '{}'); }
-  
   function escapeHtml(str) { if (!str) return ''; return str.replace(/[&<>]/g, m => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;' }[m])); }
 
+  // ==================== ONE SIGNAL ====================
   async function getOneSignalApiKey() {
     if (onesignalApiKey) return onesignalApiKey;
     const snap = await database.ref('data-jego/PushKey').once('value');
@@ -293,31 +239,22 @@
     return onesignalApiKey;
   }
 
+  // APP ID yang sama dengan admin
+  const ONESIGNAL_APP_ID = "007d7eba-9cfc-40d1-a92e-f2299f770282";
+
   async function sendNotificationToCustomer(title, message, extraData = {}) {
-    if (!customerId) { 
-      console.warn("customerId tidak ada"); 
-      showToast('❌ Debug: customerId tidak ada');
-      return false; 
-    }
+    if (!customerId) { console.warn("customerId tidak ada"); return false; }
     const playerSnap = await database.ref(`users/${customerId}/playerId`).once('value');
     const playerId = playerSnap.val();
-    if (!playerId) { 
-      console.warn("Customer tidak punya playerId"); 
-      showToast('❌ Debug: customer tidak punya playerId');
-      return false; 
-    }
+    if (!playerId) { console.warn("Customer tidak punya playerId"); return false; }
     const apiKey = await getOneSignalApiKey();
-    if (!apiKey) { 
-      console.warn("OneSignal API Key tidak tersedia"); 
-      showToast('❌ Debug: API Key tidak ditemukan di Firebase');
-      return false; 
-    }
+    if (!apiKey) { console.warn("OneSignal API Key tidak tersedia"); return false; }
     try {
       const res = await fetch("https://onesignal.com/api/v1/notifications", {
         method: "POST",
         headers: { "Content-Type": "application/json", "Authorization": `Basic ${apiKey}` },
         body: JSON.stringify({
-          app_id: "3357d683-8f6b-4558-9d42-2eeceed6204a",
+          app_id: ONESIGNAL_APP_ID,
           include_player_ids: [playerId],
           headings: { en: title },
           contents: { en: message },
@@ -332,32 +269,61 @@
         })
       });
       const result = await res.json();
-      if (result.errors) {
-        console.error("OneSignal error:", result.errors);
-        showToast(`❌ OneSignal error: ${JSON.stringify(result.errors)}`);
-        return false;
-      }
-      console.log("Notifikasi chat ke customer terkirim, response:", result);
-      showToast('✅ Notifikasi chat berhasil dikirim ke customer');
+      if (result.errors) throw new Error(JSON.stringify(result.errors));
+      console.log("Notifikasi chat ke customer terkirim");
       return true;
-    } catch(err) {
-      console.error("Gagal notif customer:", err);
-      showToast(`❌ Gagal kirim notifikasi: ${err.message}`);
-      return false;
-    }
+    } catch(err) { console.error("Gagal notif customer:", err); return false; }
   }
 
-  async function notifyCustomerOnChat(messageText) {
-    if (!customerId) return false;
-    const driver = getDriverData();
-    const driverName = driver.name || 'Driver';
-    return await sendNotificationToCustomer(
-      `💬 Pesan dari driver ${driverName}`,
-      messageText.length > 60 ? messageText.slice(0, 60) + '...' : messageText,
-      { chat: true, sender: 'driver' }
-    );
+  // ==================== CHAT UNREAD BADGE ====================
+  function updateUnreadBadge() {
+    const badge = document.getElementById('chatBadge');
+    if (!chatRef || !driverUid) return;
+    // Hitung pesan dari customer yang belum dibaca oleh driver
+    chatRef.once('value', snap => {
+      const msgs = snap.val() || {};
+      let unreadCount = 0;
+      for (let key in msgs) {
+        const msg = msgs[key];
+        if (msg.sender === 'customer') {
+          const readBy = msg.readBy || {};
+          if (!readBy.driver) unreadCount++;
+        }
+      }
+      if (unreadCount > 0) {
+        badge.textContent = unreadCount;
+        badge.classList.remove('hidden');
+      } else {
+        badge.classList.add('hidden');
+      }
+    });
   }
 
+  // Tandai semua pesan dari customer sebagai sudah dibaca oleh driver
+  function markMessagesAsRead() {
+    if (!chatRef || !driverUid) return;
+    chatRef.once('value', snap => {
+      const msgs = snap.val() || {};
+      const updates = {};
+      for (let key in msgs) {
+        const msg = msgs[key];
+        if (msg.sender === 'customer') {
+          const readBy = msg.readBy || {};
+          if (!readBy.driver) {
+            readBy.driver = true;
+            updates[`${key}/readBy`] = readBy;
+          }
+        }
+      }
+      if (Object.keys(updates).length > 0) {
+        chatRef.update(updates);
+      }
+      // Sembunyikan badge
+      document.getElementById('chatBadge').classList.add('hidden');
+    });
+  }
+
+  // ==================== ORDER FUNCTIONS ====================
   async function getOrderId() {
     let id = new URLSearchParams(location.search).get('order_id') || new URLSearchParams(location.search).get('id');
     if (id) return id;
@@ -375,10 +341,7 @@
   }
 
   function openNavigationDirect(lat, lng) {
-    if (!lat || !lng) {
-      showToast("Koordinat tidak tersedia");
-      return false;
-    }
+    if (!lat || !lng) { showToast("Koordinat tidak tersedia"); return false; }
     const url = `google.navigation:q=${lat},${lng}`;
     window.open(url, '_blank');
     return true;
@@ -388,24 +351,14 @@
     const pickupEl = document.getElementById('pickupAddress');
     const viaEl = document.getElementById('viaAddress');
     const destEl = document.getElementById('destinationAddress');
-    
     if (pickupEl && orderData && orderData.pickup_lat && orderData.pickup_lng) {
-      pickupEl.onclick = (e) => {
-        e.stopPropagation();
-        openNavigationDirect(orderData.pickup_lat, orderData.pickup_lng);
-      };
+      pickupEl.onclick = (e) => { e.stopPropagation(); openNavigationDirect(orderData.pickup_lat, orderData.pickup_lng); };
     }
     if (viaEl && orderData && orderData.via_lat && orderData.via_lng) {
-      viaEl.onclick = (e) => {
-        e.stopPropagation();
-        openNavigationDirect(orderData.via_lat, orderData.via_lng);
-      };
+      viaEl.onclick = (e) => { e.stopPropagation(); openNavigationDirect(orderData.via_lat, orderData.via_lng); };
     }
     if (destEl && orderData && orderData.dest_lat && orderData.dest_lng) {
-      destEl.onclick = (e) => {
-        e.stopPropagation();
-        openNavigationDirect(orderData.dest_lat, orderData.dest_lng);
-      };
+      destEl.onclick = (e) => { e.stopPropagation(); openNavigationDirect(orderData.dest_lat, orderData.dest_lng); };
     }
   }
 
@@ -469,28 +422,21 @@
   }
 
   async function cancelTrip() {
-    if (currentStatus === 'on_trip') { 
-      showToast("Tidak dapat membatalkan perjalanan berlangsung"); 
-      return; 
-    }
+    if (currentStatus === 'on_trip') { showToast("Tidak dapat membatalkan perjalanan berlangsung"); return; }
     if (!confirm("Batalkan perjalanan? Bonus customer akan masuk ke daftar refund yang bisa diklaim customer.")) return;
-    
     try {
       const bonusUsed = orderData.bonus_used || 0;
       const custId = orderData.user_id;
       const driver = getDriverData();
-      
       if (bonusUsed > 0 && custId) {
         await createPendingRefund(orderId, bonusUsed, driver.uid, custId);
         showToast("Bonus refund telah dicatat, customer dapat mengklaimnya nanti.");
       }
-      
       await database.ref('orders/' + orderId).update({ 
         status: 'cancelled', 
         cancelled_by: 'driver', 
         cancelled_at: new Date().toISOString() 
       });
-      
       const snapshot = await database.ref(`driver_bonus/${driver.uid}`).orderByChild('orderId').equalTo(orderId).once('value');
       const updates = {};
       snapshot.forEach(child => {
@@ -499,7 +445,6 @@
       if (Object.keys(updates).length) {
         await database.ref(`driver_bonus/${driver.uid}`).update(updates);
       }
-      
       showToast("Perjalanan dibatalkan.");
       setTimeout(() => { window.location.href = 'index.html'; }, 1500);
     } catch (err) {
@@ -513,7 +458,6 @@
     const bonusUsed = orderData.bonus_used || 0;
     const originalPrice = orderData.price || orderData.totalPrice || 0;
     const finalPrice = orderData.price_after_bonus || (originalPrice - bonusUsed);
-    
     if (bonusUsed > 0 && finalPrice > 0) {
       bonusInfoDiv.style.display = 'block';
       document.getElementById('originalPriceSpan').innerHTML = 'Rp ' + originalPrice.toLocaleString('id-ID');
@@ -538,7 +482,6 @@
     document.getElementById('customerRating').innerText = rating.toFixed(1);
     document.getElementById('pickupAddress').innerText = orderData.pickup_address || '-';
     document.getElementById('destinationAddress').innerText = orderData.destination_address || '-';
-    
     const viaAddress = orderData.via_address;
     const viaItem = document.getElementById('viaRouteItem');
     const viaAddressSpan = document.getElementById('viaAddress');
@@ -548,9 +491,7 @@
     } else {
       viaItem.style.display = 'none';
     }
-
     updateBonusDisplay();
-
     let distanceText = '-';
     if (orderData.distance_meters) {
       distanceText = (orderData.distance_meters / 1000).toFixed(1) + ' km';
@@ -562,7 +503,6 @@
       distanceText = typeof orderData.jarak === 'number' ? orderData.jarak.toFixed(1) + ' km' : orderData.jarak;
     }
     document.getElementById('tripDistance').innerText = distanceText;
-
     setupAddressClick();
 
     if(orderData.pickup_lat && orderData.dest_lat){
@@ -571,20 +511,17 @@
         orderMap = L.map('orderMap').setView([orderData.pickup_lat, orderData.pickup_lng], 14);
         L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png').addTo(orderMap);
       } else orderMap.setView([orderData.pickup_lat, orderData.pickup_lng], 14);
-      
       L.marker([orderData.pickup_lat, orderData.pickup_lng]).bindPopup('Jemput').addTo(orderMap);
       if (orderData.via_lat && orderData.via_lng) {
         L.marker([orderData.via_lat, orderData.via_lng]).bindPopup('Titik Singgah').addTo(orderMap);
       }
       L.marker([orderData.dest_lat, orderData.dest_lng]).bindPopup('Tujuan').addTo(orderMap);
-      
       let waypoints = [];
       waypoints.push({ lng: orderData.pickup_lng, lat: orderData.pickup_lat });
       if (orderData.via_lng && orderData.via_lat) {
         waypoints.push({ lng: orderData.via_lng, lat: orderData.via_lat });
       }
       waypoints.push({ lng: orderData.dest_lng, lat: orderData.dest_lat });
-      
       let coordString = waypoints.map(wp => `${wp.lng},${wp.lat}`).join(';');
       fetch(`https://router.project-osrm.org/route/v1/driving/${coordString}?overview=full&geometries=geojson`)
         .then(r=>r.json()).then(data=>{
@@ -637,10 +574,13 @@
           document.getElementById('viaRouteItem').style.display = 'none';
         }
         setupAddressClick();
+        // Update badge saat status order berubah (misal ada pesan baru)
+        updateUnreadBadge();
       } else { showToast("Order tidak ditemukan"); }
     });
   }
 
+  // ==================== RATING MODAL ====================
   function showRatingModal(){
     document.getElementById('ratingModal').style.display = 'flex';
     let stars = document.querySelectorAll('#ratingStars span');
@@ -678,14 +618,19 @@
   }
   function closeRatingModal(){ document.getElementById('ratingModal').style.display = 'none'; }
 
-  // ---- Chat ----
+  // ==================== CHAT ====================
   function initChat(){
     if(!orderId) return;
     chatRef = database.ref(`chat/${orderId}`);
     chatRef.off();
     chatRef.on('child_added', (snap) => {
-      if(chatOpen) addMessageToChat(snap.val());
+      const msg = snap.val();
+      if(chatOpen) addMessageToChat(msg);
+      // Update badge setiap ada pesan baru (dari customer)
+      updateUnreadBadge();
     });
+    // Setelah listener dipasang, update badge
+    setTimeout(updateUnreadBadge, 1000);
   }
 
   function openChat(){
@@ -694,6 +639,10 @@
     overlay.style.display = 'flex';
     overlay.classList.add('open');
     loadChatHistory();
+    // Tandai pesan dari customer sebagai sudah dibaca
+    markMessagesAsRead();
+    // Sembunyikan badge
+    document.getElementById('chatBadge').classList.add('hidden');
   }
 
   function closeChat(){
@@ -701,6 +650,8 @@
     const overlay = document.getElementById('chatOverlay');
     overlay.style.display = 'none';
     overlay.classList.remove('open');
+    // Update badge setelah chat ditutup (misal ada pesan baru yang masuk)
+    updateUnreadBadge();
   }
 
   function loadChatHistory(){
@@ -714,7 +665,6 @@
     });
   }
 
-  // Fungsi addMessageToChat - driver di kanan hijau, customer di kiri putih
   function addMessageToChat(msg){
     let div = document.createElement('div');
     let senderClass = (msg.sender === 'driver') ? 'driver' : 'customer';
@@ -730,49 +680,47 @@
     container.scrollTop = container.scrollHeight;
   }
 
-  // ========== FUNGSI CHAT DENGAN DEBUG UI ==========
   async function sendDriverChatMessage() {
     const input = document.getElementById('chatInput');
     const text = input.value.trim();
-    if (!text) {
-      showToast('⚠️ Pesan kosong');
-      return;
-    }
+    if (!text) return;
     const driverData = getDriverData();
-    if (!driverData.uid) { 
-      showToast('❌ Driver tidak teridentifikasi'); 
-      return; 
-    }
+    if (!driverData.uid) { showToast('Driver tidak teridentifikasi'); return; }
     try {
-      // Kirim chat ke Firebase
-      await chatRef.push({ sender: 'driver', sender_id: driverData.uid, message: text, timestamp: Date.now() });
+      // Kirim pesan dengan readBy default (driver sudah baca)
+      await chatRef.push({ 
+        sender: 'driver', 
+        sender_id: driverData.uid, 
+        message: text, 
+        timestamp: Date.now(),
+        readBy: { driver: true, customer: false } // driver otomatis baca
+      });
       input.value = '';
-      showToast('✅ Pesan terkirim');
-      
-      // Kirim notifikasi ke customer dengan debug
-      try {
-        const notifResult = await notifyCustomerOnChat(text);
-        if (notifResult) {
-          // notifResult sudah menampilkan toast sukses/gagal di dalam sendNotificationToCustomer
-          // tapi kita tambahkan lagi untuk memastikan
-          showToast('✅ Notifikasi chat terkirim ke customer');
-        } else {
-          // notifResult false, sudah ditangani di sendNotificationToCustomer
-          // showToast('⚠️ Gagal kirim notifikasi (cek debug di atas)');
-        }
-      } catch (notifErr) {
-        console.error('Error notifikasi:', notifErr);
-        showToast('❌ Gagal kirim notifikasi: ' + notifErr.message);
-      }
+      // Kirim notifikasi ke customer
+      await notifyCustomerOnChat(text);
+      // Badge tidak perlu diupdate karena driver sendiri yang kirim
     } catch (err) {
       console.error('Gagal mengirim chat:', err);
-      showToast('❌ Gagal mengirim pesan: ' + err.message);
+      showToast('Gagal mengirim pesan');
     }
   }
 
+  async function notifyCustomerOnChat(messageText) {
+    if (!customerId) return;
+    const driver = getDriverData();
+    const driverName = driver.name || 'Driver';
+    await sendNotificationToCustomer(
+      `💬 Pesan dari driver ${driverName}`,
+      messageText.length > 60 ? messageText.slice(0, 60) + '...' : messageText,
+      { chat: true, sender: 'driver' }
+    );
+  }
+
+  // ==================== LOAD ORDER ====================
   async function loadOrder() {
     let driver = getDriverData();
     if(!driver?.uid){ window.location.href='loginDriver.html'; return; }
+    driverUid = driver.uid;
     orderId = await getOrderId();
     if(!orderId){
       document.getElementById('errorView').style.display='flex';
@@ -788,7 +736,7 @@
     displayOrderUI();
     listenOrder();
     initChat();
-    
+
     const mapActionBtn = document.getElementById('mapActionBtn');
     const chatIconBtn = document.getElementById('chatIconBtn');
     const cancelTripBtn = document.getElementById('cancelTripBtn');
