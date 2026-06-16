@@ -280,7 +280,7 @@
   let chatOpen = false;
   let onesignalApiKey = null;
 
-  function showToast(msg) { let t = document.getElementById('toast'); t.textContent = msg; t.style.opacity='1'; setTimeout(()=> t.style.opacity='0', 2500); }
+  function showToast(msg) { let t = document.getElementById('toast'); t.textContent = msg; t.style.opacity='1'; setTimeout(()=> t.style.opacity='0', 3500); }
   function getDriverData() { return JSON.parse(localStorage.getItem('jego_logged_in_driver') || '{}'); }
   
   function escapeHtml(str) { if (!str) return ''; return str.replace(/[&<>]/g, m => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;' }[m])); }
@@ -294,12 +294,24 @@
   }
 
   async function sendNotificationToCustomer(title, message, extraData = {}) {
-    if (!customerId) { console.warn("customerId tidak ada"); return false; }
+    if (!customerId) { 
+      console.warn("customerId tidak ada"); 
+      showToast('❌ Debug: customerId tidak ada');
+      return false; 
+    }
     const playerSnap = await database.ref(`users/${customerId}/playerId`).once('value');
     const playerId = playerSnap.val();
-    if (!playerId) { console.warn("Customer tidak punya playerId"); return false; }
+    if (!playerId) { 
+      console.warn("Customer tidak punya playerId"); 
+      showToast('❌ Debug: customer tidak punya playerId');
+      return false; 
+    }
     const apiKey = await getOneSignalApiKey();
-    if (!apiKey) { console.warn("OneSignal API Key tidak tersedia"); return false; }
+    if (!apiKey) { 
+      console.warn("OneSignal API Key tidak tersedia"); 
+      showToast('❌ Debug: API Key tidak ditemukan di Firebase');
+      return false; 
+    }
     try {
       const res = await fetch("https://onesignal.com/api/v1/notifications", {
         method: "POST",
@@ -320,17 +332,26 @@
         })
       });
       const result = await res.json();
-      if (result.errors) throw new Error(JSON.stringify(result.errors));
-      console.log("Notifikasi chat ke customer terkirim");
+      if (result.errors) {
+        console.error("OneSignal error:", result.errors);
+        showToast(`❌ OneSignal error: ${JSON.stringify(result.errors)}`);
+        return false;
+      }
+      console.log("Notifikasi chat ke customer terkirim, response:", result);
+      showToast('✅ Notifikasi chat berhasil dikirim ke customer');
       return true;
-    } catch(err) { console.error("Gagal notif customer:", err); return false; }
+    } catch(err) {
+      console.error("Gagal notif customer:", err);
+      showToast(`❌ Gagal kirim notifikasi: ${err.message}`);
+      return false;
+    }
   }
 
   async function notifyCustomerOnChat(messageText) {
-    if (!customerId) return;
+    if (!customerId) return false;
     const driver = getDriverData();
     const driverName = driver.name || 'Driver';
-    await sendNotificationToCustomer(
+    return await sendNotificationToCustomer(
       `💬 Pesan dari driver ${driverName}`,
       messageText.length > 60 ? messageText.slice(0, 60) + '...' : messageText,
       { chat: true, sender: 'driver' }
@@ -709,20 +730,43 @@
     container.scrollTop = container.scrollHeight;
   }
 
+  // ========== FUNGSI CHAT DENGAN DEBUG UI ==========
   async function sendDriverChatMessage() {
     const input = document.getElementById('chatInput');
     const text = input.value.trim();
-    if (!text) return;
+    if (!text) {
+      showToast('⚠️ Pesan kosong');
+      return;
+    }
     const driverData = getDriverData();
-    if (!driverData.uid) { showToast('Driver tidak teridentifikasi'); return; }
+    if (!driverData.uid) { 
+      showToast('❌ Driver tidak teridentifikasi'); 
+      return; 
+    }
     try {
+      // Kirim chat ke Firebase
       await chatRef.push({ sender: 'driver', sender_id: driverData.uid, message: text, timestamp: Date.now() });
       input.value = '';
-      // Kirim notifikasi ke customer
-      await notifyCustomerOnChat(text);
+      showToast('✅ Pesan terkirim');
+      
+      // Kirim notifikasi ke customer dengan debug
+      try {
+        const notifResult = await notifyCustomerOnChat(text);
+        if (notifResult) {
+          // notifResult sudah menampilkan toast sukses/gagal di dalam sendNotificationToCustomer
+          // tapi kita tambahkan lagi untuk memastikan
+          showToast('✅ Notifikasi chat terkirim ke customer');
+        } else {
+          // notifResult false, sudah ditangani di sendNotificationToCustomer
+          // showToast('⚠️ Gagal kirim notifikasi (cek debug di atas)');
+        }
+      } catch (notifErr) {
+        console.error('Error notifikasi:', notifErr);
+        showToast('❌ Gagal kirim notifikasi: ' + notifErr.message);
+      }
     } catch (err) {
       console.error('Gagal mengirim chat:', err);
-      showToast('Gagal mengirim pesan');
+      showToast('❌ Gagal mengirim pesan: ' + err.message);
     }
   }
 
