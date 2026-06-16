@@ -15,7 +15,6 @@
     .app-header { background: linear-gradient(135deg, #FF9800, #F57C00); padding: 18px 20px; color: white; flex-shrink: 0; box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 10; display: flex; justify-content: space-between; align-items: center; }
     .app-header h1 { font-size: 1.35rem; font-weight: 600; display: flex; align-items: center; gap: 8px; }
     .app-header h1::before { content: ""; font-size: 1.4rem; }
-    /* header cancel button dihapus */
     .map-area { width: 100%; height: 40vh; min-height: 260px; background: #e9ecef; position: relative; border-bottom-left-radius: 24px; border-bottom-right-radius: 24px; overflow: hidden; flex-shrink: 0; }
     #orderMap { width: 100%; height: 100%; position: relative; z-index: 1; }
     .map-float-btn { position: absolute; bottom: 16px; right: 16px; background: linear-gradient(95deg, #FF9800, #F57C00); color: white; border: none; border-radius: 48px; padding: 12px 20px; font-weight: 700; font-size: 0.9rem; display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); cursor: pointer; z-index: 9999; transition: all 0.2s ease; pointer-events: auto; touch-action: manipulation; }
@@ -87,7 +86,6 @@
 <div class="app-container">
   <div class="app-header">
     <h1>Gunakan Sabuk Pengaman</h1>
-    <!-- header cancel button dihapus -->
   </div>
   <div id="loadingView" style="flex:1; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 16px;">
     <div class="spinner"></div>
@@ -219,7 +217,7 @@
           include_player_ids: [playerId],
           headings: { en: title },
           contents: { en: message },
-          data: { orderId: orderId, type: "driver_arrived", ...extraData },
+          data: { orderId: orderId, type: "chat", ...extraData },
           priority: 10,
           android_priority: "high",
           android_channel_id: "14488f7c-4003-4699-b220-dee4451568df",
@@ -231,9 +229,21 @@
       });
       const result = await res.json();
       if (result.errors) throw new Error(JSON.stringify(result.errors));
-      console.log("Notifikasi ke customer terkirim");
+      console.log("Notifikasi chat ke customer terkirim");
       return true;
     } catch(err) { console.error("Gagal notif customer:", err); return false; }
+  }
+
+  // ---- Kirim notifikasi saat driver mengirim chat ----
+  async function notifyCustomerOnChat(messageText) {
+    if (!customerId) return;
+    const driver = getDriverData();
+    const driverName = driver.name || 'Driver';
+    await sendNotificationToCustomer(
+      `💬 Pesan dari driver ${driverName}`,
+      messageText.length > 60 ? messageText.slice(0, 60) + '...' : messageText,
+      { chat: true, sender: 'driver' }
+    );
   }
 
   async function getOrderId() {
@@ -252,7 +262,6 @@
     return null;
   }
 
-  // Navigasi langsung ke koordinat (google.navigation)
   function openNavigationDirect(lat, lng) {
     if (!lat || !lng) {
       showToast("Koordinat tidak tersedia");
@@ -263,7 +272,6 @@
     return true;
   }
 
-  // Event listener klik alamat
   function setupAddressClick() {
     const pickupEl = document.getElementById('pickupAddress');
     const viaEl = document.getElementById('viaAddress');
@@ -289,7 +297,6 @@
     }
   }
 
-  // Update tombol map float berdasarkan status (tanpa navigasi, hanya update status)
   function updateActionButtons() {
     const mapBtn = document.getElementById('mapActionBtn');
     if (!mapBtn) return;
@@ -302,7 +309,6 @@
     }
   }
 
-  // Fungsi untuk mengubah status (tanpa navigasi otomatis)
   async function onMapAction() {
     if (!orderData) { showToast("Data order belum siap"); return; }
     if (currentStatus === 'accepted') {
@@ -421,7 +427,6 @@
     document.getElementById('pickupAddress').innerText = orderData.pickup_address || '-';
     document.getElementById('destinationAddress').innerText = orderData.destination_address || '-';
     
-    // Tampilkan via point jika ada
     const viaAddress = orderData.via_address;
     const viaItem = document.getElementById('viaRouteItem');
     const viaAddressSpan = document.getElementById('viaAddress');
@@ -446,7 +451,6 @@
     }
     document.getElementById('tripDistance').innerText = distanceText;
 
-    // Setup klik alamat
     setupAddressClick();
 
     if(orderData.pickup_lat && orderData.dest_lat){
@@ -512,7 +516,6 @@
           window.ratingShown = true;
           setTimeout(()=>showRatingModal(), 800);
         }
-        // Update alamat jika ada perubahan (misal via point diupdate)
         document.getElementById('pickupAddress').innerText = orderData.pickup_address || '-';
         document.getElementById('destinationAddress').innerText = orderData.destination_address || '-';
         if (orderData.via_address) {
@@ -521,7 +524,7 @@
         } else {
           document.getElementById('viaRouteItem').style.display = 'none';
         }
-        setupAddressClick(); // refresh event listener
+        setupAddressClick();
       } else { showToast("Order tidak ditemukan"); }
     });
   }
@@ -569,6 +572,24 @@
   function loadChatHistory(){ database.ref(`chat/${orderId}`).once('value', snap=>{ let msgs=snap.val(); let container=document.getElementById('chatMessages'); container.innerHTML=''; if(msgs) Object.values(msgs).forEach(m=>addMessageToChat(m)); }); }
   function addMessageToChat(msg){ let div=document.createElement('div'); div.className='message'; div.innerHTML=`<b>${msg.sender==='driver'?'Driver':'Customer'}</b>: ${msg.message}`; document.getElementById('chatMessages').appendChild(div); }
   
+  // ----- Kirim chat driver -> notifikasi ke customer -----
+  async function sendDriverChatMessage() {
+    const input = document.getElementById('chatInput');
+    const text = input.value.trim();
+    if (!text) return;
+    const driverData = getDriverData();
+    if (!driverData.uid) { showToast('Driver tidak teridentifikasi'); return; }
+    try {
+      await chatRef.push({ sender: 'driver', sender_id: driverData.uid, message: text, timestamp: Date.now() });
+      input.value = '';
+      // Kirim notifikasi ke customer
+      await notifyCustomerOnChat(text);
+    } catch (err) {
+      console.error('Gagal mengirim chat:', err);
+      showToast('Gagal mengirim pesan');
+    }
+  }
+  
   async function loadOrder() {
     let driver = getDriverData();
     if(!driver?.uid){ window.location.href='loginDriver.html'; return; }
@@ -597,7 +618,9 @@
     if (chatIconBtn) { chatIconBtn.removeEventListener('click', openChat); chatIconBtn.addEventListener('click', openChat); }
     if (cancelTripBtn) { cancelTripBtn.removeEventListener('click', cancelTrip); cancelTripBtn.addEventListener('click', cancelTrip); }
     if (chatSendBtn) {
-      chatSendBtn.onclick = () => { let input = document.getElementById('chatInput'); if(input.value.trim()){ chatRef.push({sender:'driver', message:input.value, timestamp:Date.now()}); input.value=''; } };
+      chatSendBtn.onclick = sendDriverChatMessage;
+      // Enter key support
+      document.getElementById('chatInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); sendDriverChatMessage(); } });
     }
   }
 
