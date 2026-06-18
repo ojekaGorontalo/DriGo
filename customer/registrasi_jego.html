@@ -10,9 +10,6 @@
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
 
-  <!-- EmailJS SDK -->
-  <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
-
   <style>
     :root { --primary: #FF9800; --secondary: #FF5722; --accent: #FFC107; --dark: #343a40; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -56,110 +53,6 @@
     .progress-bar { height: 100%; background: linear-gradient(to right, var(--primary), var(--secondary)); width: 0%; }
     .notification { position: fixed; top: 20px; right: 20px; background: white; padding: 15px; border-radius: 8px; border-left: 4px solid var(--primary); display: none; max-width: 300px; z-index: 1000; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
     small.text-muted { color: #666; font-size: 0.7rem; display: block; margin-top: 4px; }
-
-    /* MODAL OTP STYLES */
-    .modal-overlay {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(0,0,0,0.5);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      z-index: 2000;
-      visibility: hidden;
-      opacity: 0;
-      transition: visibility 0.3s, opacity 0.3s;
-    }
-    .modal-overlay.active {
-      visibility: visible;
-      opacity: 1;
-    }
-    .modal-container {
-      background: white;
-      border-radius: 12px;
-      max-width: 400px;
-      width: 90%;
-      padding: 25px 20px;
-      box-shadow: 0 10px 25px rgba(0,0,0,0.2);
-      text-align: center;
-      position: relative;
-    }
-    .modal-container h3 {
-      color: var(--primary);
-      margin-bottom: 10px;
-    }
-    .modal-container p {
-      margin-bottom: 20px;
-      font-size: 0.9rem;
-      color: #555;
-    }
-    .otp-input {
-      display: flex;
-      justify-content: center;
-      gap: 12px;
-      margin-bottom: 20px;
-    }
-    .otp-digit {
-      width: 50px;
-      height: 60px;
-      font-size: 1.8rem;
-      text-align: center;
-      border: 1px solid #ccc;
-      border-radius: 8px;
-      font-weight: bold;
-    }
-    .otp-digit:focus {
-      border-color: var(--primary);
-      outline: none;
-      box-shadow: 0 0 0 2px rgba(255,152,0,0.2);
-    }
-    .timer-text {
-      font-size: 0.85rem;
-      color: var(--secondary);
-      margin-bottom: 15px;
-      font-weight: 500;
-    }
-    .modal-buttons {
-      display: flex;
-      gap: 12px;
-      justify-content: center;
-    }
-    .btn-verify, .btn-resend, .btn-cancel {
-      padding: 10px 20px;
-      border: none;
-      border-radius: 6px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: 0.2s;
-    }
-    .btn-verify {
-      background: var(--primary);
-      color: white;
-    }
-    .btn-verify:hover {
-      background: var(--secondary);
-    }
-    .btn-resend {
-      background: #e9ecef;
-      color: var(--dark);
-    }
-    .btn-resend:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
-    .btn-cancel {
-      background: #dc3545;
-      color: white;
-    }
-    .modal-error {
-      color: #dc3545;
-      font-size: 0.8rem;
-      margin-top: -10px;
-      margin-bottom: 15px;
-    }
   </style>
 </head>
 <body>
@@ -190,14 +83,14 @@
           <label class="form-label" for="passwordInput">Password *</label>
           <div class="input-group">
             <input type="password" class="form-input password-input" id="passwordInput" required minlength="6">
-            <button type="button" class="toggle-password" id="togglePassword">👁️</button>
+            <button type="button" class="toggle-password" id="togglePassword">👁</button>
           </div>
         </div>
         <div class="form-group">
           <label class="form-label" for="confirmPasswordInput">Konfirmasi Password *</label>
           <div class="input-group">
             <input type="password" class="form-input password-input" id="confirmPasswordInput" required minlength="6">
-            <button type="button" class="toggle-password" id="toggleConfirmPassword">👁️</button>
+            <button type="button" class="toggle-password" id="toggleConfirmPassword">👁</button>
           </div>
         </div>
         <div class="form-group">
@@ -235,29 +128,6 @@
     <div id="notificationMessage"></div>
   </div>
 
-  <!-- MODAL OTP -->
-  <div id="otpModal" class="modal-overlay">
-    <div class="modal-container">
-      <h3>Verifikasi Email</h3>
-      <p>Kode OTP telah dikirim ke <span id="otpEmailDisplay"></span></p>
-      <div class="otp-input">
-        <input type="text" maxlength="1" class="otp-digit" id="otp1" autocomplete="off">
-        <input type="text" maxlength="1" class="otp-digit" id="otp2" autocomplete="off">
-        <input type="text" maxlength="1" class="otp-digit" id="otp3" autocomplete="off">
-        <input type="text" maxlength="1" class="otp-digit" id="otp4" autocomplete="off">
-        <input type="text" maxlength="1" class="otp-digit" id="otp5" autocomplete="off">
-        <input type="text" maxlength="1" class="otp-digit" id="otp6" autocomplete="off">
-      </div>
-      <div class="timer-text" id="timerText">Kode berlaku selama 5 menit</div>
-      <div class="modal-error" id="modalError"></div>
-      <div class="modal-buttons">
-        <button class="btn-verify" id="verifyOtpBtn">Verifikasi</button>
-        <button class="btn-resend" id="resendOtpBtn">Kirim Ulang</button>
-        <button class="btn-cancel" id="cancelOtpBtn">Batal</button>
-      </div>
-    </div>
-  </div>
-
   <script>
     // -------------------- KONFIGURASI --------------------
     const FIREBASE_CONFIG = {
@@ -271,15 +141,8 @@
       measurementId: "G-H5F9TSK50K"
     };
 
-    const EMAILJS_PUBLIC_KEY = "aOkfPOJ-7MR7DZiPV";
-    const EMAILJS_SERVICE_ID = "service_ixoodqt";
-    const EMAILJS_TEMPLATE_OTP = "template_jj3svu5";
-
     let firebaseAuth;
     let firebaseDatabase;
-    let otpTimerInterval = null;
-    let currentOtpExpiry = null; // timestamp ms
-    let pendingRegistrationData = null;
 
     // Helper functions
     function showNotif(title, msg, type = 'info') {
@@ -342,119 +205,48 @@
       }
     }
 
-    // Generate OTP 6 digit
-    function generateOtp() {
-      return Math.floor(100000 + Math.random() * 900000).toString();
-    }
+    // Proses registrasi langsung (tanpa OTP)
+    async function handleRegistration(e) {
+      e.preventDefault();
 
-    // Kirim OTP via EmailJS
-    async function sendOtpEmail(email, name, otpCode) {
-      try {
-        const templateParams = {
-          email: email,
-          to_name: name,
-          otp_code: otpCode
-        };
-        const response = await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_OTP, templateParams);
-        console.log('Email terkirim:', response);
-        return true;
-      } catch (error) {
-        console.error('Gagal kirim email:', error);
-        return false;
-      }
-    }
-
-    // Tampilkan modal OTP
-    function showOtpModal(email) {
-      document.getElementById('otpEmailDisplay').innerText = email;
-      document.getElementById('otpModal').classList.add('active');
-      // reset input OTP
-      for (let i = 1; i <= 6; i++) {
-        document.getElementById(`otp${i}`).value = '';
-        document.getElementById(`otp${i}`).focus();
-      }
-      document.getElementById('modalError').innerText = '';
-      document.getElementById('otp1').focus();
-      startTimerDisplay();
-    }
-
-    function hideOtpModal() {
-      document.getElementById('otpModal').classList.remove('active');
-      if (otpTimerInterval) {
-        clearInterval(otpTimerInterval);
-        otpTimerInterval = null;
-      }
-    }
-
-    // Timer countdown 5 menit (300 detik)
-    function startTimerDisplay() {
-      if (otpTimerInterval) clearInterval(otpTimerInterval);
-      const timerText = document.getElementById('timerText');
-      if (!currentOtpExpiry) return;
-      const updateTimer = () => {
-        const now = Date.now();
-        const remaining = Math.max(0, currentOtpExpiry - now);
-        const minutes = Math.floor(remaining / 60000);
-        const seconds = Math.floor((remaining % 60000) / 1000);
-        if (remaining <= 0) {
-          timerText.innerText = 'Kode OTP sudah kedaluwarsa. Silakan kirim ulang.';
-          if (otpTimerInterval) clearInterval(otpTimerInterval);
-          document.getElementById('resendOtpBtn').disabled = false;
-        } else {
-          timerText.innerText = `Kode berlaku selama ${minutes}:${seconds.toString().padStart(2, '0')} menit`;
-        }
-      };
-      updateTimer();
-      otpTimerInterval = setInterval(updateTimer, 1000);
-    }
-
-    // Validasi OTP input (hanya angka, auto-focus next)
-    function setupOtpInputs() {
-      const inputs = document.querySelectorAll('.otp-digit');
-      inputs.forEach((input, index) => {
-        input.addEventListener('input', (e) => {
-          if (e.target.value.length > 1) e.target.value = e.target.value[0];
-          if (e.target.value && index < inputs.length - 1) {
-            inputs[index + 1].focus();
-          }
-        });
-        input.addEventListener('keydown', (e) => {
-          if (e.key === 'Backspace' && !e.target.value && index > 0) {
-            inputs[index - 1].focus();
-          }
-        });
-      });
-    }
-
-    // Ambil OTP dari input
-    function getOtpFromInput() {
-      let otp = '';
-      for (let i = 1; i <= 6; i++) {
-        otp += document.getElementById(`otp${i}`).value;
-      }
-      return otp;
-    }
-
-    // Proses registrasi ke Firebase setelah OTP benar
-    async function completeRegistration(userDataFromSession) {
       const btn = document.getElementById('registerBtn');
       btn.disabled = true;
       btn.innerText = 'Mendaftar...';
       showProgress(10);
 
       try {
-        const { nama, email, password, teleponRaw, alamat, gender, referralCodeRaw, phone } = userDataFromSession;
+        const nama = document.getElementById('namaInput').value.trim();
+        const email = document.getElementById('emailInput').value.trim();
+        const password = document.getElementById('passwordInput').value;
+        const confirmPassword = document.getElementById('confirmPasswordInput').value;
+        const teleponRaw = document.getElementById('teleponInput').value.trim();
+        const alamat = document.getElementById('alamatInput').value.trim();
+        const gender = document.getElementById('genderSelect').value;
+        const referralCodeRaw = document.getElementById('refCodeInput').value.trim().toUpperCase();
+
+        // Validasi form
+        if (!nama) throw new Error('Nama lengkap harus diisi');
+        if (!email) throw new Error('Email harus diisi');
+        if (!password || password.length < 6) throw new Error('Password minimal 6 karakter');
+        if (password !== confirmPassword) throw new Error('Password dan konfirmasi password tidak cocok');
+        if (!teleponRaw) throw new Error('Nomor telepon harus diisi');
+        if (!alamat) throw new Error('Alamat harus diisi');
+
+        const phone = formatPhoneNumber(teleponRaw);
+        if (!validatePhoneNumber(phone)) throw new Error('Format nomor telepon tidak valid (contoh: 08123456789)');
+
+        showProgress(20);
 
         // 1. Buat akun di Firebase Auth
         const userCredential = await firebaseAuth.createUserWithEmailAndPassword(email, password);
         const user = userCredential.user;
         const uid = user.uid;
-        showProgress(30);
+        showProgress(40);
 
         // 2. Proses referral
         let referredByUid = null;
         if (referralCodeRaw) {
-          showProgress(45);
+          showProgress(50);
           const codeSnap = await firebaseDatabase.ref(`referral_codes/${referralCodeRaw}`).once('value');
           const referrerUid = codeSnap.val();
           if (referrerUid && referrerUid !== uid) {
@@ -464,7 +256,7 @@
               registeredAt: new Date().toISOString(),
               bonusGiven: false
             });
-            console.log(`✅ Kode referral valid`);
+            console.log('Kode referral valid');
           } else {
             showStatus('Kode referral tidak valid atau milik sendiri. Pendaftaran tetap dilanjutkan tanpa referral.', 'error');
           }
@@ -510,8 +302,6 @@
 
         showProgress(100);
         showStatus('Registrasi berhasil! Mengalihkan...', 'success');
-        // Hapus pending data dari sessionStorage
-        sessionStorage.removeItem('pending_registration');
         setTimeout(() => {
           window.location.href = 'jenis_kenderaan.html';
         }, 1500);
@@ -532,123 +322,12 @@
             pesanError += error.message;
         }
         showStatus(pesanError, 'error');
-        // Jika gagal, batalkan proses dan jangan redirect
       } finally {
         btn.disabled = false;
         btn.innerText = 'Daftar';
         hideProgress();
-        hideOtpModal();
       }
     }
-
-    // Handler Verifikasi OTP
-    async function handleVerifyOtp() {
-      const enteredOtp = getOtpFromInput();
-      const pending = sessionStorage.getItem('pending_registration');
-      if (!pending) {
-        document.getElementById('modalError').innerText = 'Sesi registrasi tidak ditemukan, silakan daftar ulang.';
-        return;
-      }
-      const data = JSON.parse(pending);
-      if (!data.otpCode || !data.otpExpiry) {
-        document.getElementById('modalError').innerText = 'Data OTP tidak valid, kirim ulang kode.';
-        return;
-      }
-      if (Date.now() > data.otpExpiry) {
-        document.getElementById('modalError').innerText = 'Kode OTP sudah kedaluwarsa. Silakan kirim ulang.';
-        return;
-      }
-      if (enteredOtp === data.otpCode) {
-        // OTP benar, lanjut registrasi
-        document.getElementById('modalError').innerText = '';
-        hideOtpModal();
-        await completeRegistration(data);
-      } else {
-        document.getElementById('modalError').innerText = 'Kode OTP salah. Coba lagi.';
-      }
-    }
-
-    // Kirim ulang OTP
-    async function handleResendOtp() {
-      const pending = sessionStorage.getItem('pending_registration');
-      if (!pending) {
-        document.getElementById('modalError').innerText = 'Sesi registrasi tidak valid, silakan isi ulang form.';
-        return;
-      }
-      const data = JSON.parse(pending);
-      const newOtp = generateOtp();
-      const newExpiry = Date.now() + 5 * 60 * 1000; // 5 menit
-      data.otpCode = newOtp;
-      data.otpExpiry = newExpiry;
-      sessionStorage.setItem('pending_registration', JSON.stringify(data));
-      currentOtpExpiry = newExpiry;
-      const success = await sendOtpEmail(data.email, data.nama, newOtp);
-      if (success) {
-        document.getElementById('modalError').innerText = '';
-        showNotif('Info', 'Kode OTP baru telah dikirim ke email Anda.', 'info');
-        startTimerDisplay();
-      } else {
-        document.getElementById('modalError').innerText = 'Gagal mengirim ulang OTP. Periksa koneksi atau coba lagi.';
-      }
-    }
-
-    // Submit form registrasi (sebelum OTP)
-    document.getElementById('registerForm').addEventListener('submit', async (e) => {
-      e.preventDefault();
-
-      const nama = document.getElementById('namaInput').value.trim();
-      const email = document.getElementById('emailInput').value.trim();
-      const password = document.getElementById('passwordInput').value;
-      const confirmPassword = document.getElementById('confirmPasswordInput').value;
-      const teleponRaw = document.getElementById('teleponInput').value.trim();
-      const alamat = document.getElementById('alamatInput').value.trim();
-      const gender = document.getElementById('genderSelect').value;
-      const referralCodeRaw = document.getElementById('refCodeInput').value.trim().toUpperCase();
-
-      // Validasi form
-      if (!nama) return showStatus('Nama lengkap harus diisi', 'error');
-      if (!email) return showStatus('Email harus diisi', 'error');
-      if (!password || password.length < 6) return showStatus('Password minimal 6 karakter', 'error');
-      if (password !== confirmPassword) return showStatus('Password dan konfirmasi password tidak cocok', 'error');
-      if (!teleponRaw) return showStatus('Nomor telepon harus diisi', 'error');
-      if (!alamat) return showStatus('Alamat harus diisi', 'error');
-
-      const phone = formatPhoneNumber(teleponRaw);
-      if (!validatePhoneNumber(phone)) return showStatus('Format nomor telepon tidak valid (contoh: 08123456789)', 'error');
-
-      // Siapkan data pending
-      const otpCode = generateOtp();
-      const otpExpiry = Date.now() + 5 * 60 * 1000; // 5 menit
-
-      const pendingData = {
-        nama, email, password, teleponRaw, alamat, gender, referralCodeRaw, phone,
-        otpCode, otpExpiry
-      };
-
-      // Simpan ke sessionStorage
-      sessionStorage.setItem('pending_registration', JSON.stringify(pendingData));
-      currentOtpExpiry = otpExpiry;
-
-      // Kirim email OTP
-      const emailSent = await sendOtpEmail(email, nama, otpCode);
-      if (!emailSent) {
-        sessionStorage.removeItem('pending_registration');
-        return showStatus('Gagal mengirim kode OTP. Periksa koneksi atau coba lagi.', 'error');
-      }
-
-      // Tampilkan modal OTP
-      showOtpModal(email);
-      showStatus('Kode verifikasi telah dikirim ke email Anda.', 'info');
-    });
-
-    // Tombol modal actions
-    document.getElementById('verifyOtpBtn').addEventListener('click', handleVerifyOtp);
-    document.getElementById('resendOtpBtn').addEventListener('click', handleResendOtp);
-    document.getElementById('cancelOtpBtn').addEventListener('click', () => {
-      hideOtpModal();
-      sessionStorage.removeItem('pending_registration');
-      showStatus('Pendaftaran dibatalkan.', 'info');
-    });
 
     // Toggle password visibility
     const togglePwd = document.getElementById('togglePassword');
@@ -656,7 +335,7 @@
     togglePwd.addEventListener('click', function() {
       const type = pwdInput.getAttribute('type') === 'password' ? 'text' : 'password';
       pwdInput.setAttribute('type', type);
-      this.textContent = type === 'password' ? '👁️' : '🙈';
+      this.textContent = type === 'password' ? '👁' : '🙈';
     });
 
     const toggleConfirm = document.getElementById('toggleConfirmPassword');
@@ -664,24 +343,20 @@
     toggleConfirm.addEventListener('click', function() {
       const type = confirmInput.getAttribute('type') === 'password' ? 'text' : 'password';
       confirmInput.setAttribute('type', type);
-      this.textContent = type === 'password' ? '👁️' : '🙈';
+      this.textContent = type === 'password' ? '👁' : '🙈';
     });
 
     // Inisialisasi
     window.onload = async () => {
-      // Bersihkan session storage lama jika ada
-      sessionStorage.removeItem('pending_registration');
       localStorage.removeItem('jego_logged_in_user');
       try {
         await initFirebase();
         if (firebaseAuth.currentUser) {
           await firebaseAuth.signOut();
         }
-        // Inisialisasi EmailJS
-        emailjs.init(EMAILJS_PUBLIC_KEY);
-        setupOtpInputs();
+        document.getElementById('registerForm').addEventListener('submit', handleRegistration);
       } catch (e) {
-        showNotif('Error', 'Gagal inisialisasi Firebase/EmailJS', 'error');
+        showNotif('Error', 'Gagal inisialisasi Firebase', 'error');
       }
     };
   </script>
