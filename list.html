@@ -1801,21 +1801,26 @@ function updateNotifBadge(count) {
 // ==================== ONESIGNAL INTEGRATION ====================
 // Fungsi ini akan menerima playerId dari Kodular melalui window.onesignalPlayerId
 // (di-set oleh EvaluateJavascript)
+// ==================== DEBUGGING ONESIGNAL ====================
 async function initOneSignalFromKodular() {
   // Tunggu hingga window.onesignalPlayerId tersedia (dari Kodular)
   let playerId = window.onesignalPlayerId;
-  // Jika belum, tunggu maksimal 5 detik
   let attempts = 0;
-  while (!playerId && attempts < 10) {
+  // Durasi tunggu dinaikkan menjadi 10 detik (20 x 500ms) agar lebih aman
+  while (!playerId && attempts < 20) {
     await new Promise(resolve => setTimeout(resolve, 500));
     playerId = window.onesignalPlayerId;
     attempts++;
   }
   
+  // === TAHAP 1: Cek apakah ID BERHASIL DITERIMA dari Kodular ===
   if (playerId) {
-    console.log('✅ Player ID dari Kodular:', playerId);
+    showToast('✅ Step 1: Player ID diterima dari Kodular: ' + playerId, 'success');
+    
+    // Pastikan driver sudah login (UID tersedia)
     if (globalCurrentUid) {
       try {
+        // === TAHAP 2: Proses SIMPAN ke Firebase ===
         await database.ref(`drivers/${globalCurrentUid}`).update({
           playerId: playerId,
           last_playerid_update: new Date().toISOString()
@@ -1824,19 +1829,24 @@ async function initOneSignalFromKodular() {
           playerId: playerId,
           last_update: new Date().toISOString()
         });
-        showToast("Notifikasi Aktif", "success");
+        
+        // === TAHAP 3: Jika BERHASIL disimpan ===
+        showToast("✅ Step 2: Data playerId BERHASIL tersimpan di Firebase!", "success");
         return true;
+        
       } catch (e) {
-        console.warn('Gagal simpan playerId ke Firebase:', e);
+        // === TAHAP 3b: Jika GAGAL disimpan (kemungkinan masalah Rules Firebase) ===
+        showToast("❌ Gagal simpan ke Firebase. Error: " + e.message, "error");
         return false;
       }
     } else {
-      console.warn('UID driver belum tersedia, simpan playerId nanti.');
+      showToast("⚠️ Driver belum login (UID driver kosong)", "warning");
       return false;
     }
   } else {
-    console.warn('⚠️ Player ID tidak tersedia dari Kodular');
-    // Tampilkan prompt notifikasi (tetap muncul)
+    // === TAHAP GAGAL: Data TIDAK sampai dari Kodular ===
+    showToast("❌ Gagal: Player ID tidak diterima dari Kodular. Cek Evaluasi JS!", "error");
+    // Tampilkan prompt notifikasi agar driver mencoba lagi
     const promptModal = document.getElementById('notifPromptModal');
     if (promptModal) promptModal.style.display = 'flex';
     return false;
