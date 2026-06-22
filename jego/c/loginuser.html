@@ -751,6 +751,19 @@
   function showError(msg) { showPopup('Error', msg, 'error'); }
   function showSuccess(msg, autoHide = true) { showPopup('Sukses', msg, 'success', { autoHide, autoHideDelay: 2000 }); }
 
+  // ================= FUNGSI KIRIM KE KODULAR =================
+  function sendToKodular(payload) {
+    const dataString = JSON.stringify(payload);
+    if (window.AppInventor && typeof window.AppInventor.setWebViewString === 'function') {
+      window.AppInventor.setWebViewString(dataString);
+      console.log('Data terkirim ke Kodular:', dataString);
+    } else {
+      // Fallback untuk testing di browser
+      console.log('Data ke Kodular (fallback):', dataString);
+      // (opsional) alert(dataString);
+    }
+  }
+
   // ================= LOGIN CUSTOMER =================
   document.getElementById('loginForm').addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -796,10 +809,22 @@
       localStorage.setItem('jego_logged_in_user', JSON.stringify(session));
 
       showProgress(100);
-      showStatus('Login berhasil! Mengalihkan...', 'success');
-      setTimeout(() => {
-        window.location.href = 'jenis_kenderaan.html';
-      }, 1500);
+
+      // Kirim data ke Kodular (tanpa redirect)
+      const payload = {
+        status: 'customer',
+        session: session
+      };
+      sendToKodular(payload);
+
+      // Tampilkan pesan sukses
+      showStatus('Login berhasil!', 'success');
+      btn.innerText = 'Login Berhasil';
+      btn.disabled = true; // agar tidak bisa diklik lagi
+
+      // (Opsional) tampilkan popup sukses
+      showSuccess('Login berhasil! Anda akan diarahkan ke halaman utama.');
+
     } catch (error) {
       console.error('Login error:', error);
       let pesanError = 'Login gagal. ';
@@ -824,7 +849,12 @@
       btn.innerText = 'Login';
       hideProgress();
     } finally {
-      btn.disabled = false;
+      // Pastikan tombol kembali aktif jika ada error
+      // (tapi jika sukses, tombol tetap disabled)
+      if (document.getElementById('loginBtn').innerText !== 'Login Berhasil') {
+        document.getElementById('loginBtn').disabled = false;
+      }
+      hideProgress();
     }
   });
 
