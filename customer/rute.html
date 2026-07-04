@@ -33,7 +33,6 @@
             --text-secondary: #757575;
         }
 
-        /* Dark Mode */
         body.dark-mode {
             --primary: #FF9800;
             --primary-dark: #F57C00;
@@ -829,7 +828,7 @@
         </div>
         <div style="margin:8px 0;">
             <label style="font-size:0.75rem;">Tawar harga (minimal <span id="minTawarLabel">Rp 0</span>):</label>
-            <input type="number" id="negoInput" step="500" style="width:100%; padding:8px; border-radius:8px; border:1px solid #ccc; margin:4px 0;">
+            <input type="number" id="negoInput" step="1000" style="width:100%; padding:8px; border-radius:8px; border:1px solid #ccc; margin:4px 0;">
             <div style="display:flex; justify-content:space-between;">
                 <span>💰 Harga tawaran:</span>
                 <strong id="labelTawaran">Rp 0</strong>
@@ -875,7 +874,6 @@
     let currentRoute = null;
     let pickupCoord = null, destCoord = null;
     let pickupAddress = '', destAddress = '';
-    // VIA POINT
     let viaCoord = null;
     let viaAddress = '';
     let viaMarker = null;
@@ -904,14 +902,13 @@
     let mapPickCoords = null;
     let mapPickAddress = '';
     let mapPickResolveTimer = null;
-    let searchOverlayMode = 'pickup'; // 'pickup', 'destination', 'via'
+    let searchOverlayMode = 'pickup';
     let pickFromMapActive = false;
     let searchTimeout = null;
     let negoEnabled = true;
     let originalPrice = 0;
     let minAllowedNego = 0;
 
-    // Riwayat pencarian
     const SEARCH_HISTORY_KEY = 'jego_search_history';
     const MAX_HISTORY = 10;
 
@@ -996,46 +993,90 @@
 
     // ==================== NEGOSIASI ====================
     function initNegosiasi(originalPriceVal) {
-        const minimalPrice = transportRate.minimal_price;
-        const maxDiskon = originalPriceVal * 0.1;
-        let minAllowed = originalPriceVal - maxDiskon;
-        if (minAllowed < minimalPrice) minAllowed = minimalPrice;
-        minAllowedNego = minAllowed;
+    const minimalPrice = transportRate.minimal_price;
+    const maxDiskon = originalPriceVal * 0.1;
+    let minAllowed = originalPriceVal - maxDiskon;
+    if (minAllowed < minimalPrice) minAllowed = minimalPrice;
+    minAllowed = Math.round(minAllowed / 1000) * 1000;
+    minAllowedNego = minAllowed;
 
-        const input = document.getElementById('negoInput');
-        const errorSpan = document.getElementById('negoError');
-        const minTawarLabel = document.getElementById('minTawarLabel');
-        const minErrorVal = document.getElementById('minErrorVal');
+    const input = document.getElementById('negoInput');
+    const errorSpan = document.getElementById('negoError');
+    const minTawarLabel = document.getElementById('minTawarLabel');
+    const minErrorVal = document.getElementById('minErrorVal');
 
-        minTawarLabel.innerText = formatRupiah(minAllowed);
-        minErrorVal.innerText = formatRupiah(minAllowed);
-        input.placeholder = `Minimal ${formatRupiah(minAllowed)}`;
+    minTawarLabel.innerText = formatRupiah(minAllowed);
+    minErrorVal.innerText = formatRupiah(minAllowed);
+    input.placeholder = `Minimal ${formatRupiah(minAllowed)}`;
+
+    // 🔥 Hanya set nilai default jika input masih kosong atau '0'
+    if (!input.value || input.value === '0') {
         input.value = originalPriceVal;
-
-        document.getElementById('labelRekomendasi').innerText = formatRupiah(originalPriceVal);
-        document.getElementById('labelTawaran').innerText = formatRupiah(originalPriceVal);
         currentPrice = originalPriceVal;
-
-        const confirmBtn = document.getElementById('confirmBtn');
-        if (confirmBtn) confirmBtn.innerHTML = `🚀 CARI DRIVER | ${formatRupiah(currentPrice)}`;
-
-        input.addEventListener('input', function() {
-            let val = parseInt(this.value);
-            if (isNaN(val)) {
-                currentPrice = 0;
-                document.getElementById('labelTawaran').innerText = 'Rp 0';
-                const confirmBtnLocal = document.getElementById('confirmBtn');
-                if (confirmBtnLocal) confirmBtnLocal.innerHTML = '🚀 CARI DRIVER | Rp 0';
-                errorSpan.style.display = 'none';
-                return;
-            }
+        document.getElementById('labelTawaran').innerText = formatRupiah(originalPriceVal);
+    } else {
+        // Jika sudah ada nilai, gunakan nilai yang ada
+        let val = parseInt(input.value);
+        if (!isNaN(val) && val > 0) {
             currentPrice = val;
             document.getElementById('labelTawaran').innerText = formatRupiah(val);
-            const confirmBtnLocal = document.getElementById('confirmBtn');
-            if (confirmBtnLocal) confirmBtnLocal.innerHTML = `🚀 CARI DRIVER | ${formatRupiah(val)}`;
-            errorSpan.style.display = 'none';
-        });
+        } else {
+            currentPrice = 0;
+            document.getElementById('labelTawaran').innerText = 'Rp 0';
+        }
     }
+
+    document.getElementById('labelRekomendasi').innerText = formatRupiah(originalPriceVal);
+    const confirmBtn = document.getElementById('confirmBtn');
+    if (confirmBtn) {
+        confirmBtn.innerHTML = currentPrice > 0 
+            ? `🚀 CARI DRIVER | ${formatRupiah(currentPrice)}` 
+            : '🚀 CARI DRIVER | Rp 0';
+    }
+
+    // 🔥 Event listener baru – tidak membulatkan otomatis, tidak mengisi ulang
+    input.removeEventListener('input', handleNegoInput);
+    input.addEventListener('input', handleNegoInput);
+}
+
+function handleNegoInput() {
+    const input = document.getElementById('negoInput');
+    const val = input.value.trim();
+
+    if (val === '') {
+        // Input kosong – biarkan kosong
+        currentPrice = 0;
+        document.getElementById('labelTawaran').innerText = 'Rp 0';
+        const confirmBtn = document.getElementById('confirmBtn');
+        if (confirmBtn) confirmBtn.innerHTML = '🚀 CARI DRIVER | Rp 0';
+        document.getElementById('negoError').style.display = 'none';
+        return;
+    }
+
+    const numVal = parseInt(val);
+    if (isNaN(numVal) || numVal <= 0) {
+        // Nilai tidak valid (bukan angka positif) – anggap 0
+        currentPrice = 0;
+        document.getElementById('labelTawaran').innerText = 'Rp 0';
+        const confirmBtn = document.getElementById('confirmBtn');
+        if (confirmBtn) confirmBtn.innerHTML = '🚀 CARI DRIVER | Rp 0';
+        document.getElementById('negoError').style.display = 'none';
+        return;
+    }
+
+    // Jika nilai kurang dari minimal, beri peringatan tapi tetap tampilkan angka
+    if (numVal < minAllowedNego) {
+        document.getElementById('negoError').style.display = 'block';
+        document.getElementById('minErrorVal').innerText = formatRupiah(minAllowedNego);
+    } else {
+        document.getElementById('negoError').style.display = 'none';
+    }
+
+    currentPrice = numVal;
+    document.getElementById('labelTawaran').innerText = formatRupiah(numVal);
+    const confirmBtn = document.getElementById('confirmBtn');
+    if (confirmBtn) confirmBtn.innerHTML = `🚀 CARI DRIVER | ${formatRupiah(numVal)}`;
+}
 
     function showToast(message, type = 'info') {
         const existingToast = document.querySelector('.custom-toast');
@@ -1729,7 +1770,6 @@
         mapPickAddress = '';
     }
 
-    // Hapus titik singgah
     function clearViaPoint() {
         if (viaCoord) {
             viaCoord = null;
