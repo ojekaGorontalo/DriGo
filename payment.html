@@ -8,8 +8,6 @@
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
-  <!-- QR Code Generator -->
-  <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
   <style>
     :root {
       --primary: #FF9800;
@@ -55,7 +53,6 @@
       padding-bottom: 20px;
       transition: background 0.2s, color 0.2s;
     }
-    /* Header gradien oranye (tetap cerah di dark mode agar kontras) */
     .header {
       background: linear-gradient(135deg, var(--primary), var(--primary-dark));
       padding: 16px 20px;
@@ -131,6 +128,12 @@
     .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(255,152,0,0.4); }
     .btn-whatsapp { background: #25D366; color: white; box-shadow: 0 4px 10px rgba(37,211,102,0.3); }
     .btn-whatsapp:hover { background: #20b859; transform: translateY(-2px); }
+    .btn-download {
+      background: var(--info);
+      color: white;
+      box-shadow: 0 4px 10px rgba(59,130,246,0.3);
+    }
+    .btn-download:hover { background: #2563eb; transform: translateY(-2px); }
     .btn-copy { background: var(--bg); color: var(--text-primary); box-shadow: none; margin-top: 12px; width: auto; padding: 8px 16px; }
     .btn-copy:hover { background: var(--gray-light); }
     .amount-display {
@@ -145,7 +148,25 @@
     .amount-value { font-size: 2rem; font-weight: 800; margin: 8px 0; }
     .qrcode-container { text-align: center; padding: 20px; background: var(--card-bg); border-radius: 20px; margin: 20px 0; }
     #qrcode { display: flex; justify-content: center; margin: 10px 0; }
-    canvas, #qrcode img { border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+    #qrcode img { 
+      border-radius: 16px; 
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      max-width: 100%;
+      height: auto;
+    }
+    .qrcode-actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 12px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .qrcode-actions .btn {
+      width: auto;
+      padding: 10px 20px;
+      font-size: 0.8rem;
+      min-width: 140px;
+    }
     .steps { margin: 20px 0; }
     .step { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
     .step-number { width: 28px; height: 28px; background: var(--primary); color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 0.8rem; }
@@ -231,16 +252,23 @@
       </div>
 
       <div class="card">
-        <div class="card-title">📱 Scan QRIS Dinamis</div>
+        <div class="card-title">📱 Scan QRIS</div>
         <div class="qrcode-container" id="qrcodeContainer">
-          <div id="qrcode"></div>
-          <p style="margin-top: 12px; color: var(--gray);">QR Code ini sudah menyertakan nominal total. Cukup scan dan bayar.</p>
+          <div id="qrcode">
+            <!-- QRIS statis akan ditampilkan di sini -->
+          </div>
+          <div class="qrcode-actions">
+            <button class="btn btn-download" id="downloadQrBtn">
+              📥 Unduh QRIS
+            </button>
+          </div>
+          <p style="margin-top: 12px; color: var(--gray);">Scan QR Code di atas untuk melakukan pembayaran.</p>
         </div>
         <div class="steps">
           <div class="step"><div class="step-number">1</div><div class="step-text">Buka aplikasi mobile banking atau e-wallet</div></div>
           <div class="step"><div class="step-number">2</div><div class="step-text">Pilih menu Scan QRIS / Bayar</div></div>
           <div class="step"><div class="step-number">3</div><div class="step-text">Scan QR Code di atas</div></div>
-          <div class="step"><div class="step-number">4</div><div class="step-text">Nominal akan otomatis terisi, lanjutkan pembayaran</div></div>
+          <div class="step"><div class="step-number">4</div><div class="step-text">Masukkan nominal transfer sesuai total tagihan</div></div>
           <div class="step"><div class="step-number">5</div><div class="step-text">Konfirmasi ke admin via WhatsApp setelah transfer</div></div>
         </div>
       </div>
@@ -249,7 +277,7 @@
         <div class="card-title">✅ Konfirmasi Pembayaran</div>
         <div class="info-box" style="background: #fef3c7; border-left: 4px solid var(--warning); padding: 16px; border-radius: 20px; margin-bottom: 16px;">
           <strong style="color: var(--warning);">Perhatian!</strong>
-          <p style="margin-top: 8px;">Transfer sesuai total yang tertera (sudah termasuk angka unik). QR Code sudah menyematkan nominal tersebut.</p>
+          <p style="margin-top: 8px;">Transfer sesuai total yang tertera (sudah termasuk angka unik 3 digit).</p>
         </div>
         <button class="btn btn-whatsapp" id="whatsappBtn">
           📱 Konfirmasi ke Admin via WhatsApp
@@ -259,7 +287,7 @@
 
     <div id="loadingState" class="loading" style="display: none;">
       <div class="spinner"></div>
-      <div style="margin-top: 12px;">Memproses QRIS dinamis...</div>
+      <div style="margin-top: 12px;">Memproses pembayaran...</div>
     </div>
   </div>
 
@@ -283,7 +311,6 @@
       }
       applyTheme(theme);
     }
-    // Event listener untuk sinkron antar tab
     window.addEventListener('storage', (e) => {
       if (e.key === THEME_KEY) loadTheme();
     });
@@ -311,18 +338,19 @@
       console.error('❌ Error inisialisasi Firebase:', error);
     }
 
+    // ==================== QRIS STATIS ====================
+    const QRIS_STATIC_IMAGE = 'https://i.ibb.co/MDd5ZqPW/IMG-20260705-214117-476.jpg';
+
     // ==================== VARIABEL GLOBAL ====================
     let depositAmount = 0;
     let uniqueDigits = '000';
     let uniqueAmount = 0;
     let paymentId = '';
     let driverData = {};
-    let qrisStaticSeed = '';
-    let qrcode = null;
 
     // ==================== INISIALISASI ====================
     document.addEventListener('DOMContentLoaded', async () => {
-      loadTheme(); // terapkan tema saat halaman dimuat
+      loadTheme();
       console.log('🚀 Halaman Pembayaran dimuat');
       
       const loggedInDriver = localStorage.getItem('jego_logged_in_driver');
@@ -358,8 +386,6 @@
           return;
         }
         console.log('✅ Firebase Auth user terverifikasi:', user.uid);
-        
-        await loadQrisStaticSeed();
         initButtons();
       });
     });
@@ -369,49 +395,10 @@
       document.getElementById('generateBtn').addEventListener('click', generatePaymentCode);
       document.getElementById('copyAmountBtn').addEventListener('click', copyPaymentAmount);
       document.getElementById('whatsappBtn').addEventListener('click', sendWhatsAppConfirmation);
+      document.getElementById('downloadQrBtn').addEventListener('click', downloadQrImage);
     }
 
-    async function loadQrisStaticSeed() {
-      console.log('🔄 Memuat QRIS statis merchant dari data-jego/payment_qris...');
-      document.getElementById('loadingState').style.display = 'flex';
-      try {
-        const snapshot = await database.ref('data-jego/payment_qris').once('value');
-        let data = snapshot.val();
-        if (typeof data === 'string') {
-          qrisStaticSeed = data;
-        } else if (data && typeof data === 'object') {
-          qrisStaticSeed = data.QrisUrl || data.qris_url || '';
-        }
-        if (!qrisStaticSeed) {
-          qrisStaticSeed = '00020101021126610014COM.GO-JEK.WWW01189360091436271261480210G6271261480303UMI51440014ID.CO.QRIS.WWW0215ID10253896834060303UMI5204573253033605802ID5909aldo soft6013PASAMAN BARAT61052656662070703A0163042275';
-          console.warn('Menggunakan QRIS statis default');
-        }
-        console.log('✅ QRIS statis seed siap');
-        document.getElementById('loadingState').style.display = 'none';
-      } catch (error) {
-        console.error('❌ Error memuat QRIS statis:', error);
-        document.getElementById('loadingState').style.display = 'none';
-        showToast('Gagal memuat QRIS merchant, coba lagi nanti', 'error');
-      }
-    }
-
-    async function generateDynamicQRString(nominal) {
-      if (!qrisStaticSeed) throw new Error('QRIS statis seed tidak tersedia');
-      const apiUrl = `https://api-mininxd.vercel.app/qris?qris=${encodeURIComponent(qrisStaticSeed)}&nominal=${nominal}`;
-      try {
-        const response = await fetch(apiUrl);
-        const data = await response.json();
-        if (data && (data.QR || data.qr || data.qris)) {
-          return data.QR || data.qr || data.qris;
-        } else {
-          throw new Error('API tidak mengembalikan QR string');
-        }
-      } catch (err) {
-        console.error('Gagal generate QRIS dinamis:', err);
-        throw new Error('Gagal generate QR Code dinamis');
-      }
-    }
-
+    // ==================== GENERATE PEMBAYARAN ====================
     async function generatePaymentCode() {
       const depositInput = document.getElementById('depositAmount');
       const rawValue = depositInput.value.trim();
@@ -444,21 +431,19 @@
         uniqueAmount = depositAmount + parseInt(uniqueDigits);
         paymentId = 'DEP_' + Date.now() + '_' + Math.random().toString(36).substr(2, 8).toUpperCase();
 
-        const dynamicQRString = await generateDynamicQRString(uniqueAmount);
-        
+        // ===== TAMPILKAN QRIS STATIS =====
         const qrcodeContainer = document.getElementById('qrcode');
         qrcodeContainer.innerHTML = '';
-        if (qrcode) {
-          try { qrcode.clear(); } catch(e) {}
-        }
-        qrcode = new QRCode(qrcodeContainer, {
-          text: dynamicQRString,
-          width: 220,
-          height: 220,
-          colorDark: "#000000",
-          colorLight: "#ffffff",
-          correctLevel: QRCode.CorrectLevel.H
-        });
+
+        const img = document.createElement('img');
+        img.src = QRIS_STATIC_IMAGE;
+        img.alt = 'QRIS Statis JeGo';
+        img.style.width = '220px';
+        img.style.height = '220px';
+        img.style.borderRadius = '16px';
+        img.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)';
+        img.style.objectFit = 'contain';
+        qrcodeContainer.appendChild(img);
 
         document.getElementById('paymentAmount').innerHTML = formatCurrency(uniqueAmount);
         document.getElementById('uniqueDigits').innerHTML = uniqueDigits;
@@ -467,10 +452,10 @@
         await saveDepositRequestToBalanceLog();
         await saveDepositToFirebase();
 
-        showToast('Kode pembayaran berhasil dibuat! (QRIS Dinamis)', 'success');
+        showToast('Kode pembayaran berhasil dibuat!', 'success');
       } catch (error) {
         console.error('Gagal generate pembayaran:', error);
-        showToast('Gagal membuat QRIS dinamis. ' + error.message, 'error');
+        showToast('Gagal membuat pembayaran: ' + error.message, 'error');
         document.getElementById('paymentInfo').style.display = 'none';
       } finally {
         generateBtn.disabled = false;
@@ -479,6 +464,27 @@
       }
     }
 
+    // ==================== DOWNLOAD QRIS ====================
+    function downloadQrImage() {
+      const qrcodeContainer = document.getElementById('qrcode');
+      const img = qrcodeContainer.querySelector('img');
+      
+      if (!img) {
+        showToast('QR Code belum dibuat, generate terlebih dahulu!', 'warning');
+        return;
+      }
+
+      // Download langsung dari URL gambar
+      const link = document.createElement('a');
+      link.download = `QRIS_JeGo_${depositAmount}_${new Date().toISOString().split('T')[0]}.png`;
+      link.href = img.src;
+      link.target = '_blank';
+      link.click();
+      
+      showToast('QRIS berhasil diunduh!', 'success');
+    }
+
+    // ==================== SIMPAN KE FIREBASE ====================
     async function saveDepositRequestToBalanceLog() {
       if (!driverData.uid) return false;
       const logEntry = {
@@ -531,6 +537,7 @@
       }
     }
 
+    // ==================== UTILITY ====================
     function copyPaymentAmount() {
       if (!uniqueAmount) {
         showToast('Generate kode pembayaran terlebih dahulu', 'warning');
