@@ -194,7 +194,6 @@
             font-size: 12px;
             color: #666;
         }
-        /* Style untuk checkbox privasi */
         .privacy-checkbox {
             display: flex;
             align-items: flex-start;
@@ -224,6 +223,10 @@
         .privacy-link:hover {
             text-decoration: underline;
         }
+        .required-star {
+            color: #f44336;
+            margin-left: 4px;
+        }
         @media (max-width: 480px) {
             .container { padding: 15px; }
             .form-card { padding: 20px; }
@@ -233,7 +236,7 @@
 <body>
     <header>
         <div class="container">
-            <div class="logo">📱 JeGo Driver</div>
+            <div class="logo">🚖 JeGo Driver</div>
             <div style="font-size: 14px; opacity: 0.9;">Gabung jadi mitra – mudah & cepat</div>
         </div>
     </header>
@@ -241,7 +244,7 @@
     <div class="container">
         <div class="form-card">
             <h1>Pendaftaran Driver</h1>
-            <div class="subtitle">Isi data berikut untuk menjadi driver JeGo</div>
+            <div class="subtitle">Isi semua data berikut untuk menjadi driver JeGo</div>
 
             <div id="errorBox" class="error-message"></div>
             <div id="successBox" class="success-message">
@@ -251,23 +254,27 @@
 
             <form id="driverForm">
                 <div class="form-group">
-                    <label>Nama Lengkap</label>
+                    <label>Nama Lengkap <span class="required-star">*</span></label>
                     <input type="text" id="fullName" placeholder="Contoh: Ahmad Wijaya" required>
                 </div>
                 <div class="form-group">
-                    <label>Email (akan jadi username login)</label>
+                    <label>Email (akan jadi username login) <span class="required-star">*</span></label>
                     <input type="email" id="email" placeholder="email@example.com" required>
                 </div>
                 <div class="form-group">
-                    <label>Password</label>
+                    <label>Password <span class="required-star">*</span></label>
                     <input type="password" id="password" placeholder="Minimal 6 karakter" minlength="6" required>
                 </div>
                 <div class="form-group">
-                    <label>Nomor WhatsApp / HP</label>
+                    <label>Nomor WhatsApp / HP <span class="required-star">*</span></label>
                     <input type="tel" id="phone" placeholder="08123456789" required>
                 </div>
                 <div class="form-group">
-                    <label>Jenis Kendaraan (wajib)</label>
+                    <label>Tanggal Lahir <span class="required-star">*</span></label>
+                    <input type="date" id="dob" required>
+                </div>
+                <div class="form-group">
+                    <label>Jenis Kendaraan (wajib) <span class="required-star">*</span></label>
                     <select id="vehicleType" required>
                         <option value="">Pilih Jenis Kendaraan</option>
                         <option value="motor">Motor</option>
@@ -276,15 +283,23 @@
                     </select>
                 </div>
                 <div class="form-group">
-                    <label>Nomor Plat Kendaraan (wajib)</label>
+                    <label>Merk Kendaraan <span class="required-star">*</span></label>
+                    <input type="text" id="vehicleBrand" placeholder="Contoh: Honda, Toyota, Yamaha" required>
+                </div>
+                <div class="form-group">
+                    <label>Tahun Kendaraan <span class="required-star">*</span></label>
+                    <input type="number" id="vehicleYear" placeholder="Contoh: 2020" min="1980" max="2026" required>
+                </div>
+                <div class="form-group">
+                    <label>Nomor Plat Kendaraan <span class="required-star">*</span></label>
                     <input type="text" id="plateNumber" placeholder="Contoh: DM 1234 AB" required>
                 </div>
                 <div class="form-group">
-                    <label>Alamat Lengkap (wajib)</label>
+                    <label>Alamat Lengkap <span class="required-star">*</span></label>
                     <textarea id="address" rows="3" placeholder="Contoh: Jl. Merdeka No. 10, RT 01/RW 02, Kel. Sukamaju, Kec. Cicendo, Kota Bandung, Jawa Barat" required></textarea>
                 </div>
                 <div class="form-group">
-                    <label>Foto Profil (wajib)</label>
+                    <label>Foto Profil <span class="required-star">*</span></label>
                     <div class="upload-area">
                         <img id="photoPreview" class="photo-preview" src="https://via.placeholder.com/100?text=Foto" alt="Preview">
                         <input type="file" id="photoFile" accept="image/*" style="display: none;">
@@ -304,7 +319,7 @@
                 </div>
 
                 <div class="info-box">
-                    ℹ️ Dengan mendaftar, Anda setuju untuk mengikuti aturan JeGo. Data akan diverifikasi oleh admin. Pendaftaran GRATIS!
+                    📝 Dengan mendaftar, Anda setuju untuk mengikuti aturan JeGo. Data akan diverifikasi oleh admin. Pendaftaran GRATIS!
                 </div>
                 <button type="submit" id="submitBtn" class="btn">Daftar Sekarang</button>
                 <button type="button" id="backHomeBtn" class="btn btn-outline">Kembali ke Beranda</button>
@@ -337,7 +352,10 @@
         const email = document.getElementById('email');
         const password = document.getElementById('password');
         const phone = document.getElementById('phone');
+        const dob = document.getElementById('dob');
         const vehicleTypeSelect = document.getElementById('vehicleType');
+        const vehicleBrand = document.getElementById('vehicleBrand');
+        const vehicleYear = document.getElementById('vehicleYear');
         const plateNumberInput = document.getElementById('plateNumber');
         const addressInput = document.getElementById('address');
         const photoFile = document.getElementById('photoFile');
@@ -464,7 +482,7 @@
             const file = e.target.files[0];
             if (!file) return;
             if (!file.type.startsWith('image/')) {
-                uploadStatus.innerHTML = '❌ Hanya file gambar yang diperbolehkan!';
+                uploadStatus.innerHTML = '⚠️ Hanya file gambar yang diperbolehkan!';
                 return;
             }
             const reader = new FileReader();
@@ -503,7 +521,10 @@
                 phone: data.phoneFormatted,
                 address: data.address,
                 vehicle_type: data.vehicleType.toLowerCase(),
+                vehicle_brand: data.vehicleBrand,
+                vehicle_year: data.vehicleYear,
                 plate_number: data.plateNumber,
+                date_of_birth: data.dob,
                 photoURL: data.photoURL || '',
                 status: 'pending',
                 role: 'driver',
@@ -528,7 +549,10 @@
                 email: data.email,
                 address: data.address,
                 vehicleType: data.vehicleType.toLowerCase(),
+                vehicleBrand: data.vehicleBrand,
+                vehicleYear: data.vehicleYear,
                 plateNumber: data.plateNumber,
+                dateOfBirth: data.dob,
                 photoURL: data.photoURL || '',
                 status: 'pending',
                 balance: 0,
@@ -555,11 +579,15 @@
             const emailVal = email.value.trim();
             const passVal = password.value;
             const phoneVal = phone.value.trim();
+            const dobVal = dob.value;
             const vehicleVal = vehicleTypeSelect.value;
+            const brandVal = vehicleBrand.value.trim();
+            const yearVal = parseInt(vehicleYear.value);
             const plateVal = plateNumberInput.value.trim().toUpperCase();
             const addressVal = addressInput.value.trim();
 
-            if (!nameVal || !emailVal || !passVal || !phoneVal || !plateVal || !addressVal) {
+            // Validasi semua field wajib
+            if (!nameVal || !emailVal || !passVal || !phoneVal || !dobVal || !vehicleVal || !brandVal || !yearVal || !plateVal || !addressVal) {
                 errorBox.innerText = 'Semua field wajib diisi!';
                 errorBox.style.display = 'block';
                 setTimeout(() => errorBox.style.display = 'none', 3000);
@@ -583,6 +611,11 @@
             }
             if (!vehicleVal) {
                 errorBox.innerText = 'Pilih jenis kendaraan terlebih dahulu.';
+                errorBox.style.display = 'block';
+                return;
+            }
+            if (yearVal < 1980 || yearVal > new Date().getFullYear()) {
+                errorBox.innerText = 'Tahun kendaraan tidak valid (1980 - sekarang).';
                 errorBox.style.display = 'block';
                 return;
             }
@@ -610,7 +643,10 @@
                     email: emailVal,
                     password: passVal,
                     phoneFormatted: formattedPhone,
+                    dob: dobVal,
                     vehicleType: vehicleVal,
+                    vehicleBrand: brandVal,
+                    vehicleYear: yearVal,
                     plateNumber: plateVal,
                     address: addressVal,
                     photoURL: uploadedPhotoURL
@@ -621,7 +657,7 @@
                 uploadedPhotoURL = null;
                 photoPreview.src = 'https://via.placeholder.com/100?text=Foto';
                 uploadStatus.innerHTML = '';
-                privacyCheckbox.checked = false; // reset checkbox
+                privacyCheckbox.checked = false;
                 window.scrollTo({ top: successBox.offsetTop - 20, behavior: 'smooth' });
             } catch (err) {
                 console.error(err);
