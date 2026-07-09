@@ -72,17 +72,28 @@
     </style>
 </head>
 <body>
+
 <div class="container">
     <div class="header">
         <h1><i class="fas fa-taxi"></i> Manajemen Driver</h1>
         <button class="logout-btn" id="logoutBtn"><i class="fas fa-sign-out-alt"></i> Logout Admin</button>
     </div>
+
     <div class="toolbar">
         <div style="display: flex; gap: 10px; flex-wrap: wrap; width: 100%; align-items: center;">
             <input type="text" id="driverSearch" class="search-box" placeholder="Cari nama, telepon, plat...">
             <select id="vehicleFilter" class="filter-select">
                 <option value="all">🚗 Semua kendaraan</option>
             </select>
+            <!-- ========== TAMBAHAN FILTER STATUS ========== -->
+            <select id="statusFilter" class="filter-select">
+                <option value="all">📋 Semua status</option>
+                <option value="accepted">✅ Accepted</option>
+                <option value="pending">⏳ Pending</option>
+                <option value="rejected">❌ Rejected</option>
+                <option value="blocked">🚫 Blocked</option>
+            </select>
+            <!-- =========================================== -->
             <div style="flex:1; display: flex; justify-content: flex-end; gap: 12px;">
                 <div class="stats-badge" id="driverStats">Menampilkan <span id="driverDisplayCount">0</span> dari <span id="driverTotalCount">0</span></div>
                 <button class="broadcast-btn" id="broadcastNotifBtn"><i class="fas fa-bullhorn"></i> Broadcast ke Semua Driver</button>
@@ -91,11 +102,11 @@
             </div>
         </div>
     </div>
+
     <div class="table-wrapper">
         <table id="driverTable">
             <thead>
-                <tr><th>Foto</th><th>Nama</th><th>Telepon</th><th>Email</th><th>Kendaraan</th><th>Plat</th><th>Rating</th><th>Perjalanan</th><th>Saldo</th><th>Status</th><th>Alasan</th><th>Tracking</th><th>Autobid</th><th>Aksi</th>
-                </tr>
+                <tr><th>Foto</th><th>Nama</th><th>Telepon</th><th>Email</th><th>Kendaraan</th><th>Plat</th><th>Rating</th><th>Perjalanan</th><th>Saldo</th><th>Status</th><th>Alasan</th><th>Tracking</th><th>Autobid</th><th>Aksi</th></tr>
             </thead>
             <tbody id="driverTableBody"><tr class="empty-row"><td colspan="14"><div class="loading-overlay"><div class="spinner"></div></div></tr></tbody>
         </table>
@@ -274,10 +285,22 @@
         vehicles.forEach(v => { const opt = document.createElement('option'); opt.value = v; opt.textContent = v; select.appendChild(opt); });
     }
 
+    // ========== FUNGSI FILTER DENGAN STATUS ==========
     function applyDriverFilter() {
         const keyword = document.getElementById('driverSearch').value.toLowerCase();
         const selectedVehicle = document.getElementById('vehicleFilter').value;
-        let filtered = allDrivers.filter(d => (keyword === '' || d.name.toLowerCase().includes(keyword) || d.phone.toLowerCase().includes(keyword) || d.plate_number.toLowerCase().includes(keyword)) && (selectedVehicle === 'all' || d.vehicle_type === selectedVehicle));
+        const selectedStatus = document.getElementById('statusFilter').value;
+
+        let filtered = allDrivers.filter(d => {
+            const matchKeyword = keyword === '' || 
+                d.name.toLowerCase().includes(keyword) || 
+                d.phone.toLowerCase().includes(keyword) || 
+                d.plate_number.toLowerCase().includes(keyword);
+            const matchVehicle = selectedVehicle === 'all' || d.vehicle_type === selectedVehicle;
+            const matchStatus = selectedStatus === 'all' || d.status === selectedStatus;
+            return matchKeyword && matchVehicle && matchStatus;
+        });
+
         renderDriverTable(filtered);
         document.getElementById('driverTotalCount').innerText = allDrivers.length;
         document.getElementById('driverDisplayCount').innerText = filtered.length;
@@ -319,19 +342,19 @@
             row.insertCell(9).appendChild(statusSpan);
             const reasonInput = document.createElement('input'); reasonInput.type = 'text'; reasonInput.className = 'reason-input'; reasonInput.placeholder = 'Alasan'; reasonInput.value = d.ketGagal || '';
             row.insertCell(10).appendChild(reasonInput);
-            // Tracking toggle
+
             const trackingToggle = document.createElement('label'); trackingToggle.className = 'toggle-switch';
             const trackingCheck = document.createElement('input'); trackingCheck.type = 'checkbox'; trackingCheck.checked = d.tracking_enabled === true;
             trackingCheck.onchange = () => toggleDriverSetting(d.uid, 'tracking_enabled', trackingCheck.checked);
             trackingToggle.appendChild(trackingCheck); trackingToggle.appendChild(document.createElement('span')).className = 'toggle-slider';
             row.insertCell(11).appendChild(trackingToggle);
-            // Autobid toggle
+
             const autobidToggle = document.createElement('label'); autobidToggle.className = 'toggle-switch';
             const autobidCheck = document.createElement('input'); autobidCheck.type = 'checkbox'; autobidCheck.checked = d.autobid_enabled === true;
             autobidCheck.onchange = () => toggleDriverSetting(d.uid, 'autobid_enabled', autobidCheck.checked);
             autobidToggle.appendChild(autobidCheck); autobidToggle.appendChild(document.createElement('span')).className = 'toggle-slider';
             row.insertCell(12).appendChild(autobidToggle);
-            // Aksi
+
             const actionDiv = document.createElement('div'); actionDiv.className = 'action-buttons';
             const updateBtn = document.createElement('button'); updateBtn.textContent = 'Update Status'; updateBtn.className = 'update-status-btn';
             const editBtn = document.createElement('button'); editBtn.textContent = 'Edit Data'; editBtn.className = 'edit-btn';
@@ -339,6 +362,7 @@
             const notifBtn = document.createElement('button'); notifBtn.innerHTML = 'Kirim Notif'; notifBtn.className = 'send-notif-btn';
             actionDiv.append(updateBtn, editBtn, topupBtn, notifBtn);
             row.insertCell(13).appendChild(actionDiv);
+
             updateBtn.onclick = async () => {
                 const newStatus = prompt("Masukkan status baru (accepted, pending, rejected, blocked):", d.status);
                 if (!newStatus) return;
@@ -548,14 +572,19 @@
         if (!adminSnap.exists()) { showToast('Bukan admin', true); await auth.signOut(); setTimeout(() => window.location.href = 'login_admin.html', 1500); return; }
         await getOneSignalApiKey();
         await loadDrivers();
+
+        // Event listener untuk filter status
+        document.getElementById('driverSearch').addEventListener('input', applyDriverFilter);
+        document.getElementById('vehicleFilter').addEventListener('change', applyDriverFilter);
+        document.getElementById('statusFilter').addEventListener('change', applyDriverFilter); // <-- TAMBAHAN
+
         document.getElementById('refreshDriversBtn').onclick = loadDrivers;
         document.getElementById('activateAllBtn').onclick = activateAllDrivers;
         document.getElementById('broadcastNotifBtn').onclick = broadcastToAllDrivers;
-        document.getElementById('driverSearch').addEventListener('input', applyDriverFilter);
-        document.getElementById('vehicleFilter').addEventListener('change', applyDriverFilter);
         document.getElementById('saveDriverBtn').onclick = saveDriverEdit;
         document.getElementById('sendNotifNowBtn').onclick = sendManualNotification;
         document.getElementById('logoutBtn').onclick = async () => { await auth.signOut(); window.location.href = 'login_admin.html'; };
+
         // close modals
         document.querySelectorAll('.close-driver-modal, .close-notif-modal, .close-topup-modal').forEach(el => el.addEventListener('click', (e) => { document.getElementById('editDriverModal').style.display = 'none'; document.getElementById('notifDriverModal').style.display = 'none'; document.getElementById('topupModal').style.display = 'none'; }));
         window.addEventListener('click', (e) => { if (e.target.classList.contains('modal')) e.target.style.display = 'none'; });
