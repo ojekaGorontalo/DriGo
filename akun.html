@@ -164,7 +164,6 @@
             <div class="info-item"><div class="info-label">Email</div><div class="info-value" id="email">-</div></div>
             <div class="info-item"><div class="info-label">No. Telepon</div><div class="info-value" id="phoneNumberContainer"><span id="phoneNumber">-</span><button class="copy-btn" data-copy-target="phoneNumber" title="Salin nomor telepon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></button></div></div>
             <div class="info-item"><div class="info-label">Alamat</div><div class="info-value" id="address">-</div></div>
-            <!-- No. KTP dihapus -->
           </div>
         </div>
         <div class="info-card">
@@ -315,8 +314,51 @@
       return true;
     }
 
+    // ========== TAMPILKAN DARI LOCALSTORAGE (CEPAT) ==========
+    function displayFromLocalStorage() {
+      const driverDataStr = localStorage.getItem('jego_logged_in_driver');
+      if (!driverDataStr) return false;
+      try {
+        const localData = JSON.parse(driverDataStr);
+        // Tampilkan foto dan data dasar
+        document.getElementById('profilePhoto').src = localData.photoURL || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png';
+        document.getElementById('profileName').textContent = localData.name || '-';
+        document.getElementById('profileVehicle').textContent = `${getVehicleTypeText(localData.vehicleType)} - ${localData.vehicleBrand || ''}`;
+        document.getElementById('fullName').textContent = localData.name || '-';
+        document.getElementById('email').textContent = localData.email || '-';
+        document.getElementById('phoneNumber').textContent = localData.phone || '-';
+        document.getElementById('address').textContent = localData.address || '-';
+        document.getElementById('vehicleType').textContent = getVehicleTypeText(localData.vehicleType);
+        document.getElementById('vehicleBrand').textContent = localData.vehicleBrand || '-';
+        document.getElementById('plateNumber').textContent = localData.plateNumber || '-';
+        document.getElementById('driverId').textContent = localData.uid || '-';
+        document.getElementById('registrationDate').textContent = formatDate(localData.registered_at || localData.dateOfBirth);
+        // Status default (pending) sampai Firebase memberikan data terbaru
+        document.getElementById('verificationStatus').innerHTML = getStatusBadge(localData.status || 'pending');
+        // Rating sementara
+        const rating = localData.rating || 0;
+        document.getElementById('ratingStars').innerHTML = generateStarRating(rating);
+        document.getElementById('ratingValue').textContent = rating.toFixed(1);
+        document.getElementById('ratingCount').textContent = `(0 rating)`;
+        const priority = getPriorityBadge(rating);
+        const badge = document.getElementById('priorityBadgeSmall');
+        badge.textContent = priority.level;
+        badge.className = priority.class;
+        // Saldo sementara
+        document.getElementById('balanceAmount').textContent = formatCurrency(localData.balance || 0);
+        return true;
+      } catch(e) {
+        console.error('Gagal baca localStorage:', e);
+        return false;
+      }
+    }
+
+    // ========== LOAD DARI FIREBASE (UPDATE) ==========
     async function loadDriverData(uid) {
-      showLoading('Memuat profil driver...');
+      // Tampilkan dari localStorage dulu (cepat)
+      displayFromLocalStorage();
+
+      showLoading('Memuat data terbaru...');
       try {
         const snapshot = await database.ref(`drivers/${uid}`).once('value');
         const data = snapshot.val();
@@ -326,9 +368,7 @@
         // Cek kelengkapan data
         if (!checkDataCompleteness(currentDriverData)) {
           hideLoading();
-          // Tampilkan modal verifikasi
           showVerifyModal();
-          // Isi form dengan data yang sudah ada (jika ada)
           verifyDob.value = currentDriverData.date_of_birth || '';
           verifyVehicleBrand.value = currentDriverData.vehicle_brand || '';
           verifyVehicleYear.value = currentDriverData.vehicle_year || '';
@@ -337,7 +377,7 @@
           return;
         }
 
-        // Data lengkap, lanjut tampilkan profil
+        // Perbarui tampilan dengan data Firebase
         displayProfile(currentDriverData);
         await loadBalanceAndCommission(uid);
         await loadDriverOrders(uid);
@@ -351,9 +391,9 @@
     }
 
     function displayProfile(data) {
+      document.getElementById('profilePhoto').src = data.photoURL || data.fotoProfilURL || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png';
       document.getElementById('profileName').textContent = data.name || '-';
       document.getElementById('profileVehicle').textContent = `${getVehicleTypeText(data.vehicle_type)} - ${data.vehicle_brand || ''}`;
-      document.getElementById('profilePhoto').src = data.photoURL || data.fotoProfilURL || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png';
       document.getElementById('fullName').textContent = data.name || '-';
       document.getElementById('email').textContent = data.email || '-';
       document.getElementById('phoneNumber').textContent = data.phone || '-';
@@ -512,6 +552,9 @@
       document.getElementById('ratingClickable').addEventListener('click', () => { window.location.href = 'penilaianLayanan.html'; });
       document.getElementById('deleteAccountBtn').addEventListener('click', () => { window.location.href = 'hapus_akun.html'; });
       modalOverlay.addEventListener('click', (e) => { if (e.target === modalOverlay) hidePopup(); });
+
+      // ========== TAMPILKAN DARI LOCALSTORAGE AWAL ==========
+      displayFromLocalStorage();
     });
 
     // ================= AUTH STATE =================
