@@ -66,7 +66,7 @@
             <input type="text" id="customerSearch" class="search-box" placeholder="Cari nama, telepon, email...">
             <div style="flex:1; display: flex; justify-content: flex-end; gap: 12px;">
                 <div class="stats-badge" id="customerStats">Menampilkan <span id="customerDisplayCount">0</span> dari <span id="customerTotalCount">0</span></div>
-                <button class="broadcast-btn" id="broadcastCustomerBtn"><i class="fas fa-bullhorn"></i> Broadcast ke Semua Customer</button>
+                <button class="broadcast-btn" id="broadcastCustomerBtn"><i class="fas fa-bullhorn"></i> Broadcast</button>
                 <button class="refresh-btn" id="refreshCustomersBtn"><i class="fas fa-sync-alt"></i> Refresh</button>
             </div>
         </div>
@@ -171,6 +171,7 @@
     let currentCustomerToDelete = null;
     let onesignalApiKey = null;
     const ONESIGNAL_APP_ID = "007d7eba-9cfc-40d1-a92e-f2299f770282";
+    let customersListener = null; // untuk melepas listener
 
     // ========== SAVE LOG ==========
     async function saveAdminLog(message) {
@@ -188,10 +189,10 @@
         }
     }
 
-    // ========== GET ONESIGNAL API KEY (dengan log) ==========
+    // ========== GET ONESIGNAL API KEY ==========
     async function getOneSignalApiKey() {
         if (onesignalApiKey) {
-            console.log("🔑 API Key sudah di-cache, panjang:", onesignalApiKey.length);
+            console.log("🔑 API Key sudah di-cache");
             return onesignalApiKey;
         }
         try {
@@ -199,7 +200,7 @@
             const snap = await database.ref('data-jego/PushKey').once('value');
             onesignalApiKey = snap.val();
             if (onesignalApiKey) {
-                console.log("✅ API Key berhasil diambil, panjang:", onesignalApiKey.length);
+                console.log("✅ API Key berhasil diambil");
             } else {
                 console.warn("⚠️ PushKey tidak ditemukan di Firebase.");
             }
@@ -210,18 +211,11 @@
         }
     }
 
-    // ========== SEND PUSH NOTIFICATION (dengan log lengkap) ==========
+    // ========== SEND PUSH NOTIFICATION ==========
     async function sendPushNotification(playerId, title, message, extraData = {}) {
-        console.log("📤 sendPushNotification dipanggil untuk playerId:", playerId);
-        if (!playerId) {
-            console.warn("⚠️ playerId kosong, skip kirim.");
-            return false;
-        }
+        if (!playerId) return false;
         const apiKey = await getOneSignalApiKey();
-        if (!apiKey) {
-            console.error("❌ API Key OneSignal tidak ditemukan di Firebase.");
-            return false;
-        }
+        if (!apiKey) return false;
 
         const payload = {
             app_id: ONESIGNAL_APP_ID,
@@ -236,7 +230,6 @@
             large_icon: "https://ojekaGorontalo.github.io/Logo/logo.png",
             android_sound: "default"
         };
-        console.log("📦 Payload yang dikirim:", JSON.stringify(payload, null, 2));
 
         try {
             const res = await fetch("https://onesignal.com/api/v1/notifications", {
@@ -245,14 +238,8 @@
                 body: JSON.stringify(payload)
             });
             const result = await res.json();
-            console.log("📨 Response status:", res.status);
-            console.log("📨 Response body:", result);
-            if (!res.ok) {
-                console.error("❌ OneSignal mengembalikan error:", result);
-                return false;
-            }
-            if (result.errors) {
-                console.error("❌ OneSignal errors:", result.errors);
+            if (!res.ok || result.errors) {
+                console.error("❌ OneSignal error:", result);
                 return false;
             }
             console.log("✅ Notifikasi berhasil dikirim ke OneSignal, ID:", result.id);
@@ -281,11 +268,17 @@
         setTimeout(() => toast.classList.remove('show'), 3000);
     }
 
-    // ========== LOAD CUSTOMERS (dengan perbaikan rating) ==========
+    // ========== LOAD CUSTOMERS (ONCE) + PASANG LISTENER ==========
     async function loadCustomers() {
         const tbody = document.getElementById('customerTableBody');
         tbody.innerHTML = '<tr class="empty-row"><td colspan="8"><div class="loading-overlay"><div class="spinner"></div></div> </td></tr>';
         try {
+            // Lepas listener lama jika ada
+            if (customersListener) {
+                database.ref('users').off('child_changed', customersListener);
+                customersListener = null;
+            }
+
             const snapshot = await database.ref('users').once('value');
             const usersObj = snapshot.val() || {};
             const customers = [];
@@ -307,9 +300,44 @@
             allCustomers = customers;
             console.log("✅ Customer dimuat, total:", allCustomers.length);
             applyCustomerFilter();
+
+            // === PASANG LISTENER REAL-TIME UNTUK UPDATE INCREMENTAL ===
+            customersListener = (snap) => {
+                const uid = snap.key;
+                const data = snap.val();
+                if (!data) return;
+                // Cari customer di array
+                const idx = allCustomers.findIndex(c => c.uid === uid);
+                if (idx !== -1) {
+                    // Update field yang relevan
+                    const old = allCustomers[idx];
+                    allCustomers[idx] = {
+                        ...old,
+                        name: data.name || '-',
+                        phone: data.phone || '-',
+                        email: data.email || '-',
+                        rating: Number(data.rating) || 0,
+                        ratingCount: Number(data.ratingCount) || 0,
+                        photoURL: data.photoURL || '',
+                        playerId: data.playerId || null,
+                        status: data.status || 'active'
+                    };
+                    applyCustomerFilter(); // re-render
+                }
+            };
+            database.ref('users').on('child_changed', customersListener);
+            // Juga pasang child_removed untuk hapus customer
+            database.ref('users').on('child_removed', (snap) => {
+                const uid = snap.key;
+                allCustomers = allCustomers.filter(c => c.uid !== uid);
+                applyCustomerFilter();
+                showToast(`Customer ${uid} telah dihapus`, true);
+            });
+
         } catch(err) {
             console.error("❌ Gagal load customer:", err);
             showToast('Gagal load customer', true);
+            tbody.innerHTML = '<tr class="empty-row"><td colspan="8">⚠️ Gagal memuat data</td></tr>';
         }
     }
 
@@ -389,7 +417,7 @@
         finally { btn.disabled = false; btn.textContent = 'Simpan'; }
     }
 
-    // ========== KIRIM NOTIFIKASI PER CUSTOMER (dengan log) ==========
+    // ========== KIRIM NOTIFIKASI PER CUSTOMER ==========
     function openNotifModal(customer) {
         document.getElementById('notifCustomerUid').value = customer.uid;
         document.getElementById('notifTargetName').value = customer.name;
@@ -409,7 +437,6 @@
             showToast(`Customer ${customer.name} tidak memiliki Player ID, tidak bisa kirim notifikasi.`, true); 
             return; 
         }
-        console.log(`👉 Mengirim notifikasi manual ke ${customer.name} (UID: ${uid}), playerId: ${customer.playerId}`);
         const btn = document.getElementById('sendNotifNowBtn');
         btn.disabled = true; btn.textContent = 'Mengirim...';
         try {
@@ -424,7 +451,6 @@
             document.getElementById('notifCustomerModal').style.display = 'none';
         } catch(err) { 
             showToast(`Gagal: ${err.message}`, true);
-            console.error("🔥 Error di sendManualNotification:", err);
         }
         finally { btn.disabled = false; btn.textContent = 'Kirim Sekarang'; }
     }
@@ -455,7 +481,7 @@
         finally { btn.disabled = false; btn.textContent = 'Hapus Permanen'; }
     }
 
-    // ========== BROADCAST (MODAL) dengan log per customer ==========
+    // ========== BROADCAST ==========
     function openBroadcastModal() {
         const count = allCustomers.filter(c => c.playerId).length;
         document.getElementById('broadcastCount').innerText = count;
@@ -477,24 +503,17 @@
             showToast('Tidak ada customer yang memiliki Player ID', true);
             return;
         }
-        console.log(`📢 Memulai broadcast ke ${customersWithPlayerId.length} customer`);
         const btn = document.getElementById('sendBroadcastBtn');
         btn.disabled = true;
         btn.textContent = 'Mengirim...';
 
         let success = 0, fail = 0;
         for (const customer of customersWithPlayerId) {
-            console.log(`📨 Broadcast ke ${customer.name} (playerId: ${customer.playerId})`);
             try {
                 await saveCustomerNotification(customer.uid, title, message, 'broadcast');
                 const sent = await sendPushNotification(customer.playerId, title, message, { broadcast: true });
-                if (sent) {
-                    success++;
-                    console.log(`✅ ${customer.name} berhasil`);
-                } else {
-                    fail++;
-                    console.warn(`❌ ${customer.name} gagal`);
-                }
+                if (sent) success++;
+                else fail++;
             } catch(e) {
                 fail++;
                 console.error(`🔥 Error untuk ${customer.name}:`, e);
@@ -503,7 +522,6 @@
         }
         await saveAdminLog(`Admin melakukan broadcast ke ${customersWithPlayerId.length} customer dengan judul: ${title}`);
         showToast(`Broadcast selesai: ${success} terkirim, ${fail} gagal.`);
-        console.log(`✅ Broadcast selesai. Sukses: ${success}, Gagal: ${fail}`);
         document.getElementById('broadcastModal').style.display = 'none';
         btn.disabled = false;
         btn.textContent = 'Kirim Broadcast';
