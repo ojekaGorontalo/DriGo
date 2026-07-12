@@ -350,6 +350,11 @@
   function updateActionButtons() {
     const mapBtn = document.getElementById('mapActionBtn');
     if (!mapBtn) return;
+    // Sembunyikan jika status completed atau cancelled
+    if (currentStatus === 'completed' || currentStatus === 'cancelled') {
+        mapBtn.style.display = 'none';
+        return;
+    }
     switch(currentStatus) {
       case 'accepted': mapBtn.style.display = 'flex'; mapBtn.innerHTML = 'Menuju Lokasi (Saya Berangkat)'; break;
       case 'on_the_way': mapBtn.style.display = 'flex'; mapBtn.innerHTML = '📍 Sampai di Lokasi Jemput'; break;
@@ -357,7 +362,7 @@
       case 'on_trip': mapBtn.style.display = 'flex'; mapBtn.innerHTML = '🏁 Selesaikan Perjalanan'; break;
       default: mapBtn.style.display = 'none';
     }
-  }
+}
 
   async function onMapAction() {
     if (!orderData) { showToast("Data order belum siap"); return; }
@@ -408,6 +413,10 @@
 
   async function cancelTrip() {
     if (currentStatus === 'on_trip') { showToast("Tidak dapat membatalkan perjalanan berlangsung"); return; }
+    if (currentStatus === 'completed' || currentStatus === 'cancelled') { 
+        showToast("Perjalanan sudah selesai atau dibatalkan"); 
+        return; 
+    }
     if (!confirm("Batalkan perjalanan? Bonus customer akan masuk ke daftar refund yang bisa diklaim customer.")) return;
     try {
       const bonusUsed = orderData.bonus_used || 0;
@@ -536,7 +545,18 @@
       else badge.innerHTML = '❌ Order dibatalkan';
     }
     updateActionButtons();
-  }
+
+    // ========== SEMBUNYIKAN ACTION BAR JIKA STATUS COMPLETED ATAU CANCELLED ==========
+    const actionsSection = document.getElementById('actionsSection');
+    if (status === 'completed' || status === 'cancelled') {
+        if (actionsSection) actionsSection.style.display = 'none';
+        const mapBtn = document.getElementById('mapActionBtn');
+        if (mapBtn) mapBtn.style.display = 'none';
+    } else {
+        if (actionsSection) actionsSection.style.display = 'flex';
+        // map button diatur oleh updateActionButtons()
+    }
+}
 
   function listenOrder() {
     if(orderRef) orderRef.off();
