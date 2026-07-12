@@ -285,7 +285,7 @@
         return staleDrivers;
     }
 
-    // ==================== AUTO FALLBACK ====================
+    // ==================== AUTO FALLBACK (hanya untuk Autobid ON) ====================
     async function sendFallbackOffer(orderId, orderData) {
         if (isKurirOrder(orderData)) {
             addLog(`🚫 Fallback dibatalkan untuk order Kurir ${orderId.substring(0,8)}`, "warning");
@@ -304,6 +304,7 @@
         let eligibleDrivers = [];
         for (const [uid, data] of Object.entries(allDrivers)) {
             if (data.tracking_enabled !== true) continue;
+            if (data.autobid_enabled !== true) continue;   // <-- HANYA AUTOBID ON
             if (!data.latitude || !data.longitude) continue;
             const dist = getDistance(pickupLat, pickupLng, data.latitude, data.longitude);
             if (dist < 3) eligibleDrivers.push({ uid, ...data, distance: dist });
@@ -339,6 +340,7 @@
             addLog(`🤖 AUTO FALLBACK: offer ke ${offerData.driver_name} (${selectedDriver.uid}) jarak ${selectedDriver.distance.toFixed(2)}km`, "success");
             if (selectedDriver.playerId) {
                 await sendPushNotification(selectedDriver.playerId, "🚖 Order Baru (Auto Offer Admin)", `Halo ${offerData.driver_name}, admin mengirim penawaran order dari ${order.customer_name || 'Customer'} karena tidak ada driver merespon.`, { auto_fallback: true, orderId });
+                await saveDriverNotification(selectedDriver.uid, "Order Baru (Fallback)", `Admin menawari Anda order dari ${order.customer_name || 'Customer'} (Rp ${order.price?.toLocaleString()})`);
             }
             return true;
         } catch(err) { addLog(`❌ Fallback gagal: ${err.message}`, "error"); return false; }
@@ -403,6 +405,11 @@
                             };
                             await database.ref(`orders/${orderId}/driver_offers/${driver.uid}`).set(offerData);
                             addLog(`🤖 AUTO OFFER (autobid ON): ke ${driver.name} jarak ${dist.toFixed(2)}km`, "success");
+                            // === NOTIFIKASI KHUSUS AUTO OFFER ===
+                            if (driver.playerId) {
+                                await sendPushNotification(driver.playerId, "🤖 Penawaran Otomatis Dikirim", `Anda telah ditawari order dari ${cust} sebesar Rp ${harga.toLocaleString()} (Autobid ON).`, { orderId, auto_offer: true });
+                                await saveDriverNotification(driver.uid, "Penawaran Otomatis", `Anda ditawari order dari ${cust} (Rp ${harga.toLocaleString()})`);
+                            }
                             autoOfferCount++;
                         }
                     } else {
@@ -449,6 +456,7 @@
             fallbackTimers.set(orderId, timer);
             addLog(`⏲️ Timer fallback ${FALLBACK_DELAY_SECONDS}s untuk order ${orderId.substring(0,8)}`, "info");
         } else if (isKurir) addLog(`🚫 Order Kurir: auto fallback dinonaktifkan`, "info");
+
         processedOrderIds.add(orderId);
     }
 
@@ -487,7 +495,7 @@
         if (!orderData || orderData.status !== 'cancelled') return;
         if (checkedCancelledOrders.has(orderId)) return;
         const cancelledBy = orderData.cancelled_by;
-        if (cancelledBy !== 'customer') return; // hanya jika customer yang batalkan
+        if (cancelledBy !== 'customer') return;
 
         const driverId = orderData.driver_id;
         const destLat = orderData.dest_lat;
@@ -495,7 +503,6 @@
         if (!driverId || !destLat) return;
 
         const cancelledAt = orderData.cancelled_at ? new Date(orderData.cancelled_at).getTime() : Date.now();
-        // Tunggu 5 menit setelah pembatalan, lalu cek lokasi driver
         setTimeout(async () => {
             const locationsSnap = await database.ref(`driver_locations/${driverId}`).orderByChild('last_update').limitToLast(10).once('value');
             let nearDestination = false;
@@ -651,14 +658,11 @@
 
     // ==================== CHAT NOTIFICATION FEATURE ====================
     async function listenToChatOrder(orderId) {
-        // Tandai semua pesan yang sudah ada sebagai sudah diproses (supaya tidak dikirim ulang)
         const snapshot = await database.ref(`chat/${orderId}`).once('value');
         const messages = snapshot.val() || {};
         for (let key in messages) {
             processedChatMessages.add(key);
         }
-
-        // Pasang listener untuk pesan baru
         database.ref(`chat/${orderId}`).on('child_added', async (snap) => {
             const msgKey = snap.key;
             if (processedChatMessages.has(msgKey)) return;
@@ -667,12 +671,11 @@
             const msgData = snap.val();
             if (!msgData || !msgData.sender) return;
 
-            // Ambil data order
             const orderSnap = await database.ref(`orders/${orderId}`).once('value');
             const order = orderSnap.val();
             if (!order) return;
 
-            let senderType = msgData.sender; // 'driver' atau 'customer'
+            let senderType = msgData.sender;
             let receiverId = null;
             let senderName = '';
             let title = '';
@@ -695,7 +698,6 @@
                 return;
             }
 
-            // Cari playerId penerima
             let playerId = null;
             if (senderType === 'driver') {
                 const userSnap = await database.ref(`users/${receiverId}/playerId`).once('value');
@@ -719,7 +721,6 @@
     }
 
     function setupChatListener() {
-        // Dengarkan setiap order chat yang baru muncul
         database.ref('chat').on('child_added', (snap) => {
             const orderId = snap.key;
             if (!chatOrderListeners.has(orderId)) {
@@ -756,7 +757,6 @@
                 }
             }
 
-            // Off-app detection
             await onOrderChangedForOffApp(snap);
         });
 
@@ -779,7 +779,7 @@
         startListeners();
         await processMissedDeductions();
         await scanRecentCancelledOrders();
-        setupChatListener(); // <-- FITUR CHAT NOTIF
+        setupChatListener();
         setInterval(cleanupExpiredOffers, 10000);
         setInterval(deleteExpiredOrders, 10 * 60 * 1000);
         setInterval(scanRecentCancelledOrders, 10 * 60 * 1000);
