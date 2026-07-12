@@ -26,7 +26,7 @@
         .table-wrapper { overflow-x: auto; padding: 0 0 20px 0; }
         table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
         th, td { padding: 12px 6px; text-align: left; border-bottom: 1px solid #edf2f7; vertical-align: middle; }
-        th { background: #f8fafc; font-weight: 600; color: #1e293b; position: sticky; top: 0; }
+        th { background: #f8fafc; font-weight: 600; color: #1e293b; position: sticky; top: 0; z-index: 10; }
         tr:hover { background: #fef9e6; }
         .driver-photo { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; background: #f1f5f9; border: 1px solid #e2e8f0; }
         .status-badge { display: inline-block; padding: 4px 12px; border-radius: 30px; font-size: 0.7rem; font-weight: 600; text-align: center; min-width: 80px; }
@@ -68,6 +68,10 @@
         .modal-btn-cancel { background: #e2e8f0; color: #1e293b; }
         .modal-btn-save { background: #FF9800; color: white; }
         .balance-preview { background: #f0fdf4; padding: 10px; border-radius: 12px; font-weight: bold; }
+        .pagination { display: flex; justify-content: center; align-items: center; gap: 12px; padding: 16px; background: #f8fafc; border-top: 1px solid #e9ecef; }
+        .pagination button { background: #FF9800; color: white; border: none; padding: 6px 16px; border-radius: 30px; cursor: pointer; font-weight: 600; }
+        .pagination button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .pagination span { font-weight: 600; color: #1e293b; }
         @media (max-width: 700px) { body { padding: 10px; } th, td { padding: 6px; font-size: 0.7rem; } .action-buttons { flex-direction: column; } }
     </style>
 </head>
@@ -93,7 +97,7 @@
                 <option value="blocked">🚫 Blocked</option>
             </select>
             <div style="flex:1; display: flex; justify-content: flex-end; gap: 12px;">
-                <div class="stats-badge" id="driverStats">Menampilkan <span id="driverDisplayCount">0</span> dari <span id="driverTotalCount">0</span></div>
+                <div class="stats-badge" id="driverStats">Total: <span id="driverTotalCount">0</span> | Halaman <span id="currentPageDisplay">1</span></div>
                 <button class="broadcast-btn" id="broadcastNotifBtn"><i class="fas fa-bullhorn"></i> Broadcast</button>
                 <button class="activate-all-btn" id="activateAllBtn"><i class="fas fa-check-double"></i> Aktifkan Semua</button>
                 <button class="refresh-btn" id="refreshDriversBtn"><i class="fas fa-sync-alt"></i> Refresh</button>
@@ -106,9 +110,17 @@
             <thead>
                 <tr><th>Foto</th><th>Nama</th><th>Telepon</th><th>Email</th><th>Kendaraan</th><th>Plat</th><th>Rating</th><th>Perjalanan</th><th>Saldo</th><th>Status</th><th>Alasan</th><th>Tracking</th><th>Autobid</th><th>Aksi</th></tr>
             </thead>
-            <tbody id="driverTableBody"><tr class="empty-row"><td colspan="14"><div class="loading-overlay"><div class="spinner"></div></div></tr></tbody>
+            <tbody id="driverTableBody"><tr class="empty-row"><td colspan="14"><div class="loading-overlay"><div class="spinner"></div></div></td></tr>
+            </tbody>
         </table>
     </div>
+
+    <div class="pagination">
+        <button id="prevPageBtn" disabled><i class="fas fa-chevron-left"></i> Sebelumnya</button>
+        <span id="pageInfo">Halaman 1 dari 1</span>
+        <button id="nextPageBtn"><i class="fas fa-chevron-right"></i> Selanjutnya</button>
+    </div>
+
     <div class="footer-note"><i class="fas fa-info-circle"></i> Klik <strong>Edit Data</strong> untuk mengubah semua informasi driver. <strong>Kirim Notif</strong> pesan manual. <strong>Atur Saldo</strong> untuk topup atau potong saldo.</div>
 </div>
 
@@ -183,10 +195,13 @@
     const database = firebase.database();
 
     let allDrivers = [];
+    let filteredDrivers = [];
+    let currentPage = 1;
+    const PER_PAGE = 10;
     let currentDriverForTopup = null;
     let onesignalApiKey = null;
     const ONESIGNAL_APP_ID = "007d7eba-9cfc-40d1-a92e-f2299f770282";
-    let driversListener = null; // untuk melepas listener
+    let driversListener = null;
 
     // ========== ADMIN LOG ==========
     async function saveAdminLog(message) {
@@ -248,12 +263,11 @@
     }
     function formatRupiah(amount) { return 'Rp ' + (amount || 0).toLocaleString('id-ID'); }
 
-    // ========== LOAD DRIVERS (ONCE) + PASANG LISTENER REAL-TIME ==========
+    // ========== LOAD DRIVERS (ONCE) + LISTENER ==========
     async function loadDrivers() {
         const tbody = document.getElementById('driverTableBody');
-        tbody.innerHTML = '<tr class="empty-row"><td colspan="14"><div class="loading-overlay"><div class="spinner"></div></div></tr>';
+        tbody.innerHTML = '<tr class="empty-row"><td colspan="14"><div class="loading-overlay"><div class="spinner"></div></div></td>';
         try {
-            // Lepas listener lama jika ada
             if (driversListener) {
                 database.ref('drivers').off('child_changed', driversListener);
                 driversListener = null;
@@ -283,15 +297,13 @@
             populateVehicleFilter();
             applyDriverFilter();
 
-            // === PASANG LISTENER REAL-TIME UNTUK UPDATE INCREMENTAL ===
+            // === PASANG LISTENER REAL-TIME ===
             driversListener = (snap) => {
                 const uid = snap.key;
                 const data = snap.val();
                 if (!data) return;
-                // Cari driver di array
                 const idx = allDrivers.findIndex(d => d.uid === uid);
                 if (idx !== -1) {
-                    // Update field yang relevan
                     const old = allDrivers[idx];
                     allDrivers[idx] = {
                         ...old,
@@ -310,11 +322,10 @@
                         photoURL: data.photoURL || '',
                         date_of_birth: data.date_of_birth || ''
                     };
-                    applyDriverFilter(); // re-render
+                    applyDriverFilter();
                 }
             };
             database.ref('drivers').on('child_changed', driversListener);
-            // Juga pasang child_removed untuk hapus driver
             database.ref('drivers').on('child_removed', (snap) => {
                 const uid = snap.key;
                 allDrivers = allDrivers.filter(d => d.uid !== uid);
@@ -339,7 +350,7 @@
         const selectedVehicle = document.getElementById('vehicleFilter').value;
         const selectedStatus = document.getElementById('statusFilter').value;
 
-        let filtered = allDrivers.filter(d => {
+        filteredDrivers = allDrivers.filter(d => {
             const matchKeyword = keyword === '' || 
                 d.name.toLowerCase().includes(keyword) || 
                 d.phone.toLowerCase().includes(keyword) || 
@@ -349,27 +360,30 @@
             return matchKeyword && matchVehicle && matchStatus;
         });
 
-        renderDriverTable(filtered);
-        document.getElementById('driverTotalCount').innerText = allDrivers.length;
-        document.getElementById('driverDisplayCount').innerText = filtered.length;
+        document.getElementById('driverTotalCount').innerText = filteredDrivers.length;
+        currentPage = 1;
+        renderPage();
     }
 
-    async function toggleDriverSetting(uid, field, newValue) {
-        const updates = {};
-        updates[`drivers/${uid}/${field}`] = newValue;
-        updates[`driver_locations/${uid}/${field}`] = newValue;
-        try {
-            await database.ref().update(updates);
-            const driver = allDrivers.find(d => d.uid === uid);
-            if (driver) driver[field] = newValue;
-            showToast(`Setting ${field} untuk ${driver ? driver.name : uid} diubah menjadi ${newValue ? 'ON' : 'OFF'}`);
-            await saveAdminLog(`Admin mengubah ${field} driver ${driver?.name || uid} menjadi ${newValue ? 'ON' : 'OFF'}`);
-        } catch(err) { showToast(`Gagal: ${err.message}`, true); }
+    function renderPage() {
+        const totalPages = Math.ceil(filteredDrivers.length / PER_PAGE) || 1;
+        if (currentPage > totalPages) currentPage = totalPages;
+        const start = (currentPage - 1) * PER_PAGE;
+        const end = start + PER_PAGE;
+        const pageData = filteredDrivers.slice(start, end);
+        renderDriverTable(pageData);
+        document.getElementById('currentPageDisplay').innerText = currentPage;
+        document.getElementById('pageInfo').innerText = `Halaman ${currentPage} dari ${totalPages}`;
+        document.getElementById('prevPageBtn').disabled = currentPage <= 1;
+        document.getElementById('nextPageBtn').disabled = currentPage >= totalPages;
     }
+
+    function prevPage() { if (currentPage > 1) { currentPage--; renderPage(); } }
+    function nextPage() { const totalPages = Math.ceil(filteredDrivers.length / PER_PAGE) || 1; if (currentPage < totalPages) { currentPage++; renderPage(); } }
 
     function renderDriverTable(drivers) {
         const tbody = document.getElementById('driverTableBody');
-        if (!drivers.length) { tbody.innerHTML = '<tr class="empty-row"><td colspan="14">Tidak ada driver</tr>'; return; }
+        if (!drivers.length) { tbody.innerHTML = '<tr class="empty-row"><td colspan="14">Tidak ada driver</td></tr>'; return; }
         tbody.innerHTML = '';
         drivers.forEach(d => {
             const row = tbody.insertRow();
@@ -436,6 +450,19 @@
             topupBtn.onclick = () => openTopupModal(d);
             notifBtn.onclick = () => openNotifModal(d);
         });
+    }
+
+    async function toggleDriverSetting(uid, field, newValue) {
+        const updates = {};
+        updates[`drivers/${uid}/${field}`] = newValue;
+        updates[`driver_locations/${uid}/${field}`] = newValue;
+        try {
+            await database.ref().update(updates);
+            const driver = allDrivers.find(d => d.uid === uid);
+            if (driver) driver[field] = newValue;
+            showToast(`Setting ${field} untuk ${driver ? driver.name : uid} diubah menjadi ${newValue ? 'ON' : 'OFF'}`);
+            await saveAdminLog(`Admin mengubah ${field} driver ${driver?.name || uid} menjadi ${newValue ? 'ON' : 'OFF'}`);
+        } catch(err) { showToast(`Gagal: ${err.message}`, true); }
     }
 
     function openDriverEditModal(driver) {
@@ -623,7 +650,8 @@
         document.getElementById('driverSearch').addEventListener('input', applyDriverFilter);
         document.getElementById('vehicleFilter').addEventListener('change', applyDriverFilter);
         document.getElementById('statusFilter').addEventListener('change', applyDriverFilter);
-
+        document.getElementById('prevPageBtn').onclick = prevPage;
+        document.getElementById('nextPageBtn').onclick = nextPage;
         document.getElementById('refreshDriversBtn').onclick = loadDrivers;
         document.getElementById('activateAllBtn').onclick = activateAllDrivers;
         document.getElementById('broadcastNotifBtn').onclick = broadcastToAllDrivers;
