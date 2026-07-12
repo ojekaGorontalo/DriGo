@@ -179,8 +179,6 @@
 
 </div>
 
-
-
 <script>
 
     // ==================== FIREBASE CONFIG ====================
@@ -232,6 +230,8 @@
     let lastStaleNotifTime = new Map();
 
     let checkedCancelledOrders = new Set();
+
+    let statsUpdateDebounceTimer = null; // debounce untuk update stats
 
 
 
@@ -947,7 +947,152 @@
 
         processedOrderIds.add(orderId);
 
+
+
+        // === UPDATE DAILY STATS (dengan debounce) ===
+
+        scheduleStatsUpdate();
+
     }
+
+
+
+    // ==================== UPDATE DAILY STATS ====================
+
+
+    async function updateDailyStats() {
+
+        try {
+
+            addLog("📊 Memperbarui statistik harian...", "info");
+
+            // Recalculate stats from scratch
+
+            const driversSnap = await database.ref('drivers').once('value');
+
+            const drivers = driversSnap.val() || {};
+
+            let totalDrivers = 0;
+
+            for (let uid in drivers) if (drivers[uid].role === 'driver') totalDrivers++;
+
+
+
+            const locSnap = await database.ref('driver_locations').once('value');
+
+            const locs = locSnap.val() || {};
+
+            const now = Date.now();
+
+            let activeDrivers = 0;
+
+            for (let uid in locs) {
+
+                const d = locs[uid];
+
+                if (d.tracking_enabled === true && d.latitude && d.longitude) {
+
+                    let lastUpdate = d.last_update ? new Date(d.last_update).getTime() : 0;
+
+                    if (now - lastUpdate < 5 * 60 * 1000) activeDrivers++;
+
+                }
+
+            }
+
+
+
+            const usersSnap = await database.ref('users').once('value');
+
+            const users = usersSnap.val() || {};
+
+            let totalCustomers = 0;
+
+            for (let uid in users) if (users[uid].role !== 'driver' && users[uid].role !== 'admin') totalCustomers++;
+
+
+
+            const today = new Date(); today.setHours(0,0,0,0);
+
+            const todayISO = today.toISOString();
+
+            const ordersSnap = await database.ref('orders')
+
+                .orderByChild('created_at')
+
+                .startAt(todayISO)
+
+                .once('value');
+
+            const ordersToday = ordersSnap.val() || {};
+
+            let ordersCount = 0, revenue = 0;
+
+            for (let id in ordersToday) {
+
+                const o = ordersToday[id];
+
+                ordersCount++;
+
+                if (o.status === 'completed' && o.price) revenue += o.price;
+
+            }
+
+
+
+            let pendingDeposits = 0;
+
+            const logsSnap = await database.ref('driver_balance_logs').once('value');
+
+            logsSnap.forEach(driverChild => {
+
+                driverChild.forEach(logChild => {
+
+                    const log = logChild.val();
+
+                    if (log.type === 'deposit_request' && log.status === 'pending') pendingDeposits++;
+
+                });
+
+            });
+
+
+
+            const stats = {
+
+                totalDrivers, activeDrivers, totalCustomers,
+
+                ordersToday: ordersCount, revenueToday: revenue,
+
+                pendingDeposits,
+
+                updatedAt: new Date().toISOString()
+
+            };
+
+            await database.ref('stats/daily').set(stats);
+
+            addLog(`📊 Update daily stats: ordersToday=${ordersCount}, revenue=${revenue}`, 'success');
+
+        } catch(err) {
+
+            addLog(`❌ Gagal update daily stats: ${err.message}`, 'error');
+
+        }
+
+    }
+
+
+
+    function scheduleStatsUpdate() {
+    if (statsUpdateDebounceTimer) {
+        clearTimeout(statsUpdateDebounceTimer);
+    }
+    statsUpdateDebounceTimer = setTimeout(() => {   // <-- tanpa 'let'
+        updateDailyStats();
+        statsUpdateDebounceTimer = null;
+    }, 5000);
+}
 
 
 
@@ -1715,6 +1860,10 @@
 
                 }
 
+                // === UPDATE DAILY STATS KETIKA ORDER COMPLETED ===
+
+                scheduleStatsUpdate();
+
             }
 
 
@@ -1816,6 +1965,10 @@
         setInterval(deleteExpiredOrders, 10 * 60 * 1000);
 
         setInterval(scanRecentCancelledOrders, 10 * 60 * 1000);
+
+        // Update daily stats di awal
+
+        await updateDailyStats();
 
         addLog('✅ Semua sistem core berjalan (auto offer, fallback, deduct, cleanup, missed check, off-app detection, chat notif)', 'success');
 
