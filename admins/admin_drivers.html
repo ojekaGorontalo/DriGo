@@ -83,20 +83,18 @@
         <div style="display: flex; gap: 10px; flex-wrap: wrap; width: 100%; align-items: center;">
             <input type="text" id="driverSearch" class="search-box" placeholder="Cari nama, telepon, plat...">
             <select id="vehicleFilter" class="filter-select">
-                <option value="all">ðŸš— Semua kendaraan</option>
+                <option value="all">🚗 Semua kendaraan</option>
             </select>
-            <!-- ========== TAMBAHAN FILTER STATUS ========== -->
             <select id="statusFilter" class="filter-select">
-                <option value="all">ðŸ“‹ Semua status</option>
-                <option value="accepted">âœ… Accepted</option>
-                <option value="pending">â³ Pending</option>
-                <option value="rejected">âŒ Rejected</option>
-                <option value="blocked">ðŸš« Blocked</option>
+                <option value="all">📋 Semua status</option>
+                <option value="accepted">✅ Accepted</option>
+                <option value="pending">⏳ Pending</option>
+                <option value="rejected">❌ Rejected</option>
+                <option value="blocked">🚫 Blocked</option>
             </select>
-            <!-- =========================================== -->
             <div style="flex:1; display: flex; justify-content: flex-end; gap: 12px;">
                 <div class="stats-badge" id="driverStats">Menampilkan <span id="driverDisplayCount">0</span> dari <span id="driverTotalCount">0</span></div>
-                <button class="broadcast-btn" id="broadcastNotifBtn"><i class="fas fa-bullhorn"></i> Broadcast ke Semua Driver</button>
+                <button class="broadcast-btn" id="broadcastNotifBtn"><i class="fas fa-bullhorn"></i> Broadcast</button>
                 <button class="activate-all-btn" id="activateAllBtn"><i class="fas fa-check-double"></i> Aktifkan Semua</button>
                 <button class="refresh-btn" id="refreshDriversBtn"><i class="fas fa-sync-alt"></i> Refresh</button>
             </div>
@@ -188,8 +186,9 @@
     let currentDriverForTopup = null;
     let onesignalApiKey = null;
     const ONESIGNAL_APP_ID = "007d7eba-9cfc-40d1-a92e-f2299f770282";
+    let driversListener = null; // untuk melepas listener
 
-    // ========== ADMIN LOG (ACTIVITY LOG) ==========
+    // ========== ADMIN LOG ==========
     async function saveAdminLog(message) {
         try {
             const user = auth.currentUser;
@@ -199,12 +198,10 @@
                 timestamp: firebase.database.ServerValue.TIMESTAMP,
                 admin: user.email || user.uid
             });
-            console.log("âœ… Admin log tersimpan:", message);
-        } catch (err) {
-            console.warn("Gagal menyimpan admin log:", err);
-        }
+        } catch (err) { console.warn(err); }
     }
 
+    // ========== ONE SIGNAL ==========
     async function getOneSignalApiKey() {
         if (onesignalApiKey) return onesignalApiKey;
         try {
@@ -251,11 +248,21 @@
     }
     function formatRupiah(amount) { return 'Rp ' + (amount || 0).toLocaleString('id-ID'); }
 
+    // ========== LOAD DRIVERS (ONCE) + PASANG LISTENER REAL-TIME ==========
     async function loadDrivers() {
         const tbody = document.getElementById('driverTableBody');
         tbody.innerHTML = '<tr class="empty-row"><td colspan="14"><div class="loading-overlay"><div class="spinner"></div></div></tr>';
         try {
-            const [driversSnap, locSnap] = await Promise.all([database.ref('drivers').once('value'), database.ref('driver_locations').once('value')]);
+            // Lepas listener lama jika ada
+            if (driversListener) {
+                database.ref('drivers').off('child_changed', driversListener);
+                driversListener = null;
+            }
+
+            const [driversSnap, locSnap] = await Promise.all([
+                database.ref('drivers').once('value'),
+                database.ref('driver_locations').once('value')
+            ]);
             const driversObj = driversSnap.val() || {};
             const locObj = locSnap.val() || {};
             const driversArray = [];
@@ -275,17 +282,58 @@
             allDrivers = driversArray;
             populateVehicleFilter();
             applyDriverFilter();
-        } catch (err) { tbody.innerHTML = `<tr class="empty-row"><td colspan="14">âš ï¸ Gagal load driver: ${err.message}</td>`; }
+
+            // === PASANG LISTENER REAL-TIME UNTUK UPDATE INCREMENTAL ===
+            driversListener = (snap) => {
+                const uid = snap.key;
+                const data = snap.val();
+                if (!data) return;
+                // Cari driver di array
+                const idx = allDrivers.findIndex(d => d.uid === uid);
+                if (idx !== -1) {
+                    // Update field yang relevan
+                    const old = allDrivers[idx];
+                    allDrivers[idx] = {
+                        ...old,
+                        name: data.name || '-',
+                        phone: data.phone || '-',
+                        email: data.email || '-',
+                        vehicle_type: data.vehicle_type || '-',
+                        vehicle_brand: data.vehicle_brand || '-',
+                        vehicle_year: data.vehicle_year || '',
+                        plate_number: data.plate_number || '-',
+                        rating: data.rating || 0,
+                        perjalanan: data.perjalanan || 0,
+                        balance: data.balance || 0,
+                        status: data.status || 'pending',
+                        ketGagal: data.ketGagal || '',
+                        photoURL: data.photoURL || '',
+                        date_of_birth: data.date_of_birth || ''
+                    };
+                    applyDriverFilter(); // re-render
+                }
+            };
+            database.ref('drivers').on('child_changed', driversListener);
+            // Juga pasang child_removed untuk hapus driver
+            database.ref('drivers').on('child_removed', (snap) => {
+                const uid = snap.key;
+                allDrivers = allDrivers.filter(d => d.uid !== uid);
+                applyDriverFilter();
+                showToast(`Driver ${uid} telah dihapus`, true);
+            });
+
+        } catch (err) {
+            tbody.innerHTML = `<tr class="empty-row"><td colspan="14">⚠️ Gagal load driver: ${err.message}</td>`;
+        }
     }
 
     function populateVehicleFilter() {
         const vehicles = [...new Set(allDrivers.map(d => d.vehicle_type).filter(v => v && v !== '-'))];
         const select = document.getElementById('vehicleFilter');
-        select.innerHTML = '<option value="all">ðŸš— Semua kendaraan</option>';
+        select.innerHTML = '<option value="all">🚗 Semua kendaraan</option>';
         vehicles.forEach(v => { const opt = document.createElement('option'); opt.value = v; opt.textContent = v; select.appendChild(opt); });
     }
 
-    // ========== FUNGSI FILTER DENGAN STATUS ==========
     function applyDriverFilter() {
         const keyword = document.getElementById('driverSearch').value.toLowerCase();
         const selectedVehicle = document.getElementById('vehicleFilter').value;
@@ -507,7 +555,6 @@
         showToast(`Berhasil mengaktifkan ${successCount} driver. Gagal: ${errorCount}`);
     }
 
-    // Topup modal
     function openTopupModal(driver) {
         currentDriverForTopup = driver;
         document.getElementById('topupDriverUid').value = driver.uid;
@@ -565,7 +612,7 @@
     document.getElementById('topupAmount')?.addEventListener('input', updateBalancePreview);
     document.getElementById('transactionType')?.addEventListener('change', updateBalancePreview);
 
-    // Initialize
+    // ========== INIT ==========
     auth.onAuthStateChanged(async (user) => {
         if (!user) { window.location.href = 'login_admin.html'; return; }
         const adminSnap = await database.ref(`admins/${user.uid}`).once('value');
@@ -573,10 +620,9 @@
         await getOneSignalApiKey();
         await loadDrivers();
 
-        // Event listener untuk filter status
         document.getElementById('driverSearch').addEventListener('input', applyDriverFilter);
         document.getElementById('vehicleFilter').addEventListener('change', applyDriverFilter);
-        document.getElementById('statusFilter').addEventListener('change', applyDriverFilter); // <-- TAMBAHAN
+        document.getElementById('statusFilter').addEventListener('change', applyDriverFilter);
 
         document.getElementById('refreshDriversBtn').onclick = loadDrivers;
         document.getElementById('activateAllBtn').onclick = activateAllDrivers;
@@ -585,7 +631,6 @@
         document.getElementById('sendNotifNowBtn').onclick = sendManualNotification;
         document.getElementById('logoutBtn').onclick = async () => { await auth.signOut(); window.location.href = 'login_admin.html'; };
 
-        // close modals
         document.querySelectorAll('.close-driver-modal, .close-notif-modal, .close-topup-modal').forEach(el => el.addEventListener('click', (e) => { document.getElementById('editDriverModal').style.display = 'none'; document.getElementById('notifDriverModal').style.display = 'none'; document.getElementById('topupModal').style.display = 'none'; }));
         window.addEventListener('click', (e) => { if (e.target.classList.contains('modal')) e.target.style.display = 'none'; });
     });
