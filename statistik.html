@@ -1096,16 +1096,19 @@
     }
 
     async function checkDriverActiveOrderStat() {
-        if (!globalUidStat) return false;
-        const activeStatuses = ['accepted', 'on_the_way', 'arrived', 'on_trip'];
-        const ordersSnap = await db.ref('orders').once('value');
-        const orders = ordersSnap.val() || {};
-        for (let id in orders) {
-            const o = orders[id];
-            if (o.driver_id === globalUidStat && activeStatuses.includes(o.status)) return true;
-        }
-        return false;
+    if (!globalUidStat) return false;
+    const activeStatuses = ['accepted', 'on_the_way', 'arrived', 'on_trip'];
+    // Hanya baca order dengan driver_id = uid
+    const ordersSnap = await db.ref('orders')
+        .orderByChild('driver_id')
+        .equalTo(globalUidStat)
+        .once('value');
+    const orders = ordersSnap.val() || {};
+    for (let id in orders) {
+        if (activeStatuses.includes(orders[id].status)) return true;
     }
+    return false;
+}
 
     function showOrderNotification(order) {
         if (isWaitingConfirmationStat) return;
