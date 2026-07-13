@@ -1481,12 +1481,19 @@ function loadOrders() {
 
     // ---- child_added ----
     const childAddedHandler = (snapshot) => {
-        const orderId = snapshot.key;
-        const orderData = snapshot.val();
-        if (!orderData) return;
+    const orderId = snapshot.key;
+    const orderData = snapshot.val();
+    if (!orderData) {
+        console.warn(`⚠️ child_added: order ${orderId} tidak memiliki data`);
+        return;
+    }
+    console.log(`📥 [child_added] Order ${orderId} muncul: status=${orderData.status}, created_at=${orderData.created_at}`);
 
-        // Simpan di map
-        orderMap.set(orderId, orderData);
+    // ===== TAMBAHKAN ID KE orderData =====
+    orderData.id = orderId;
+
+    // Simpan di map
+    orderMap.set(orderId, orderData);
 
         // Jika bukan inisialisasi awal, proses order baru
         if (!isInitialLoad) {
@@ -1516,12 +1523,16 @@ function loadOrders() {
 
     // ---- child_changed ----
     const childChangedHandler = (snapshot) => {
-        const orderId = snapshot.key;
-        const orderData = snapshot.val();
-        if (!orderData) return;
+    const orderId = snapshot.key;
+    const orderData = snapshot.val();
+    if (!orderData) return;
+    console.log(`🔄 [child_changed] Order ${orderId} berubah: status=${orderData.status}`);
 
-        // Update map
-        orderMap.set(orderId, orderData);
+    // ===== TAMBAHKAN ID KE orderData =====
+    orderData.id = orderId;
+
+    // Update map
+    orderMap.set(orderId, orderData);
 
         // Cek apakah order saat ini tampil di DOM
         const existingEl = document.querySelector(`.order-item[data-order-id="${orderId}"]`);
@@ -1543,10 +1554,11 @@ function loadOrders() {
 
     // ---- child_removed ----
     const childRemovedHandler = (snapshot) => {
-        const orderId = snapshot.key;
-        orderMap.delete(orderId);
-        removeOrderDOM(orderId);
-    };
+    const orderId = snapshot.key;
+    console.log(`🗑️ [child_removed] Order ${orderId} dihapus dari daftar waiting`);
+    orderMap.delete(orderId);
+    removeOrderDOM(orderId);
+};
 
     // Simpan referensi listener
     ordersChildListeners.child_added = childAddedHandler;
@@ -1652,20 +1664,23 @@ function hideBidOptions() {
 }
 
 async function showOrderDetail(orderObj, fromAuto = false, isAutoTrigger = false) {
-  if (isWaitingForConfirmation) {
-    showToast('Anda sedang memproses order lain, harap tunggu.', 'warning');
-    return;
-  }
-  if (!checkDriverData() || !globalCurrentUid) return;
-  const { orderId, orderData } = orderObj;
- 
-  const snapshot = await database.ref(`orders/${orderId}`).once('value');
-  const currentOrder = snapshot.val();
-  if (!currentOrder || currentOrder.status !== 'waiting') {
-    showToast('Order ini sudah tidak tersedia.', 'warning');
-    refreshDisplay();
-    return;
-  }
+    if (isWaitingForConfirmation) {
+        showToast('Anda sedang memproses order lain, harap tunggu.', 'warning');
+        return;
+    }
+    if (!checkDriverData() || !globalCurrentUid) return;
+    const { orderId, orderData } = orderObj;
+    console.log(`👆 [showOrderDetail] User mengklik order ${orderId}`);
+    
+    const snapshot = await database.ref(`orders/${orderId}`).once('value');
+    const currentOrder = snapshot.val();
+    console.log(`📋 [showOrderDetail] Data order dari Firebase:`, currentOrder);
+    if (!currentOrder || currentOrder.status !== 'waiting') {
+        console.warn(`❌ [showOrderDetail] Order ${orderId} tidak valid. Data:`, currentOrder);
+        showToast('Order ini sudah tidak tersedia.', 'warning');
+        refreshDisplay();
+        return;
+    }
   currentSelectedOrder = { orderId: orderId, orderData: currentOrder };
 
   document.getElementById('modalAddressA').innerHTML = `<strong>🟢 Jemput:</strong> ${escapeHtml(currentOrder.pickup_address || '-')}`;
