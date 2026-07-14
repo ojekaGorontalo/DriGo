@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>JeGo Core - 3 Fungsi + Notifikasi (Optimasi)</title>
+    <title>JeGo Core - Notifikasi Order Terdekat + 3 Fungsi</title>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
@@ -19,11 +19,11 @@
     </style>
 </head>
 <body>
-    <h2>JeGo Core - 3 Fungsi + Notifikasi</h2>
-    <p>Auto Deduct, Rating, Cleanup, Chat & Push Notifikasi (Optimasi Cache 100%)</p>
+    <h2>JeGo Core - Notifikasi Order Terdekat + 3 Fungsi</h2>
+    <p>Auto Deduct, Rating, Cleanup, Notifikasi Order Terdekat (Optimasi Cache 100%)</p>
     <button id="logoutBtn">Logout</button>
     <div class="log" id="logContainer">
-        <div class="log-entry">🚀 Memulai sistem (3 fungsi + notifikasi)...</div>
+        <div class="log-entry">🚀 Memulai sistem (notifikasi order terdekat + 3 fungsi)...</div>
     </div>
 
     <script>
@@ -49,10 +49,11 @@
         let potonganCache = null;
         let pajakCache = null;
 
-        // ==================== CACHE LAYER (OPTIMASI) ====================
+        // ==================== CACHE LAYER (OPTIMASI 100%) ====================
         let ordersCache = {};
         let driversCache = {};
         let usersCache = {};
+        let driverLocationsCache = {};  // <-- TAMBAHAN: cache lokasi driver
         let cacheInitialized = false;
 
         // ===== CHAT NOTIF =====
@@ -72,6 +73,39 @@
             entry.textContent = `[${time}] ${msg}`;
             logDiv.prepend(entry);
             while (logDiv.children.length > 200) logDiv.removeChild(logDiv.lastChild);
+        }
+
+        // ==================== UTILITY ====================
+        function getDistance(lat1, lon1, lat2, lon2) {
+            if (!lat1 || !lon1 || !lat2 || !lon2) return Infinity;
+            const R = 6371;
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) * Math.sin(dLon/2)**2;
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            return R * c;
+        }
+
+        async function hitungTotalPotongan(hargaOrder) {
+            let fee = potonganCache;
+            let pajak = pajakCache;
+            if (fee === null || pajak === null) {
+                try {
+                    const [potSnap, pajakSnap] = await Promise.all([
+                        database.ref('data-jego/potongan').once('value'),
+                        database.ref('data-jego/pajak').once('value')
+                    ]);
+                    fee = parseFloat(potSnap.val()) || 0;
+                    pajak = parseFloat(pajakSnap.val()) || 0;
+                    potonganCache = fee;
+                    pajakCache = pajak;
+                } catch(e) {
+                    return { total: 0, feePersen: 0, pajakPersen: 0 };
+                }
+            }
+            const potonganRupiah = hargaOrder * (fee / 100);
+            const pajakRupiah = potonganRupiah * (pajak / 100);
+            return { total: potonganRupiah + pajakRupiah, feePersen: fee, pajakPersen: pajak };
         }
 
         // ==================== ONE SIGNAL ====================
@@ -112,14 +146,6 @@
             } catch(err) { addLog(`❌ Error notif: ${err.message}`, "error"); return false; }
         }
 
-        // Fungsi untuk ambil playerId dari cache (tidak baca Firebase)
-        function getDriverPlayerId(driverId) {
-            if (driversCache[driverId] && driversCache[driverId].playerId) {
-                return driversCache[driverId].playerId;
-            }
-            return null;
-        }
-
         async function saveDriverNotification(driverId, title, message, type = 'system') {
             if (!driverId) return;
             try {
@@ -129,56 +155,118 @@
             } catch(e) { console.error(e); }
         }
 
-        // ==================== UTILITY ====================
-        async function hitungTotalPotongan(hargaOrder) {
-            let fee = potonganCache;
-            let pajak = pajakCache;
-            if (fee === null || pajak === null) {
+        // ==================== CORE: NOTIFIKASI ORDER TERDEKAT ====================
+        async function notifyNearbyDrivers(orderId, orderData) {
+            const pickupLat = orderData.pickup_lat;
+            const pickupLng = orderData.pickup_lng;
+            if (!pickupLat || !pickupLng) {
+                addLog(`⚠️ Order ${orderId.substring(0,8)} tidak memiliki lokasi pickup`, "warning");
+                return;
+            }
+
+            const now = Date.now();
+            const MAX_AGE = 5 * 60 * 1000;  // 5 menit
+            const MAX_DISTANCE_KM = 3;      // 3 km
+
+            let notifiedCount = 0;
+
+            // BANDWIDTH OPTIMIZATION: iterasi driverLocationsCache (memory), TIDAK baca Firebase
+            for (const [uid, loc] of Object.entries(driverLocationsCache)) {
+                // Filter: tracking enabled
+                if (!loc.tracking_enabled) continue;
+
+                // Filter: punya koordinat
+                if (!loc.latitude || !loc.longitude) continue;
+
+                // Filter: lokasi masih fresh (< 5 menit)
+                const lastUpdate = loc.last_update ? new Date(loc.last_update).getTime() : 0;
+                if (now - lastUpdate > MAX_AGE) continue;
+
+                // Filter: jarak ke pickup <= 3 km
+                const dist = getDistance(pickupLat, pickupLng, loc.latitude, loc.longitude);
+                if (dist > MAX_DISTANCE_KM) continue;
+
+                // Ambil playerId dari cache (prioritas dari driverLocationsCache, fallback ke driversCache)
+                let playerId = loc.playerId;
+                if (!playerId && driversCache[uid]) {
+                    playerId = driversCache[uid].playerId;
+                }
+                if (!playerId) {
+                    addLog(`⚠️ Driver ${uid.substring(0,8)} tidak memiliki playerId, notifikasi dilewat.`, "warning");
+                    continue;
+                }
+
+                // Ambil nama driver dari cache
+                let driverName = loc.fullName || driversCache[uid]?.name || 'Driver';
+
+                // Kirim notifikasi
+                const title = `🚖 Order Baru Dekat Anda!`;
+                const message = `Halo ${driverName}, ada order dari ${orderData.customer_name || 'Customer'} (Rp ${orderData.price?.toLocaleString()}) di sekitar lokasi Anda. Jarak ${dist.toFixed(1)} km.`;
+                
                 try {
-                    const [potSnap, pajakSnap] = await Promise.all([
-                        database.ref('data-jego/potongan').once('value'),
-                        database.ref('data-jego/pajak').once('value')
-                    ]);
-                    fee = parseFloat(potSnap.val()) || 0;
-                    pajak = parseFloat(pajakSnap.val()) || 0;
-                    potonganCache = fee;
-                    pajakCache = pajak;
-                } catch(e) {
-                    return { total: 0, feePersen: 0, pajakPersen: 0 };
+                    await sendPushNotification(playerId, title, message, { 
+                        orderId, 
+                        type: 'new_order_nearby',
+                        distance: dist.toFixed(1)
+                    });
+                    await saveDriverNotification(uid, title, message);
+                    notifiedCount++;
+                    addLog(`📢 Notifikasi ke driver ${driverName} (${uid.substring(0,8)}) jarak ${dist.toFixed(1)}km`, "success");
+                } catch(err) {
+                    addLog(`❌ Gagal kirim notif ke ${uid.substring(0,8)}: ${err.message}`, "error");
                 }
             }
-            const potonganRupiah = hargaOrder * (fee / 100);
-            const pajakRupiah = potonganRupiah * (pajak / 100);
-            return { total: potonganRupiah + pajakRupiah, feePersen: fee, pajakPersen: pajak };
+
+            if (notifiedCount > 0) {
+                addLog(`✅ Mengirim notifikasi order baru ke ${notifiedCount} driver terdekat`, "success");
+            } else {
+                addLog(`ℹ️ Tidak ada driver aktif dalam radius 3 km untuk order ${orderId.substring(0,8)}`, "info");
+            }
         }
 
         // ==================== INISIALISASI CACHE ====================
         async function initCache() {
             if (cacheInitialized) return;
-            addLog("📦 Inisialisasi cache (orders, drivers, users)...", "info");
+            addLog("📦 Inisialisasi cache (orders, drivers, users, driver_locations)...", "info");
             try {
-                // Load orders
+                // 1. Load orders
                 const ordersSnap = await database.ref('orders').once('value');
                 ordersCache = ordersSnap.val() || {};
-                database.ref('orders').on('child_added', (snap) => { ordersCache[snap.key] = snap.val(); });
+                database.ref('orders').on('child_added', async (snap) => {
+                    const orderData = snap.val();
+                    const orderId = snap.key;
+                    ordersCache[orderId] = orderData;
+                    
+                    // ===== NOTIFIKASI ORDER TERDEKAT =====
+                    if (orderData && orderData.status === 'waiting') {
+                        await notifyNearbyDrivers(orderId, orderData);
+                    }
+                });
                 database.ref('orders').on('child_changed', (snap) => { ordersCache[snap.key] = snap.val(); });
                 database.ref('orders').on('child_removed', (snap) => { delete ordersCache[snap.key]; });
 
-                // Load drivers (termasuk playerId)
+                // 2. Load drivers (termasuk playerId)
                 const driversSnap = await database.ref('drivers').once('value');
                 driversCache = driversSnap.val() || {};
                 database.ref('drivers').on('child_added', (snap) => { driversCache[snap.key] = snap.val(); });
                 database.ref('drivers').on('child_changed', (snap) => { driversCache[snap.key] = snap.val(); });
                 database.ref('drivers').on('child_removed', (snap) => { delete driversCache[snap.key]; });
 
-                // Load users
+                // 3. Load users
                 const usersSnap = await database.ref('users').once('value');
                 usersCache = usersSnap.val() || {};
                 database.ref('users').on('child_added', (snap) => { usersCache[snap.key] = snap.val(); });
                 database.ref('users').on('child_changed', (snap) => { usersCache[snap.key] = snap.val(); });
                 database.ref('users').on('child_removed', (snap) => { delete usersCache[snap.key]; });
 
-                // Load potongan & pajak
+                // 4. Load driver_locations (untuk notifikasi)
+                const locSnap = await database.ref('driver_locations').once('value');
+                driverLocationsCache = locSnap.val() || {};
+                database.ref('driver_locations').on('child_added', (snap) => { driverLocationsCache[snap.key] = snap.val(); });
+                database.ref('driver_locations').on('child_changed', (snap) => { driverLocationsCache[snap.key] = snap.val(); });
+                database.ref('driver_locations').on('child_removed', (snap) => { delete driverLocationsCache[snap.key]; });
+
+                // 5. Load potongan & pajak
                 const [potSnap, pajakSnap] = await Promise.all([
                     database.ref('data-jego/potongan').once('value'),
                     database.ref('data-jego/pajak').once('value')
@@ -188,7 +276,7 @@
                 database.ref('data-jego/potongan').on('value', (snap) => { potonganCache = parseFloat(snap.val()) || 0; });
                 database.ref('data-jego/pajak').on('value', (snap) => { pajakCache = parseFloat(snap.val()) || 0; });
 
-                // Ambil OneSignal API Key
+                // 6. Ambil OneSignal API Key
                 await getOneSignalApiKey();
 
                 cacheInitialized = true;
@@ -198,7 +286,7 @@
             }
         }
 
-        // ==================== 1. AUTO DEDUCT (OPTIMASI TOTAL) ====================
+        // ==================== 1. AUTO DEDUCT ====================
         async function autoDeductOnTrip(orderId, orderData) {
             if (processedDeductionOrders.has(orderId)) return;
             if (orderData.status !== 'on_trip') return;
@@ -231,22 +319,12 @@
 
                 addLog(`💰 OTOMATIS: Potong saldo driver ${driverId.substring(0,8)} sebesar Rp ${totalPotongan.toFixed(1)}`, "success");
                 processedDeductionOrders.add(orderId);
-
-                // === NOTIFIKASI KE DRIVER ===
-                const playerId = getDriverPlayerId(driverId);
-                if (playerId) {
-                    const title = "💰 Potongan Saldo Otomatis";
-                    const message = `Saldo Anda dipotong Rp ${totalPotongan.toFixed(0)} untuk order ${orderId.substring(0,8)} (biaya admin).`;
-                    await sendPushNotification(playerId, title, message, { orderId, type: 'deduct' });
-                    await saveDriverNotification(driverId, title, message);
-                }
-
             } catch(err) {
                 addLog(`❌ Auto deduct error: ${err.message}`, "error");
             }
         }
 
-        // ==================== 2. RATING & AGREGAT (INCREMENTAL, PAKAI CACHE) ====================
+        // ==================== 2. RATING & AGREGAT ====================
         async function updateDriverRating(driverId, newRating) {
             if (!driverId || typeof newRating !== 'number') return;
             try {
@@ -366,7 +444,7 @@
             }
         }
 
-        // ==================== 3. CLEANUP (EXPIRED OFFERS & ORDERS) PAKAI CACHE ====================
+        // ==================== 3. CLEANUP ====================
         async function cleanupExpiredOffers() {
             try {
                 const now = Date.now();
@@ -400,7 +478,7 @@
             if (del) addLog(`🗑️ Hapus ${del} order kadaluarsa (>30 menit)`, "success");
         }
 
-        // ==================== 4. NOTIFIKASI CHAT (OPTIMASI CACHE) ====================
+        // ==================== CHAT NOTIFICATION ====================
         async function listenToChatOrder(orderId) {
             const snapshot = await database.ref(`chat/${orderId}`).once('value');
             const messages = snapshot.val() || {};
@@ -415,7 +493,6 @@
                 const msgData = snap.val();
                 if (!msgData || !msgData.sender) return;
 
-                // Ambil order dari cache (tidak baca Firebase)
                 const order = ordersCache[orderId];
                 if (!order) return;
 
@@ -444,12 +521,10 @@
 
                 let playerId = null;
                 if (senderType === 'driver') {
-                    // Cari playerId customer dari cache users
                     if (usersCache[receiverId] && usersCache[receiverId].playerId) {
                         playerId = usersCache[receiverId].playerId;
                     }
                 } else {
-                    // Cari playerId driver dari cache drivers
                     if (driversCache[receiverId] && driversCache[receiverId].playerId) {
                         playerId = driversCache[receiverId].playerId;
                     }
@@ -475,7 +550,7 @@
             addLog('💬 Chat listener aktif (notifikasi otomatis ke driver/customer)', 'success');
         }
 
-        // ==================== LISTENER UNTUK TRIGGER FUNGSI ====================
+        // ==================== LISTENER UTAMA ====================
         function startListeners() {
             // Auto deduct
             database.ref('orders').on('child_changed', async (snap) => {
@@ -519,7 +594,7 @@
             await initCache();
             await initializeRatingAggregates();
             startListeners();
-            addLog('✅ 3 fungsi + notifikasi chat aktif: Auto Deduct, Rating, Cleanup, Chat Notif', 'success');
+            addLog('✅ Sistem aktif: Notifikasi Order Terdekat, Auto Deduct, Rating, Cleanup, Chat Notif', 'success');
         }
 
         // ==================== AUTH ====================
