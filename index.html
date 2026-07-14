@@ -1509,9 +1509,17 @@ function loadOrders() {
                     orderData.pickup_lng
                 );
                 if (dist !== null && dist < 3 && locationTrackingEnabled && !isWaitingForConfirmation) {
-    const isKurir = (orderData.transport_type || '').includes('kurir');
-    const fromAuto = (autobidEnabled && !isKurir);
-    showOrderDetail({ orderId: orderId, orderData: orderData }, fromAuto, true); // <-- tambah argumen ketiga = true
+    // Cek apakah GPS aktif (hijau)
+    const gpsDot = document.getElementById('gpsDot');
+    const isGpsActive = gpsDot && gpsDot.classList.contains('gps-active');
+    if (isGpsActive) {
+        const isKurir = (orderData.transport_type || '').includes('kurir');
+        const fromAuto = (autobidEnabled && !isKurir);
+        showOrderDetail({ orderId: orderId, orderData: orderData }, fromAuto, true);
+    } else {
+        // GPS belum aktif, tidak kirim penawaran otomatis, hanya tampilkan di list
+        console.log('GPS masih pakai cache, tidak kirim penawaran otomatis untuk order', orderId);
+    }
 }
 
                 // Putar suara beep
@@ -2076,35 +2084,109 @@ function closeModal() {
 
   refreshDisplay();
 }
+// ========== HANDLE GPS ERROR ==========
+function handleGpsError(error) {
+    console.warn('GPS error:', error);
+    if (error.code === 1) { // PERMISSION_DENIED
+        showToast('⚠️ Izin lokasi ditolak. Aktifkan lokasi di pengaturan aplikasi.', 'warning');
+        // Tampilkan popup dengan tombol refresh
+        showPopup(
+            'Izin Lokasi Diperlukan',
+            'Aktifkan izin lokasi Anda untuk menerima order terdekat. Jika sudah diizinkan, refresh halaman.',
+            'warning',
+            {
+                confirmText: 'Refresh',
+                onConfirm: () => { window.location.reload(); }
+            }
+        );
+    } else {
+        showToast('Gagal mendapatkan lokasi. Gunakan lokasi terakhir.', 'warning');
+    }
+    // Jika tidak ada cache, tampilkan pesan di list
+    if (!driverLocation.latitude) {
+        const ordersList = document.getElementById('ordersList');
+        if (ordersList) {
+            ordersList.innerHTML = `<div class="empty-state"><div>📡</div><p>Lokasi tidak tersedia. Aktifkan GPS atau izinkan lokasi Anda.</p></div>`;
+        }
+    }
+}
 
 function startGPSMonitoring() {
-  if (!navigator.geolocation) return;
-  navigator.geolocation.getCurrentPosition(updateDriverLocation, console.error);
-  locationWatchId = navigator.geolocation.watchPosition(updateDriverLocation, console.error);
-}
+  // Cek cache
+  const lastLocation = localStorage.getItem('jego_last_driver_location');
+  if (lastLocation) {
+    try {
+      const loc = JSON.parse(lastLocation);
+      driverLocation = { latitude: loc.lat, longitude: loc.lng };
+      document.getElementById('gpsDot').className = 'gps-dot gps-inactive';
+      document.getElementById('gpsText').textContent = 'GPS';
+      gpsReady = true;
+      if (gpsLoadingInterval) {
+        clearInterval(gpsLoadingInterval);
+        gpsLoadingInterval = null;
+      }
+      loadOrders();
+    } catch(e) {}
+  }
+
+  if (!navigator.geolocation) {
+    showToast('GPS tidak didukung di browser ini.', 'warning');
+    return;
+  }
+
+  // Coba dapatkan lokasi realtime
+  navigator.geolocation.getCurrentPosition(
+    (position) => { updateDriverLocation(position); },
+    handleGpsError,
+    { timeout: 10000, enableHighAccuracy: true }
+  );
+
+  // Pasang watch untuk update berkala
+  if (locationWatchId) navigator.geolocation.clearWatch(locationWatchId);
+  locationWatchId = navigator.geolocation.watchPosition(
+    updateDriverLocation,
+    handleGpsError,
+    { timeout: 10000, enableHighAccuracy: true }
+  );
+} // <-- TUTUP startGPSMonitoring DI SINI
+
 function updateDriverLocation(position) {
-  driverLocation = { latitude: position.coords.latitude, longitude: position.coords.longitude };
+  if (!position || !position.coords) return;
+  const lat = position.coords.latitude;
+  const lng = position.coords.longitude;
+  if (!lat || !lng) return;
+
+  driverLocation = { latitude: lat, longitude: lng };
+  localStorage.setItem('jego_last_driver_location', JSON.stringify({ lat, lng }));
+
   document.getElementById('gpsDot').className = 'gps-dot gps-active';
+  document.getElementById('gpsText').textContent = 'GPS';
+
   if (!gpsReady) {
     gpsReady = true;
-    if (gpsLoadingInterval) { clearInterval(gpsLoadingInterval); gpsLoadingInterval = null; }
+    if (gpsLoadingInterval) {
+      clearInterval(gpsLoadingInterval);
+      gpsLoadingInterval = null;
+    }
     loadOrders();
     return;
   }
+
   if (locationTrackingEnabled && currentDriverData && globalCurrentUid) {
     database.ref('drivers/' + globalCurrentUid).update({
-      latitude: driverLocation.latitude, longitude: driverLocation.longitude, last_update: new Date().toISOString()
+      latitude: lat,
+      longitude: lng,
+      last_update: new Date().toISOString()
     }).catch(console.error);
-    
     database.ref(`driver_locations/${globalCurrentUid}`).update({
-      latitude: driverLocation.latitude,
-      longitude: driverLocation.longitude,
+      latitude: lat,
+      longitude: lng,
       tracking_enabled: locationTrackingEnabled,
       autobid_enabled: autobidEnabled,
       last_update: new Date().toISOString()
     }).catch(console.error);
   }
-  refreshDisplay(); // filter jarak berubah, render ulang
+  refreshDisplay();
 }
 
 function checkDriverData() {
