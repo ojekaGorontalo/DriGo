@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Dashboard CS - JeGo</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+    <style>
+        /* ===== RESET & VARIABEL ===== */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Poppins', sans-serif;
+        }
+        :root {
+            --primary: #FF9800;
+            --secondary: #FF5722;
+            --dark-bg: #1a1a2e;
+            --dark-sidebar: #16213e;
+            --light-bg: #f8f6f3;
+            --card-bg: #ffffff;
+            --text-dark: #2d2d2d;
+            --text-gray: #6c757d;
+            --shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
+            --radius: 16px;
+            --sidebar-width: 270px;
+        }
+        body {
+            background: var(--light-bg);
+            color: var(--text-dark);
+            display: flex;
+            min-height: 100vh;
+        }
+
+        /* ===== SIDEBAR ===== */
+        .sidebar {
+            width: var(--sidebar-width);
+            background: var(--dark-sidebar);
+            color: #fff;
+            height: 100vh;
+            position: sticky;
+            top: 0;
+            display: flex;
+            flex-direction: column;
+            padding: 24px 0;
+            transition: all 0.3s ease;
+            z-index: 100;
+            flex-shrink: 0;
+            overflow-y: auto;
+        }
+        .sidebar .brand {
+            padding: 0 24px 24px;
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+            margin-bottom: 20px;
+        }
+        .sidebar .brand h2 {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--primary);
+        }
+        .sidebar .brand h2 span {
+            color: #fff;
+        }
+        .sidebar .brand small {
+            display: block;
+            font-size: 12px;
+            color: #aaa;
+            font-weight: 400;
+            margin-top: -2px;
+        }
+        .sidebar .menu-label {
+            padding: 8px 24px;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #888;
+            font-weight: 600;
+            margin-top: 8px;
+        }
+        .sidebar .menu-item {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding: 12px 24px;
+            margin: 2px 12px;
+            border-radius: 12px;
+            color: #ccc;
+            text-decoration: none;
+            font-weight: 500;
+            font-size: 15px;
+            transition: 0.2s;
+            cursor: pointer;
+            border: none;
+            background: transparent;
+            width: calc(100% - 24px);
+        }
+        .sidebar .menu-item i {
+            width: 22px;
+            font-size: 18px;
+            text-align: center;
+        }
+        .sidebar .menu-item:hover {
+            background: rgba(255, 152, 0, 0.15);
+            color: #fff;
+        }
+        .sidebar .menu-item.active {
+            background: var(--primary);
+            color: #fff;
+            box-shadow: 0 4px 12px rgba(255, 152, 0, 0.3);
+        }
+        .sidebar .menu-item.active i {
+            color: #fff;
+        }
+        .sidebar .menu-item.logout {
+            margin-top: auto;
+            border-top: 1px solid rgba(255,255,255,0.06);
+            padding-top: 20px;
+            color: #ef5350;
+        }
+        .sidebar .menu-item.logout:hover {
+            background: rgba(239, 83, 80, 0.15);
+            color: #ef5350;
+        }
+
+        /* ===== MAIN CONTENT ===== */
+        .main-content {
+            flex: 1;
+            padding: 30px 40px;
+            max-width: calc(100% - var(--sidebar-width));
+        }
+        .main-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            margin-bottom: 30px;
+        }
+        .main-header h1 {
+            font-size: 26px;
+            font-weight: 600;
+        }
+        .main-header h1 i {
+            color: var(--primary);
+            margin-right: 10px;
+        }
+        .main-header .greeting {
+            font-size: 14px;
+            color: var(--text-gray);
+            background: white;
+            padding: 8px 18px;
+            border-radius: 40px;
+            box-shadow: var(--shadow);
+        }
+        .main-header .greeting i {
+            margin-right: 8px;
+            color: var(--primary);
+        }
+
+        /* ===== WELCOME CARD ===== */
+        .welcome-card {
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            color: white;
+            padding: 30px 35px;
+            border-radius: var(--radius);
+            margin-bottom: 30px;
+            box-shadow: 0 8px 20px rgba(255, 152, 0, 0.25);
+        }
+        .welcome-card h2 {
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 6px;
+        }
+        .welcome-card p {
+            opacity: 0.9;
+            font-size: 15px;
+            max-width: 600px;
+        }
+
+        /* ===== STATS GRID ===== */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .stat-card {
+            background: white;
+            padding: 20px 24px;
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            border-left: 4px solid var(--primary);
+            transition: 0.2s;
+        }
+        .stat-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 28px rgba(0,0,0,0.08);
+        }
+        .stat-card .label {
+            font-size: 13px;
+            color: var(--text-gray);
+            font-weight: 500;
+        }
+        .stat-card .value {
+            font-size: 28px;
+            font-weight: 700;
+            color: var(--dark-bg);
+        }
+        .stat-card .icon {
+            float: right;
+            font-size: 32px;
+            color: var(--primary);
+            opacity: 0.3;
+        }
+
+        /* ===== PROFESSIONAL GUIDELINES ===== */
+        .guidelines-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 20px;
+            margin: 20px 0 30px;
+        }
+        .guideline-item {
+            background: white;
+            padding: 22px 24px;
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            border-bottom: 3px solid var(--primary);
+        }
+        .guideline-item i {
+            font-size: 28px;
+            color: var(--primary);
+            margin-bottom: 10px;
+            display: inline-block;
+        }
+        .guideline-item h4 {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+        .guideline-item p {
+            font-size: 14px;
+            color: var(--text-gray);
+            line-height: 1.6;
+        }
+
+        /* ===== TASK LIST / REMINDER ===== */
+        .task-section {
+            background: white;
+            border-radius: var(--radius);
+            padding: 24px 30px;
+            box-shadow: var(--shadow);
+            margin-top: 10px;
+        }
+        .task-section h3 {
+            font-size: 18px;
+            margin-bottom: 12px;
+            color: var(--dark-bg);
+        }
+        .task-section h3 i {
+            color: var(--primary);
+            margin-right: 10px;
+        }
+        .task-section ul {
+            list-style: none;
+            padding: 0;
+        }
+        .task-section ul li {
+            padding: 10px 0;
+            border-bottom: 1px solid #f0f0f0;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            font-size: 15px;
+        }
+        .task-section ul li:last-child {
+            border-bottom: none;
+        }
+        .task-section ul li i {
+            color: var(--secondary);
+            width: 20px;
+            text-align: center;
+        }
+
+        /* ===== RESPONSIVE ===== */
+        .hamburger {
+            display: none;
+            background: none;
+            border: none;
+            font-size: 28px;
+            color: var(--dark-bg);
+            cursor: pointer;
+            padding: 8px;
+        }
+        @media (max-width: 768px) {
+            .sidebar {
+                position: fixed;
+                left: -280px;
+                top: 0;
+                bottom: 0;
+                width: 280px;
+                transition: left 0.3s ease;
+                box-shadow: 4px 0 20px rgba(0,0,0,0.2);
+            }
+            .sidebar.open {
+                left: 0;
+            }
+            .main-content {
+                max-width: 100%;
+                padding: 20px;
+            }
+            .hamburger {
+                display: block;
+            }
+            .main-header {
+                flex-wrap: wrap;
+                gap: 12px;
+            }
+            .welcome-card {
+                padding: 20px;
+            }
+            .stats-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+        @media (max-width: 480px) {
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+            .guidelines-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* ===== OVERLAY UNTUK MOBILE ===== */
+        .overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.4);
+            z-index: 99;
+        }
+        .overlay.active {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ===== OVERLAY (MOBILE) ===== -->
+    <div class="overlay" id="overlay"></div>
+
+    <!-- ===== SIDEBAR ===== -->
+    <nav class="sidebar" id="sidebar">
+        <div class="brand">
+            <h2>JeGo <span>CS</span></h2>
+            <small>Customer Service Dashboard</small>
+        </div>
+
+        <div class="menu-label">Navigasi Utama</div>
+
+        <!-- Menu Dashboard (Aktif) -->
+        <a href="#" class="menu-item active" id="menuDashboard">
+            <i class="fas fa-home"></i> Beranda
+        </a>
+
+        <!-- Menu Panduan Pendaftaran -->
+        <a href="driver-daftar.html" class="menu-item" id="menuPanduan">
+            <i class="fas fa-book-open"></i> Panduan Pendaftaran
+        </a>
+
+        <!-- Menu Daftar Driver -->
+        <a href="jegodriverlist.html" class="menu-item" id="menuDriver">
+            <i class="fas fa-users"></i> Daftar Driver JeGo
+        </a>
+
+        <!-- Menu Statistik -->
+        <a href="statistik.html" class="menu-item" id="menuStatistik">
+            <i class="fas fa-chart-bar"></i> Statistik Driver
+        </a>
+
+        <!-- Logout -->
+        <a href="#" class="menu-item logout" id="logoutBtn">
+            <i class="fas fa-sign-out-alt"></i> Keluar
+        </a>
+    </nav>
+
+    <!-- ===== MAIN CONTENT ===== -->
+    <div class="main-content">
+        <!-- HEADER -->
+        <div class="main-header">
+            <div style="display:flex; align-items:center; gap:16px;">
+                <button class="hamburger" id="hamburgerBtn">
+                    <i class="fas fa-bars"></i>
+                </button>
+                <h1><i class="fas fa-tachometer-alt"></i> Dashboard CS</h1>
+            </div>
+            <div class="greeting">
+                <i class="fas fa-user-circle"></i> Halo, <strong>Tim CS JeGo</strong>
+                <span style="margin-left:12px; font-weight:400;" id="clockDisplay"></span>
+            </div>
+        </div>
+
+        <!-- WELCOME CARD -->
+        <div class="welcome-card">
+            <h2>Selamat Datang di Dashboard CS JeGo! 👋</h2>
+            <p>
+                Anda adalah ujung tombak pelayanan kami. Gunakan menu di samping untuk mengakses panduan, 
+                melihat daftar driver, dan memantau statistik. Tetaplah profesional dan ramah dalam melayani 
+                setiap mitra driver JeGo.
+            </p>
+        </div>
+
+        <!-- STATS CARD (Ilustrasi) -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <span class="icon"><i class="fas fa-user-plus"></i></span>
+                <div class="label">Pendaftaran Hari Ini</div>
+                <div class="value">12</div>
+            </div>
+            <div class="stat-card">
+                <span class="icon"><i class="fas fa-user-check"></i></span>
+                <div class="label">Driver Aktif</div>
+                <div class="value">48</div>
+            </div>
+            <div class="stat-card">
+                <span class="icon"><i class="fas fa-clock"></i></span>
+                <div class="label">Menunggu Verifikasi</div>
+                <div class="value">7</div>
+            </div>
+            <div class="stat-card">
+                <span class="icon"><i class="fas fa-headset"></i></span>
+                <div class="label">Tiket Hari Ini</div>
+                <div class="value">5</div>
+            </div>
+        </div>
+
+        <!-- PROFESSIONAL GUIDELINES -->
+        <h3 style="font-size:20px; margin-top:10px; margin-bottom:6px;">
+            <i class="fas fa-star" style="color:var(--primary);"></i> Etos Kerja Profesional CS JeGo
+        </h3>
+        <div class="guidelines-grid">
+            <div class="guideline-item">
+                <i class="fas fa-bolt"></i>
+                <h4>Cepat & Responsif</h4>
+                <p>Balas pertanyaan driver dalam waktu singkat. Gunakan template jawaban yang tersedia untuk mempercepat respons.</p>
+            </div>
+            <div class="guideline-item">
+                <i class="fas fa-heart"></i>
+                <h4>Empati & Ramah</h4>
+                <p>Dengarkan keluhan driver dengan sabar. Tunjukkan bahwa Anda peduli dengan solusi terbaik bagi mereka.</p>
+            </div>
+            <div class="guideline-item">
+                <i class="fas fa-lightbulb"></i>
+                <h4>Solutif & Inovatif</h4>
+                <p>Jangan hanya memberi tahu masalah, berikan solusi. Jika tidak bisa, arahkan ke tim teknis/internal.</p>
+            </div>
+            <div class="guideline-item">
+                <i class="fas fa-shield-alt"></i>
+                <h4>Menjaga Privasi</h4>
+                <p>Data driver adalah rahasia. Jangan membagikan informasi pribadi driver kepada pihak manapun.</p>
+            </div>
+        </div>
+
+        <!-- TASK & REMINDER -->
+        <div class="task-section">
+            <h3><i class="fas fa-clipboard-list"></i> Panduan & Tugas CS Harian</h3>
+            <ul>
+                <li>
+                    <i class="fas fa-chevron-right"></i>
+                    <strong>Panduan Pendaftaran:</strong> Bantu driver yang kesulitan mengisi formulir. 
+                    <span style="color:var(--primary); margin-left:8px;">(Klik menu Panduan Pendaftaran)</span>
+                </li>
+                <li>
+                    <i class="fas fa-chevron-right"></i>
+                    <strong>Cek Status Driver:</strong> Jika driver menanyakan status verifikasi, cek di menu 
+                    <span style="color:var(--primary);">Daftar Driver</span> atau hubungi tim internal.
+                </li>
+                <li>
+                    <i class="fas fa-chevron-right"></i>
+                    <strong>Statistik Harian:</strong> Pantau grafik pendaftaran di menu 
+                    <span style="color:var(--primary);">Statistik Driver</span> untuk evaluasi.
+                </li>
+                <li>
+                    <i class="fas fa-chevron-right"></i>
+                    <strong>Internal Escalation:</strong> Jika ada kendala teknis yang tidak bisa diatasi, segera hubungi 
+                    <strong>Founder / Tim Teknis</strong> (akses database hanya mereka yang punya).
+                </li>
+            </ul>
+            <div style="margin-top:16px; background:#fff3e0; padding:12px 18px; border-radius:10px; border-left:4px solid var(--secondary);">
+                <i class="fas fa-info-circle" style="color:var(--secondary); margin-right:10px;"></i>
+                <strong>Catatan:</strong> Anda tidak perlu mengakses database secara langsung. Semua data tersaji melalui dashboard yang sudah disediakan.
+            </div>
+        </div>
+
+        <!-- FOOTER -->
+        <div style="margin-top:40px; text-align:center; font-size:13px; color:#aaa; border-top:1px solid #eee; padding-top:20px;">
+            © 2026 JeGo – Customer Service Dashboard &nbsp;|&nbsp; Versi 1.0
+        </div>
+    </div>
+
+    <script>
+        // ===== TOGGLE SIDEBAR (MOBILE) =====
+        const sidebar = document.getElementById('sidebar');
+        const overlay = document.getElementById('overlay');
+        const hamburger = document.getElementById('hamburgerBtn');
+
+        function toggleSidebar() {
+            sidebar.classList.toggle('open');
+            overlay.classList.toggle('active');
+        }
+
+        hamburger.addEventListener('click', toggleSidebar);
+        overlay.addEventListener('click', toggleSidebar);
+
+        // ===== JAM REAL-TIME =====
+        function updateClock() {
+            const now = new Date();
+            const options = { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false };
+            document.getElementById('clockDisplay').innerHTML = '🕒 ' + now.toLocaleTimeString('id-ID', options);
+        }
+        updateClock();
+        setInterval(updateClock, 1000);
+
+        // ===== LOGOUT =====
+        document.getElementById('logoutBtn').addEventListener('click', function(e) {
+            e.preventDefault();
+            if (confirm('Anda yakin ingin keluar dari dashboard CS?')) {
+                // Redirect ke halaman login admin/CS (sesuaikan)
+                window.location.href = 'loginadmin.html';
+            }
+        });
+
+        // ===== MENU ACTIVE STATE (opsional untuk highlight) =====
+        // Saat ini menu "Beranda" yang aktif. Jika Anda ingin halaman lain aktif, tambahkan logika di sini.
+        // Karena menu lain adalah link ke file terpisah, kita tidak perlu mengatur active di sini.
+        // Tapi untuk pengalaman yang lebih baik, kita biarkan "Beranda" selalu aktif di dashboard ini.
+    </script>
+
+</body>
+</html>
