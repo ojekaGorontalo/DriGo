@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>JeGo Core - 3 Fungsi Optimasi</title>
+    <title>JeGo Core - 3 Fungsi + Notifikasi (Optimasi)</title>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
@@ -19,11 +19,11 @@
     </style>
 </head>
 <body>
-    <h2>JeGo Core - 3 Fungsi (Auto Deduct, Rating, Cleanup)</h2>
-    <p>Hanya mengaktifkan 3 fungsi utama dengan optimasi cache 100%</p>
+    <h2>JeGo Core - 3 Fungsi + Notifikasi</h2>
+    <p>Auto Deduct, Rating, Cleanup, Chat & Push Notifikasi (Optimasi Cache 100%)</p>
     <button id="logoutBtn">Logout</button>
     <div class="log" id="logContainer">
-        <div class="log-entry">🚀 Memulai sistem (3 fungsi)...</div>
+        <div class="log-entry">🚀 Memulai sistem (3 fungsi + notifikasi)...</div>
     </div>
 
     <script>
@@ -42,17 +42,22 @@
         const database = firebase.database();
 
         // ==================== GLOBAL VARIABLES ====================
-        let processedDeductionOrders = new Set();   // untuk auto deduct
-        let checkedCancelledOrders = new Set();      // untuk cleanup (tidak dipakai di 3 fungsi, tapi biar ada)
-        let ONESIGNAL_API_KEY = "";                  // tidak dipakai, tapi placeholder
+        let processedDeductionOrders = new Set();
+        let checkedCancelledOrders = new Set();
+        let ONESIGNAL_API_KEY = "";
+        const ONESIGNAL_APP_ID = "007d7eba-9cfc-40d1-a92e-f2299f770282";
         let potonganCache = null;
         let pajakCache = null;
 
         // ==================== CACHE LAYER (OPTIMASI) ====================
-        let ordersCache = {};          // { orderId: orderData }
-        let driversCache = {};         // { driverId: driverData }
-        let usersCache = {};           // { userId: userData }
+        let ordersCache = {};
+        let driversCache = {};
+        let usersCache = {};
         let cacheInitialized = false;
+
+        // ===== CHAT NOTIF =====
+        let chatOrderListeners = new Set();
+        let processedChatMessages = new Set();
 
         // ==================== UI LOG ====================
         function addLog(msg, type = "info") {
@@ -67,6 +72,61 @@
             entry.textContent = `[${time}] ${msg}`;
             logDiv.prepend(entry);
             while (logDiv.children.length > 200) logDiv.removeChild(logDiv.lastChild);
+        }
+
+        // ==================== ONE SIGNAL ====================
+        async function getOneSignalApiKey() {
+            if (ONESIGNAL_API_KEY) return ONESIGNAL_API_KEY;
+            try {
+                const snap = await database.ref('data-jego/PushKey').once('value');
+                ONESIGNAL_API_KEY = snap.val();
+                if (ONESIGNAL_API_KEY) addLog("🔑 OneSignal API Key loaded", "success");
+                else addLog("⚠️ PushKey tidak ditemukan", "error");
+                return ONESIGNAL_API_KEY;
+            } catch(e) {
+                addLog(`❌ Gagal memuat PushKey: ${e.message}`, "error");
+                return null;
+            }
+        }
+
+        async function sendPushNotification(playerId, title, message, extraData = {}) {
+            if (!playerId || !ONESIGNAL_API_KEY) return false;
+            try {
+                const res = await fetch("https://onesignal.com/api/v1/notifications", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", "Authorization": `Basic ${ONESIGNAL_API_KEY}` },
+                    body: JSON.stringify({
+                        app_id: ONESIGNAL_APP_ID,
+                        include_player_ids: [playerId],
+                        headings: { en: title },
+                        contents: { en: message },
+                        data: { type: "auto_system", ...extraData },
+                        priority: 10,
+                        android_priority: "high",
+                        android_channel_id: "022cc65d-3fb9-4939-85df-07e7cf3df0b8"
+                    })
+                });
+                const result = await res.json();
+                if (result.errors) { addLog(`⚠️ Notif gagal: ${JSON.stringify(result.errors)}`, "warning"); return false; }
+                return true;
+            } catch(err) { addLog(`❌ Error notif: ${err.message}`, "error"); return false; }
+        }
+
+        // Fungsi untuk ambil playerId dari cache (tidak baca Firebase)
+        function getDriverPlayerId(driverId) {
+            if (driversCache[driverId] && driversCache[driverId].playerId) {
+                return driversCache[driverId].playerId;
+            }
+            return null;
+        }
+
+        async function saveDriverNotification(driverId, title, message, type = 'system') {
+            if (!driverId) return;
+            try {
+                await database.ref(`driver_notifications/${driverId}`).push({
+                    title, message, timestamp: firebase.database.ServerValue.TIMESTAMP, read: false, type
+                });
+            } catch(e) { console.error(e); }
         }
 
         // ==================== UTILITY ====================
@@ -104,7 +164,7 @@
                 database.ref('orders').on('child_changed', (snap) => { ordersCache[snap.key] = snap.val(); });
                 database.ref('orders').on('child_removed', (snap) => { delete ordersCache[snap.key]; });
 
-                // Load drivers
+                // Load drivers (termasuk playerId)
                 const driversSnap = await database.ref('drivers').once('value');
                 driversCache = driversSnap.val() || {};
                 database.ref('drivers').on('child_added', (snap) => { driversCache[snap.key] = snap.val(); });
@@ -128,6 +188,9 @@
                 database.ref('data-jego/potongan').on('value', (snap) => { potonganCache = parseFloat(snap.val()) || 0; });
                 database.ref('data-jego/pajak').on('value', (snap) => { pajakCache = parseFloat(snap.val()) || 0; });
 
+                // Ambil OneSignal API Key
+                await getOneSignalApiKey();
+
                 cacheInitialized = true;
                 addLog("✅ Cache berhasil diinisialisasi", "success");
             } catch(err) {
@@ -137,7 +200,6 @@
 
         // ==================== 1. AUTO DEDUCT (OPTIMASI TOTAL) ====================
         async function autoDeductOnTrip(orderId, orderData) {
-            // BANDWIDTH OPTIMIZATION: gunakan cache, jangan baca Firebase lagi
             if (processedDeductionOrders.has(orderId)) return;
             if (orderData.status !== 'on_trip') return;
             if (orderData.balance_deducted === true) return;
@@ -147,23 +209,18 @@
             if (!driverId || !hargaOrder) return;
 
             try {
-                // Ambil potongan dari cache (sudah dipastikan ada)
                 const potonganInfo = await hitungTotalPotongan(hargaOrder);
                 const totalPotongan = potonganInfo.total;
                 if (totalPotongan === 0) return;
 
-                // Ambil saldo driver dari cache (tidak baca Firebase)
                 let currentBalance = driversCache[driverId] ? driversCache[driverId].balance || 0 : 0;
                 if (currentBalance < totalPotongan) {
                     addLog(`⚠️ Auto deduct: Saldo driver ${driverId.substring(0,8)} tidak cukup`, "warning");
                     return;
                 }
 
-                // Update saldo di Firebase (tetap perlu write)
                 await database.ref(`drivers/${driverId}/balance`).set(currentBalance - totalPotongan);
-                // Tandai order sudah dipotong
                 await database.ref(`orders/${orderId}`).update({ balance_deducted: true, deducted_at: new Date().toISOString() });
-                // Catat histori
                 await database.ref(`driver_deductions/${driverId}/${orderId}`).set({
                     amount: totalPotongan,
                     order_price: hargaOrder,
@@ -174,6 +231,16 @@
 
                 addLog(`💰 OTOMATIS: Potong saldo driver ${driverId.substring(0,8)} sebesar Rp ${totalPotongan.toFixed(1)}`, "success");
                 processedDeductionOrders.add(orderId);
+
+                // === NOTIFIKASI KE DRIVER ===
+                const playerId = getDriverPlayerId(driverId);
+                if (playerId) {
+                    const title = "💰 Potongan Saldo Otomatis";
+                    const message = `Saldo Anda dipotong Rp ${totalPotongan.toFixed(0)} untuk order ${orderId.substring(0,8)} (biaya admin).`;
+                    await sendPushNotification(playerId, title, message, { orderId, type: 'deduct' });
+                    await saveDriverNotification(driverId, title, message);
+                }
+
             } catch(err) {
                 addLog(`❌ Auto deduct error: ${err.message}`, "error");
             }
@@ -183,7 +250,6 @@
         async function updateDriverRating(driverId, newRating) {
             if (!driverId || typeof newRating !== 'number') return;
             try {
-                // BANDWIDTH OPTIMIZATION: ambil dari cache, update di memory
                 let driverData = driversCache[driverId] || {};
                 let totalRating = driverData.totalRating || 0;
                 let ratingCount = driverData.ratingCount || 0;
@@ -191,14 +257,12 @@
                 ratingCount += 1;
                 const avg = totalRating / ratingCount;
 
-                // Update Firebase
                 await database.ref(`drivers/${driverId}`).update({
                     totalRating,
                     ratingCount,
                     rating: avg,
                     last_rating_update: new Date().toISOString()
                 });
-                // Update cache
                 if (driversCache[driverId]) {
                     driversCache[driverId].totalRating = totalRating;
                     driversCache[driverId].ratingCount = ratingCount;
@@ -239,7 +303,6 @@
             }
         }
 
-        // Inisialisasi agregat rating (hanya sekali)
         let ratingAggregatesInitialized = false;
         async function initializeRatingAggregates() {
             if (ratingAggregatesInitialized) return;
@@ -275,7 +338,6 @@
                         }
                     }
                 }
-                // Update driver
                 for (let did in driverAgg) {
                     const d = driverAgg[did];
                     const avg = d.total / d.count;
@@ -309,7 +371,6 @@
             try {
                 const now = Date.now();
                 let removed = 0;
-                // BANDWIDTH OPTIMIZATION: iterasi ordersCache, tidak baca Firebase
                 for (const [orderId, order] of Object.entries(ordersCache)) {
                     if (order.status === 'waiting' && order.driver_offers) {
                         for (const [driverId, offer] of Object.entries(order.driver_offers)) {
@@ -330,7 +391,6 @@
             const now = new Date();
             const thirtyMinAgo = new Date(now.getTime() - 30*60*1000);
             let del = 0;
-            // BANDWIDTH OPTIMIZATION: iterasi cache, tidak baca Firebase
             for (const [id, o] of Object.entries(ordersCache)) {
                 if (o.status === 'waiting' && o.created_at && new Date(o.created_at) <= thirtyMinAgo) {
                     await database.ref('orders/' + id).remove();
@@ -340,9 +400,84 @@
             if (del) addLog(`🗑️ Hapus ${del} order kadaluarsa (>30 menit)`, "success");
         }
 
+        // ==================== 4. NOTIFIKASI CHAT (OPTIMASI CACHE) ====================
+        async function listenToChatOrder(orderId) {
+            const snapshot = await database.ref(`chat/${orderId}`).once('value');
+            const messages = snapshot.val() || {};
+            for (let key in messages) {
+                processedChatMessages.add(key);
+            }
+            database.ref(`chat/${orderId}`).on('child_added', async (snap) => {
+                const msgKey = snap.key;
+                if (processedChatMessages.has(msgKey)) return;
+                processedChatMessages.add(msgKey);
+
+                const msgData = snap.val();
+                if (!msgData || !msgData.sender) return;
+
+                // Ambil order dari cache (tidak baca Firebase)
+                const order = ordersCache[orderId];
+                if (!order) return;
+
+                let senderType = msgData.sender;
+                let receiverId = null;
+                let senderName = '';
+                let title = '';
+                let message = msgData.message || 'Pesan baru';
+
+                if (senderType === 'driver') {
+                    receiverId = order.user_id;
+                    senderName = order.driver_name || 'Driver';
+                    title = `💬 Pesan dari Driver ${senderName}`;
+                } else if (senderType === 'customer') {
+                    receiverId = order.driver_id;
+                    senderName = order.customer_name || 'Customer';
+                    title = `💬 Pesan dari Customer ${senderName}`;
+                } else {
+                    return;
+                }
+
+                if (!receiverId) {
+                    addLog(`⚠️ Tidak ada penerima untuk order ${orderId}`, 'warning');
+                    return;
+                }
+
+                let playerId = null;
+                if (senderType === 'driver') {
+                    // Cari playerId customer dari cache users
+                    if (usersCache[receiverId] && usersCache[receiverId].playerId) {
+                        playerId = usersCache[receiverId].playerId;
+                    }
+                } else {
+                    // Cari playerId driver dari cache drivers
+                    if (driversCache[receiverId] && driversCache[receiverId].playerId) {
+                        playerId = driversCache[receiverId].playerId;
+                    }
+                }
+
+                if (playerId) {
+                    await sendPushNotification(playerId, title, message, { orderId, chat: true, sender: senderType });
+                    addLog(`📨 Chat notifikasi: ${senderType} -> ${receiverId.substring(0,8)}`, 'success');
+                } else {
+                    addLog(`⚠️ Tidak ada playerId untuk penerima ${receiverId}`, 'warning');
+                }
+            });
+        }
+
+        function setupChatListener() {
+            database.ref('chat').on('child_added', (snap) => {
+                const orderId = snap.key;
+                if (!chatOrderListeners.has(orderId)) {
+                    chatOrderListeners.add(orderId);
+                    listenToChatOrder(orderId);
+                }
+            });
+            addLog('💬 Chat listener aktif (notifikasi otomatis ke driver/customer)', 'success');
+        }
+
         // ==================== LISTENER UNTUK TRIGGER FUNGSI ====================
         function startListeners() {
-            // Listener untuk auto deduct (child_changed pada orders)
+            // Auto deduct
             database.ref('orders').on('child_changed', async (snap) => {
                 const order = snap.val();
                 const id = snap.key;
@@ -351,7 +486,7 @@
                 }
             });
 
-            // Listener rating (incremental)
+            // Rating incremental
             database.ref('ratings').on('child_added', async (snap) => {
                 const ratingData = snap.val();
                 if (ratingData?.driver_rating?.driver_id && typeof ratingData.driver_rating.rating === 'number') {
@@ -371,9 +506,12 @@
                 }
             });
 
-            // Cleanup berkala (10 detik untuk expired offers, 10 menit untuk expired orders)
+            // Cleanup berkala
             setInterval(cleanupExpiredOffers, 10000);
             setInterval(deleteExpiredOrders, 10 * 60 * 1000);
+
+            // Chat listener
+            setupChatListener();
         }
 
         // ==================== INIT ====================
@@ -381,7 +519,7 @@
             await initCache();
             await initializeRatingAggregates();
             startListeners();
-            addLog('✅ 3 fungsi utama aktif: Auto Deduct, Rating, Cleanup', 'success');
+            addLog('✅ 3 fungsi + notifikasi chat aktif: Auto Deduct, Rating, Cleanup, Chat Notif', 'success');
         }
 
         // ==================== AUTH ====================
