@@ -1,111 +1,29 @@
 <!DOCTYPE html>
 <html lang="id">
-
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-    <title>JeGo Core - Auto System 24 Jam (Optimasi Bandwidth)</title>
-
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JeGo Core - Notifikasi Order Terdekat + 3 Fungsi</title>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
-
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        body {
-            font-family: 'Segoe UI', monospace;
-            background: #0a0f1e;
-            color: #e0e0e0;
-            padding: 20px;
-            height: 100vh;
-            display: flex;
-            flex-direction: column;
-        }
-        .header {
-            background: #1e293b;
-            padding: 12px 20px;
-            border-radius: 16px;
-            margin-bottom: 20px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 10px;
-        }
-        .header h1 {
-            font-size: 1.3rem;
-            color: #FF9800;
-        }
-        .status-badge {
-            background: #2d3a4e;
-            padding: 6px 12px;
-            border-radius: 40px;
-            font-size: 0.8rem;
-        }
-        .log-container {
-            flex: 1;
-            background: #0f1724;
-            border-radius: 20px;
-            padding: 16px;
-            overflow-y: auto;
-            font-family: monospace;
-            font-size: 0.75rem;
-            border: 1px solid #2d3a4e;
-            display: flex;
-            flex-direction: column;
-        }
-        .log-entry {
-            border-bottom: 1px solid #1e2a3a;
-            padding: 6px 0;
-            color: #b0c4de;
-        }
-        .log-entry.success {
-            color: #86efac;
-        }
-        .log-entry.error {
-            color: #fca5a5;
-        }
-        .log-entry.warning {
-            color: #fcd34d;
-        }
-        button {
-            background: #FF9800;
-            border: none;
-            padding: 6px 14px;
-            border-radius: 20px;
-            cursor: pointer;
-            font-weight: bold;
-        }
-        button:hover {
-            opacity: 0.9;
-        }
-        .footer {
-            text-align: center;
-            font-size: 0.7rem;
-            margin-top: 12px;
-            color: #5b6e8c;
-        }
+        body { font-family: monospace; background: #0a0f1e; color: #e0e0e0; padding: 20px; }
+        .log { background: #0f1724; padding: 10px; border-radius: 10px; max-height: 400px; overflow-y: auto; }
+        .log-entry { border-bottom: 1px solid #1e2a3a; padding: 4px 0; }
+        .success { color: #86efac; }
+        .error { color: #fca5a5; }
+        .warning { color: #fcd34d; }
+        button { background: #FF9800; border: none; padding: 6px 14px; border-radius: 20px; cursor: pointer; font-weight: bold; }
+        button:hover { opacity: 0.9; }
     </style>
 </head>
-
 <body>
-    <div class="header">
-        <h1><i class="fas fa-microchip"></i> JeGo Core Engine (24/7) - Log Terbaru</h1>
-        <div class="status-badge" id="statusBadge">🟢 Aktif</div>
-        <button id="logoutBtn">Logout Admin</button>
-    </div>
-
-    <div class="log-container" id="logContainer">
-        <div class="log-entry">🚀 Memulai sistem core (optimasi bandwidth)...</div>
-        <div class="log-entry">⏳ Menunggu autentikasi admin...</div>
-    </div>
-
-    <div class="footer">
-        <i class="fas fa-arrow-up"></i> Log terbaru di ATAS | Caching aktif | Interval cleanup 60 detik
+    <h2>JeGo Core - Notifikasi Order Terdekat + 3 Fungsi</h2>
+    <p>Auto Deduct, Rating, Cleanup, Notifikasi Order Terdekat (Optimasi Cache 100%)</p>
+    <button id="logoutBtn">Logout</button>
+    <div class="log" id="logContainer">
+        <div class="log-entry">ЁЯЪА Memulai sistem (notifikasi order terdekat + 3 fungsi)...</div>
     </div>
 
     <script>
@@ -123,32 +41,26 @@
         const auth = firebase.auth();
         const database = firebase.database();
 
-        // ==================== GLOBAL ====================
-        let processedOrderIds = new Set();
-        let fallbackTimers = new Map();
-        let fallbackProcessed = new Set();
+        // ==================== GLOBAL VARIABLES ====================
         let processedDeductionOrders = new Set();
-        let ordersListener = false;
+        let checkedCancelledOrders = new Set();
         let ONESIGNAL_API_KEY = "";
         const ONESIGNAL_APP_ID = "007d7eba-9cfc-40d1-a92e-f2299f770282";
-        const FALLBACK_DELAY_SECONDS = 20;
-        let lastStaleNotifTime = new Map();
-        let checkedCancelledOrders = new Set();
-        let statsUpdateDebounceTimer = null;
+        let potonganCache = null;
+        let pajakCache = null;
 
-        // Chat
+        // ==================== CACHE LAYER (OPTIMASI 100%) ====================
+        let ordersCache = {};
+        let driversCache = {};
+        let usersCache = {};
+        let driverLocationsCache = {};  // <-- TAMBAHAN: cache lokasi driver
+        let cacheInitialized = false;
+
+        // ===== CHAT NOTIF =====
         let chatOrderListeners = new Set();
         let processedChatMessages = new Set();
 
-        // ==================== CACHE ====================
-        let driversCache = { data: null, timestamp: 0 };
-        const CACHE_TTL = 5000; // 5 detik
-
-        // Cache potongan & pajak (diupdate via listener)
-        let feePercent = 7;
-        let taxPercent = 11;
-
-        // ==================== LOG ====================
+        // ==================== UI LOG ====================
         function addLog(msg, type = "info") {
             const logDiv = document.getElementById("logContainer");
             if (!logDiv) return;
@@ -160,31 +72,8 @@
             const time = new Date().toLocaleTimeString();
             entry.textContent = `[${time}] ${msg}`;
             logDiv.prepend(entry);
-            while (logDiv.children.length > 500) logDiv.removeChild(logDiv.lastChild);
-            entry.scrollIntoView({ behavior: "smooth", block: "start" });
+            while (logDiv.children.length > 200) logDiv.removeChild(logDiv.lastChild);
         }
-
-        // ==================== CACHE FUNCTIONS ====================
-        async function getCachedDrivers() {
-            const now = Date.now();
-            if (driversCache.data && (now - driversCache.timestamp) < CACHE_TTL) {
-                return driversCache.data;
-            }
-            const snap = await database.ref("driver_locations").once("value");
-            driversCache.data = snap.val() || {};
-            driversCache.timestamp = now;
-            return driversCache.data;
-        }
-
-        // Listener untuk update fee & pajak secara realtime
-        database.ref('data-jego/potongan').on('value', snap => {
-            const val = parseFloat(snap.val());
-            if (!isNaN(val)) feePercent = val;
-        });
-        database.ref('data-jego/pajak').on('value', snap => {
-            const val = parseFloat(snap.val());
-            if (!isNaN(val)) taxPercent = val;
-        });
 
         // ==================== UTILITY ====================
         function getDistance(lat1, lon1, lat2, lon2) {
@@ -192,33 +81,31 @@
             const R = 6371;
             const dLat = (lat2 - lat1) * Math.PI / 180;
             const dLon = (lon2 - lon1) * Math.PI / 180;
-            const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) **
-                2;
-            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+            const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) * Math.sin(dLon/2)**2;
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
             return R * c;
         }
 
-        function isVehicleTypeMatch(driverType, orderType) {
-            if (!driverType || !orderType) return false;
-            driverType = driverType.toLowerCase();
-            orderType = orderType.toLowerCase();
-            if (driverType === orderType) return true;
-            if (orderType.includes('kurir')) {
-                if (driverType === 'motor' && orderType === 'kurir_motor') return true;
-                if (driverType === 'bentor' && orderType === 'kurir_bentor') return true;
+        async function hitungTotalPotongan(hargaOrder) {
+            let fee = potonganCache;
+            let pajak = pajakCache;
+            if (fee === null || pajak === null) {
+                try {
+                    const [potSnap, pajakSnap] = await Promise.all([
+                        database.ref('data-jego/potongan').once('value'),
+                        database.ref('data-jego/pajak').once('value')
+                    ]);
+                    fee = parseFloat(potSnap.val()) || 0;
+                    pajak = parseFloat(pajakSnap.val()) || 0;
+                    potonganCache = fee;
+                    pajakCache = pajak;
+                } catch(e) {
+                    return { total: 0, feePersen: 0, pajakPersen: 0 };
+                }
             }
-            return false;
-        }
-
-        function isKurirOrder(orderData) {
-            const tipe = orderData.transport_type || orderData.vehicle || '';
-            return tipe.includes('kurir');
-        }
-
-        function hitungTotalPotongan(hargaOrder) {
-            const potonganRupiah = hargaOrder * (feePercent / 100);
-            const pajakRupiah = potonganRupiah * (taxPercent / 100);
-            return { total: potonganRupiah + pajakRupiah, feePersen: feePercent, pajakPersen: taxPercent };
+            const potonganRupiah = hargaOrder * (fee / 100);
+            const pajakRupiah = potonganRupiah * (pajak / 100);
+            return { total: potonganRupiah + pajakRupiah, feePersen: fee, pajakPersen: pajak };
         }
 
         // ==================== ONE SIGNAL ====================
@@ -227,11 +114,11 @@
             try {
                 const snap = await database.ref('data-jego/PushKey').once('value');
                 ONESIGNAL_API_KEY = snap.val();
-                if (ONESIGNAL_API_KEY) addLog("🔑 OneSignal API Key loaded", "success");
-                else addLog("⚠️ PushKey tidak ditemukan", "error");
+                if (ONESIGNAL_API_KEY) addLog("ЁЯФС OneSignal API Key loaded", "success");
+                else addLog("тЪая╕П PushKey tidak ditemukan", "error");
                 return ONESIGNAL_API_KEY;
-            } catch (e) {
-                addLog(`❌ Gagal memuat PushKey: ${e.message}`, "error");
+            } catch(e) {
+                addLog(`тЭМ Gagal memuat PushKey: ${e.message}`, "error");
                 return null;
             }
         }
@@ -254,562 +141,255 @@
                     })
                 });
                 const result = await res.json();
-                if (result.errors) { addLog(`⚠️ Notif gagal: ${JSON.stringify(result.errors)}`, "warning"); return false; }
+                if (result.errors) { addLog(`тЪая╕П Notif gagal: ${JSON.stringify(result.errors)}`, "warning"); return false; }
                 return true;
-            } catch (err) { addLog(`❌ Error notif: ${err.message}`, "error"); return false; }
-        }
-
-        async function getDriverPlayerId(driverId) {
-            try {
-                const locSnap = await database.ref(`driver_locations/${driverId}/playerId`).once('value');
-                let pid = locSnap.val();
-                if (!pid) {
-                    const driverSnap = await database.ref(`drivers/${driverId}/playerId`).once('value');
-                    pid = driverSnap.val();
-                }
-                return pid;
-            } catch (e) { return null; }
+            } catch(err) { addLog(`тЭМ Error notif: ${err.message}`, "error"); return false; }
         }
 
         async function saveDriverNotification(driverId, title, message, type = 'system') {
             if (!driverId) return;
             try {
                 await database.ref(`driver_notifications/${driverId}`).push({
-                    title,
-                    message,
-                    timestamp: firebase.database.ServerValue.TIMESTAMP,
-                    read: false,
-                    type
+                    title, message, timestamp: firebase.database.ServerValue.TIMESTAMP, read: false, type
                 });
-            } catch (e) { console.error(e); }
+            } catch(e) { console.error(e); }
         }
 
-        // ==================== LOAD DRIVERS (CACHED) ====================
-        async function loadActiveDrivers() {
-            const all = await getCachedDrivers();
-            const activeDrivers = [];
-            const now = Date.now();
-            const MAX_AGE = 5 * 60 * 1000;
-            for (const [uid, d] of Object.entries(all)) {
-                if (d.tracking_enabled === true && d.latitude && d.longitude) {
-                    let lastUpdate = d.last_update ? new Date(d.last_update).getTime() : 0;
-                    if (now - lastUpdate < MAX_AGE) {
-                        activeDrivers.push({
-                            uid,
-                            playerId: d.playerId,
-                            latitude: d.latitude,
-                            longitude: d.longitude,
-                            name: d.fullName || uid,
-                            autobid_enabled: d.autobid_enabled === true
-                        });
-                    }
-                }
+        // ==================== CORE: NOTIFIKASI ORDER TERDEKAT ====================
+        async function notifyNearbyDrivers(orderId, orderData) {
+            const pickupLat = orderData.pickup_lat;
+            const pickupLng = orderData.pickup_lng;
+            if (!pickupLat || !pickupLng) {
+                addLog(`тЪая╕П Order ${orderId.substring(0,8)} tidak memiliki lokasi pickup`, "warning");
+                return;
             }
-            return activeDrivers;
-        }
 
-        async function loadStaleDriversInRadius(lat, lng, radiusKm = 5) {
-            const all = await getCachedDrivers();
-            const staleDrivers = [];
             const now = Date.now();
-            const MAX_AGE = 5 * 60 * 1000;
-            for (const [uid, d] of Object.entries(all)) {
-                if (d.tracking_enabled !== true) continue;
-                if (!d.latitude || !d.longitude) continue;
-                const lastUpdate = d.last_update ? new Date(d.last_update).getTime() : 0;
-                const isStale = (now - lastUpdate) >= MAX_AGE;
-                if (!isStale) continue;
-                const dist = getDistance(lat, lng, d.latitude, d.longitude);
-                if (dist <= radiusKm) {
-                    let driverName = d.fullName || uid;
-                    // Ambil nama dari drivers jika perlu (hanya jika tidak ada fullName)
-                    if (!d.fullName) {
-                        try {
-                            const nameSnap = await database.ref(`drivers/${uid}/name`).once('value');
-                            if (nameSnap.exists()) driverName = nameSnap.val();
-                        } catch (e) {}
-                    }
-                    staleDrivers.push({
-                        uid,
-                        playerId: d.playerId,
-                        name: driverName,
-                        distance: dist,
-                        last_update: d.last_update
+            const MAX_AGE = 5 * 60 * 1000;  // 5 menit
+            const MAX_DISTANCE_KM = 3;      // 3 km
+
+            let notifiedCount = 0;
+
+            // BANDWIDTH OPTIMIZATION: iterasi driverLocationsCache (memory), TIDAK baca Firebase
+            for (const [uid, loc] of Object.entries(driverLocationsCache)) {
+                // Filter: tracking enabled
+                if (!loc.tracking_enabled) continue;
+
+                // Filter: punya koordinat
+                if (!loc.latitude || !loc.longitude) continue;
+
+                // Filter: lokasi masih fresh (< 5 menit)
+                const lastUpdate = loc.last_update ? new Date(loc.last_update).getTime() : 0;
+                if (now - lastUpdate > MAX_AGE) continue;
+
+                // Filter: jarak ke pickup <= 3 km
+                const dist = getDistance(pickupLat, pickupLng, loc.latitude, loc.longitude);
+                if (dist > MAX_DISTANCE_KM) continue;
+
+                // Ambil playerId dari cache (prioritas dari driverLocationsCache, fallback ke driversCache)
+                let playerId = loc.playerId;
+                if (!playerId && driversCache[uid]) {
+                    playerId = driversCache[uid].playerId;
+                }
+                if (!playerId) {
+                    addLog(`тЪая╕П Driver ${uid.substring(0,8)} tidak memiliki playerId, notifikasi dilewat.`, "warning");
+                    continue;
+                }
+
+                // Ambil nama driver dari cache
+                let driverName = loc.fullName || driversCache[uid]?.name || 'Driver';
+
+                // Kirim notifikasi
+                const title = `ЁЯЪЦ Order Baru Dekat Anda!`;
+                const message = `Halo ${driverName}, ada order dari ${orderData.customer_name || 'Customer'} (Rp ${orderData.price?.toLocaleString()}) di sekitar lokasi Anda. Jarak ${dist.toFixed(1)} km.`;
+                
+                try {
+                    await sendPushNotification(playerId, title, message, { 
+                        orderId, 
+                        type: 'new_order_nearby',
+                        distance: dist.toFixed(1)
                     });
-                }
-            }
-            return staleDrivers;
-        }
-
-        // ==================== AUTO FALLBACK ====================
-        async function sendFallbackOffer(orderId, orderData) {
-            if (isKurirOrder(orderData)) {
-                addLog(`🚫 Fallback dibatalkan untuk order Kurir ${orderId.substring(0,8)}`, "warning");
-                return false;
-            }
-            const orderSnap = await database.ref(`orders/${orderId}`).once('value');
-            const order = orderSnap.val();
-            if (!order || order.status !== 'waiting') return false;
-            const offersSnap = await database.ref(`orders/${orderId}/driver_offers`).once('value');
-            if (offersSnap.exists() && Object.keys(offersSnap.val()).length > 0) return false;
-
-            const pickupLat = order.pickup_lat,
-                pickupLng = order.pickup_lng;
-            if (!pickupLat || !pickupLng) return false;
-
-            const allDrivers = await getCachedDrivers();
-            let eligibleDrivers = [];
-            for (const [uid, data] of Object.entries(allDrivers)) {
-                if (data.tracking_enabled !== true) continue;
-                if (data.autobid_enabled !== true) continue;
-                if (!data.latitude || !data.longitude) continue;
-                const dist = getDistance(pickupLat, pickupLng, data.latitude, data.longitude);
-                if (dist < 3) eligibleDrivers.push({ uid, ...data, distance: dist });
-            }
-            if (eligibleDrivers.length === 0) return false;
-            eligibleDrivers.sort((a, b) => a.distance - b.distance);
-
-            // Ambil data drivers sekaligus (hanya yang eligible)
-            const driverUids = eligibleDrivers.map(d => d.uid);
-            const driversSnap = await database.ref('drivers').once('value');
-            const driversData = driversSnap.val() || {};
-            let selectedDriver = null;
-            for (const driver of eligibleDrivers) {
-                const driverData = driversData[driver.uid];
-                if (!driverData) continue;
-                const driverType = driverData.vehicle_type || '';
-                const orderType = order.transport_type || order.vehicle || 'motor';
-                if (!isVehicleTypeMatch(driverType, orderType)) continue;
-                const potonganInfo = hitungTotalPotongan(order.price || 0);
-                const saldoDriver = driverData.balance || 0;
-                if (saldoDriver >= potonganInfo.total) {
-                    selectedDriver = { uid: driver.uid, data: driverData, distance: driver.distance, playerId: driver
-                            .playerId };
-                    break;
-                }
-            }
-            if (!selectedDriver) return false;
-
-            const offerData = {
-                driver_id: selectedDriver.uid,
-                driver_name: selectedDriver.data.name || "Driver",
-                driver_plate: selectedDriver.data.plate_number || '',
-                driver_type: selectedDriver.data.vehicle_type || '',
-                driver_rating: selectedDriver.data.rating || 5,
-                driver_trips: selectedDriver.data.perjalanan || 0,
-                driver_photo: selectedDriver.data.photoURL || '',
-                offered_at: new Date().toISOString(),
-                status: 'offered',
-                auto_fallback_by_admin: true,
-                bid_price: order.price,
-                bid_percent: 0,
-                bid_requested: true,
-                expired_at: Date.now() + 30000
-            };
-            try {
-                await database.ref(`orders/${orderId}/driver_offers/${selectedDriver.uid}`).set(offerData);
-                addLog(`🤖 AUTO FALLBACK: offer ke ${offerData.driver_name} (${selectedDriver.uid}) jarak ${selectedDriver.distance.toFixed(2)}km`,
-                    "success");
-                if (selectedDriver.playerId) {
-                    await sendPushNotification(selectedDriver.playerId, "🚖 Order Baru (Auto Offer Admin)",
-                        `Halo ${offerData.driver_name}, admin mengirim penawaran order dari ${order.customer_name || 'Customer'} karena tidak ada driver merespon.`, { auto_fallback: true, orderId }
-                    );
-                    await saveDriverNotification(selectedDriver.uid, "Order Baru (Fallback)",
-                        `Admin menawari Anda order dari ${order.customer_name || 'Customer'} (Rp ${order.price?.toLocaleString()})`
-                        );
-                }
-                return true;
-            } catch (err) { addLog(`❌ Fallback gagal: ${err.message}`, "error"); return false; }
-        }
-
-        // ==================== PROSES ORDER BARU ====================
-        async function processNewOrder(orderId, orderData) {
-            if (processedOrderIds.has(orderId)) return;
-            if (orderData.status !== "waiting" && orderData.status !== "searching") return;
-            const lat = orderData.pickup_lat || orderData.from_lat;
-            const lng = orderData.pickup_lng || orderData.from_lng;
-            if (!lat || !lng) return;
-            const isKurir = isKurirOrder(orderData);
-            addLog(`📦 Order baru: ${orderId.substring(0,8)}${isKurir ? ' (KURIR)' : ''}`, "info");
-
-            // Ambil driver aktif dari cache
-            const drivers = await loadActiveDrivers();
-
-            // Ambil driver yang sedang sibuk (active orders) dan waiting offers
-            const activeOrdersSnap = await database.ref('orders')
-                .orderByChild('status')
-                .startAt('accepted')
-                .endAt('on_trip')
-                .once('value');
-            const activeOrders = activeOrdersSnap.val() || {};
-            const activeDriverIds = new Set();
-            for (let oid in activeOrders) {
-                const o = activeOrders[oid];
-                if (o.driver_id) activeDriverIds.add(o.driver_id);
-            }
-
-            const waitingOrdersSnap = await database.ref('orders')
-                .orderByChild('status')
-                .equalTo('waiting')
-                .once('value');
-            const waitingOrders = waitingOrdersSnap.val() || {};
-            const waitingDriverIds = new Set();
-            for (let oid in waitingOrders) {
-                const o = waitingOrders[oid];
-                if (o.driver_offers) {
-                    for (let did in o.driver_offers) {
-                        if (o.driver_offers[did].status === 'offered') {
-                            waitingDriverIds.add(did);
-                        }
-                    }
-                }
-            }
-
-            // Ambil data semua driver (untuk cek tipe & saldo) sekaligus
-            const driversDataSnap = await database.ref('drivers').once('value');
-            const driversData = driversDataSnap.val() || {};
-
-            let notifiedCount = 0,
-                autoOfferCount = 0;
-            for (const driver of drivers) {
-                const dist = getDistance(lat, lng, driver.latitude, driver.longitude);
-                if (dist < 3) {
-                    const cust = orderData.customer_name || "Customer";
-                    const harga = orderData.price || 0;
-                    await sendPushNotification(driver.playerId, "🚖 Order Baru Dekat Anda!",
-                        `${cust} Rp ${harga.toLocaleString()} jarak ${dist.toFixed(1)}km`, { orderId });
+                    await saveDriverNotification(uid, title, message);
                     notifiedCount++;
-
-                    if (driver.autobid_enabled && !isKurir) {
-                        if (waitingDriverIds.has(driver.uid) || activeDriverIds.has(driver.uid)) continue;
-                        const driverData = driversData[driver.uid];
-                        if (!driverData) continue;
-                        const driverType = driverData.vehicle_type || '';
-                        const orderType = orderData.transport_type || orderData.vehicle || 'motor';
-                        if (!isVehicleTypeMatch(driverType, orderType)) continue;
-                        const potonganInfo = hitungTotalPotongan(orderData.price || 0);
-                        const saldoDriver = driverData.balance || 0;
-                        if (saldoDriver >= potonganInfo.total) {
-                            const existingOffer = await database.ref(`orders/${orderId}/driver_offers/${driver.uid}`).once(
-                            'value');
-                            if (!existingOffer.exists()) {
-                                const offerData = {
-                                    driver_id: driver.uid,
-                                    driver_name: driverData.name || "Driver",
-                                    driver_plate: driverData.plate_number || '',
-                                    driver_type: driverData.vehicle_type || '',
-                                    driver_rating: driverData.rating || 5,
-                                    driver_trips: driverData.perjalanan || 0,
-                                    driver_photo: driverData.photoURL || '',
-                                    offered_at: new Date().toISOString(),
-                                    status: 'offered',
-                                    auto_offer_by_admin: true,
-                                    bid_price: orderData.price,
-                                    bid_percent: 0,
-                                    bid_requested: true,
-                                    expired_at: Date.now() + 30000
-                                };
-                                await database.ref(`orders/${orderId}/driver_offers/${driver.uid}`).set(offerData);
-                                addLog(`🤖 AUTO OFFER (autobid ON): ke ${driver.name} jarak ${dist.toFixed(2)}km`,
-                                    "success");
-                                if (driver.playerId) {
-                                    await sendPushNotification(driver.playerId, "🤖 Penawaran Otomatis Dikirim",
-                                        `Anda telah ditawari order dari ${cust} sebesar Rp ${harga.toLocaleString()} (Autobid ON).`, { orderId, auto_offer: true }
-                                    );
-                                    await saveDriverNotification(driver.uid, "Penawaran Otomatis",
-                                        `Anda ditawari order dari ${cust} (Rp ${harga.toLocaleString()})`);
-                                }
-                                autoOfferCount++;
-                            }
-                        } else {
-                            addLog(`⚠️ Autobid skipped: saldo driver ${driver.name} tidak cukup`, "warning");
-                        }
-                    }
-                }
-            }
-            addLog(`✅ Notif ke ${notifiedCount} driver, auto offer ke ${autoOfferCount} driver`, "success");
-
-            // Stale driver notif
-            const staleDriversNearby = await loadStaleDriversInRadius(lat, lng, 5);
-            const nowTime = Date.now();
-            const COOLDOWN_MS = 30 * 60 * 1000;
-            for (const stale of staleDriversNearby) {
-                const lastNotif = lastStaleNotifTime.get(stale.uid);
-                if (lastNotif && (nowTime - lastNotif) < COOLDOWN_MS) continue;
-                if (stale.playerId) {
-                    const title = "🚖 Ada Order di Dekat Lokasi Terakhirmu";
-                    const message =
-                        `Halo ${stale.name}, ada order dari ${orderData.customer_name || 'Customer'} (Rp ${orderData.price?.toLocaleString()}) di sekitar lokasi terakhirmu. Buka aplikasi dan aktifkan lokasi agar bisa menerima order.`;
-                    await sendPushNotification(stale.playerId, title, message, { orderId, stale_location: true });
-                    addLog(`📢 Notifikasi stale driver: ${stale.name} (jarak ${stale.distance.toFixed(1)}km dari lokasi terakhir)`,
-                        "info");
-                    lastStaleNotifTime.set(stale.uid, nowTime);
+                    addLog(`ЁЯУв Notifikasi ke driver ${driverName} (${uid.substring(0,8)}) jarak ${dist.toFixed(1)}km`, "success");
+                } catch(err) {
+                    addLog(`тЭМ Gagal kirim notif ke ${uid.substring(0,8)}: ${err.message}`, "error");
                 }
             }
 
-            // Timer fallback
-            if (!isKurir && !fallbackProcessed.has(orderId)) {
-                if (fallbackTimers.has(orderId)) clearTimeout(fallbackTimers.get(orderId));
-                const timer = setTimeout(async () => {
-                    const cur = await database.ref(`orders/${orderId}`).once('value');
-                    const curOrder = cur.val();
-                    if (!curOrder || curOrder.status !== 'waiting') { fallbackTimers.delete(orderId); return; }
-                    const offers = await database.ref(`orders/${orderId}/driver_offers`).once('value');
-                    if (offers.exists() && Object.keys(offers.val()).length > 0) {
-                        addLog(`✅ Order ${orderId.substring(0,8)} sudah ada penawaran`, "success");
-                    } else {
-                        addLog(`🚨 Tidak ada penawaran, kirim fallback`, "warning");
-                        await sendFallbackOffer(orderId, curOrder);
-                        fallbackProcessed.add(orderId);
-                    }
-                    fallbackTimers.delete(orderId);
-                }, FALLBACK_DELAY_SECONDS * 1000);
-                fallbackTimers.set(orderId, timer);
-                addLog(`⏲️ Timer fallback ${FALLBACK_DELAY_SECONDS}s untuk order ${orderId.substring(0,8)}`, "info");
-            } else if (isKurir) addLog(`🚫 Order Kurir: auto fallback dinonaktifkan`, "info");
-
-            processedOrderIds.add(orderId);
-            scheduleStatsUpdate();
+            if (notifiedCount > 0) {
+                addLog(`тЬЕ Mengirim notifikasi order baru ke ${notifiedCount} driver terdekat`, "success");
+            } else {
+                addLog(`тД╣я╕П Tidak ada driver aktif dalam radius 3 km untuk order ${orderId.substring(0,8)}`, "info");
+            }
         }
 
-        // ==================== UPDATE STATS ====================
-        async function updateDailyStats() {
+        // ==================== INISIALISASI CACHE ====================
+        async function initCache() {
+            if (cacheInitialized) return;
+            addLog("ЁЯУж Inisialisasi cache (orders, drivers, users, driver_locations)...", "info");
             try {
-                addLog("📊 Memperbarui statistik harian...", "info");
-                const driversSnap = await database.ref('drivers').once('value');
-                const drivers = driversSnap.val() || {};
-                let totalDrivers = 0;
-                for (let uid in drivers)
-                    if (drivers[uid].role === 'driver') totalDrivers++;
-
-                const locs = await getCachedDrivers();
-                const now = Date.now();
-                let activeDrivers = 0;
-                for (let uid in locs) {
-                    const d = locs[uid];
-                    if (d.tracking_enabled === true && d.latitude && d.longitude) {
-                        let lastUpdate = d.last_update ? new Date(d.last_update).getTime() : 0;
-                        if (now - lastUpdate < 5 * 60 * 1000) activeDrivers++;
+                // 1. Load orders
+                const ordersSnap = await database.ref('orders').once('value');
+                ordersCache = ordersSnap.val() || {};
+                database.ref('orders').on('child_added', async (snap) => {
+                    const orderData = snap.val();
+                    const orderId = snap.key;
+                    ordersCache[orderId] = orderData;
+                    
+                    // ===== NOTIFIKASI ORDER TERDEKAT =====
+                    if (orderData && orderData.status === 'waiting') {
+                        await notifyNearbyDrivers(orderId, orderData);
                     }
-                }
-
-                const usersSnap = await database.ref('users').once('value');
-                const users = usersSnap.val() || {};
-                let totalCustomers = 0;
-                for (let uid in users)
-                    if (users[uid].role !== 'driver' && users[uid].role !== 'admin') totalCustomers++;
-
-                const today = new Date();
-                today.setHours(0, 0, 0, 0);
-                const todayISO = today.toISOString();
-                const ordersSnap = await database.ref('orders')
-                    .orderByChild('created_at')
-                    .startAt(todayISO)
-                    .once('value');
-                const ordersToday = ordersSnap.val() || {};
-                let ordersCount = 0,
-                    revenue = 0;
-                for (let id in ordersToday) {
-                    const o = ordersToday[id];
-                    ordersCount++;
-                    if (o.status === 'completed' && o.price) revenue += o.price;
-                }
-
-                let pendingDeposits = 0;
-                const logsSnap = await database.ref('driver_balance_logs').once('value');
-                logsSnap.forEach(driverChild => {
-                    driverChild.forEach(logChild => {
-                        const log = logChild.val();
-                        if (log.type === 'deposit_request' && log.status === 'pending') pendingDeposits++;
-                    });
                 });
+                database.ref('orders').on('child_changed', (snap) => { ordersCache[snap.key] = snap.val(); });
+                database.ref('orders').on('child_removed', (snap) => { delete ordersCache[snap.key]; });
 
-                const stats = {
-                    totalDrivers,
-                    activeDrivers,
-                    totalCustomers,
-                    ordersToday: ordersCount,
-                    revenueToday: revenue,
-                    pendingDeposits,
-                    updatedAt: new Date().toISOString()
-                };
-                await database.ref('stats/daily').set(stats);
-                addLog(`📊 Update daily stats: ordersToday=${ordersCount}, revenue=${revenue}`, 'success');
-            } catch (err) {
-                addLog(`❌ Gagal update daily stats: ${err.message}`, 'error');
+                // 2. Load drivers (termasuk playerId)
+                const driversSnap = await database.ref('drivers').once('value');
+                driversCache = driversSnap.val() || {};
+                database.ref('drivers').on('child_added', (snap) => { driversCache[snap.key] = snap.val(); });
+                database.ref('drivers').on('child_changed', (snap) => { driversCache[snap.key] = snap.val(); });
+                database.ref('drivers').on('child_removed', (snap) => { delete driversCache[snap.key]; });
+
+                // 3. Load users
+                const usersSnap = await database.ref('users').once('value');
+                usersCache = usersSnap.val() || {};
+                database.ref('users').on('child_added', (snap) => { usersCache[snap.key] = snap.val(); });
+                database.ref('users').on('child_changed', (snap) => { usersCache[snap.key] = snap.val(); });
+                database.ref('users').on('child_removed', (snap) => { delete usersCache[snap.key]; });
+
+                // 4. Load driver_locations (untuk notifikasi)
+                const locSnap = await database.ref('driver_locations').once('value');
+                driverLocationsCache = locSnap.val() || {};
+                database.ref('driver_locations').on('child_added', (snap) => { driverLocationsCache[snap.key] = snap.val(); });
+                database.ref('driver_locations').on('child_changed', (snap) => { driverLocationsCache[snap.key] = snap.val(); });
+                database.ref('driver_locations').on('child_removed', (snap) => { delete driverLocationsCache[snap.key]; });
+
+                // 5. Load potongan & pajak
+                const [potSnap, pajakSnap] = await Promise.all([
+                    database.ref('data-jego/potongan').once('value'),
+                    database.ref('data-jego/pajak').once('value')
+                ]);
+                potonganCache = parseFloat(potSnap.val()) || 0;
+                pajakCache = parseFloat(pajakSnap.val()) || 0;
+                database.ref('data-jego/potongan').on('value', (snap) => { potonganCache = parseFloat(snap.val()) || 0; });
+                database.ref('data-jego/pajak').on('value', (snap) => { pajakCache = parseFloat(snap.val()) || 0; });
+
+                // 6. Ambil OneSignal API Key
+                await getOneSignalApiKey();
+
+                cacheInitialized = true;
+                addLog("тЬЕ Cache berhasil diinisialisasi", "success");
+            } catch(err) {
+                addLog(`тЭМ Gagal inisialisasi cache: ${err.message}`, "error");
             }
         }
 
-        function scheduleStatsUpdate() {
-            if (statsUpdateDebounceTimer) {
-                clearTimeout(statsUpdateDebounceTimer);
-            }
-            statsUpdateDebounceTimer = setTimeout(() => {
-                updateDailyStats();
-                statsUpdateDebounceTimer = null;
-            }, 5000);
-        }
-
-        // ==================== AUTO DEDUCT ====================
+        // ==================== 1. AUTO DEDUCT ====================
         async function autoDeductOnTrip(orderId, orderData) {
             if (processedDeductionOrders.has(orderId)) return;
             if (orderData.status !== 'on_trip') return;
             if (orderData.balance_deducted === true) return;
+
             const driverId = orderData.driver_id;
             const hargaOrder = orderData.price;
             if (!driverId || !hargaOrder) return;
 
             try {
-                const { total: totalPotongan } = hitungTotalPotongan(hargaOrder);
-                const balanceSnap = await database.ref(`drivers/${driverId}/balance`).once('value');
-                let currentBalance = balanceSnap.val() || 0;
+                const potonganInfo = await hitungTotalPotongan(hargaOrder);
+                const totalPotongan = potonganInfo.total;
+                if (totalPotongan === 0) return;
+
+                let currentBalance = driversCache[driverId] ? driversCache[driverId].balance || 0 : 0;
                 if (currentBalance < totalPotongan) {
-                    addLog(`⚠️ Auto deduct: Saldo driver ${driverId} tidak cukup`, "warning");
+                    addLog(`тЪая╕П Auto deduct: Saldo driver ${driverId.substring(0,8)} tidak cukup`, "warning");
                     return;
                 }
+
                 await database.ref(`drivers/${driverId}/balance`).set(currentBalance - totalPotongan);
-                await database.ref(`orders/${orderId}`).update({ balance_deducted: true, deducted_at: new Date()
-                        .toISOString() });
+                await database.ref(`orders/${orderId}`).update({ balance_deducted: true, deducted_at: new Date().toISOString() });
                 await database.ref(`driver_deductions/${driverId}/${orderId}`).set({
                     amount: totalPotongan,
                     order_price: hargaOrder,
-                    fee_percentage: feePercent,
-                    tax_percentage: taxPercent,
+                    fee_percentage: potonganInfo.feePersen,
+                    tax_percentage: potonganInfo.pajakPersen,
                     timestamp: firebase.database.ServerValue.TIMESTAMP
                 });
-                addLog(`💰 OTOMATIS: Potong saldo driver ${driverId} sebesar Rp ${totalPotongan.toFixed(1)}`, "success");
+
+                addLog(`ЁЯТ░ OTOMATIS: Potong saldo driver ${driverId.substring(0,8)} sebesar Rp ${totalPotongan.toFixed(1)}`, "success");
                 processedDeductionOrders.add(orderId);
-            } catch (err) { addLog(`❌ Auto deduct error: ${err.message}`, "error"); }
-        }
-
-        // ==================== OFF-APP DETECTION ====================
-        async function checkOffAppSuspicion(orderId, orderData) {
-            if (!orderData || orderData.status !== 'cancelled') return;
-            if (checkedCancelledOrders.has(orderId)) return;
-            const cancelledBy = orderData.cancelled_by;
-            if (cancelledBy !== 'customer') return;
-
-            const driverId = orderData.driver_id;
-            const destLat = orderData.dest_lat;
-            const destLng = orderData.dest_lng;
-            if (!driverId || !destLat) return;
-
-            const cancelledAt = orderData.cancelled_at ? new Date(orderData.cancelled_at).getTime() : Date.now();
-            setTimeout(async () => {
-                const locationsSnap = await database.ref(`driver_locations/${driverId}`).orderByChild('last_update')
-                    .limitToLast(10).once('value');
-                let nearDestination = false;
-                let latestLoc = null;
-                locationsSnap.forEach(child => {
-                    const loc = child.val();
-                    if (loc.latitude && loc.longitude) {
-                        latestLoc = loc;
-                        const dist = getDistance(loc.latitude, loc.longitude, destLat, destLng);
-                        if (dist < 0.2) nearDestination = true;
-                    }
-                });
-                if (nearDestination) {
-                    const reportData = {
-                        orderId,
-                        driverId,
-                        cancelledBy,
-                        cancelledAt,
-                        destination: { lat: destLat, lng: destLng },
-                        driverLocation: latestLoc ? { lat: latestLoc.latitude, lng: latestLoc.longitude,
-                            time: latestLoc.last_update } : null,
-                        reason: 'Driver mendekati tujuan setelah pembatalan oleh customer',
-                        detectedAt: Date.now(),
-                        status: 'pending_review'
-                    };
-                    await database.ref(`reports/offapp_suspicion/${orderId}`).set(reportData);
-                    addLog(
-                        `⚠️ [OFF-APP] Indikasi off-app trip: order ${orderId.substring(0,8)} driver ${driverId.substring(0,8)} mendekati tujuan setelah dibatalkan customer.`,
-                        "warning");
-                } else {
-                    addLog(`✅ [OFF-APP] Order ${orderId.substring(0,8)}: driver tidak mendekati tujuan.`, "success");
-                }
-                checkedCancelledOrders.add(orderId);
-            }, 5 * 60 * 1000);
-        }
-
-        async function onOrderChangedForOffApp(snapshot) {
-            const order = snapshot.val();
-            const orderId = snapshot.key;
-            if (order && order.status === 'cancelled' && order.cancelled_by === 'customer') {
-                const reportSnap = await database.ref(`reports/offapp_suspicion/${orderId}`).once('value');
-                if (!reportSnap.exists()) {
-                    await checkOffAppSuspicion(orderId, order);
-                }
+            } catch(err) {
+                addLog(`тЭМ Auto deduct error: ${err.message}`, "error");
             }
         }
 
-        // ==================== SCAN CANCELLED (dengan filter waktu) ====================
-        async function scanRecentCancelledOrders() {
-            const thirtyMinAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
-            const ordersSnap = await database.ref('orders')
-                .orderByChild('cancelled_at')
-                .startAt(thirtyMinAgo)
-                .once('value');
-            const orders = ordersSnap.val() || {};
-            let count = 0;
-            for (const [id, order] of Object.entries(orders)) {
-                if (order.cancelled_by === 'customer') {
-                    const reportSnap = await database.ref(`reports/offapp_suspicion/${id}`).once('value');
-                    if (!reportSnap.exists()) {
-                        await checkOffAppSuspicion(id, order);
-                        count++;
-                    }
-                }
-            }
-            if (count > 0) addLog(`🔍 [OFF-APP] Scan selesai, memeriksa ${count} order yang baru dibatalkan.`, "info");
-        }
-
-        // ==================== RATING INCREMENTAL ====================
+        // ==================== 2. RATING & AGREGAT ====================
         async function updateDriverRating(driverId, newRating) {
             if (!driverId || typeof newRating !== 'number') return;
             try {
-                const driverSnap = await database.ref(`drivers/${driverId}`).once('value');
-                const driverData = driverSnap.val() || {};
+                let driverData = driversCache[driverId] || {};
                 let totalRating = driverData.totalRating || 0;
                 let ratingCount = driverData.ratingCount || 0;
                 totalRating += newRating;
                 ratingCount += 1;
                 const avg = totalRating / ratingCount;
+
                 await database.ref(`drivers/${driverId}`).update({
                     totalRating,
                     ratingCount,
                     rating: avg,
                     last_rating_update: new Date().toISOString()
                 });
-                addLog(`⭐ Driver ${driverId.substring(0,8)} rating baru: ${avg.toFixed(1)} (total ${ratingCount} rating)`,
-                    "success");
-            } catch (err) { addLog(`❌ Gagal update rating driver: ${err.message}`, "error"); }
+                if (driversCache[driverId]) {
+                    driversCache[driverId].totalRating = totalRating;
+                    driversCache[driverId].ratingCount = ratingCount;
+                    driversCache[driverId].rating = avg;
+                    driversCache[driverId].last_rating_update = new Date().toISOString();
+                }
+                addLog(`тнР Driver ${driverId.substring(0,8)} rating baru: ${avg.toFixed(1)} (total ${ratingCount} rating)`, "success");
+            } catch(err) {
+                addLog(`тЭМ Gagal update rating driver: ${err.message}`, "error");
+            }
         }
 
         async function updateCustomerRating(customerId, newRating) {
             if (!customerId || typeof newRating !== 'number') return;
             try {
-                const userSnap = await database.ref(`users/${customerId}`).once('value');
-                const userData = userSnap.val() || {};
+                let userData = usersCache[customerId] || {};
                 let totalRating = userData.totalRating || 0;
                 let ratingCount = userData.ratingCount || 0;
                 totalRating += newRating;
                 ratingCount += 1;
                 const avg = totalRating / ratingCount;
+
                 await database.ref(`users/${customerId}`).update({
                     totalRating,
                     ratingCount,
                     rating: avg,
                     last_rating_update: new Date().toISOString()
                 });
-                addLog(`⭐ Customer ${customerId.substring(0,8)} rating baru: ${avg.toFixed(1)} (total ${ratingCount} rating)`,
-                    "success");
-            } catch (err) { addLog(`❌ Gagal update rating customer: ${err.message}`, "error"); }
+                if (usersCache[customerId]) {
+                    usersCache[customerId].totalRating = totalRating;
+                    usersCache[customerId].ratingCount = ratingCount;
+                    usersCache[customerId].rating = avg;
+                    usersCache[customerId].last_rating_update = new Date().toISOString();
+                }
+                addLog(`тнР Customer ${customerId.substring(0,8)} rating baru: ${avg.toFixed(1)} (total ${ratingCount} rating)`, "success");
+            } catch(err) {
+                addLog(`тЭМ Gagal update rating customer: ${err.message}`, "error");
+            }
         }
 
-        // ==================== INIT RATING AGREGAT (sekali) ====================
+        let ratingAggregatesInitialized = false;
         async function initializeRatingAggregates() {
-            addLog("🔍 Memeriksa agregat rating driver & customer...", "info");
+            if (ratingAggregatesInitialized) return;
+            if (localStorage.getItem('ratingAggregatesDone') === 'true') {
+                ratingAggregatesInitialized = true;
+                addLog("тЬЕ Agregat rating sudah diinisialisasi (skip)", "info");
+                return;
+            }
+            addLog("ЁЯФН Inisialisasi agregat rating driver & customer...", "info");
             try {
                 const ratingsSnap = await database.ref('ratings').once('value');
                 const ratings = ratingsSnap.val() || {};
@@ -856,68 +436,49 @@
                         last_rating_update: new Date().toISOString()
                     });
                 }
-                addLog(
-                    `✅ Agregat rating diinisialisasi: ${Object.keys(driverAgg).length} driver, ${Object.keys(customerAgg).length} customer`,
-                    "success");
-            } catch (err) { addLog(`⚠️ Gagal inisialisasi agregat: ${err.message}`, "warning"); }
+                ratingAggregatesInitialized = true;
+                localStorage.setItem('ratingAggregatesDone', 'true');
+                addLog(`тЬЕ Agregat rating diinisialisasi: ${Object.keys(driverAgg).length} driver, ${Object.keys(customerAgg).length} customer`, "success");
+            } catch(err) {
+                addLog(`тЪая╕П Gagal inisialisasi agregat: ${err.message}`, "warning");
+            }
         }
 
-        // ==================== CLEANUP EXPIRED OFFERS (interval 60 detik) ====================
+        // ==================== 3. CLEANUP ====================
         async function cleanupExpiredOffers() {
             try {
-                const ordersSnap = await database.ref('orders').orderByChild('status').equalTo('waiting').once('value');
-                const waitingOrders = ordersSnap.val() || {};
                 const now = Date.now();
                 let removed = 0;
-                for (const [orderId, order] of Object.entries(waitingOrders)) {
-                    const offers = order.driver_offers || {};
-                    for (const [driverId, offer] of Object.entries(offers)) {
-                        if (offer.status === 'offered' && offer.expired_at && offer.expired_at < now) {
-                            await database.ref(`orders/${orderId}/driver_offers/${driverId}`).remove();
-                            removed++;
+                for (const [orderId, order] of Object.entries(ordersCache)) {
+                    if (order.status === 'waiting' && order.driver_offers) {
+                        for (const [driverId, offer] of Object.entries(order.driver_offers)) {
+                            if (offer.status === 'offered' && offer.expired_at && offer.expired_at < now) {
+                                await database.ref(`orders/${orderId}/driver_offers/${driverId}`).remove();
+                                removed++;
+                            }
                         }
                     }
                 }
-                if (removed) addLog(`🗑️ Bersihkan ${removed} offer expired`, "success");
-            } catch (err) { addLog(`❌ Gagal cleanup expired offers: ${err.message}`, "error"); }
+                if (removed) addLog(`ЁЯЧСя╕П Bersihkan ${removed} offer expired`, "success");
+            } catch(err) {
+                addLog(`тЭМ Gagal cleanup expired offers: ${err.message}`, "error");
+            }
         }
 
-        // ==================== DELETE EXPIRED ORDERS (optimasi query) ====================
         async function deleteExpiredOrders() {
-            const thirtyMinAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
-            const snap = await database.ref('orders')
-                .orderByChild('created_at')
-                .endAt(thirtyMinAgo)
-                .once('value');
-            const orders = snap.val() || {};
+            const now = new Date();
+            const thirtyMinAgo = new Date(now.getTime() - 30*60*1000);
             let del = 0;
-            for (let [id, o] of Object.entries(orders)) {
-                if (o.status === 'waiting') {
+            for (const [id, o] of Object.entries(ordersCache)) {
+                if (o.status === 'waiting' && o.created_at && new Date(o.created_at) <= thirtyMinAgo) {
                     await database.ref('orders/' + id).remove();
                     del++;
                 }
             }
-            if (del) addLog(`🗑️ Hapus ${del} order kadaluarsa (>30 menit)`, "success");
+            if (del) addLog(`ЁЯЧСя╕П Hapus ${del} order kadaluarsa (>30 menit)`, "success");
         }
 
-        // ==================== MISSED DEDUCTIONS ====================
-        async function processMissedDeductions() {
-            addLog("🔍 Memeriksa order on_trip yang belum dipotong...", "info");
-            const ordersSnap = await database.ref('orders').once('value');
-            const orders = ordersSnap.val() || {};
-            let processed = 0;
-            for (const [id, order] of Object.entries(orders)) {
-                if (order.status === 'on_trip' && !order.balance_deducted && order.driver_id) {
-                    addLog(`🔄 Memproses order missed: ${id.substring(0,8)}`, "warning");
-                    await autoDeductOnTrip(id, order);
-                    processed++;
-                }
-            }
-            if (processed > 0) addLog(`✅ Berhasil memotong ${processed} order missed`, "success");
-            else addLog("✅ Tidak ada order missed", "success");
-        }
-
-        // ==================== CHAT NOTIF ====================
+        // ==================== CHAT NOTIFICATION ====================
         async function listenToChatOrder(orderId) {
             const snapshot = await database.ref(`chat/${orderId}`).once('value');
             const messages = snapshot.val() || {};
@@ -928,48 +489,52 @@
                 const msgKey = snap.key;
                 if (processedChatMessages.has(msgKey)) return;
                 processedChatMessages.add(msgKey);
+
                 const msgData = snap.val();
                 if (!msgData || !msgData.sender) return;
-                const orderSnap = await database.ref(`orders/${orderId}`).once('value');
-                const order = orderSnap.val();
+
+                const order = ordersCache[orderId];
                 if (!order) return;
+
                 let senderType = msgData.sender;
                 let receiverId = null;
                 let senderName = '';
                 let title = '';
                 let message = msgData.message || 'Pesan baru';
+
                 if (senderType === 'driver') {
                     receiverId = order.user_id;
                     senderName = order.driver_name || 'Driver';
-                    title = `💬 Pesan dari Driver ${senderName}`;
+                    title = `ЁЯТм Pesan dari Driver ${senderName}`;
                 } else if (senderType === 'customer') {
                     receiverId = order.driver_id;
                     senderName = order.customer_name || 'Customer';
-                    title = `💬 Pesan dari Customer ${senderName}`;
+                    title = `ЁЯТм Pesan dari Customer ${senderName}`;
                 } else {
                     return;
                 }
+
                 if (!receiverId) {
-                    addLog(`⚠️ Tidak ada penerima untuk order ${orderId}`, 'warning');
+                    addLog(`тЪая╕П Tidak ada penerima untuk order ${orderId}`, 'warning');
                     return;
                 }
+
                 let playerId = null;
                 if (senderType === 'driver') {
-                    const userSnap = await database.ref(`users/${receiverId}/playerId`).once('value');
-                    playerId = userSnap.val();
+                    if (usersCache[receiverId] && usersCache[receiverId].playerId) {
+                        playerId = usersCache[receiverId].playerId;
+                    }
                 } else {
-                    const locSnap = await database.ref(`driver_locations/${receiverId}/playerId`).once('value');
-                    playerId = locSnap.val();
-                    if (!playerId) {
-                        const driverSnap = await database.ref(`drivers/${receiverId}/playerId`).once('value');
-                        playerId = driverSnap.val();
+                    if (driversCache[receiverId] && driversCache[receiverId].playerId) {
+                        playerId = driversCache[receiverId].playerId;
                     }
                 }
+
                 if (playerId) {
                     await sendPushNotification(playerId, title, message, { orderId, chat: true, sender: senderType });
-                    addLog(`📨 Chat notifikasi: ${senderType} -> ${receiverId.substring(0,8)}`, 'success');
+                    addLog(`ЁЯУи Chat notifikasi: ${senderType} -> ${receiverId.substring(0,8)}`, 'success');
                 } else {
-                    addLog(`⚠️ Tidak ada playerId untuk penerima ${receiverId}`, 'warning');
+                    addLog(`тЪая╕П Tidak ada playerId untuk penerima ${receiverId}`, 'warning');
                 }
             });
         }
@@ -982,53 +547,28 @@
                     listenToChatOrder(orderId);
                 }
             });
-            addLog('💬 Chat listener aktif (notifikasi otomatis ke driver/customer)', 'success');
+            addLog('ЁЯТм Chat listener aktif (notifikasi otomatis ke driver/customer)', 'success');
         }
 
-        // ==================== LISTENERS ====================
-        function startListeningOrders() {
-            if (ordersListener) return;
-            database.ref("orders").on("child_added", async (snap) => await processNewOrder(snap.key, snap.val()));
-            ordersListener = true;
-            addLog("👂 Listener order aktif (auto offer, fallback, notifikasi stale)", "success");
-        }
-
+        // ==================== LISTENER UTAMA ====================
         function startListeners() {
+            // Auto deduct
             database.ref('orders').on('child_changed', async (snap) => {
                 const order = snap.val();
                 const id = snap.key;
-                if (!order) return;
-                if (order.status === 'on_trip') await autoDeductOnTrip(id, order);
-                if (order.status === 'completed' && order.driver_id) {
-                    try {
-                        await database.ref(`drivers/${order.driver_id}/perjalanan`).transaction(cur => (cur || 0) + 1);
-                        addLog(`📊 Perjalanan driver ${order.driver_id.substring(0,8)} +1`, "success");
-                    } catch (err) { addLog(`❌ Gagal update perjalanan: ${err.message}`, "error"); }
-                    scheduleStatsUpdate();
+                if (order && order.status === 'on_trip') {
+                    await autoDeductOnTrip(id, order);
                 }
-                if (order.status === 'accepted' && order.driver_id) {
-                    const playerId = await getDriverPlayerId(order.driver_id);
-                    if (playerId) {
-                        await sendPushNotification(playerId, "Penawaran Diterima ✅",
-                            "Customer menerima penawaran Anda, silakan buka aplikasi.");
-                        addLog(`📨 Notifikasi diterima ke driver ${order.driver_id} untuk order ${id}`, "success");
-                    } else {
-                        addLog(`⚠️ Gagal mengirim notifikasi ke driver ${order.driver_id}: playerId tidak ditemukan`,
-                            "warning");
-                    }
-                }
-                await onOrderChangedForOffApp(snap);
             });
 
-            // Rating
+            // Rating incremental
             database.ref('ratings').on('child_added', async (snap) => {
                 const ratingData = snap.val();
                 if (ratingData?.driver_rating?.driver_id && typeof ratingData.driver_rating.rating === 'number') {
                     await updateDriverRating(ratingData.driver_rating.driver_id, ratingData.driver_rating.rating);
                 }
                 if (ratingData?.customer_rating?.customer_id && typeof ratingData.customer_rating.rating === 'number') {
-                    await updateCustomerRating(ratingData.customer_rating.customer_id, ratingData.customer_rating
-                        .rating);
+                    await updateCustomerRating(ratingData.customer_rating.customer_id, ratingData.customer_rating.rating);
                 }
             });
             database.ref('ratings').on('child_changed', async (snap) => {
@@ -1037,31 +577,24 @@
                     await updateDriverRating(ratingData.driver_rating.driver_id, ratingData.driver_rating.rating);
                 }
                 if (ratingData?.customer_rating?.customer_id && typeof ratingData.customer_rating.rating === 'number') {
-                    await updateCustomerRating(ratingData.customer_rating.customer_id, ratingData.customer_rating
-                        .rating);
+                    await updateCustomerRating(ratingData.customer_rating.customer_id, ratingData.customer_rating.rating);
                 }
             });
+
+            // Cleanup berkala
+            setInterval(cleanupExpiredOffers, 10000);
+            setInterval(deleteExpiredOrders, 10 * 60 * 1000);
+
+            // Chat listener
+            setupChatListener();
         }
 
         // ==================== INIT ====================
         async function initCore() {
-            await getOneSignalApiKey();
+            await initCache();
             await initializeRatingAggregates();
-            startListeningOrders();
             startListeners();
-            await processMissedDeductions();
-            await scanRecentCancelledOrders();
-            setupChatListener();
-
-            // Cleanup setiap 60 detik (dari 10 detik)
-            setInterval(cleanupExpiredOffers, 60000);
-            setInterval(deleteExpiredOrders, 10 * 60 * 1000);
-            setInterval(scanRecentCancelledOrders, 10 * 60 * 1000);
-
-            await updateDailyStats();
-            addLog('✅ Semua sistem core berjalan (optimasi bandwidth: cache driver, fee, interval cleanup 60s)',
-                'success');
-            document.getElementById("statusBadge").innerHTML = "🟢 Aktif 24 Jam (Optimasi)";
+            addLog('тЬЕ Sistem aktif: Notifikasi Order Terdekat, Auto Deduct, Rating, Cleanup, Chat Notif', 'success');
         }
 
         // ==================== AUTH ====================
@@ -1069,12 +602,12 @@
             if (!user) { window.location.href = 'login_admin.html'; return; }
             const adminSnap = await database.ref(`admins/${user.uid}`).once('value');
             if (!adminSnap.exists()) {
-                addLog("❌ Bukan admin, logout...", "error");
+                addLog("тЭМ Bukan admin, logout...", "error");
                 await auth.signOut();
                 setTimeout(() => window.location.href = 'login_admin.html', 1500);
                 return;
             }
-            addLog(`✅ Admin ${user.email} berhasil login. Sistem core dimulai.`, "success");
+            addLog(`тЬЕ Admin ${user.email} login.`, "success");
             await initCore();
         });
 
@@ -1082,16 +615,6 @@
             await auth.signOut();
             window.location.href = 'login_admin.html';
         };
-
-        // Refresh cache driver setiap 5 detik agar selalu fresh
-        setInterval(() => {
-            // Paksa refresh cache dengan membaca ulang
-            database.ref('driver_locations').once('value').then(snap => {
-                driversCache.data = snap.val() || {};
-                driversCache.timestamp = Date.now();
-            }).catch(() => {});
-        }, 5000);
     </script>
 </body>
-
 </html>
