@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>JeGo Core - Notifikasi Order Terdekat + 3 Fungsi</title>
+    <title>JeGo Core - Notifikasi Order Terdekat + 3 Fungsi (Stale & Saldo Tetap)</title>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
@@ -20,10 +20,10 @@
 </head>
 <body>
     <h2>JeGo Core - Notifikasi Order Terdekat + 3 Fungsi</h2>
-    <p>Auto Deduct, Rating, Cleanup, Notifikasi Order Terdekat (Optimasi Cache 100%)</p>
+    <p style="color: #fcd34d;">✅ Stale (>5 menit) tetap dikirim &bull; ✅ Saldo minim tetap dikirim &bull; ✅ Kurir tetap dikirim</p>
     <button id="logoutBtn">Logout</button>
     <div class="log" id="logContainer">
-        <div class="log-entry">ЁЯЪА Memulai sistem (notifikasi order terdekat + 3 fungsi)...</div>
+        <div class="log-entry">🚀 Memulai sistem (notifikasi order terdekat + 3 fungsi)...</div>
     </div>
 
     <script>
@@ -53,7 +53,7 @@
         let ordersCache = {};
         let driversCache = {};
         let usersCache = {};
-        let driverLocationsCache = {};  // <-- TAMBAHAN: cache lokasi driver
+        let driverLocationsCache = {};
         let cacheInitialized = false;
 
         // ===== CHAT NOTIF =====
@@ -114,11 +114,11 @@
             try {
                 const snap = await database.ref('data-jego/PushKey').once('value');
                 ONESIGNAL_API_KEY = snap.val();
-                if (ONESIGNAL_API_KEY) addLog("ЁЯФС OneSignal API Key loaded", "success");
-                else addLog("тЪая╕П PushKey tidak ditemukan", "error");
+                if (ONESIGNAL_API_KEY) addLog("🔑 OneSignal API Key loaded", "success");
+                else addLog("⚠️ PushKey tidak ditemukan", "error");
                 return ONESIGNAL_API_KEY;
             } catch(e) {
-                addLog(`тЭМ Gagal memuat PushKey: ${e.message}`, "error");
+                addLog(`❌ Gagal memuat PushKey: ${e.message}`, "error");
                 return null;
             }
         }
@@ -141,9 +141,9 @@
                     })
                 });
                 const result = await res.json();
-                if (result.errors) { addLog(`тЪая╕П Notif gagal: ${JSON.stringify(result.errors)}`, "warning"); return false; }
+                if (result.errors) { addLog(`⚠️ Notif gagal: ${JSON.stringify(result.errors)}`, "warning"); return false; }
                 return true;
-            } catch(err) { addLog(`тЭМ Error notif: ${err.message}`, "error"); return false; }
+            } catch(err) { addLog(`❌ Error notif: ${err.message}`, "error"); return false; }
         }
 
         async function saveDriverNotification(driverId, title, message, type = 'system') {
@@ -156,21 +156,21 @@
         }
 
         // ==================== CORE: NOTIFIKASI ORDER TERDEKAT ====================
+        // MODIFIKASI: - Filter umur lokasi (MAX_AGE) DIHAPUS → stale tetap dikirim
+        //             - Tidak ada pengecekan saldo (notifikasi tetap dikirim)
+        //             - Tidak ada pengecualian kurir (semua order dapat notifikasi)
         async function notifyNearbyDrivers(orderId, orderData) {
             const pickupLat = orderData.pickup_lat;
             const pickupLng = orderData.pickup_lng;
             if (!pickupLat || !pickupLng) {
-                addLog(`тЪая╕П Order ${orderId.substring(0,8)} tidak memiliki lokasi pickup`, "warning");
+                addLog(`⚠️ Order ${orderId.substring(0,8)} tidak memiliki lokasi pickup`, "warning");
                 return;
             }
 
-            const now = Date.now();
-            const MAX_AGE = 5 * 60 * 1000;  // 5 menit
             const MAX_DISTANCE_KM = 3;      // 3 km
-
             let notifiedCount = 0;
 
-            // BANDWIDTH OPTIMIZATION: iterasi driverLocationsCache (memory), TIDAK baca Firebase
+            // Iterasi driverLocationsCache (memory), TIDAK baca Firebase
             for (const [uid, loc] of Object.entries(driverLocationsCache)) {
                 // Filter: tracking enabled
                 if (!loc.tracking_enabled) continue;
@@ -178,9 +178,8 @@
                 // Filter: punya koordinat
                 if (!loc.latitude || !loc.longitude) continue;
 
-                // Filter: lokasi masih fresh (< 5 menit)
-                const lastUpdate = loc.last_update ? new Date(loc.last_update).getTime() : 0;
-                if (now - lastUpdate > MAX_AGE) continue;
+                // MODIFIKASI: Filter umur lokasi (MAX_AGE) DIHAPUS → stale tetap diproses
+                // Tidak ada pengecekan last_update
 
                 // Filter: jarak ke pickup <= 3 km
                 const dist = getDistance(pickupLat, pickupLng, loc.latitude, loc.longitude);
@@ -192,15 +191,15 @@
                     playerId = driversCache[uid].playerId;
                 }
                 if (!playerId) {
-                    addLog(`тЪая╕П Driver ${uid.substring(0,8)} tidak memiliki playerId, notifikasi dilewat.`, "warning");
+                    addLog(`⚠️ Driver ${uid.substring(0,8)} tidak memiliki playerId, notifikasi dilewat.`, "warning");
                     continue;
                 }
 
                 // Ambil nama driver dari cache
                 let driverName = loc.fullName || driversCache[uid]?.name || 'Driver';
 
-                // Kirim notifikasi
-                const title = `ЁЯЪЦ Order Baru Dekat Anda!`;
+                // Kirim notifikasi (tidak peduli saldo, tidak peduli kurir)
+                const title = `🚖 Order Baru Dekat Anda!`;
                 const message = `Halo ${driverName}, ada order dari ${orderData.customer_name || 'Customer'} (Rp ${orderData.price?.toLocaleString()}) di sekitar lokasi Anda. Jarak ${dist.toFixed(1)} km.`;
                 
                 try {
@@ -211,23 +210,23 @@
                     });
                     await saveDriverNotification(uid, title, message);
                     notifiedCount++;
-                    addLog(`ЁЯУв Notifikasi ke driver ${driverName} (${uid.substring(0,8)}) jarak ${dist.toFixed(1)}km`, "success");
+                    addLog(`📢 Notifikasi ke driver ${driverName} (${uid.substring(0,8)}) jarak ${dist.toFixed(1)}km`, "success");
                 } catch(err) {
-                    addLog(`тЭМ Gagal kirim notif ke ${uid.substring(0,8)}: ${err.message}`, "error");
+                    addLog(`❌ Gagal kirim notif ke ${uid.substring(0,8)}: ${err.message}`, "error");
                 }
             }
 
             if (notifiedCount > 0) {
-                addLog(`тЬЕ Mengirim notifikasi order baru ke ${notifiedCount} driver terdekat`, "success");
+                addLog(`✅ Mengirim notifikasi order baru ke ${notifiedCount} driver terdekat (termasuk stale & saldo minim)`, "success");
             } else {
-                addLog(`тД╣я╕П Tidak ada driver aktif dalam radius 3 km untuk order ${orderId.substring(0,8)}`, "info");
+                addLog(`ℹ️ Tidak ada driver dalam radius 3 km untuk order ${orderId.substring(0,8)}`, "info");
             }
         }
 
         // ==================== INISIALISASI CACHE ====================
         async function initCache() {
             if (cacheInitialized) return;
-            addLog("ЁЯУж Inisialisasi cache (orders, drivers, users, driver_locations)...", "info");
+            addLog("📦 Inisialisasi cache (orders, drivers, users, driver_locations)...", "info");
             try {
                 // 1. Load orders
                 const ordersSnap = await database.ref('orders').once('value');
@@ -280,9 +279,9 @@
                 await getOneSignalApiKey();
 
                 cacheInitialized = true;
-                addLog("тЬЕ Cache berhasil diinisialisasi", "success");
+                addLog("✅ Cache berhasil diinisialisasi", "success");
             } catch(err) {
-                addLog(`тЭМ Gagal inisialisasi cache: ${err.message}`, "error");
+                addLog(`❌ Gagal inisialisasi cache: ${err.message}`, "error");
             }
         }
 
@@ -303,7 +302,7 @@
 
                 let currentBalance = driversCache[driverId] ? driversCache[driverId].balance || 0 : 0;
                 if (currentBalance < totalPotongan) {
-                    addLog(`тЪая╕П Auto deduct: Saldo driver ${driverId.substring(0,8)} tidak cukup`, "warning");
+                    addLog(`⚠️ Auto deduct: Saldo driver ${driverId.substring(0,8)} tidak cukup`, "warning");
                     return;
                 }
 
@@ -317,10 +316,10 @@
                     timestamp: firebase.database.ServerValue.TIMESTAMP
                 });
 
-                addLog(`ЁЯТ░ OTOMATIS: Potong saldo driver ${driverId.substring(0,8)} sebesar Rp ${totalPotongan.toFixed(1)}`, "success");
+                addLog(`💰 OTOMATIS: Potong saldo driver ${driverId.substring(0,8)} sebesar Rp ${totalPotongan.toFixed(1)}`, "success");
                 processedDeductionOrders.add(orderId);
             } catch(err) {
-                addLog(`тЭМ Auto deduct error: ${err.message}`, "error");
+                addLog(`❌ Auto deduct error: ${err.message}`, "error");
             }
         }
 
@@ -347,9 +346,9 @@
                     driversCache[driverId].rating = avg;
                     driversCache[driverId].last_rating_update = new Date().toISOString();
                 }
-                addLog(`тнР Driver ${driverId.substring(0,8)} rating baru: ${avg.toFixed(1)} (total ${ratingCount} rating)`, "success");
+                addLog(`⭐ Driver ${driverId.substring(0,8)} rating baru: ${avg.toFixed(1)} (total ${ratingCount} rating)`, "success");
             } catch(err) {
-                addLog(`тЭМ Gagal update rating driver: ${err.message}`, "error");
+                addLog(`❌ Gagal update rating driver: ${err.message}`, "error");
             }
         }
 
@@ -375,9 +374,9 @@
                     usersCache[customerId].rating = avg;
                     usersCache[customerId].last_rating_update = new Date().toISOString();
                 }
-                addLog(`тнР Customer ${customerId.substring(0,8)} rating baru: ${avg.toFixed(1)} (total ${ratingCount} rating)`, "success");
+                addLog(`⭐ Customer ${customerId.substring(0,8)} rating baru: ${avg.toFixed(1)} (total ${ratingCount} rating)`, "success");
             } catch(err) {
-                addLog(`тЭМ Gagal update rating customer: ${err.message}`, "error");
+                addLog(`❌ Gagal update rating customer: ${err.message}`, "error");
             }
         }
 
@@ -386,10 +385,10 @@
             if (ratingAggregatesInitialized) return;
             if (localStorage.getItem('ratingAggregatesDone') === 'true') {
                 ratingAggregatesInitialized = true;
-                addLog("тЬЕ Agregat rating sudah diinisialisasi (skip)", "info");
+                addLog("✅ Agregat rating sudah diinisialisasi (skip)", "info");
                 return;
             }
-            addLog("ЁЯФН Inisialisasi agregat rating driver & customer...", "info");
+            addLog("🔍 Inisialisasi agregat rating driver & customer...", "info");
             try {
                 const ratingsSnap = await database.ref('ratings').once('value');
                 const ratings = ratingsSnap.val() || {};
@@ -438,9 +437,9 @@
                 }
                 ratingAggregatesInitialized = true;
                 localStorage.setItem('ratingAggregatesDone', 'true');
-                addLog(`тЬЕ Agregat rating diinisialisasi: ${Object.keys(driverAgg).length} driver, ${Object.keys(customerAgg).length} customer`, "success");
+                addLog(`✅ Agregat rating diinisialisasi: ${Object.keys(driverAgg).length} driver, ${Object.keys(customerAgg).length} customer`, "success");
             } catch(err) {
-                addLog(`тЪая╕П Gagal inisialisasi agregat: ${err.message}`, "warning");
+                addLog(`⚠️ Gagal inisialisasi agregat: ${err.message}`, "warning");
             }
         }
 
@@ -459,9 +458,9 @@
                         }
                     }
                 }
-                if (removed) addLog(`ЁЯЧСя╕П Bersihkan ${removed} offer expired`, "success");
+                if (removed) addLog(`🗑️ Bersihkan ${removed} offer expired`, "success");
             } catch(err) {
-                addLog(`тЭМ Gagal cleanup expired offers: ${err.message}`, "error");
+                addLog(`❌ Gagal cleanup expired offers: ${err.message}`, "error");
             }
         }
 
@@ -475,7 +474,7 @@
                     del++;
                 }
             }
-            if (del) addLog(`ЁЯЧСя╕П Hapus ${del} order kadaluarsa (>30 menit)`, "success");
+            if (del) addLog(`🗑️ Hapus ${del} order kadaluarsa (>30 menit)`, "success");
         }
 
         // ==================== CHAT NOTIFICATION ====================
@@ -505,17 +504,17 @@
                 if (senderType === 'driver') {
                     receiverId = order.user_id;
                     senderName = order.driver_name || 'Driver';
-                    title = `ЁЯТм Pesan dari Driver ${senderName}`;
+                    title = `💬 Pesan dari Driver ${senderName}`;
                 } else if (senderType === 'customer') {
                     receiverId = order.driver_id;
                     senderName = order.customer_name || 'Customer';
-                    title = `ЁЯТм Pesan dari Customer ${senderName}`;
+                    title = `💬 Pesan dari Customer ${senderName}`;
                 } else {
                     return;
                 }
 
                 if (!receiverId) {
-                    addLog(`тЪая╕П Tidak ada penerima untuk order ${orderId}`, 'warning');
+                    addLog(`⚠️ Tidak ada penerima untuk order ${orderId}`, 'warning');
                     return;
                 }
 
@@ -532,9 +531,9 @@
 
                 if (playerId) {
                     await sendPushNotification(playerId, title, message, { orderId, chat: true, sender: senderType });
-                    addLog(`ЁЯУи Chat notifikasi: ${senderType} -> ${receiverId.substring(0,8)}`, 'success');
+                    addLog(`📨 Chat notifikasi: ${senderType} -> ${receiverId.substring(0,8)}`, 'success');
                 } else {
-                    addLog(`тЪая╕П Tidak ada playerId untuk penerima ${receiverId}`, 'warning');
+                    addLog(`⚠️ Tidak ada playerId untuk penerima ${receiverId}`, 'warning');
                 }
             });
         }
@@ -547,7 +546,7 @@
                     listenToChatOrder(orderId);
                 }
             });
-            addLog('ЁЯТм Chat listener aktif (notifikasi otomatis ke driver/customer)', 'success');
+            addLog('💬 Chat listener aktif (notifikasi otomatis ke driver/customer)', 'success');
         }
 
         // ==================== LISTENER UTAMA ====================
@@ -594,7 +593,7 @@
             await initCache();
             await initializeRatingAggregates();
             startListeners();
-            addLog('тЬЕ Sistem aktif: Notifikasi Order Terdekat, Auto Deduct, Rating, Cleanup, Chat Notif', 'success');
+            addLog('✅ Sistem aktif: Notifikasi Order Terdekat (stale & saldo minim tetap dikirim), Auto Deduct, Rating, Cleanup, Chat Notif', 'success');
         }
 
         // ==================== AUTH ====================
@@ -602,12 +601,12 @@
             if (!user) { window.location.href = 'login_admin.html'; return; }
             const adminSnap = await database.ref(`admins/${user.uid}`).once('value');
             if (!adminSnap.exists()) {
-                addLog("тЭМ Bukan admin, logout...", "error");
+                addLog("❌ Bukan admin, logout...", "error");
                 await auth.signOut();
                 setTimeout(() => window.location.href = 'login_admin.html', 1500);
                 return;
             }
-            addLog(`тЬЕ Admin ${user.email} login.`, "success");
+            addLog(`✅ Admin ${user.email} login.`, "success");
             await initCore();
         });
 
