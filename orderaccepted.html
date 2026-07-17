@@ -334,9 +334,20 @@
   }
 
   // ==================== UI HELPERS ====================
-  function showToast(msg) { let t = document.getElementById('toast'); t.textContent = msg; t.style.opacity='1'; setTimeout(()=> t.style.opacity='0', 2500); }
-  function getDriverData() { return JSON.parse(localStorage.getItem('jego_logged_in_driver') || '{}'); }
-  function escapeHtml(str) { if (!str) return ''; return str.replace(/[&<>]/g, m => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;' }[m])); }
+function showToast(msg) { let t = document.getElementById('toast'); t.textContent = msg; t.style.opacity='1'; setTimeout(()=> t.style.opacity='0', 2500); }
+function getDriverData() { return JSON.parse(localStorage.getItem('jego_logged_in_driver') || '{}'); }
+function escapeHtml(str) { if (!str) return ''; return str.replace(/[&<>]/g, m => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;' }[m])); }
+
+// ====== TAMBAHKAN FUNGSI INI ======
+async function getPotonganKomisi() {
+  try {
+    const snap = await database.ref('data-jego/potongan').once('value');
+    return snap.val() !== null ? snap.val() : 0;
+  } catch(e) {
+    console.error('Gagal ambil potongan:', e);
+    return 0;
+  }
+}
 
   // ==================== ONE SIGNAL ====================
   async function getOneSignalApiKey() {
@@ -501,12 +512,61 @@
   }
 
   async function completeTrip() {
-    if (currentStatus !== 'on_trip') { showToast("Perjalanan belum dimulai"); return; }
-    if (confirm("Selesaikan perjalanan ini?")) {
-      await database.ref('orders/' + orderId).update({ status: 'completed', completed_at: new Date().toISOString() });
+  if (currentStatus !== 'on_trip') { showToast("Perjalanan belum dimulai"); return; }
+  if (confirm("Selesaikan perjalanan ini?")) {
+    try {
+      // 1. Update status order
+      await database.ref('orders/' + orderId).update({ 
+        status: 'completed', 
+        completed_at: new Date().toISOString() 
+      });
+      
+      // 2. Hitung pendapatan
+      const price = orderData.price || 0;
+      
+      // Ambil potongan komisi dari database
+      const potonganSnap = await database.ref('data-jego/potongan').once('value');
+      const potongan = potonganSnap.val() !== null ? potonganSnap.val() : 0;
+      
+      const driverEarnings = price - (price * potongan / 100);
+      
+      // 3. SIMPAN EARNINGS
+      const driverUid = getDriverData().uid;
+      const today = new Date().toISOString().split('T')[0];
+      
+      // Simpan di daily_earnings (per hari)
+      await database.ref(`drivers/${driverUid}/daily_earnings/${today}`).transaction(current => {
+        return (current || 0) + driverEarnings;
+      });
+      
+      // Simpan di riwayat earnings (per order)
+      await database.ref(`driver_earnings_history/${driverUid}/${orderId}`).set({
+        orderId: orderId,
+        amount: driverEarnings,
+        originalPrice: price,
+        potongan: potongan,
+        completed_at: new Date().toISOString(),
+        customer_name: orderData.customer_name || 'Customer'
+      });
+      
+      // Update total earnings (akumulasi semua waktu)
+      await database.ref(`drivers/${driverUid}/total_earnings`).transaction(current => {
+        return (current || 0) + driverEarnings;
+      });
+      
+      // Update saldo deposit (bisa ditarik)
+      await database.ref(`drivers/${driverUid}/balance`).transaction(current => {
+        return (current || 0) + driverEarnings;
+      });
+      
       showToast("Perjalanan selesai, silakan beri rating");
+      
+    } catch (err) {
+      console.error('Gagal menyimpan earnings:', err);
+      showToast('Gagal menyimpan pendapatan: ' + err.message);
     }
   }
+}
 
   async function createPendingRefund(orderId, bonusUsed, driverId, customerId) {
     if (!bonusUsed || bonusUsed <= 0) return false;
