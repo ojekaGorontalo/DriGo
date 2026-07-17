@@ -32,7 +32,6 @@
       --border: #eef2f6;
     }
 
-    /* Dark Mode */
     body.dark-mode {
       --primary: #FFB74D;
       --primary-dark: #FF9800;
@@ -296,12 +295,18 @@
       totalDistance += distance;
       const price = order.price || 0;
       grossEarnings += price;
-      const fee = (order.fee_percent != null) ? order.fee_percent : feePersen;
-      const tax = (order.tax_percent != null) ? order.tax_percent : pajakPersen;
-      const potonganRupiah = price * (fee / 100);
-      const pajakRupiah = potonganRupiah * (tax / 100);
-      const net = price - (potonganRupiah + pajakRupiah);
-      netEarningsSum += net;
+      
+      // Gunakan _netEarnings jika ada (dari history)
+      if (order._netEarnings !== undefined && order._netEarnings !== null) {
+        netEarningsSum += order._netEarnings;
+      } else {
+        const fee = (order.fee_percent != null) ? order.fee_percent : feePersen;
+        const tax = (order.tax_percent != null) ? order.tax_percent : pajakPersen;
+        const potonganRupiah = price * (fee / 100);
+        const pajakRupiah = potonganRupiah * (tax / 100);
+        const net = price - (potonganRupiah + pajakRupiah);
+        netEarningsSum += net;
+      }
     });
     const totalFees = grossEarnings - netEarningsSum;
     const avgPerKm = totalDistance > 0 ? netEarningsSum / totalDistance : 0;
@@ -327,6 +332,7 @@
   function getOrderDate(order) {
     if (order.completed_at) return new Date(order.completed_at);
     if (order.created_at) return new Date(order.created_at);
+    if (order.updated_at) return new Date(order.updated_at);
     return null;
   }
 
@@ -365,6 +371,7 @@
     return null;
   }
 
+  // ========== REFRESH DATA - OPTIMASI BANDWIDTH ==========
   async function refreshData() {
     if (!checkDriverData()) {
       document.getElementById('ordersList').innerHTML = `<div class="login-required"><h3>🔐 Login Diperlukan</h3><button class="login-btn" style="background:var(--primary);border:none;padding:12px 24px;border-radius:40px;color:white;font-weight:bold;margin-top:12px;cursor:pointer;" onclick="window.location.href='loginDriver.html'">Login Driver</button></div>`;
@@ -375,16 +382,50 @@
     ordersListDiv.innerHTML = `<div class="loading"><div class="spinner"></div><p>Memuat data...</p></div>`;
 
     try {
-      const snapshot = await database.ref('orders').once('value');
-      const all = snapshot.val();
+      // === HEMAT BANDWIDTH: Hanya ambil order milik driver ini, batasi 150 terakhir ===
+      const ordersSnapshot = await database.ref('orders')
+          .orderByChild('driver_id')
+          .equalTo(driverId)
+          .limitToLast(150)
+          .once('value');
+      const allOrdersData = ordersSnapshot.val() || {};
+      
       let driverOrders = [];
-      if (all) {
-        Object.entries(all).forEach(([id, order]) => {
-          if (order.driver_id === driverId && (order.status === 'completed' || order.status === 'cancelled')) {
-            driverOrders.push({ id, ...order });
-          }
-        });
-      }
+      
+      // === AMBIL AGREGAT TOTAL EARNINGS (sinkron dengan orderaccepted1.html) ===
+      const totalEarningsSnap = await database.ref(`drivers/${driverId}/total_earnings`).once('value');
+      const totalGross = totalEarningsSnap.val() || 0;
+      
+      // Ambil history untuk net total dan melengkapi data order
+      const historySnap = await database.ref(`drivers/${driverId}/earnings_history`).once('value');
+      const history = historySnap.val() || {};
+      let totalNet = 0;
+      const historyMap = {};
+      Object.entries(history).forEach(([key, data]) => {
+        const orderId = data.orderId || key;
+        totalNet += data.amount || 0;
+        historyMap[orderId] = data;
+      });
+
+      // Proses data order
+      Object.entries(allOrdersData).forEach(([id, order]) => {
+        if (order.status === 'completed' && historyMap[id]) {
+          const hist = historyMap[id];
+          order._netEarnings = hist.amount;
+          order._fee = hist.potongan;        // persen
+          order._tax = hist.pajak;           // persen
+          order._totalPotongan = hist.totalPotongan;
+          order._originalPrice = hist.originalPrice || order.price || 0;
+        } else if (order.status === 'completed') {
+          // Fallback
+          const details = calculateEarningsDetails(order.price || 0);
+          order._netEarnings = details.net;
+          order._fee = details.feePercent;
+          order._tax = details.taxPercent;
+          order._totalPotongan = details.totalPotongan;
+        }
+        driverOrders.push({ id, ...order });
+      });
 
       let filtered = [...driverOrders];
       if (currentFilter === 'completed') filtered = filtered.filter(o => o.status === 'completed');
@@ -413,7 +454,18 @@
         });
       }
 
-      filtered.sort((a,b) => new Date(b.completed_at || b.created_at) - new Date(a.completed_at || a.created_at));
+      filtered.sort((a,b) => new Date(b.completed_at || b.created_at || 0) - new Date(a.completed_at || a.created_at || 0));
+      
+      // === RENDER SUMMARY ===
+      const isAllTime = currentFilter === 'all' && !currentDate;
+      let stats = computeStats(filtered);
+      if (isAllTime) {
+        // Override dengan agregat total
+        stats.grossEarnings = totalGross;
+        stats.netEarnings = totalNet;
+        stats.totalFees = totalGross - totalNet;
+        // totalOrders dan totalDistance tetap dari filtered (150 terakhir)
+      }
       renderSummary(filtered);
 
       if (filtered.length === 0) {
@@ -421,6 +473,7 @@
         return;
       }
 
+      // === RENDER LIST ===
       const grouped = {};
       filtered.forEach(order => {
         const orderDate = getOrderDate(order);
@@ -442,6 +495,7 @@
         grouped[date].forEach(order => ordersListDiv.appendChild(createOrderCard(order)));
       });
     } catch(err) {
+      console.error(err);
       ordersListDiv.innerHTML = '<div class="empty-state">⚠️ Gagal memuat data. Coba lagi nanti.</div>';
     }
   }
@@ -592,7 +646,29 @@
       const order = orderSnap.val();
       if (!order) throw new Error('Order tidak ditemukan');
       const price = order.price || 0;
-      const details = calculateEarningsDetails(price, order.fee_percent, order.tax_percent);
+      
+      // Coba ambil history untuk akurasi potongan (pakai persen)
+      let details = calculateEarningsDetails(price, order.fee_percent, order.tax_percent);
+      try {
+        const histSnap = await database.ref(`drivers/${driverId}/earnings_history/${orderId}`).once('value');
+        const hist = histSnap.val();
+        if (hist) {
+          // hist.potongan dan hist.pajak adalah persen
+          const feePercent = hist.potongan != null ? hist.potongan : details.feePercent;
+          const taxPercent = hist.pajak != null ? hist.pajak : details.taxPercent;
+          const feeRupiah = price * (feePercent / 100);
+          const taxRupiah = feeRupiah * (taxPercent / 100);
+          details = {
+            net: hist.amount || details.net,
+            fee: feeRupiah,
+            tax: taxRupiah,
+            totalPotongan: feeRupiah + taxRupiah,
+            feePercent: feePercent,
+            taxPercent: taxPercent
+          };
+        }
+      } catch(e) {}
+
       const durasi = order.duration_seconds ? `${Math.round(order.duration_seconds/60)} menit` : '-';
       const jarak = order.distance_meters ? (order.distance_meters/1000).toFixed(1) + ' km' : '-';
       
@@ -616,7 +692,7 @@
           <div class="customer-profile-detail"><img class="customer-avatar" src="${order.photoURL || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png'}"><div><div class="customer-name-detail">${escapeHtml(order.customer_name)}</div><div>${ratingHtml}</div></div></div>
           <div class="route-detail"><div class="point"><div class="marker">A</div><div>${escapeHtml(order.pickup_address)}</div></div><div class="point"><div class="marker b">B</div><div>${escapeHtml(order.destination_address)}</div></div></div>
           <div class="info-grid"><div class="info-item"><div class="info-label">Durasi</div><div class="info-value">${durasi}</div></div><div class="info-item"><div class="info-label">Jarak</div><div class="info-value">${jarak}</div></div><div class="info-item"><div class="info-label">Ongkos</div><div class="info-value" style="color:var(--success);">${formatRupiah(price)}</div></div><div class="info-item"><div class="info-label">Status</div><div class="info-value">${order.status === 'completed' ? '✅ Selesai' : '❌ Dibatalkan'}</div></div></div>
-          <div class="breakdown-box"><div class="break-row"><span><strong>💰 Penghasilan</strong></span><strong>${formatRupiah(details.net)}</strong></div><div class="break-row"><span>📉 Tarif platform hemat (${details.feePercent}%)</span><span>${formatRupiah(details.fee)}</span></div><div class="break-row"><span>📊 PPN</span><span>${formatRupiah(details.tax)}</span></div><div class="break-row"><span>📋 Total Bayar</span><span>${formatRupiah(details.totalPotongan)}</span></div><div class="break-row" style="border-top:1px solid var(--border); margin-top:8px; padding-top:8px;"><span>💵 Ongkos yang diterima</span><strong>${formatRupiah(price)}</strong></div></div>
+          <div class="breakdown-box"><div class="break-row"><span><strong>💰 Penghasilan</strong></span><strong>${formatRupiah(details.net)}</strong></div><div class="break-row"><span>📉 Tarif platform (${details.feePercent?.toFixed(0) || 0}%)</span><span>${formatRupiah(details.fee)}</span></div><div class="break-row"><span>📊 PPN (${details.taxPercent?.toFixed(0) || 0}%)</span><span>${formatRupiah(details.tax)}</span></div><div class="break-row"><span>📋 Total Potongan</span><span>${formatRupiah(details.totalPotongan)}</span></div><div class="break-row" style="border-top:1px solid var(--border); margin-top:8px; padding-top:8px;"><span>💵 Ongkos yang diterima</span><strong>${formatRupiah(price)}</strong></div></div>
           <div class="timeline-detail"><div class="timeline-item"><div class="timeline-time">${formatDateTime(order.created_at)}</div><div class="timeline-desc">Order dibuat</div></div><div class="timeline-item"><div class="timeline-time">${formatDateTime(order.driver_offers?.[driverId]?.offered_at)}</div><div class="timeline-desc">Penawaran diterima</div></div><div class="timeline-item"><div class="timeline-time">${formatDateTime(order.trip_started_at)}</div><div class="timeline-desc">Perjalanan dimulai</div></div><div class="timeline-item"><div class="timeline-time">${formatDateTime(order.arrived_at)}</div><div class="timeline-desc">Tiba di tujuan</div></div><div class="timeline-item"><div class="timeline-time">${formatDateTime(order.completed_at || order.updated_at)}</div><div class="timeline-desc">Selesai</div></div></div>
           <div style="margin-top: 16px;">
             <button class="feedback-btn" data-order-id="${orderId}" data-customer="${escapeHtml(order.customer_name)}">📢 Laporkan Masalah</button>
