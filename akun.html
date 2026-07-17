@@ -62,8 +62,8 @@
     .star.filled { color: #ffc107; }
     .rating-value { font-weight: 600; color: var(--dark); }
     .rating-count { color: #666; font-size: 0.8rem; }
-    .profile-stats { display: flex; justify-content: center; margin-top: 15px; padding-top: 15px; border-top: 1px solid #eee; }
-    .stat-item { display: flex; flex-direction: column; align-items: center; cursor: pointer; padding: 8px; border-radius: 8px; transition: background-color 0.3s; }
+    .profile-stats { display: flex; justify-content: center; gap: 20px; margin-top: 15px; padding-top: 15px; border-top: 1px solid #eee; flex-wrap: wrap; }
+    .stat-item { display: flex; flex-direction: column; align-items: center; cursor: pointer; padding: 8px 12px; border-radius: 8px; transition: background-color 0.3s; flex: 1; min-width: 100px; }
     .stat-item:hover { background-color: rgba(255, 152, 0, 0.05); }
     .stat-value { font-weight: 700; font-size: 1.1rem; color: var(--primary); }
     .stat-label { font-size: 0.75rem; color: #666; margin-top: 2px; }
@@ -123,7 +123,7 @@
     .status-msg.success { background: #e8f5e9; color: #2e7d32; }
     .status-msg.error { background: #ffebee; color: #c62828; }
     .hidden { display: none; }
-    @media (max-width: 768px) { .info-item { flex-direction: column; gap: 5px; align-items: flex-start; } .info-value { text-align: left; max-width: 100%; width: 100%; justify-content: space-between; } }
+    @media (max-width: 768px) { .info-item { flex-direction: column; gap: 5px; align-items: flex-start; } .info-value { text-align: left; max-width: 100%; width: 100%; justify-content: space-between; } .profile-stats { gap: 10px; } .stat-item { min-width: 80px; padding: 6px 8px; } }
   </style>
 </head>
 <body>
@@ -154,6 +154,10 @@
             <div class="stat-value" id="todayEarnings">Rp 0</div>
             <div class="stat-label">Pendapatan Hari Ini</div>
           </div>
+          <div class="stat-item" id="totalEarningsStat">
+            <div class="stat-value" id="totalEarnings">Rp 0</div>
+            <div class="stat-label">Total Pendapatan</div>
+          </div>
         </div>
       </div>
       <div class="info-cards-container">
@@ -180,8 +184,6 @@
             <div class="info-item"><div class="info-label">ID Driver</div><div class="info-value" id="driverIdContainer"><span id="driverId">-</span><button class="copy-btn" data-copy-target="driverId" title="Salin ID Driver"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></button></div></div>
             <div class="info-item"><div class="info-label">Tanggal Daftar</div><div class="info-value" id="registrationDate">-</div></div>
             <div class="info-item"><div class="info-label">Status Akun</div><div class="info-value" id="verificationStatus"><span class="status-badge status-pending">-</span></div></div>
-            <div class="info-item"><div class="info-label">Total Order</div><div class="info-value" id="totalOrders">0</div></div>
-            <div class="info-item"><div class="info-label">Order Selesai</div><div class="info-value" id="completedOrders">0</div></div>
           </div>
         </div>
       </div>
@@ -247,7 +249,6 @@
     const database = firebase.database();
 
     let currentDriverData = null;
-    let driverOrders = [];
 
     // ================= MODAL NOTIFIKASI UMUM =================
     const modalOverlay = document.getElementById('modalOverlay');
@@ -320,7 +321,6 @@
       if (!driverDataStr) return false;
       try {
         const localData = JSON.parse(driverDataStr);
-        // Tampilkan foto dan data dasar
         document.getElementById('profilePhoto').src = localData.photoURL || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png';
         document.getElementById('profileName').textContent = localData.name || '-';
         document.getElementById('profileVehicle').textContent = `${getVehicleTypeText(localData.vehicleType)} - ${localData.vehicleBrand || ''}`;
@@ -333,9 +333,7 @@
         document.getElementById('plateNumber').textContent = localData.plateNumber || '-';
         document.getElementById('driverId').textContent = localData.uid || '-';
         document.getElementById('registrationDate').textContent = formatDate(localData.registered_at || localData.dateOfBirth);
-        // Status default (pending) sampai Firebase memberikan data terbaru
         document.getElementById('verificationStatus').innerHTML = getStatusBadge(localData.status || 'pending');
-        // Rating sementara
         const rating = localData.rating || 0;
         document.getElementById('ratingStars').innerHTML = generateStarRating(rating);
         document.getElementById('ratingValue').textContent = rating.toFixed(1);
@@ -344,7 +342,6 @@
         const badge = document.getElementById('priorityBadgeSmall');
         badge.textContent = priority.level;
         badge.className = priority.class;
-        // Saldo sementara
         document.getElementById('balanceAmount').textContent = formatCurrency(localData.balance || 0);
         return true;
       } catch(e) {
@@ -353,9 +350,29 @@
       }
     }
 
+    // ========== AMBIL EARNINGS DARI FIREBASE ==========
+    async function loadEarnings(uid) {
+      try {
+        // Ambil total earnings
+        const totalSnap = await database.ref(`drivers/${uid}/total_earnings`).once('value');
+        const totalEarnings = totalSnap.val() || 0;
+        document.getElementById('totalEarnings').textContent = formatCurrency(totalEarnings);
+        
+        // Ambil earnings hari ini
+        const today = new Date().toISOString().split('T')[0];
+        const dailySnap = await database.ref(`drivers/${uid}/daily_earnings/${today}`).once('value');
+        const todayEarnings = dailySnap.val() || 0;
+        document.getElementById('todayEarnings').textContent = formatCurrency(todayEarnings);
+        
+      } catch (err) {
+        console.error('Gagal memuat earnings:', err);
+        document.getElementById('totalEarnings').textContent = 'Rp 0';
+        document.getElementById('todayEarnings').textContent = 'Rp 0';
+      }
+    }
+
     // ========== LOAD DARI FIREBASE (UPDATE) ==========
     async function loadDriverData(uid) {
-      // Tampilkan dari localStorage dulu (cepat)
       displayFromLocalStorage();
 
       showLoading('Memuat data terbaru...');
@@ -365,7 +382,6 @@
         if (!data) throw new Error('Data driver tidak ditemukan');
         currentDriverData = { ...data, uid: uid };
 
-        // Cek kelengkapan data
         if (!checkDataCompleteness(currentDriverData)) {
           hideLoading();
           showVerifyModal();
@@ -377,10 +393,9 @@
           return;
         }
 
-        // Perbarui tampilan dengan data Firebase
         displayProfile(currentDriverData);
         await loadBalanceAndCommission(uid);
-        await loadDriverOrders(uid);
+        await loadEarnings(uid);
         updateRatingDisplay();
         if (currentDriverData.status === 'delete_akun_driver') showDeleteWarning(); else removeDeleteWarning();
         hideLoading();
@@ -426,34 +441,6 @@
         document.getElementById('balanceAmount').textContent = formatCurrency(balanceSnap.val() || 0);
         document.getElementById('commissionRate').textContent = potongan + '%';
       } catch(e) { console.error(e); }
-    }
-
-    async function loadDriverOrders(uid) {
-      try {
-        const ordersSnap = await database.ref('orders').once('value');
-        const ordersData = ordersSnap.val();
-        driverOrders = [];
-        if (ordersData) {
-          Object.entries(ordersData).forEach(([orderId, order]) => {
-            if (order.driver_id === uid && order.status === 'completed') {
-              driverOrders.push({ ...order, completed_at: order.completed_at || order.updated_at || order.created_at, price: order.price || 0 });
-            }
-          });
-        }
-        updateTodayEarnings();
-        updateOrderStats();
-      } catch(e) { console.error(e); }
-    }
-
-    function updateTodayEarnings() {
-      if (!driverOrders.length) { document.getElementById('todayEarnings').textContent = 'Rp 0'; return; }
-      const today = new Date().toISOString().split('T')[0];
-      const earnings = driverOrders.filter(o => o.completed_at && o.completed_at.split('T')[0] === today).reduce((sum, o) => sum + (parseInt(o.price) || 0), 0);
-      document.getElementById('todayEarnings').textContent = formatCurrency(earnings);
-    }
-    function updateOrderStats() {
-      document.getElementById('totalOrders').textContent = driverOrders.length;
-      document.getElementById('completedOrders').textContent = driverOrders.filter(o => o.status === 'completed').length;
     }
 
     function showDeleteWarning() {
@@ -509,7 +496,6 @@
         verifyStatus.classList.remove('hidden');
         setTimeout(() => {
           hideVerifyModal();
-          // Reload data
           loadDriverData(uid);
         }, 1500);
       } catch (err) {
@@ -526,7 +512,6 @@
     });
 
     verifyCloseBtn.addEventListener('click', () => {
-      // Tidak mengizinkan close kecuali logout, jadi kita logout saja
       verifyLogoutBtn.click();
     });
 
@@ -548,12 +533,12 @@
       });
       document.getElementById('logoutBtn').addEventListener('click', logout);
       document.getElementById('balanceContainer').addEventListener('click', () => { window.location.href = 'payment.html'; });
+      document.getElementById('totalEarningsStat').addEventListener('click', () => { window.location.href = 'pendapatan.html'; });
       document.getElementById('todayEarningsStat').addEventListener('click', () => { window.location.href = 'pendapatan.html'; });
       document.getElementById('ratingClickable').addEventListener('click', () => { window.location.href = 'penilaianLayanan.html'; });
       document.getElementById('deleteAccountBtn').addEventListener('click', () => { window.location.href = 'hapus_akun.html'; });
       modalOverlay.addEventListener('click', (e) => { if (e.target === modalOverlay) hidePopup(); });
 
-      // ========== TAMPILKAN DARI LOCALSTORAGE AWAL ==========
       displayFromLocalStorage();
     });
 
