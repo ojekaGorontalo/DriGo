@@ -14,11 +14,11 @@
     .app-container { display: flex; flex-direction: column; height: 100vh; width: 100%; background: #FFFFFF; position: relative; }
     .app-header { background: linear-gradient(135deg, #FF9800, #F57C00); padding: 18px 20px; color: white; flex-shrink: 0; box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 10; display: flex; justify-content: space-between; align-items: center; }
     .app-header h1 { font-size: 1.35rem; font-weight: 600; display: flex; align-items: center; gap: 8px; }
-    .map-area { width: 100%; height: 40vh; min-height: 260px; background: #e9ecef; position: relative; border-bottom-left-radius: 24px; border-bottom-right-radius: 24px; overflow: hidden; flex-shrink: 0; }
+    .map-area { width: 100%; height: 35vh; min-height: 220px; background: #e9ecef; position: relative; border-bottom-left-radius: 24px; border-bottom-right-radius: 24px; overflow: hidden; flex-shrink: 0; }
     #orderMap { width: 100%; height: 100%; position: relative; z-index: 1; }
     .map-float-btn { position: absolute; bottom: 16px; right: 16px; background: linear-gradient(95deg, #FF9800, #F57C00); color: white; border: none; border-radius: 48px; padding: 12px 20px; font-weight: 700; font-size: 0.9rem; display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); cursor: pointer; z-index: 9999; transition: all 0.2s ease; pointer-events: auto; touch-action: manipulation; }
     .map-float-btn:active { transform: scale(0.96); }
-    .scroll-content { flex: 1; overflow-y: auto; padding: 16px 20px 100px 20px; background: #FFFFFF; }
+    .scroll-content { flex: 1; overflow-y: auto; padding: 16px 20px 120px 20px; padding-bottom: calc(120px + env(safe-area-inset-bottom, 0px)); background: #FFFFFF; }
     .status-chip { background: #FFF3E0; border-radius: 40px; padding: 8px 18px; display: inline-flex; align-items: center; gap: 8px; font-weight: 600; font-size: 0.8rem; color: #E65100; margin-bottom: 20px; }
     .customer-card { background: white; border-radius: 28px; padding: 16px; margin-bottom: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.04); border: 1px solid #f0f0f0; }
     .profile-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
@@ -48,7 +48,7 @@
     .dest-marker { background: #FF9800; color: white; }
     .route-address { font-weight: 500; font-size: 0.9rem; color: #0f172a; cursor: pointer; text-decoration: underline; text-decoration-style: dotted; text-underline-offset: 4px; }
     .route-address:active { opacity: 0.7; }
-    .action-bar { position: fixed; bottom: 0; left: 0; right: 0; background: rgba(255,255,255,0.96); backdrop-filter: blur(10px); padding: 12px 20px 28px 20px; border-top: 1px solid #edf2f7; box-shadow: 0 -4px 20px rgba(0,0,0,0.05); display: flex; justify-content: space-between; gap: 12px; z-index: 20; pointer-events: auto; }
+    .action-bar { position: fixed; bottom: 0; left: 0; right: 0; background: rgba(255,255,255,0.96); backdrop-filter: blur(10px); padding: 12px 20px 28px 20px; border-top: 1px solid #edf2f7; box-shadow: 0 -4px 20px rgba(0,0,0,0.05); display: flex; justify-content: space-between; gap: 12px; z-index: 20; pointer-events: none; }
     .action-btn { flex: 1; padding: 12px; border-radius: 48px; font-weight: 700; font-size: 1rem; border: none; display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; transition: all 0.2s ease; box-shadow: 0 1px 3px rgba(0,0,0,0.1); pointer-events: auto; touch-action: manipulation; position: relative; }
     .action-btn:active { transform: scale(0.97); }
     .btn-primary { background: linear-gradient(95deg, #FF9800, #F57C00); color: white; }
@@ -89,6 +89,22 @@
     .chat-send:active { transform: scale(0.96); }
     .spinner { border: 3px solid #FFE0B2; border-top-color: #FF9800; border-radius: 50%; width: 40px; height: 40px; animation: spin 0.8s linear infinite; margin: 0 auto; }
     @keyframes spin { to { transform: rotate(360deg); } }
+    
+    .delivery-card {
+      background: #FFF8E1;
+      border-radius: 24px;
+      padding: 16px;
+      margin-bottom: 20px;
+      border-left: 6px solid #FF9800;
+    }
+    .delivery-card .section-title {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      font-weight: 700;
+      color: #FF9800;
+      margin-bottom: 10px;
+      letter-spacing: 0.5px;
+    }
   </style>
 </head>
 <body>
@@ -158,6 +174,17 @@
         <div class="route-item" id="destRouteItem">
           <div class="route-marker dest-marker">B</div>
           <div><div class="route-address" id="destinationAddress">-</div><span style="font-size:0.7rem; color:#64748b;">Lokasi Tujuan</span></div>
+        </div>
+      </div>
+
+      <!-- KARTU INFO KURIR -->
+      <div class="delivery-card" id="deliveryInfoCard" style="display: none;">
+        <div class="section-title">📦 Data Pengiriman</div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px 16px; font-size: 0.85rem;">
+          <div><strong>Jenis Barang</strong><br><span id="deliveryCategory">-</span></div>
+          <div><strong>Deskripsi</strong><br><span id="deliveryDescription">-</span></div>
+          <div><strong>Pengirim (HP)</strong><br><span id="deliverySender">-</span></div>
+          <div><strong>Penerima (HP)</strong><br><span id="deliveryReceiver">-</span></div>
         </div>
       </div>
     </div>
@@ -356,7 +383,7 @@
         return;
     }
     switch(currentStatus) {
-      case 'accepted': mapBtn.style.display = 'flex'; mapBtn.innerHTML = 'Menuju Lokasi (Saya Berangkat)'; break;
+      case 'accepted': mapBtn.style.display = 'flex'; mapBtn.innerHTML = 'Saya Berangkat'; break;
       case 'on_the_way': mapBtn.style.display = 'flex'; mapBtn.innerHTML = '📍 Sampai di Lokasi Jemput'; break;
       case 'arrived': mapBtn.style.display = 'flex'; mapBtn.innerHTML = 'Mulai Perjalanan'; break;
       case 'on_trip': mapBtn.style.display = 'flex'; mapBtn.innerHTML = '🏁 Selesaikan Perjalanan'; break;
@@ -485,6 +512,17 @@
     } else {
       viaItem.style.display = 'none';
     }
+    // Tampilkan info kurir jika ada
+    const deliveryCard = document.getElementById('deliveryInfoCard');
+    if (orderData.transport_type && orderData.transport_type.includes('kurir')) {
+      document.getElementById('deliveryCategory').textContent = orderData.item_category || '-';
+      document.getElementById('deliveryDescription').textContent = orderData.item_description || '-';
+      document.getElementById('deliverySender').textContent = orderData.sender_phone || '-';
+      document.getElementById('deliveryReceiver').textContent = orderData.receiver_phone || '-';
+      deliveryCard.style.display = 'block';
+    } else {
+      deliveryCard.style.display = 'none';
+    }
     updateBonusDisplay();
     let distanceText = '-';
     if (orderData.distance_meters) {
@@ -579,6 +617,20 @@
           document.getElementById('viaRouteItem').style.display = 'none';
         }
         setupAddressClick();
+
+        // ===== UPDATE INFO KURIR SECARA REALTIME =====
+        const deliveryCard = document.getElementById('deliveryInfoCard');
+        if (orderData.transport_type && orderData.transport_type.includes('kurir')) {
+          document.getElementById('deliveryCategory').textContent = orderData.item_category || '-';
+          document.getElementById('deliveryDescription').textContent = orderData.item_description || '-';
+          document.getElementById('deliverySender').textContent = orderData.sender_phone || '-';
+          document.getElementById('deliveryReceiver').textContent = orderData.receiver_phone || '-';
+          deliveryCard.style.display = 'block';
+        } else {
+          deliveryCard.style.display = 'none';
+        }
+        // ===== AKHIR UPDATE =====
+
         updateUnreadBadge();
       } else { showToast("Order tidak ditemukan"); }
     });
