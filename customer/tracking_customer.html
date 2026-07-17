@@ -112,12 +112,24 @@
       -webkit-overflow-scrolling: touch;
       touch-action: pan-y;
     }
-    .status-card, .driver-card, .route-card, .info-card {
+    .status-card, .driver-card, .route-card, .info-card, .delivery-card {
       background: white;
       border-radius: 18px;
       padding: 12px;
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
       border: 1px solid var(--card-border);
+    }
+    .delivery-card {
+      background: #FFF8E1;
+      border-left: 6px solid #FF9800;
+    }
+    .delivery-card .section-title {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      font-weight: 700;
+      color: #FF9800;
+      margin-bottom: 10px;
+      letter-spacing: 0.5px;
     }
     .driver-card {
       padding: 10px 12px;
@@ -594,7 +606,7 @@
     @media (max-height: 600px) {
       .map-section { height: 28dvh; min-height: 180px; }
       .content-wrapper { padding-bottom: 65px; gap: 10px; padding-top: 10px; padding-left: 10px; padding-right: 10px; }
-      .status-card, .driver-card, .route-card, .info-card { padding: 10px; }
+      .status-card, .driver-card, .route-card, .info-card, .delivery-card { padding: 10px; }
       .driver-photo { width: 40px; height: 40px; }
       .driver-info h3 { font-size: 0.85rem; }
       .driver-price { font-size: 0.9rem; padding: 3px 6px; min-width: 75px; }
@@ -609,6 +621,21 @@
       .route-address { font-size: 0.8rem; }
       .route-address strong { font-size: 0.8rem; }
       .bonus-row { margin-top: 10px; padding-top: 8px; }
+    }
+    .delivery-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px 16px;
+      font-size: 0.85rem;
+    }
+    .delivery-grid div {
+      word-break: break-word;
+    }
+    .delivery-grid strong {
+      display: block;
+      font-size: 0.7rem;
+      color: #777;
+      margin-bottom: 2px;
     }
   </style>
 </head>
@@ -673,6 +700,17 @@
             <small>Tujuan</small><br>
             <strong id="destAddr">-</strong>
           </div>
+        </div>
+      </div>
+
+      <!-- KARTU INFO KURIR -->
+      <div class="delivery-card" id="deliveryInfoCard" style="display: none;">
+        <div class="section-title">📦 Data Pengiriman</div>
+        <div class="delivery-grid">
+          <div><strong>Jenis Barang</strong><span id="deliveryCategory">-</span></div>
+          <div><strong>Deskripsi</strong><span id="deliveryDescription">-</span></div>
+          <div><strong>Pengirim (HP)</strong><span id="deliverySender">-</span></div>
+          <div><strong>Penerima (HP)</strong><span id="deliveryReceiver">-</span></div>
         </div>
       </div>
 
@@ -1047,6 +1085,22 @@
     } catch (err) { console.error(err); alert('Gagal mengirim rating: ' + err.message); btn.disabled = false; btn.textContent = 'Kirim Rating'; }
   }
 
+  // ========== FUNGSI UNTUK UPDATE KARTU KURIR ==========
+  function updateDeliveryCard(order) {
+    const card = document.getElementById('deliveryInfoCard');
+    const transportType = order.transport_type || '';
+    const isKurir = transportType.includes('kurir');
+    if (isKurir) {
+      document.getElementById('deliveryCategory').textContent = order.item_category || '-';
+      document.getElementById('deliveryDescription').textContent = order.item_description || '-';
+      document.getElementById('deliverySender').textContent = order.sender_phone || '-';
+      document.getElementById('deliveryReceiver').textContent = order.receiver_phone || '-';
+      card.style.display = 'block';
+    } else {
+      card.style.display = 'none';
+    }
+  }
+
   // ========== FUNGSI UTAMA ==========
   async function loadOrderData() {
     orderId = getOrderId();
@@ -1059,6 +1113,9 @@
       currentOrderPrice = order.price || 0;
       await loadUserBonus();
       await checkBonusAlreadyApplied();
+
+      // Tampilkan kartu kurir jika perlu
+      updateDeliveryCard(order);
 
       document.getElementById('priceDisplay').innerHTML = `${formatRupiah(currentOrderPrice)} <small>total</small>`;
       document.getElementById('price').innerHTML = formatRupiah(currentOrderPrice);
@@ -1176,6 +1233,9 @@
       if (newOrder) {
         orderData = newOrder;
         updateStatusUI(newOrder.status, newOrder.cancelled_by);
+        // Update kartu kurir secara realtime
+        updateDeliveryCard(newOrder);
+
         let driverId = newOrder.driver_id;
         if (!driverId && newOrder.driver_offers) {
           for (let did in newOrder.driver_offers) { if (newOrder.driver_offers[did].status === 'accepted') { driverId = did; break; } }
@@ -1228,9 +1288,7 @@
     chatRef.on('child_added', (snap) => {
       const msg = snap.val();
       if (chatOpen) addMessageToChat(msg);
-      // Update status centang secara realtime? tidak perlu, karena child_added hanya untuk pesan baru.
     });
-    // Saat pertama load, tampilkan history
     loadChatHistory();
   }
 
@@ -1240,7 +1298,6 @@
       const msgs = snap.val() || {};
       const container = document.getElementById('chatMessages');
       container.innerHTML = '';
-      // Urutkan berdasarkan timestamp
       const sorted = Object.values(msgs).sort((a,b) => (a.timestamp || 0) - (b.timestamp || 0));
       sorted.forEach(msg => addMessageToChat(msg));
     });
@@ -1256,7 +1313,6 @@
 
     let tickHtml = '';
     if (msg.sender === 'customer') {
-      // Pesan dari customer: centang berdasarkan readBy.driver
       const readBy = msg.readBy || {};
       if (readBy.driver) {
         tickHtml = '<span class="tick read">✓✓</span>';
@@ -1264,7 +1320,6 @@
         tickHtml = '<span class="tick">✓</span>';
       }
     } else if (msg.sender === 'driver') {
-      // Pesan dari driver: centang berdasarkan readBy.customer
       const readBy = msg.readBy || {};
       if (readBy.customer) {
         tickHtml = '<span class="tick read">✓✓</span>';
@@ -1280,7 +1335,6 @@
 
   function escapeHtml(str) { if (!str) return ''; return str.replace(/[&<>]/g, m => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;' }[m])); }
 
-  // Tandai semua pesan dari driver sebagai sudah dibaca oleh customer
   function markDriverMessagesAsRead() {
     if (!chatRef) return;
     chatRef.once('value', snap => {
@@ -1298,13 +1352,11 @@
       }
       if (Object.keys(updates).length > 0) {
         chatRef.update(updates);
-        // Update tampilan chat dengan centang baru
         loadChatHistory();
       }
     });
   }
 
-  // ----- Kirim chat customer -> notifikasi ke driver -----
   async function sendCustomerChatMessage() {
     const input = document.getElementById('chatInput');
     const text = input.value.trim();
@@ -1312,7 +1364,6 @@
     const user = auth.currentUser;
     if (!user) { alert('Anda belum login.'); return; }
     try {
-      // Kirim pesan dengan readBy: customer sudah baca
       await chatRef.push({ 
         sender: 'customer', 
         sender_id: user.uid, 
@@ -1321,7 +1372,6 @@
         readBy: { customer: true, driver: false }
       });
       input.value = '';
-      // Kirim notifikasi ke driver
       await notifyDriverOnChat(text);
     } catch (err) {
       console.error('Gagal mengirim chat:', err);
@@ -1337,7 +1387,6 @@
     const overlay = document.getElementById('chatOverlay');
     overlay.style.display = 'flex';
     overlay.classList.add('open');
-    // Tandai semua pesan dari driver sebagai dibaca
     markDriverMessagesAsRead();
   }
 
