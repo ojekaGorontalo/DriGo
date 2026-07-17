@@ -261,7 +261,6 @@
       else if (t.includes('truk') || t.includes('truck')) iconHtml = '🚚';
       else if (t.includes('becak')) iconHtml = '🛺';
       else if (t.includes('bus')) iconHtml = '🚌';
-      // tambahkan lainnya sesuai kebutuhan
     }
     return L.divIcon({
       html: `<div style="font-size:32px; text-align:center; line-height:32px; background:rgba(255,255,255,0.85); border-radius:50%; padding:6px; border:3px solid #FF9800; box-shadow: 0 2px 8px rgba(0,0,0,0.3);">${iconHtml}</div>`,
@@ -299,10 +298,8 @@
         const { latitude, longitude, heading, speed } = position.coords;
         if (!driverUid) return;
         
-        // Update peta lokal
         updateDriverMarker(latitude, longitude, heading || 0);
 
-        // Kirim ke Firebase
         database.ref(`driver_locations/${driverUid}`).update({
           latitude: latitude,
           longitude: longitude,
@@ -314,7 +311,6 @@
       },
       (error) => {
         console.warn("Error geolocation:", error.message);
-        // Jika error karena izin, coba lagi setelah beberapa saat
       },
       {
         enableHighAccuracy: true,
@@ -334,20 +330,19 @@
   }
 
   // ==================== UI HELPERS ====================
-function showToast(msg) { let t = document.getElementById('toast'); t.textContent = msg; t.style.opacity='1'; setTimeout(()=> t.style.opacity='0', 2500); }
-function getDriverData() { return JSON.parse(localStorage.getItem('jego_logged_in_driver') || '{}'); }
-function escapeHtml(str) { if (!str) return ''; return str.replace(/[&<>]/g, m => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;' }[m])); }
+  function showToast(msg) { let t = document.getElementById('toast'); t.textContent = msg; t.style.opacity='1'; setTimeout(()=> t.style.opacity='0', 2500); }
+  function getDriverData() { return JSON.parse(localStorage.getItem('jego_logged_in_driver') || '{}'); }
+  function escapeHtml(str) { if (!str) return ''; return str.replace(/[&<>]/g, m => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;' }[m])); }
 
-// ====== TAMBAHKAN FUNGSI INI ======
-async function getPotonganKomisi() {
-  try {
-    const snap = await database.ref('data-jego/potongan').once('value');
-    return snap.val() !== null ? snap.val() : 0;
-  } catch(e) {
-    console.error('Gagal ambil potongan:', e);
-    return 0;
+  async function getPotonganKomisi() {
+    try {
+      const snap = await database.ref('data-jego/potongan').once('value');
+      return snap.val() !== null ? snap.val() : 0;
+    } catch(e) {
+      console.error('Gagal ambil potongan:', e);
+      return 0;
+    }
   }
-}
 
   // ==================== ONE SIGNAL ====================
   async function getOneSignalApiKey() {
@@ -389,7 +384,10 @@ async function getPotonganKomisi() {
       if (result.errors) throw new Error(JSON.stringify(result.errors));
       console.log("Notifikasi chat ke customer terkirim");
       return true;
-    } catch(err) { console.error("Gagal notif customer:", err); return false; }
+    } catch(err) {
+      console.warn("Gagal notif customer (ignore):", err.message);
+      return false;
+    }
   }
 
   // ==================== CHAT UNREAD BADGE ====================
@@ -511,62 +509,69 @@ async function getPotonganKomisi() {
     else showToast("Aksi tidak tersedia");
   }
 
+  // ==================== COMPLETE TRIP (TANPA UPDATE BALANCE) ====================
   async function completeTrip() {
-  if (currentStatus !== 'on_trip') { showToast("Perjalanan belum dimulai"); return; }
-  if (confirm("Selesaikan perjalanan ini?")) {
-    try {
-      // 1. Update status order
-      await database.ref('orders/' + orderId).update({ 
-        status: 'completed', 
-        completed_at: new Date().toISOString() 
-      });
-      
-      // 2. Hitung pendapatan
-      const price = orderData.price || 0;
-      
-      // Ambil potongan komisi dari database
-      const potonganSnap = await database.ref('data-jego/potongan').once('value');
-      const potongan = potonganSnap.val() !== null ? potonganSnap.val() : 0;
-      
-      const driverEarnings = price - (price * potongan / 100);
-      
-      // 3. SIMPAN EARNINGS
-      const driverUid = getDriverData().uid;
-      const today = new Date().toISOString().split('T')[0];
-      
-      // Simpan di daily_earnings (per hari)
-      await database.ref(`drivers/${driverUid}/daily_earnings/${today}`).transaction(current => {
-        return (current || 0) + driverEarnings;
-      });
-      
-      // Simpan di riwayat earnings (per order)
-      await database.ref(`driver_earnings_history/${driverUid}/${orderId}`).set({
-        orderId: orderId,
-        amount: driverEarnings,
-        originalPrice: price,
-        potongan: potongan,
-        completed_at: new Date().toISOString(),
-        customer_name: orderData.customer_name || 'Customer'
-      });
-      
-      // Update total earnings (akumulasi semua waktu)
-      await database.ref(`drivers/${driverUid}/total_earnings`).transaction(current => {
-        return (current || 0) + driverEarnings;
-      });
-      
-      // Update saldo deposit (bisa ditarik)
-      await database.ref(`drivers/${driverUid}/balance`).transaction(current => {
-        return (current || 0) + driverEarnings;
-      });
-      
-      showToast("Perjalanan selesai, silakan beri rating");
-      
-    } catch (err) {
-      console.error('Gagal menyimpan earnings:', err);
-      showToast('Gagal menyimpan pendapatan: ' + err.message);
+    if (currentStatus !== 'on_trip') { showToast("Perjalanan belum dimulai"); return; }
+    if (confirm("Selesaikan perjalanan ini?")) {
+      try {
+        // 1. Update status order
+        await database.ref('orders/' + orderId).update({ 
+          status: 'completed', 
+          completed_at: new Date().toISOString() 
+        });
+        
+        // 2. Hitung pendapatan
+        const price = orderData.price || 0;
+        
+        // Ambil potongan komisi dan pajak
+        const [potonganSnap, pajakSnap] = await Promise.all([
+          database.ref('data-jego/potongan').once('value'),
+          database.ref('data-jego/pajak').once('value')
+        ]);
+        const potongan = potonganSnap.val() !== null ? potonganSnap.val() : 0;
+        const pajak = pajakSnap.val() !== null ? pajakSnap.val() : 0;
+        
+        const potonganRupiah = price * (potongan / 100);
+        const pajakRupiah = potonganRupiah * (pajak / 100);
+        const totalPotongan = potonganRupiah + pajakRupiah;
+        const driverEarnings = price - totalPotongan;
+        
+        // 3. SIMPAN EARNINGS (HANYA UNTUK STATISTIK, TIDAK UPDATE BALANCE)
+        const driverUid = getDriverData().uid;
+        const today = new Date().toISOString().split('T')[0];
+        
+        // daily_earnings dan total_earnings menyimpan TARIF BRUTO (tidak dikurangi potongan)
+        await database.ref(`drivers/${driverUid}/daily_earnings/${today}`).transaction(current => {
+          return (current || 0) + price;
+        });
+        
+        await database.ref(`drivers/${driverUid}/total_earnings`).transaction(current => {
+          return (current || 0) + price;
+        });
+        
+        // Riwayat earnings disimpan di path yang diizinkan (di dalam drivers)
+        await database.ref(`drivers/${driverUid}/earnings_history/${orderId}`).set({
+          orderId: orderId,
+          amount: driverEarnings,       // yang diterima driver (bersih)
+          originalPrice: price,
+          potongan: potongan,
+          pajak: pajak,
+          totalPotongan: totalPotongan,
+          completed_at: new Date().toISOString(),
+          customer_name: orderData.customer_name || 'Customer'
+        });
+        
+        // TIDAK ADA UPDATE BALANCE DI SINI
+        // Saldo driver dikelola oleh sistem lain (misal setelah pembayaran diverifikasi)
+        
+        showToast("Perjalanan selesai, silakan beri rating");
+        
+      } catch (err) {
+        console.error('Gagal menyimpan earnings:', err);
+        showToast('Gagal menyimpan pendapatan: ' + err.message);
+      }
     }
   }
-}
 
   async function createPendingRefund(orderId, bonusUsed, driverId, customerId) {
     if (!bonusUsed || bonusUsed <= 0) return false;
@@ -662,7 +667,6 @@ async function getPotonganKomisi() {
     } else {
       viaItem.style.display = 'none';
     }
-    // Tampilkan info kurir jika ada
     const deliveryCard = document.getElementById('deliveryInfoCard');
     if (orderData.transport_type && orderData.transport_type.includes('kurir')) {
       document.getElementById('deliveryCategory').textContent = orderData.item_category || '-';
@@ -694,21 +698,16 @@ async function getPotonganKomisi() {
         L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png').addTo(orderMap);
       } else orderMap.setView([orderData.pickup_lat, orderData.pickup_lng], 14);
       
-      // Marker pickup (A)
       L.marker([orderData.pickup_lat, orderData.pickup_lng], { icon: L.divIcon({ html: '<div style="background:#28a745; width:30px; height:30px; border-radius:50%; text-align:center; line-height:30px; color:white; font-weight:bold;">A</div>' }) }).addTo(orderMap).bindPopup('Penjemputan');
       
-      // Marker via jika ada
       if (orderData.via_lat && orderData.via_lng) {
         L.marker([orderData.via_lat, orderData.via_lng], { icon: L.divIcon({ html: '<div style="background:#2196F3; width:30px; height:30px; border-radius:50%; text-align:center; line-height:30px; color:white; font-weight:bold;">🔵</div>' }) }).addTo(orderMap).bindPopup('Titik Singgah');
       }
       
-      // Marker destination (B)
       L.marker([orderData.dest_lat, orderData.dest_lng], { icon: L.divIcon({ html: '<div style="background:#dc3545; width:30px; height:30px; border-radius:50%; text-align:center; line-height:30px; color:white; font-weight:bold;">B</div>' }) }).addTo(orderMap).bindPopup('Tujuan');
       
-      // Marker driver di posisi pickup (akan bergerak)
       updateDriverMarker(orderData.pickup_lat, orderData.pickup_lng, 0);
       
-      // Draw route
       let waypoints = [];
       waypoints.push({ lng: orderData.pickup_lng, lat: orderData.pickup_lat });
       if (orderData.via_lng && orderData.via_lat) {
@@ -745,13 +744,12 @@ async function getPotonganKomisi() {
     }
     updateActionButtons();
 
-    // ========== SEMBUNYIKAN ACTION BAR JIKA STATUS COMPLETED ATAU CANCELLED ==========
     const actionsSection = document.getElementById('actionsSection');
     if (status === 'completed' || status === 'cancelled') {
         if (actionsSection) actionsSection.style.display = 'none';
         const mapBtn = document.getElementById('mapActionBtn');
         if (mapBtn) mapBtn.style.display = 'none';
-        stopLocationTracking(); // Hentikan tracking
+        stopLocationTracking();
     } else {
         if (actionsSection) actionsSection.style.display = 'flex';
     }
@@ -779,7 +777,6 @@ async function getPotonganKomisi() {
         }
         setupAddressClick();
 
-        // ===== UPDATE INFO KURIR SECARA REALTIME =====
         const deliveryCard = document.getElementById('deliveryInfoCard');
         if (orderData.transport_type && orderData.transport_type.includes('kurir')) {
           document.getElementById('deliveryCategory').textContent = orderData.item_category || '-';
@@ -790,7 +787,6 @@ async function getPotonganKomisi() {
         } else {
           deliveryCard.style.display = 'none';
         }
-        // ===== AKHIR UPDATE =====
 
         updateUnreadBadge();
       } else { showToast("Order tidak ditemukan"); }
@@ -803,7 +799,6 @@ async function getPotonganKomisi() {
     try {
       const snap = await database.ref(`orders/${orderId}/auto_welcome_sent`).once('value');
       if (snap.val() === true) return;
-      // Kirim pesan
       await chatRef.push({
         sender: 'driver',
         sender_id: driverUid,
@@ -984,12 +979,10 @@ function closeChat(){
     listenOrder();
     initChat();
 
-    // Kirim pesan otomatis jika status accepted dan belum pernah dikirim
     if (orderData.status === 'accepted') {
       await sendAutoWelcomeMessage();
     }
 
-    // Mulai tracking lokasi
     startLocationTracking();
 
     const mapActionBtn = document.getElementById('mapActionBtn');
@@ -1027,7 +1020,6 @@ function closeChat(){
   });
   history.pushState(null, null, location.href);
 
-  // Hentikan tracking saat halaman ditutup
   window.addEventListener('beforeunload', function() {
     stopLocationTracking();
   });
