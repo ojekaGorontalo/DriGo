@@ -641,6 +641,20 @@
       background: transparent !important;
       border: none !important;
     }
+    .badge-unread {
+  background: #ef4444;
+  color: white;
+  border-radius: 50%;
+  padding: 2px 6px;
+  font-size: 0.7rem;
+  margin-left: 4px;
+  display: inline-block;
+  min-width: 18px;
+  text-align: center;
+}
+.badge-unread.hidden {
+  display: none;
+}
   </style>
 </head>
 <body>
@@ -738,7 +752,10 @@
     </div>
   </div>
   <div class="actions-section">
-    <button class="action-btn chat-btn" id="chatBtn">💬 Chat Driver</button>
+    <button class="action-btn chat-btn" id="chatBtn">
+  💬 Chat Driver
+  <span id="chatBadge" class="badge-unread hidden" style="background:#ef4444; color:white; border-radius:50%; padding:2px 6px; font-size:0.7rem; margin-left:4px;">0</span>
+</button>
     <button class="action-btn cancel-btn" id="cancelBtn">✖ Batalkan</button>
   </div>
 </div>
@@ -1319,14 +1336,16 @@
 
   // ==================== CHAT DENGAN CENTANG ====================
   function initChat(orderId) {
-    chatRef = database.ref(`chat/${orderId}`);
-    chatRef.off();
-    chatRef.on('child_added', (snap) => {
-      const msg = snap.val();
-      if (chatOpen) addMessageToChat(msg);
-    });
-    loadChatHistory();
-  }
+  chatRef = database.ref(`chat/${orderId}`);
+  chatRef.off();
+  chatRef.on('child_added', (snap) => {
+    const msg = snap.val();
+    if (chatOpen) addMessageToChat(msg);
+    updateUnreadBadgeCustomer();  // <-- tambahkan
+  });
+  loadChatHistory();
+  setTimeout(updateUnreadBadgeCustomer, 1000); // panggil saat pertama load
+}
 
   function loadChatHistory() {
     if (!chatRef) return;
@@ -1370,6 +1389,29 @@
   }
 
   function escapeHtml(str) { if (!str) return ''; return str.replace(/[&<>]/g, m => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;' }[m])); }
+  
+  // ===== FUNGSI UNTUK UPDATE BADGE CHAT DI CUSTOMER =====
+function updateUnreadBadgeCustomer() {
+  const badge = document.getElementById('chatBadge');
+  if (!chatRef) return;
+  chatRef.once('value', snap => {
+    const msgs = snap.val() || {};
+    let unreadCount = 0;
+    for (let key in msgs) {
+      const msg = msgs[key];
+      if (msg.sender === 'driver') {
+        const readBy = msg.readBy || {};
+        if (!readBy.customer) unreadCount++;
+      }
+    }
+    if (unreadCount > 0) {
+      badge.textContent = unreadCount;
+      badge.classList.remove('hidden');
+    } else {
+      badge.classList.add('hidden');
+    }
+  });
+}
 
   function markDriverMessagesAsRead() {
     if (!chatRef) return;
@@ -1419,12 +1461,13 @@
   let chatOpen = false;
 
   function openChat() {
-    chatOpen = true;
-    const overlay = document.getElementById('chatOverlay');
-    overlay.style.display = 'flex';
-    overlay.classList.add('open');
-    markDriverMessagesAsRead();
-  }
+  chatOpen = true;
+  const overlay = document.getElementById('chatOverlay');
+  overlay.style.display = 'flex';
+  overlay.classList.add('open');
+  markDriverMessagesAsRead();
+  document.getElementById('chatBadge').classList.add('hidden'); // sembunyikan badge saat chat terbuka
+}
 
   function closeChat() {
     chatOpen = false;
