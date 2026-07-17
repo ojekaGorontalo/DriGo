@@ -637,6 +637,10 @@
       color: #777;
       margin-bottom: 2px;
     }
+    .vehicle-marker {
+      background: transparent !important;
+      border: none !important;
+    }
   </style>
 </head>
 <body>
@@ -801,6 +805,9 @@
   let bonusApplied = 0;
   const activeStatuses = ['accepted', 'on_the_way', 'arrived', 'on_trip'];
 
+  // Tipe kendaraan driver untuk ikon
+  let driverVehicleType = 'mobil';
+
   function formatRupiah(num) { return 'Rp ' + (num || 0).toLocaleString('id-ID'); }
 
   function showErrorUI(msg) {
@@ -870,10 +877,29 @@
     document.getElementById('arrivedAlertOkBtn').onclick = stopAlert;
   }
 
+  // ===== FUNGSI UNTUK IKON KENDARAAN DINAMIS =====
+  function getVehicleIcon(vehicleType) {
+    let iconHtml = '🚗';
+    if (vehicleType) {
+      const t = vehicleType.toLowerCase();
+      if (t.includes('motor') || t.includes('sepeda')) iconHtml = '🏍️';
+      else if (t.includes('mobil') || t.includes('car')) iconHtml = '🚗';
+      else if (t.includes('truk') || t.includes('truck')) iconHtml = '🚚';
+      else if (t.includes('becak')) iconHtml = '🛺';
+      else if (t.includes('bus')) iconHtml = '🚌';
+    }
+    return L.divIcon({
+      html: `<div style="font-size:32px; text-align:center; line-height:32px; background:rgba(255,255,255,0.85); border-radius:50%; padding:6px; border:3px solid #FF9800; box-shadow: 0 2px 8px rgba(0,0,0,0.3);">${iconHtml}</div>`,
+      className: 'vehicle-marker',
+      iconSize: [44, 44],
+      iconAnchor: [22, 22],
+      popupAnchor: [0, -22]
+    });
+  }
+
   function updateDriverLocation(lat, lng, bearing = 0) {
     if (!map) return;
-    const iconUrl = 'https://cdn-icons-png.flaticon.com/128/5811/5811823.png';
-    const icon = L.icon({ iconUrl, iconSize: [35,35], iconAnchor: [17,35], popupAnchor: [0,-35] });
+    const icon = getVehicleIcon(driverVehicleType);
     if (driverMarker) {
       driverMarker.setLatLng([lat, lng]);
       if (driverMarker.setRotationAngle) driverMarker.setRotationAngle(bearing);
@@ -1125,7 +1151,15 @@
       }
       driverIdForRating = driverId;
       let driverInfo = null;
-      if (driverId) driverInfo = extractDriverFromOrder(order, driverId);
+      if (driverId) {
+        driverInfo = extractDriverFromOrder(order, driverId);
+        // Set tipe kendaraan dari driver_info
+        if (driverInfo && driverInfo.driver_type) {
+          driverVehicleType = driverInfo.driver_type;
+        } else if (order.driver_type) {
+          driverVehicleType = order.driver_type;
+        }
+      }
       document.getElementById('loadingScreen').style.display = 'none';
       document.getElementById('mainContent').style.display = 'block';
       document.getElementById('pickupAddr').innerText = order.pickup_address || '-';
@@ -1248,6 +1282,8 @@
           document.getElementById('driverPlate').innerText = d.driver_plate || '-';
           document.getElementById('driverVehicle').innerText = d.driver_type || '-';
           if (d.driver_photo) document.getElementById('driverPhoto').src = d.driver_photo;
+          // Update tipe kendaraan jika berubah
+          if (d.driver_type) driverVehicleType = d.driver_type;
         }
         if (newOrder.price) {
           currentOrderPrice = newOrder.price;
