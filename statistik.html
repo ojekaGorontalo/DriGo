@@ -146,6 +146,7 @@
         .priority-info-icon:hover { background:rgba(0,0,0,0.05); color:var(--primary); }
         .stats-title { font-size:0.85rem; text-transform:uppercase; color:var(--text-secondary); letter-spacing:0.5px; margin-bottom:12px; }
         .stats-value { font-size:2rem; font-weight:800; color:var(--primary); line-height:1.2; }
+        .stats-sub { font-size:0.8rem; color:var(--text-secondary); margin-top:4px; }
         .rating-stars { display:flex; gap:4px; margin-top:8px; }
         .star { font-size:1.2rem; color:#e0e0e0; }
         .star.active { color:#FFB300; }
@@ -582,28 +583,23 @@ async function renderMainContent() {
         return;
     }
 
-    // Hitung pendapatan hari ini (hanya jika diperlukan, kita lakukan sekali)
-    const today = new Date();
-    today.setHours(0,0,0,0);
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate()+1);
-    const ordersSnap = await db.ref('orders')
-        .orderByChild('driver_id')
-        .equalTo(currentDriverUid)
-        .limitToLast(50)   // batasi untuk efisiensi
-        .once('value');
-    const orders = ordersSnap.val() || {};
-    let totalGross = 0, completedCount = 0;
-    for (let id in orders) {
-        const o = orders[id];
-        if (o.status === 'completed' && o.completed_at) {
-            const d = new Date(o.completed_at);
-            if (d >= today && d < tomorrow) {
-                totalGross += o.price || 0;
+    // ===== HEMAT BANDWIDTH: Ambil langsung dari daily_earnings (tidak query orders) =====
+    const today = new Date().toISOString().split('T')[0];
+    const dailySnap = await db.ref(`drivers/${currentDriverUid}/daily_earnings/${today}`).once('value');
+    const totalGross = dailySnap.val() || 0;
+
+    // Ambil jumlah order selesai hari ini dari driver_earnings_history (hanya hitung jumlah, tanpa ambil semua data)
+    let completedCount = 0;
+    try {
+        const historySnap = await db.ref(`driver_earnings_history/${currentDriverUid}`).once('value');
+        const history = historySnap.val() || {};
+        for (let key in history) {
+            const entry = history[key];
+            if (entry.completed_at && entry.completed_at.split('T')[0] === today) {
                 completedCount++;
             }
         }
-    }
+    } catch(e) { console.warn('Gagal hitung jumlah order hari ini:', e); }
 
     const rating = driver.rating || 0;
     const balance = driver.balance || 0;
@@ -701,19 +697,16 @@ async function renderMainContent() {
 // LISTENER OPTIMASI: HANYA DENGARKAN PERUBAHAN RATING & BALANCE
 // ================================================================
 function setupOptimizedListeners(uid) {
-    // Lepas listener lama
     if (driverBalanceListener) { driverBalanceListener.off(); driverBalanceListener = null; }
     if (driverRatingListener) { driverRatingListener.off(); driverRatingListener = null; }
 
-    // Hanya dengarkan perubahan balance
     driverBalanceListener = db.ref(`drivers/${uid}/balance`).on('value', (snap) => {
         if (driverDataCache) {
             driverDataCache.balance = snap.val() || 0;
-            renderMainContent(); // update UI
+            renderMainContent();
         }
     });
 
-    // Hanya dengarkan perubahan rating
     driverRatingListener = db.ref(`drivers/${uid}/rating`).on('value', (snap) => {
         if (driverDataCache) {
             driverDataCache.rating = snap.val() || 0;
@@ -730,9 +723,8 @@ function setupDriverOrdersListener(uid) {
     driverOrdersListener = db.ref('orders')
         .orderByChild('driver_id')
         .equalTo(uid)
-        .limitToLast(20)   // hanya 20 terakhir
+        .limitToLast(20)
         .on('child_changed', (snap) => {
-            // update UI jika ada perubahan status order
             renderMainContent();
         });
 }
@@ -742,7 +734,6 @@ function setupDriverOrdersListener(uid) {
 // ================================================================
 function startListeningOrders(uid) {
     if (ordersListenerRef) { ordersListenerRef.off(); ordersListenerRef = null; }
-    // Hanya dengarkan order baru
     ordersListenerRef = db.ref('orders').on('child_added', async (snap) => {
         const order = snap.val();
         const orderId = snap.key;
@@ -750,26 +741,21 @@ function startListeningOrders(uid) {
         if (lastNotifiedOrderIds.has(orderId)) return;
         if (isWaitingConfirmation) return;
 
-        // Ambil data driver dari cache
         const driver = driverDataCache;
         if (!driver) return;
         if (!driverLocation.lat || !driverLocation.lng) return;
 
-        // Filter jarak
         const dist = calculateDistance(driverLocation.lat, driverLocation.lng, order.pickup_lat, order.pickup_lng);
         if (dist === null || dist > 3) return;
 
-        // Filter tipe kendaraan
         if (!isVehicleTypeMatch(driver.vehicleType, order.transport_type || order.vehicle || 'motor')) return;
 
-        // Cek apakah driver sedang punya order aktif (dari cache atau DB)
         const activeCheck = await checkDriverActiveOrder(uid);
         if (activeCheck) return;
 
         lastNotifiedOrderIds.add(orderId);
         currentOrderId = orderId;
 
-        // Auto-bid atau manual
         if (autobidEnabled && !(order.transport_type || '').toLowerCase().includes('kurir')) {
             const success = await sendOffer(orderId, order, true);
             if (success) {
@@ -782,7 +768,6 @@ function startListeningOrders(uid) {
 }
 
 async function checkDriverActiveOrder(uid) {
-    // Cek dari database dengan query terbatas
     const snap = await db.ref('orders')
         .orderByChild('driver_id')
         .equalTo(uid)
@@ -807,7 +792,6 @@ async function sendOffer(orderId, orderData, isAuto = false) {
     const driver = driverDataCache;
     if (!driver) return false;
 
-    // Cek saldo dengan pembacaan sekali (bisa pakai cache, tapi saldo perlu akurat)
     const snapBal = await db.ref(`drivers/${driver.uid}/balance`).once('value');
     const freshBalance = snapBal.val() || 0;
     const potongan = await hitungPotongan(orderData.price || 0);
@@ -816,7 +800,6 @@ async function sendOffer(orderId, orderData, isAuto = false) {
         return false;
     }
 
-    // Cek status order masih waiting
     const orderCheck = await db.ref(`orders/${orderId}`).once('value');
     if (!orderCheck.exists() || orderCheck.val().status !== 'waiting') {
         showToast('Order sudah tidak tersedia', 'warning');
@@ -892,7 +875,6 @@ function startCountdown(orderId, driverId, orderData) {
         }, 1000);
     }
 
-    // Listener untuk status order dan offer
     const orderListener = db.ref(`orders/${orderId}`).on('value', (snap) => {
         const order = snap.val();
         if (!order) return;
@@ -1011,7 +993,7 @@ function initGPS() {
 }
 
 // ================================================================
-// SETTINGS MODAL (TETAP SAMA)
+// SETTINGS MODAL
 // ================================================================
 function loadSettings() {
     document.getElementById('tripSoundToggle').checked = localStorage.getItem('jego_trip_sound') === 'true';
@@ -1047,14 +1029,12 @@ modalSettings.addEventListener('click', (e) => { if (e.target === modalSettings)
 // ================================================================
 document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
-        // Matikan semua listener
         if (driverBalanceListener) { driverBalanceListener.off(); driverBalanceListener = null; }
         if (driverRatingListener) { driverRatingListener.off(); driverRatingListener = null; }
         if (driverOrdersListener) { driverOrdersListener.off(); driverOrdersListener = null; }
         if (ordersListenerRef) { ordersListenerRef.off(); ordersListenerRef = null; }
         if (gpsWatchId) { navigator.geolocation.clearWatch(gpsWatchId); gpsWatchId = null; }
     } else {
-        // Aktifkan kembali jika user sudah login
         if (currentDriverUid) {
             setupOptimizedListeners(currentDriverUid);
             setupDriverOrdersListener(currentDriverUid);
@@ -1079,30 +1059,25 @@ auth.onAuthStateChanged(async (user) => {
         return;
     }
     currentDriverUid = user.uid;
-    // Load data driver ke cache
     await getDriverData(currentDriverUid);
 
-    // Baca auto-bid dari DB
     const autobidSnap = await db.ref(`drivers/${currentDriverUid}/autobid_enabled`).once('value');
     autobidEnabled = autobidSnap.exists() ? autobidSnap.val() === true : false;
     localStorage.setItem(STORAGE_AUTOBID, autobidEnabled);
 
-    // Render UI
     await renderMainContent();
 
-    // Setup listener optimasi
     setupOptimizedListeners(currentDriverUid);
     setupDriverOrdersListener(currentDriverUid);
     startListeningOrders(currentDriverUid);
     initGPS();
 
-    // Settings
     initSettingsListeners();
     loadSettings();
 });
 
 // ================================================================
-// CLEANUP (jika halaman ditutup)
+// CLEANUP
 // ================================================================
 window.addEventListener('beforeunload', () => {
     if (driverBalanceListener) driverBalanceListener.off();
