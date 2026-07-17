@@ -105,6 +105,10 @@
       margin-bottom: 10px;
       letter-spacing: 0.5px;
     }
+    .vehicle-marker {
+      background: transparent !important;
+      border: none !important;
+    }
   </style>
 </head>
 <body>
@@ -241,6 +245,93 @@
   let chatOpen = false;
   let onesignalApiKey = null;
   let driverUid = null;
+  let driverMarker = null;
+  let autoWelcomeSent = false;
+
+  // ==================== LOCATION TRACKING ====================
+  let locationWatchId = null;
+  let isLocationTracking = false;
+
+  function getVehicleIcon(transportType) {
+    let iconHtml = '🚗';
+    if (transportType) {
+      const t = transportType.toLowerCase();
+      if (t.includes('motor') || t.includes('sepeda')) iconHtml = '🏍️';
+      else if (t.includes('mobil') || t.includes('car')) iconHtml = '🚗';
+      else if (t.includes('truk') || t.includes('truck')) iconHtml = '🚚';
+      else if (t.includes('becak')) iconHtml = '🛺';
+      else if (t.includes('bus')) iconHtml = '🚌';
+      // tambahkan lainnya sesuai kebutuhan
+    }
+    return L.divIcon({
+      html: `<div style="font-size:32px; text-align:center; line-height:32px; background:rgba(255,255,255,0.85); border-radius:50%; padding:6px; border:3px solid #FF9800; box-shadow: 0 2px 8px rgba(0,0,0,0.3);">${iconHtml}</div>`,
+      className: 'vehicle-marker',
+      iconSize: [44, 44],
+      iconAnchor: [22, 22],
+      popupAnchor: [0, -22]
+    });
+  }
+
+  function updateDriverMarker(lat, lng, heading) {
+    if (!orderMap) return;
+    if (!driverMarker) {
+      const icon = getVehicleIcon(orderData?.transport_type);
+      driverMarker = L.marker([lat, lng], { icon, rotationAngle: heading || 0, rotationOrigin: 'center center' }).addTo(orderMap);
+      driverMarker.bindPopup('🚗 Posisi Anda');
+    } else {
+      driverMarker.setLatLng([lat, lng]);
+      if (driverMarker.setRotationAngle) driverMarker.setRotationAngle(heading || 0);
+    }
+  }
+
+  function startLocationTracking() {
+    if (!navigator.geolocation) {
+      console.warn("Geolocation tidak didukung oleh browser ini.");
+      return;
+    }
+    if (isLocationTracking) return;
+    
+    isLocationTracking = true;
+    console.log("📍 Memulai pengiriman lokasi realtime...");
+
+    locationWatchId = navigator.geolocation.watchPosition(
+      (position) => {
+        const { latitude, longitude, heading, speed } = position.coords;
+        if (!driverUid) return;
+        
+        // Update peta lokal
+        updateDriverMarker(latitude, longitude, heading || 0);
+
+        // Kirim ke Firebase
+        database.ref(`driver_locations/${driverUid}`).update({
+          latitude: latitude,
+          longitude: longitude,
+          heading: heading || 0,
+          speed: speed || 0,
+          timestamp: Date.now(),
+          orderId: orderId
+        }).catch(err => console.warn("Gagal update lokasi:", err));
+      },
+      (error) => {
+        console.warn("Error geolocation:", error.message);
+        // Jika error karena izin, coba lagi setelah beberapa saat
+      },
+      {
+        enableHighAccuracy: true,
+        maximumAge: 10000,
+        timeout: 5000
+      }
+    );
+  }
+
+  function stopLocationTracking() {
+    if (locationWatchId !== null) {
+      navigator.geolocation.clearWatch(locationWatchId);
+      locationWatchId = null;
+      isLocationTracking = false;
+      console.log("📍 Pengiriman lokasi dihentikan.");
+    }
+  }
 
   // ==================== UI HELPERS ====================
   function showToast(msg) { let t = document.getElementById('toast'); t.textContent = msg; t.style.opacity='1'; setTimeout(()=> t.style.opacity='0', 2500); }
@@ -377,7 +468,6 @@
   function updateActionButtons() {
     const mapBtn = document.getElementById('mapActionBtn');
     if (!mapBtn) return;
-    // Sembunyikan jika status completed atau cancelled
     if (currentStatus === 'completed' || currentStatus === 'cancelled') {
         mapBtn.style.display = 'none';
         return;
@@ -389,7 +479,7 @@
       case 'on_trip': mapBtn.style.display = 'flex'; mapBtn.innerHTML = '🏁 Selesaikan Perjalanan'; break;
       default: mapBtn.style.display = 'none';
     }
-}
+  }
 
   async function onMapAction() {
     if (!orderData) { showToast("Data order belum siap"); return; }
@@ -543,11 +633,22 @@
         orderMap = L.map('orderMap').setView([orderData.pickup_lat, orderData.pickup_lng], 14);
         L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png').addTo(orderMap);
       } else orderMap.setView([orderData.pickup_lat, orderData.pickup_lng], 14);
-      L.marker([orderData.pickup_lat, orderData.pickup_lng]).bindPopup('Jemput').addTo(orderMap);
+      
+      // Marker pickup (A)
+      L.marker([orderData.pickup_lat, orderData.pickup_lng], { icon: L.divIcon({ html: '<div style="background:#28a745; width:30px; height:30px; border-radius:50%; text-align:center; line-height:30px; color:white; font-weight:bold;">A</div>' }) }).addTo(orderMap).bindPopup('Penjemputan');
+      
+      // Marker via jika ada
       if (orderData.via_lat && orderData.via_lng) {
-        L.marker([orderData.via_lat, orderData.via_lng]).bindPopup('Titik Singgah').addTo(orderMap);
+        L.marker([orderData.via_lat, orderData.via_lng], { icon: L.divIcon({ html: '<div style="background:#2196F3; width:30px; height:30px; border-radius:50%; text-align:center; line-height:30px; color:white; font-weight:bold;">🔵</div>' }) }).addTo(orderMap).bindPopup('Titik Singgah');
       }
-      L.marker([orderData.dest_lat, orderData.dest_lng]).bindPopup('Tujuan').addTo(orderMap);
+      
+      // Marker destination (B)
+      L.marker([orderData.dest_lat, orderData.dest_lng], { icon: L.divIcon({ html: '<div style="background:#dc3545; width:30px; height:30px; border-radius:50%; text-align:center; line-height:30px; color:white; font-weight:bold;">B</div>' }) }).addTo(orderMap).bindPopup('Tujuan');
+      
+      // Marker driver di posisi pickup (akan bergerak)
+      updateDriverMarker(orderData.pickup_lat, orderData.pickup_lng, 0);
+      
+      // Draw route
       let waypoints = [];
       waypoints.push({ lng: orderData.pickup_lng, lat: orderData.pickup_lat });
       if (orderData.via_lng && orderData.via_lat) {
@@ -590,11 +691,11 @@
         if (actionsSection) actionsSection.style.display = 'none';
         const mapBtn = document.getElementById('mapActionBtn');
         if (mapBtn) mapBtn.style.display = 'none';
+        stopLocationTracking(); // Hentikan tracking
     } else {
         if (actionsSection) actionsSection.style.display = 'flex';
-        // map button diatur oleh updateActionButtons()
     }
-}
+  }
 
   function listenOrder() {
     if(orderRef) orderRef.off();
@@ -634,6 +735,27 @@
         updateUnreadBadge();
       } else { showToast("Order tidak ditemukan"); }
     });
+  }
+
+  // ==================== AUTO WELCOME MESSAGE ====================
+  async function sendAutoWelcomeMessage() {
+    if (!orderId || !chatRef || !driverUid) return;
+    try {
+      const snap = await database.ref(`orders/${orderId}/auto_welcome_sent`).once('value');
+      if (snap.val() === true) return;
+      // Kirim pesan
+      await chatRef.push({
+        sender: 'driver',
+        sender_id: driverUid,
+        message: 'Saya akan segera ke lokasi Anda',
+        timestamp: Date.now(),
+        readBy: { driver: true, customer: false }
+      });
+      await database.ref(`orders/${orderId}/auto_welcome_sent`).set(true);
+      console.log('✅ Auto welcome message sent');
+    } catch (err) {
+      console.error('Gagal kirim auto welcome:', err);
+    }
   }
 
   // ==================== RATING MODAL ====================
@@ -695,7 +817,6 @@
   loadChatHistory();
   markMessagesAsRead();
   document.getElementById('chatBadge').classList.add('hidden');
-  // Sembunyikan tombol map saat chat terbuka
   const mapBtn = document.getElementById('mapActionBtn');
   if (mapBtn) mapBtn.style.display = 'none';
 }
@@ -706,7 +827,6 @@ function closeChat(){
   overlay.style.display = 'none';
   overlay.classList.remove('open');
   updateUnreadBadge();
-  // Kembalikan tombol map sesuai status
   updateActionButtons();
 }
 
@@ -804,6 +924,14 @@ function closeChat(){
     listenOrder();
     initChat();
 
+    // Kirim pesan otomatis jika status accepted dan belum pernah dikirim
+    if (orderData.status === 'accepted') {
+      await sendAutoWelcomeMessage();
+    }
+
+    // Mulai tracking lokasi
+    startLocationTracking();
+
     const mapActionBtn = document.getElementById('mapActionBtn');
     const chatIconBtn = document.getElementById('chatIconBtn');
     const cancelTripBtn = document.getElementById('cancelTripBtn');
@@ -838,6 +966,11 @@ function closeChat(){
     }
   });
   history.pushState(null, null, location.href);
+
+  // Hentikan tracking saat halaman ditutup
+  window.addEventListener('beforeunload', function() {
+    stopLocationTracking();
+  });
 
   auth.onAuthStateChanged(user=>{ if(user) loadOrder(); else { localStorage.removeItem('jego_logged_in_driver'); window.location.href='loginDriver.html'; } });
 </script>
