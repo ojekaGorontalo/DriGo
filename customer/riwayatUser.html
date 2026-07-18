@@ -248,6 +248,48 @@
         }
         @keyframes spin { to { transform: rotate(360deg); } }
 
+        /* Pagination */
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 16px;
+            padding: 12px 16px;
+            margin-top: 8px;
+            background: var(--surface);
+            border-radius: 30px;
+            border: 1px solid var(--border-light);
+        }
+        .pagination button {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 8px 20px;
+            border-radius: 30px;
+            font-weight: 600;
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: 0.2s;
+            min-width: 70px;
+        }
+        .pagination button:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+        .pagination button:active:not(:disabled) {
+            transform: scale(0.95);
+        }
+        .pagination span {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        .pagination .page-info {
+            background: var(--background);
+            padding: 4px 14px;
+            border-radius: 20px;
+        }
+
         /* Modal */
         .modal {
             display: none;
@@ -333,6 +375,13 @@
     <div class="orders-list" id="ordersList">
         <div class="loading"><div class="spinner"></div><p>Memuat riwayat...</p></div>
     </div>
+
+    <!-- Pagination Controls -->
+    <div class="pagination" id="paginationControls" style="display: none;">
+        <button id="prevPageBtn">◀ Sebelumnya</button>
+        <span class="page-info" id="pageInfo">Halaman 1 dari 1</span>
+        <button id="nextPageBtn">Berikutnya ▶</button>
+    </div>
 </div>
 
 <!-- Modal Detail -->
@@ -382,9 +431,12 @@
 
     let currentUser = null;
     let currentFilter = 'all';
-    let allOrders = [];
+    let allOrders = [];          // seluruh order (maks 100)
+    let filteredOrders = [];     // hasil filter
+    let currentPage = 0;
+    const PER_PAGE = 5;
 
-    // ========== DARK MODE - MENGIKUTI LOCALSTORAGE ==========
+    // ========== DARK MODE ==========
     function applyDarkModeFromLocalStorage() {
         const isDarkMode = localStorage.getItem('jego_dark_mode') === 'true';
         if (isDarkMode) {
@@ -403,7 +455,7 @@
 
     function formatRupiah(num) { return 'Rp ' + (num || 0).toLocaleString('id-ID'); }
 
-    // ===== FUNGSI STATUS DENGAN INFORMASI PEMBATAL =====
+    // ===== FUNGSI STATUS =====
     function getCancelledByText(order) {
         const by = order.cancelled_by || '';
         if (by === 'customer' || by === 'user' || by === 'customer_user') {
@@ -425,7 +477,6 @@
         if (order.status === 'completed') return 'status-completed';
         if (order.status === 'on_the_way' || order.status === 'on_trip') return 'status-on_the_way';
         if (order.status === 'accepted') return 'status-accepted';
-        // Untuk status cancelled
         if (order.status === 'cancelled' || order.status === 'cancelled_by_user' || order.status === 'cancelled_by_driver') {
             const by = order.cancelled_by || '';
             if (by === 'driver') return 'status-cancelled-driver';
@@ -439,13 +490,13 @@
         if (order.status === 'completed') return 'Selesai';
         if (order.status === 'on_the_way' || order.status === 'on_trip') return 'Dalam Perjalanan';
         if (order.status === 'accepted') return 'Diterima';
-        // Untuk cancelled, tampilkan teks deskriptif
         if (order.status === 'cancelled' || order.status === 'cancelled_by_user' || order.status === 'cancelled_by_driver') {
             return getCancelledByText(order);
         }
         return 'Dibatalkan';
     }
 
+    // ===== FILTER =====
     function isThisWeek(date) {
         const today = new Date();
         const start = new Date(today);
@@ -482,42 +533,60 @@
         return groups;
     }
 
-    function renderOrders() {
+    // ===== RENDER DENGAN PAGINASI =====
+    function renderOrdersPage(page) {
         const container = document.getElementById('ordersList');
-        if (!allOrders.length) {
-            container.innerHTML = '<div class="empty-state">📭 Tidak ada riwayat perjalanan</div>';
-            return;
-        }
+        const pagination = document.getElementById('paginationControls');
 
-        let filtered = [...allOrders];
-        if (currentFilter === 'completed') filtered = filtered.filter(o => o.status === 'completed');
-        else if (currentFilter === 'cancelled') filtered = filtered.filter(o => o.status === 'cancelled' || o.status === 'cancelled_by_user' || o.status === 'cancelled_by_driver');
-        else if (currentFilter === 'this_week') filtered = filtered.filter(o => isThisWeek(new Date(o.completed_at || o.created_at)));
-        else if (currentFilter === 'this_month') filtered = filtered.filter(o => isThisMonth(new Date(o.completed_at || o.created_at)));
-
-        if (filtered.length === 0) {
+        if (!filteredOrders.length) {
             container.innerHTML = '<div class="empty-state">🔍 Tidak ada perjalanan sesuai filter</div>';
+            pagination.style.display = 'none';
             return;
         }
 
-        const grouped = groupOrdersByDate(filtered);
+        const totalPages = Math.ceil(filteredOrders.length / PER_PAGE);
+        if (page < 0) page = 0;
+        if (page >= totalPages) page = totalPages - 1;
+        currentPage = page;
+
+        const start = page * PER_PAGE;
+        const end = Math.min(start + PER_PAGE, filteredOrders.length);
+        const pageOrders = filteredOrders.slice(start, end);
+
+        // Group by date
+        const grouped = groupOrdersByDate(pageOrders);
         const sortedDates = Object.keys(grouped).sort((a,b) => new Date(b) - new Date(a));
-        container.innerHTML = '';
+
+        let html = '';
         sortedDates.forEach(date => {
-            const section = document.createElement('div');
-            section.className = 'date-section';
-            section.innerHTML = `<div class="date-header">${formatDisplayDate(date)} • ${grouped[date].length} perjalanan</div>`;
-            container.appendChild(section);
+            html += `<div class="date-section"><div class="date-header">${formatDisplayDate(date)} • ${grouped[date].length} perjalanan</div>`;
             grouped[date].forEach(order => {
-                const orderEl = createOrderElement(order);
-                container.appendChild(orderEl);
+                html += createOrderHTML(order);
             });
+            html += '</div>';
+        });
+
+        container.innerHTML = html;
+
+        // Update pagination info
+        document.getElementById('pageInfo').innerText = `Halaman ${currentPage+1} dari ${totalPages}`;
+        document.getElementById('prevPageBtn').disabled = (currentPage === 0);
+        document.getElementById('nextPageBtn').disabled = (currentPage === totalPages-1);
+        pagination.style.display = 'flex';
+
+        // Attach click events to order items (delegation)
+        container.querySelectorAll('.order-item').forEach(el => {
+            const orderId = el.getAttribute('data-order-id');
+            if (orderId) {
+                el.addEventListener('click', () => {
+                    const order = allOrders.find(o => o.id === orderId);
+                    if (order) showOrderDetail(order);
+                });
+            }
         });
     }
 
-    function createOrderElement(order) {
-        const div = document.createElement('div');
-        div.className = 'order-item';
+    function createOrderHTML(order) {
         const durasi = order.duration_seconds ? Math.round(order.duration_seconds/60)+' menit' : '-';
         const jarak = order.distance_meters ? (order.distance_meters/1000).toFixed(1)+' km' : '-';
         const harga = order.price_after_bonus || order.price || 0;
@@ -525,32 +594,34 @@
         let hargaDisplay = hasPromo ? `<span style="text-decoration:line-through; margin-right:4px;">${formatRupiah(order.price)}</span> ${formatRupiah(harga)}` : formatRupiah(harga);
         const statusText = getStatusTextForOrder(order);
         const statusClass = getStatusClassForOrder(order);
+        const isKurir = order.transport_type?.includes('kurir') ? '📦 KURIR' : '';
 
-        div.innerHTML = `
-            <div class="order-header">
-                <div class="customer-name">${escapeHtml(order.customer_name || 'Pelanggan')} ${order.transport_type?.includes('kurir') ? '📦 KURIR' : ''}</div>
-                <span class="status-badge ${statusClass}">${statusText}</span>
-            </div>
-            <div class="route-info">
-                <div class="route-point"><span class="point-marker point-marker-a">A</span><span>${escapeHtml(order.pickup_address || '-')}</span></div>
-                <div class="route-point"><span class="point-marker point-marker-b">B</span><span>${escapeHtml(order.destination_address || '-')}</span></div>
-            </div>
-            <div class="order-details">
-                <div class="detail-item"><span class="detail-value">${durasi}</span><div>Durasi</div></div>
-                <div class="detail-item"><span class="detail-value">${jarak}</span><div>Jarak</div></div>
-                <div class="detail-item"><span class="detail-value">${hargaDisplay}</span><div>Harga</div></div>
-            </div>
-            <div class="order-meta">
-                <span>${new Date(order.created_at).toLocaleTimeString('id-ID', {hour:'2-digit',minute:'2-digit'})}</span>
-                <span>${order.transport_type || 'Motor'}</span>
+        return `
+            <div class="order-item" data-order-id="${order.id}">
+                <div class="order-header">
+                    <div class="customer-name">${escapeHtml(order.customer_name || 'Pelanggan')} ${isKurir}</div>
+                    <span class="status-badge ${statusClass}">${statusText}</span>
+                </div>
+                <div class="route-info">
+                    <div class="route-point"><span class="point-marker point-marker-a">A</span><span>${escapeHtml(order.pickup_address || '-')}</span></div>
+                    <div class="route-point"><span class="point-marker point-marker-b">B</span><span>${escapeHtml(order.destination_address || '-')}</span></div>
+                </div>
+                <div class="order-details">
+                    <div class="detail-item"><span class="detail-value">${durasi}</span><div>Durasi</div></div>
+                    <div class="detail-item"><span class="detail-value">${jarak}</span><div>Jarak</div></div>
+                    <div class="detail-item"><span class="detail-value">${hargaDisplay}</span><div>Harga</div></div>
+                </div>
+                <div class="order-meta">
+                    <span>${new Date(order.created_at).toLocaleTimeString('id-ID', {hour:'2-digit',minute:'2-digit'})}</span>
+                    <span>${order.transport_type || 'Motor'}</span>
+                </div>
             </div>
         `;
-        div.addEventListener('click', () => showOrderDetail(order));
-        return div;
     }
 
     function escapeHtml(str) { if (!str) return ''; return str.replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[m])); }
 
+    // ===== MODAL =====
     function showOrderDetail(order) {
         const modalContent = document.getElementById('modalDetailContent');
         const statusText = getStatusTextForOrder(order);
@@ -579,13 +650,23 @@
     }
     function closeCsModal() { document.getElementById('csModal').style.display = 'none'; }
 
-    // =====================================================================
-    // ========== LOAD USER ORDERS (HEMAT BANDWIDTH) ==========
-    // =====================================================================
+    // ===== FILTER DAN PAGINASI =====
+    function applyFilterAndRender(page = 0) {
+        let filtered = [...allOrders];
+        if (currentFilter === 'completed') filtered = filtered.filter(o => o.status === 'completed');
+        else if (currentFilter === 'cancelled') filtered = filtered.filter(o => o.status === 'cancelled' || o.status === 'cancelled_by_user' || o.status === 'cancelled_by_driver');
+        else if (currentFilter === 'this_week') filtered = filtered.filter(o => isThisWeek(new Date(o.completed_at || o.created_at)));
+        else if (currentFilter === 'this_month') filtered = filtered.filter(o => isThisMonth(new Date(o.completed_at || o.created_at)));
+        filteredOrders = filtered;
+        renderOrdersPage(page);
+    }
+
+    // ===== LOAD USER ORDERS (HEMAT BANDWIDTH) =====
     async function loadUserOrders() {
         if (!currentUser) return;
         const ordersListDiv = document.getElementById('ordersList');
         ordersListDiv.innerHTML = '<div class="loading"><div class="spinner"></div><p>Memuat data...</p></div>';
+        document.getElementById('paginationControls').style.display = 'none';
 
         try {
             const snapshot = await database.ref('orders')
@@ -618,7 +699,7 @@
             }
 
             allOrders = userOrdersArray.sort((a,b) => new Date(b.created_at||0) - new Date(a.created_at||0));
-            renderOrders();
+            applyFilterAndRender(0);
 
         } catch (err) {
             console.error("Gagal memuat riwayat:", err);
@@ -645,13 +726,24 @@
         document.getElementById('tutupCsModalBtn').addEventListener('click', closeCsModal);
         document.getElementById('orderModal').addEventListener('click', (e) => { if(e.target === document.getElementById('orderModal')) closeModal(); });
         document.getElementById('csModal').addEventListener('click', (e) => { if(e.target === document.getElementById('csModal')) closeCsModal(); });
+
+        // Filter buttons
         document.querySelectorAll('.filter-option').forEach(opt => {
             opt.addEventListener('click', () => {
                 document.querySelectorAll('.filter-option').forEach(o => o.classList.remove('active'));
                 opt.classList.add('active');
                 currentFilter = opt.dataset.filter;
-                renderOrders();
+                applyFilterAndRender(0); // reset ke halaman 1
             });
+        });
+
+        // Pagination buttons
+        document.getElementById('prevPageBtn').addEventListener('click', () => {
+            if (currentPage > 0) applyFilterAndRender(currentPage - 1);
+        });
+        document.getElementById('nextPageBtn').addEventListener('click', () => {
+            const totalPages = Math.ceil(filteredOrders.length / PER_PAGE);
+            if (currentPage < totalPages - 1) applyFilterAndRender(currentPage + 1);
         });
     });
 </script>
