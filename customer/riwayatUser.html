@@ -29,6 +29,10 @@
             --status-onway-text: #0c5460;
             --status-accepted-bg: #fff3cd;
             --status-accepted-text: #856404;
+            --status-cancelled-customer-bg: #fff3cd;
+            --status-cancelled-customer-text: #856404;
+            --status-cancelled-driver-bg: #f8d7da;
+            --status-cancelled-driver-text: #721c24;
         }
 
         /* ========== DARK MODE OVERRIDES ========== */
@@ -52,6 +56,10 @@
             --status-onway-text: #81d4fa;
             --status-accepted-bg: #3a2a1a;
             --status-accepted-text: #ffcc80;
+            --status-cancelled-customer-bg: #3a2a1a;
+            --status-cancelled-customer-text: #ffcc80;
+            --status-cancelled-driver-bg: #3e1a1a;
+            --status-cancelled-driver-text: #ef9a9a;
         }
 
         * {
@@ -159,11 +167,14 @@
             border-radius: 30px;
             font-size: 0.7rem;
             font-weight: 600;
+            white-space: nowrap;
         }
         .status-completed { background: var(--status-completed-bg); color: var(--status-completed-text); }
         .status-cancelled { background: var(--status-cancelled-bg); color: var(--status-cancelled-text); }
         .status-on_the_way { background: var(--status-onway-bg); color: var(--status-onway-text); }
         .status-accepted { background: var(--status-accepted-bg); color: var(--status-accepted-text); }
+        .status-cancelled-customer { background: var(--status-cancelled-customer-bg); color: var(--status-cancelled-customer-text); }
+        .status-cancelled-driver { background: var(--status-cancelled-driver-bg); color: var(--status-cancelled-driver-text); }
 
         .route-info {
             font-size: 0.8rem;
@@ -373,7 +384,7 @@
     let currentFilter = 'all';
     let allOrders = [];
 
-    // ========== DARK MODE - MENGIKUTI LOCALSTORAGE (TANPA TOMBOL) ==========
+    // ========== DARK MODE - MENGIKUTI LOCALSTORAGE ==========
     function applyDarkModeFromLocalStorage() {
         const isDarkMode = localStorage.getItem('jego_dark_mode') === 'true';
         if (isDarkMode) {
@@ -392,13 +403,47 @@
 
     function formatRupiah(num) { return 'Rp ' + (num || 0).toLocaleString('id-ID'); }
 
-    function getStatusClass(status) {
-        const map = { 'completed':'status-completed', 'cancelled':'status-cancelled', 'accepted':'status-accepted', 'on_the_way':'status-on_the_way' };
-        return map[status] || 'status-completed';
+    // ===== FUNGSI STATUS DENGAN INFORMASI PEMBATAL =====
+    function getCancelledByText(order) {
+        const by = order.cancelled_by || '';
+        if (by === 'customer' || by === 'user' || by === 'customer_user') {
+            return 'Anda membatalkan perjalanan';
+        }
+        if (by === 'driver') {
+            return 'Driver membatalkan perjalanan';
+        }
+        if (by === 'admin') {
+            return 'Admin membatalkan perjalanan';
+        }
+        if (by === 'system' || by === 'auto') {
+            return 'Sistem membatalkan perjalanan';
+        }
+        return 'Dibatalkan';
     }
-    function getStatusText(status) {
-        const map = { 'completed':'Selesai', 'cancelled':'Dibatalkan', 'accepted':'Diterima', 'on_the_way':'Dalam Perjalanan' };
-        return map[status] || status;
+
+    function getStatusClassForOrder(order) {
+        if (order.status === 'completed') return 'status-completed';
+        if (order.status === 'on_the_way' || order.status === 'on_trip') return 'status-on_the_way';
+        if (order.status === 'accepted') return 'status-accepted';
+        // Untuk status cancelled
+        if (order.status === 'cancelled' || order.status === 'cancelled_by_user' || order.status === 'cancelled_by_driver') {
+            const by = order.cancelled_by || '';
+            if (by === 'driver') return 'status-cancelled-driver';
+            if (by === 'customer' || by === 'user') return 'status-cancelled-customer';
+            return 'status-cancelled';
+        }
+        return 'status-cancelled';
+    }
+
+    function getStatusTextForOrder(order) {
+        if (order.status === 'completed') return 'Selesai';
+        if (order.status === 'on_the_way' || order.status === 'on_trip') return 'Dalam Perjalanan';
+        if (order.status === 'accepted') return 'Diterima';
+        // Untuk cancelled, tampilkan teks deskriptif
+        if (order.status === 'cancelled' || order.status === 'cancelled_by_user' || order.status === 'cancelled_by_driver') {
+            return getCancelledByText(order);
+        }
+        return 'Dibatalkan';
     }
 
     function isThisWeek(date) {
@@ -446,7 +491,7 @@
 
         let filtered = [...allOrders];
         if (currentFilter === 'completed') filtered = filtered.filter(o => o.status === 'completed');
-        else if (currentFilter === 'cancelled') filtered = filtered.filter(o => o.status === 'cancelled');
+        else if (currentFilter === 'cancelled') filtered = filtered.filter(o => o.status === 'cancelled' || o.status === 'cancelled_by_user' || o.status === 'cancelled_by_driver');
         else if (currentFilter === 'this_week') filtered = filtered.filter(o => isThisWeek(new Date(o.completed_at || o.created_at)));
         else if (currentFilter === 'this_month') filtered = filtered.filter(o => isThisMonth(new Date(o.completed_at || o.created_at)));
 
@@ -478,10 +523,13 @@
         const harga = order.price_after_bonus || order.price || 0;
         const hasPromo = order.bonus_used > 0;
         let hargaDisplay = hasPromo ? `<span style="text-decoration:line-through; margin-right:4px;">${formatRupiah(order.price)}</span> ${formatRupiah(harga)}` : formatRupiah(harga);
+        const statusText = getStatusTextForOrder(order);
+        const statusClass = getStatusClassForOrder(order);
+
         div.innerHTML = `
             <div class="order-header">
                 <div class="customer-name">${escapeHtml(order.customer_name || 'Pelanggan')} ${order.transport_type?.includes('kurir') ? '📦 KURIR' : ''}</div>
-                <span class="status-badge ${getStatusClass(order.status)}">${getStatusText(order.status)}</span>
+                <span class="status-badge ${statusClass}">${statusText}</span>
             </div>
             <div class="route-info">
                 <div class="route-point"><span class="point-marker point-marker-a">A</span><span>${escapeHtml(order.pickup_address || '-')}</span></div>
@@ -505,6 +553,7 @@
 
     function showOrderDetail(order) {
         const modalContent = document.getElementById('modalDetailContent');
+        const statusText = getStatusTextForOrder(order);
         modalContent.innerHTML = `
             <div style="margin-bottom:12px"><strong>📍 Penjemputan:</strong><br>${escapeHtml(order.pickup_address || '-')}</div>
             <div style="margin-bottom:12px"><strong>🏁 Tujuan:</strong><br>${escapeHtml(order.destination_address || '-')}</div>
@@ -514,8 +563,9 @@
                 <div><strong>Harga</strong><br>${order.price_after_bonus ? formatRupiah(order.price_after_bonus) : formatRupiah(order.price)}</div>
             </div>
             ${order.bonus_used ? `<div><strong>Bonus digunakan:</strong> ${formatRupiah(order.bonus_used)}</div>` : ''}
-            <div style="margin-top:12px"><strong>Status:</strong> ${getStatusText(order.status)}</div>
+            <div style="margin-top:12px"><strong>Status:</strong> ${statusText}</div>
             <div style="margin-top:12px"><strong>Order ID:</strong> ${order.id}</div>
+            ${order.cancelled_by ? `<div style="margin-top:8px;font-size:0.8rem;color:var(--text-secondary)">Dibatalkan oleh: ${order.cancelled_by}</div>` : ''}
         `;
         document.getElementById('orderModal').style.display = 'flex';
         window.currentOrderId = order.id;
@@ -532,18 +582,12 @@
     // =====================================================================
     // ========== LOAD USER ORDERS (HEMAT BANDWIDTH) ==========
     // =====================================================================
-    // Perbaikan: Hanya ambil order milik user ini dengan query terbatas.
-    // Gunakan indeks 'user_id' di Firebase Rules untuk efisiensi maksimal.
-    // Tidak perlu mengunduh seluruh node 'orders' lagi.
-    // =====================================================================
     async function loadUserOrders() {
         if (!currentUser) return;
         const ordersListDiv = document.getElementById('ordersList');
         ordersListDiv.innerHTML = '<div class="loading"><div class="spinner"></div><p>Memuat data...</p></div>';
 
         try {
-            // Query hanya 100 order terakhir milik user ini
-            // Pastikan di Firebase Rules ada: "orders": { ".indexOn": ["user_id"] }
             const snapshot = await database.ref('orders')
                 .orderByChild('user_id')
                 .equalTo(currentUser.uid)
@@ -559,8 +603,6 @@
                 });
             }
 
-            // Jika tidak ada order dengan user_id (misal data lama pakai customer_id), 
-            // coba query fallback untuk customer_id (tetap terbatas)
             if (userOrdersArray.length === 0) {
                 const fallbackSnap = await database.ref('orders')
                     .orderByChild('customer_id')
@@ -575,7 +617,6 @@
                 }
             }
 
-            // Urutkan dari yang terbaru
             allOrders = userOrdersArray.sort((a,b) => new Date(b.created_at||0) - new Date(a.created_at||0));
             renderOrders();
 
@@ -587,7 +628,7 @@
 
     // ========== INISIALISASI ==========
     document.addEventListener('DOMContentLoaded', () => {
-        applyDarkModeFromLocalStorage();  // Terapkan dark mode dari localStorage
+        applyDarkModeFromLocalStorage();
 
         auth.onAuthStateChanged(async (user) => {
             if (!user) {
