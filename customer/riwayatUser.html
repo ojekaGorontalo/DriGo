@@ -529,29 +529,60 @@
     }
     function closeCsModal() { document.getElementById('csModal').style.display = 'none'; }
 
+    // =====================================================================
+    // ========== LOAD USER ORDERS (HEMAT BANDWIDTH) ==========
+    // =====================================================================
+    // Perbaikan: Hanya ambil order milik user ini dengan query terbatas.
+    // Gunakan indeks 'user_id' di Firebase Rules untuk efisiensi maksimal.
+    // Tidak perlu mengunduh seluruh node 'orders' lagi.
+    // =====================================================================
     async function loadUserOrders() {
         if (!currentUser) return;
-        console.log("🔍 Memuat order untuk user:", currentUser.uid);
         const ordersListDiv = document.getElementById('ordersList');
         ordersListDiv.innerHTML = '<div class="loading"><div class="spinner"></div><p>Memuat data...</p></div>';
 
-        const snapshot = await database.ref('orders').once('value');
-        const allOrdersData = snapshot.val();
+        try {
+            // Query hanya 100 order terakhir milik user ini
+            // Pastikan di Firebase Rules ada: "orders": { ".indexOn": ["user_id"] }
+            const snapshot = await database.ref('orders')
+                .orderByChild('user_id')
+                .equalTo(currentUser.uid)
+                .limitToLast(100)
+                .once('value');
 
-        if (!allOrdersData) {
-            allOrders = [];
-            renderOrders();
-            return;
-        }
+            const ordersData = snapshot.val();
+            const userOrdersArray = [];
 
-        const userOrdersArray = [];
-        for (let [orderId, order] of Object.entries(allOrdersData)) {
-            if ((order.user_id === currentUser.uid) || (order.customer_id === currentUser.uid) || (order.customerId === currentUser.uid)) {
-                userOrdersArray.push({ id: orderId, ...order });
+            if (ordersData) {
+                Object.entries(ordersData).forEach(([orderId, order]) => {
+                    userOrdersArray.push({ id: orderId, ...order });
+                });
             }
+
+            // Jika tidak ada order dengan user_id (misal data lama pakai customer_id), 
+            // coba query fallback untuk customer_id (tetap terbatas)
+            if (userOrdersArray.length === 0) {
+                const fallbackSnap = await database.ref('orders')
+                    .orderByChild('customer_id')
+                    .equalTo(currentUser.uid)
+                    .limitToLast(100)
+                    .once('value');
+                const fallbackData = fallbackSnap.val();
+                if (fallbackData) {
+                    Object.entries(fallbackData).forEach(([orderId, order]) => {
+                        userOrdersArray.push({ id: orderId, ...order });
+                    });
+                }
+            }
+
+            // Urutkan dari yang terbaru
+            allOrders = userOrdersArray.sort((a,b) => new Date(b.created_at||0) - new Date(a.created_at||0));
+            renderOrders();
+
+        } catch (err) {
+            console.error("Gagal memuat riwayat:", err);
+            ordersListDiv.innerHTML = '<div class="empty-state">⚠️ Gagal memuat data. Coba lagi nanti.</div>';
         }
-        allOrders = userOrdersArray.sort((a,b) => new Date(b.created_at||0) - new Date(a.created_at||0));
-        renderOrders();
     }
 
     // ========== INISIALISASI ==========
