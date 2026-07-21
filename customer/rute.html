@@ -320,33 +320,70 @@
             100% { transform: scale(1.5); opacity: 0; }
         }
 
-        @keyframes driverShake {
-            0% { transform: translateX(0); }
-            25% { transform: translateX(2px); }
-            75% { transform: translateX(-2px); }
-            100% { transform: translateX(0); }
-        }
-        .driver-marker-animate { animation: driverShake 1.5s infinite ease-in-out; }
-
+        /* ===== PERBAIKAN #driverOffers FULL SCREEN ===== */
         #driverOffers {
             position: fixed;
-            top: 20px;
+            top: 0;
             left: 0;
-            right: 0;
             width: 100%;
-            max-width: 100%;
-            transform: none;
+            height: 100vh;
+            background: rgba(0, 0, 0, 0.5);
             z-index: 9999;
-            display: none;
-            padding: 0 10px;
+            display: flex;
+            visibility: hidden;
+            opacity: 0;
+            transition: opacity 0.3s ease, visibility 0.3s ease;
+            padding: 0;
             box-sizing: border-box;
+            pointer-events: none;
         }
-        #driverOffers>div {
+        #driverOffers.active {
+            visibility: visible;
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        #driverOffers > div {
             background: white;
-            border-radius: 20px;
+            height: 100%;
+            width: 100%;
+            border-radius: 0;
             overflow: hidden;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            box-shadow: none;
+            display: flex;
+            flex-direction: column;
         }
+
+        #driverOffers > div > div:first-child {
+            padding: 16px 20px;
+            flex-shrink: 0;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            color: white;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        #driverOffers > div > div:first-child strong {
+            font-size: 1.1rem;
+        }
+
+        #closeDriverOffers {
+            background: none;
+            border: none;
+            font-size: 24px;
+            color: white;
+            cursor: pointer;
+            padding: 4px 8px;
+        }
+
+        #driverOfferList {
+            flex: 1;
+            max-height: none;
+            overflow-y: auto;
+            padding: 12px;
+        }
+
         .bid-price-text {
             font-size: 1.2rem;
             font-weight: bold;
@@ -355,25 +392,6 @@
             display: block;
         }
 
-        #driverOffers>div>div:first-child {
-            background: linear-gradient(135deg, var(--primary), var(--secondary));
-            color: white;
-            padding: 14px 16px;
-            display: flex;
-            justify-content: space-between;
-        }
-        #closeDriverOffers {
-            background: none;
-            border: none;
-            font-size: 20px;
-            color: white;
-            cursor: pointer;
-        }
-        #driverOfferList {
-            max-height: 60vh;
-            overflow-y: auto;
-            padding: 12px;
-        }
         .driver-offer-card {
             background: #fff;
             border-radius: 16px;
@@ -507,7 +525,7 @@
         }
 
         @media (max-width: 640px) {
-            .panel, .route-details, .confirm-btn, .cancel-btn, #driverOffers { width: 95%; }
+            .panel, .route-details, .confirm-btn, .cancel-btn { width: 95%; }
         }
 
         /* OVERLAY PENCARIAN */
@@ -787,9 +805,13 @@
     </div>
 </div>
 
+<!-- DRIVER OFFERS - FULL SCREEN -->
 <div id="driverOffers">
     <div>
-        <div><strong>🏆 Penawaran Driver</strong><button id="closeDriverOffers">✕</button></div>
+        <div>
+            <strong>🏆 Penawaran Driver</strong>
+            <button id="closeDriverOffers">✕</button>
+        </div>
         <div id="driverOfferList"></div>
     </div>
 </div>
@@ -895,9 +917,7 @@
     let offerTimerInterval = null;
     let cleanupInterval = null;
     let currentZoomAnimation = null;
-    let driverMarkers = [];
-    let driversRef = null, driversListener = null;
-    let autoDriverSearchEnabled = false;
+    let driversRef = null, driversListener = null; // digunakan untuk penawaran driver
     let mapPickActive = false;
     let mapPickCoords = null;
     let mapPickAddress = '';
@@ -993,90 +1013,84 @@
 
     // ==================== NEGOSIASI ====================
     function initNegosiasi(originalPriceVal) {
-    const minimalPrice = transportRate.minimal_price;
-    const maxDiskon = originalPriceVal * 0.1;
-    let minAllowed = originalPriceVal - maxDiskon;
-    if (minAllowed < minimalPrice) minAllowed = minimalPrice;
-    minAllowed = Math.round(minAllowed / 1000) * 1000;
-    minAllowedNego = minAllowed;
+        const minimalPrice = transportRate.minimal_price;
+        const maxDiskon = originalPriceVal * 0.1;
+        let minAllowed = originalPriceVal - maxDiskon;
+        if (minAllowed < minimalPrice) minAllowed = minimalPrice;
+        minAllowed = Math.round(minAllowed / 1000) * 1000;
+        minAllowedNego = minAllowed;
 
-    const input = document.getElementById('negoInput');
-    const errorSpan = document.getElementById('negoError');
-    const minTawarLabel = document.getElementById('minTawarLabel');
-    const minErrorVal = document.getElementById('minErrorVal');
+        const input = document.getElementById('negoInput');
+        const errorSpan = document.getElementById('negoError');
+        const minTawarLabel = document.getElementById('minTawarLabel');
+        const minErrorVal = document.getElementById('minErrorVal');
 
-    minTawarLabel.innerText = formatRupiah(minAllowed);
-    minErrorVal.innerText = formatRupiah(minAllowed);
-    input.placeholder = `Minimal ${formatRupiah(minAllowed)}`;
+        minTawarLabel.innerText = formatRupiah(minAllowed);
+        minErrorVal.innerText = formatRupiah(minAllowed);
+        input.placeholder = `Minimal ${formatRupiah(minAllowed)}`;
 
-    // 🔥 Hanya set nilai default jika input masih kosong atau '0'
-    if (!input.value || input.value === '0') {
-        input.value = originalPriceVal;
-        currentPrice = originalPriceVal;
-        document.getElementById('labelTawaran').innerText = formatRupiah(originalPriceVal);
-    } else {
-        // Jika sudah ada nilai, gunakan nilai yang ada
-        let val = parseInt(input.value);
-        if (!isNaN(val) && val > 0) {
-            currentPrice = val;
-            document.getElementById('labelTawaran').innerText = formatRupiah(val);
+        if (!input.value || input.value === '0') {
+            input.value = originalPriceVal;
+            currentPrice = originalPriceVal;
+            document.getElementById('labelTawaran').innerText = formatRupiah(originalPriceVal);
         } else {
+            let val = parseInt(input.value);
+            if (!isNaN(val) && val > 0) {
+                currentPrice = val;
+                document.getElementById('labelTawaran').innerText = formatRupiah(val);
+            } else {
+                currentPrice = 0;
+                document.getElementById('labelTawaran').innerText = 'Rp 0';
+            }
+        }
+
+        document.getElementById('labelRekomendasi').innerText = formatRupiah(originalPriceVal);
+        const confirmBtn = document.getElementById('confirmBtn');
+        if (confirmBtn) {
+            confirmBtn.innerHTML = currentPrice > 0
+                ? `🚀 CARI DRIVER | ${formatRupiah(currentPrice)}`
+                : '🚀 CARI DRIVER | Rp 0';
+        }
+
+        input.removeEventListener('input', handleNegoInput);
+        input.addEventListener('input', handleNegoInput);
+    }
+
+    function handleNegoInput() {
+        const input = document.getElementById('negoInput');
+        const val = input.value.trim();
+
+        if (val === '') {
             currentPrice = 0;
             document.getElementById('labelTawaran').innerText = 'Rp 0';
+            const confirmBtn = document.getElementById('confirmBtn');
+            if (confirmBtn) confirmBtn.innerHTML = '🚀 CARI DRIVER | Rp 0';
+            document.getElementById('negoError').style.display = 'none';
+            return;
         }
-    }
 
-    document.getElementById('labelRekomendasi').innerText = formatRupiah(originalPriceVal);
-    const confirmBtn = document.getElementById('confirmBtn');
-    if (confirmBtn) {
-        confirmBtn.innerHTML = currentPrice > 0 
-            ? `🚀 CARI DRIVER | ${formatRupiah(currentPrice)}` 
-            : '🚀 CARI DRIVER | Rp 0';
-    }
+        const numVal = parseInt(val);
+        if (isNaN(numVal) || numVal <= 0) {
+            currentPrice = 0;
+            document.getElementById('labelTawaran').innerText = 'Rp 0';
+            const confirmBtn = document.getElementById('confirmBtn');
+            if (confirmBtn) confirmBtn.innerHTML = '🚀 CARI DRIVER | Rp 0';
+            document.getElementById('negoError').style.display = 'none';
+            return;
+        }
 
-    // 🔥 Event listener baru – tidak membulatkan otomatis, tidak mengisi ulang
-    input.removeEventListener('input', handleNegoInput);
-    input.addEventListener('input', handleNegoInput);
-}
+        if (numVal < minAllowedNego) {
+            document.getElementById('negoError').style.display = 'block';
+            document.getElementById('minErrorVal').innerText = formatRupiah(minAllowedNego);
+        } else {
+            document.getElementById('negoError').style.display = 'none';
+        }
 
-function handleNegoInput() {
-    const input = document.getElementById('negoInput');
-    const val = input.value.trim();
-
-    if (val === '') {
-        // Input kosong – biarkan kosong
-        currentPrice = 0;
-        document.getElementById('labelTawaran').innerText = 'Rp 0';
+        currentPrice = numVal;
+        document.getElementById('labelTawaran').innerText = formatRupiah(numVal);
         const confirmBtn = document.getElementById('confirmBtn');
-        if (confirmBtn) confirmBtn.innerHTML = '🚀 CARI DRIVER | Rp 0';
-        document.getElementById('negoError').style.display = 'none';
-        return;
+        if (confirmBtn) confirmBtn.innerHTML = `🚀 CARI DRIVER | ${formatRupiah(numVal)}`;
     }
-
-    const numVal = parseInt(val);
-    if (isNaN(numVal) || numVal <= 0) {
-        // Nilai tidak valid (bukan angka positif) – anggap 0
-        currentPrice = 0;
-        document.getElementById('labelTawaran').innerText = 'Rp 0';
-        const confirmBtn = document.getElementById('confirmBtn');
-        if (confirmBtn) confirmBtn.innerHTML = '🚀 CARI DRIVER | Rp 0';
-        document.getElementById('negoError').style.display = 'none';
-        return;
-    }
-
-    // Jika nilai kurang dari minimal, beri peringatan tapi tetap tampilkan angka
-    if (numVal < minAllowedNego) {
-        document.getElementById('negoError').style.display = 'block';
-        document.getElementById('minErrorVal').innerText = formatRupiah(minAllowedNego);
-    } else {
-        document.getElementById('negoError').style.display = 'none';
-    }
-
-    currentPrice = numVal;
-    document.getElementById('labelTawaran').innerText = formatRupiah(numVal);
-    const confirmBtn = document.getElementById('confirmBtn');
-    if (confirmBtn) confirmBtn.innerHTML = `🚀 CARI DRIVER | ${formatRupiah(numVal)}`;
-}
 
     function showToast(message, type = 'info') {
         const existingToast = document.querySelector('.custom-toast');
@@ -1139,104 +1153,6 @@ function handleNegoInput() {
                 try { map.setPaintProperty(layer.id, 'line-color', '#C0C0C0'); } catch(e) {}
             }
         });
-    }
-
-    // ==================== DRIVER MARKERS ====================
-    function isValidCoordinate(lat, lng) {
-        if (typeof lat !== 'number' || typeof lng !== 'number') return false;
-        if (lat === 0 && lng === 0) return false;
-        if (isNaN(lat) || isNaN(lng)) return false;
-        if (lat < -90 || lat > 90) return false;
-        if (lng < -180 || lng > 180) return false;
-        return true;
-    }
-
-    function getDriverIconUrl(vehicleType) {
-        if (!vehicleType) return 'https://cdn-icons-png.flaticon.com/128/5811/5811823.png';
-        const type = vehicleType.toLowerCase();
-        if (type === 'motor') return 'https://cdn-icons-png.flaticon.com/128/5811/5811823.png';
-        if (type === 'bentor') return 'https://cdn-icons-png.flaticon.com/128/7890/7890227.png';
-        if (type === 'mobil') return 'https://cdn-icons-png.flaticon.com/128/12689/12689302.png';
-        if (type === 'kurir_motor') return 'https://cdn-icons-png.flaticon.com/128/9561/9561688.png';
-        if (type === 'kurir_bentor') return 'https://cdn-icons-png.flaticon.com/128/7890/7890227.png';
-        return 'https://cdn-icons-png.flaticon.com/128/5811/5811823.png';
-    }
-
-    function addDriverMarker(driverId, location, vehicleType = null) {
-        if (!map) return;
-        const lat = location.latitude;
-        const lng = location.longitude;
-        if (!isValidCoordinate(lat, lng)) return;
-        const iconUrl = getDriverIconUrl(vehicleType);
-        const el = document.createElement('div');
-        el.style.backgroundImage = `url(${iconUrl})`;
-        el.style.backgroundSize = 'cover';
-        el.style.width = '35px';
-        el.style.height = '35px';
-        el.style.borderRadius = '50%';
-        el.style.border = '2px solid var(--primary)';
-        el.style.boxShadow = '0 2px 6px rgba(0,0,0,0.2)';
-        el.style.cursor = 'pointer';
-        el.title = `Driver ${driverId} - ${vehicleType || 'kendaraan'}`;
-        el.classList.add('driver-marker-animate');
-        const marker = new mapboxgl.Marker({ element: el }).setLngLat([lng, lat]).addTo(map);
-        driverMarkers.push({ id: driverId, marker });
-    }
-
-    function removeAllDriverMarkers() {
-        driverMarkers.forEach(item => { if (item.marker && item.marker.remove) item.marker.remove(); });
-        driverMarkers = [];
-    }
-
-    // ==================== DRIVER NEAR PICKUP ====================
-    function getDistanceKm(lat1, lon1, lat2, lon2) {
-        const R = 6371;
-        const dLat = (lat2 - lat1) * Math.PI / 180;
-        const dLon = (lon2 - lon1) * Math.PI / 180;
-        const a = Math.sin(dLat/2)**2 + Math.cos(lat1 * Math.PI/180) * Math.cos(lat2 * Math.PI/180) * Math.sin(dLon/2)**2;
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-        return R * c;
-    }
-
-    function startAutoShowDrivers(centerLatLng, radiusKm = 3) {
-        if (!autoDriverSearchEnabled) return;
-        if (!database || !centerLatLng || !centerLatLng[0] || !centerLatLng[1]) return;
-        if (driversListener && driversRef) driversRef.off('value', driversListener);
-        removeAllDriverMarkers();
-        driversRef = database.ref('driver_locations');
-        driversListener = driversRef.on('value', async (snapshot) => {
-            removeAllDriverMarkers();
-            const locations = snapshot.val();
-            if (!locations) return;
-            const [pickupLng, pickupLat] = centerLatLng;
-            const promises = [];
-            Object.keys(locations).forEach(driverId => {
-                const driverData = locations[driverId];
-                if (driverData && driverData.tracking_enabled === true && driverData.latitude && driverData.longitude) {
-                    if (!isValidCoordinate(driverData.latitude, driverData.longitude)) return;
-                    const distance = getDistanceKm(pickupLat, pickupLng, driverData.latitude, driverData.longitude);
-                    if (distance <= radiusKm) {
-                        const promise = database.ref(`drivers/${driverId}/vehicleType`).once('value')
-                            .then(snap => { addDriverMarker(driverId, { latitude: driverData.latitude, longitude: driverData.longitude }, snap.val()); })
-                            .catch(() => { addDriverMarker(driverId, { latitude: driverData.latitude, longitude: driverData.longitude }, null); });
-                        promises.push(promise);
-                    }
-                }
-            });
-            await Promise.all(promises);
-            if (map && centerLatLng) {
-                map.flyTo({ center: [centerLatLng[0], centerLatLng[1]], zoom: 15, essential: true });
-            }
-        });
-    }
-
-    function stopAutoShowDrivers() {
-        if (driversListener && driversRef) {
-            driversRef.off('value', driversListener);
-            driversListener = null;
-            driversRef = null;
-        }
-        removeAllDriverMarkers();
     }
 
     // ==================== CEK ORDER AKTIF ====================
@@ -1447,7 +1363,6 @@ function handleNegoInput() {
                 updateMarkers();
                 if (map) map.flyTo({ center: pickupCoord, zoom: 14, duration: 1500 });
                 if (destCoord) await updateRoute();
-                if (autoDriverSearchEnabled && pickupCoord) startAutoShowDrivers(pickupCoord, 3);
                 resolve(true);
             }, () => resolve(false), { enableHighAccuracy: true, timeout: 10000 });
         });
@@ -1669,7 +1584,6 @@ function handleNegoInput() {
             document.getElementById('pickupInput').value = pickupAddress;
             updateMarkers();
             if (map) map.flyTo({ center: pickupCoord, zoom: 15, duration: 1000 });
-            if (autoDriverSearchEnabled && pickupCoord) startAutoShowDrivers(pickupCoord, 3);
         } else if (searchOverlayMode === 'via') {
             viaCoord = [coords[0], coords[1]];
             viaAddress = address;
@@ -1915,15 +1829,66 @@ function handleNegoInput() {
         await database.ref(`orders/${currentOrderId}/driver_offers/${driverId}/status`).set('rejected');
     }
 
+    // ==================== FUNGSI UNTUK MENCARI DRIVER TERDEKAT (tanpa marker) ====================
+    function isValidCoordinate(lat, lng) {
+        if (typeof lat !== 'number' || typeof lng !== 'number') return false;
+        if (lat === 0 && lng === 0) return false;
+        if (isNaN(lat) || isNaN(lng)) return false;
+        if (lat < -90 || lat > 90) return false;
+        if (lng < -180 || lng > 180) return false;
+        return true;
+    }
+
+    function getDistanceKm(lat1, lon1, lat2, lon2) {
+        const R = 6371;
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a = Math.sin(dLat/2)**2 + Math.cos(lat1 * Math.PI/180) * Math.cos(lat2 * Math.PI/180) * Math.sin(dLon/2)**2;
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        return R * c;
+    }
+
+    function getDriverIconUrl(vehicleType) {
+        // Hanya digunakan untuk icon marker penjemputan, tetap dipertahankan
+        if (!vehicleType) return 'https://cdn-icons-png.flaticon.com/128/5811/5811823.png';
+        const type = vehicleType.toLowerCase();
+        if (type === 'motor') return 'https://cdn-icons-png.flaticon.com/128/5811/5811823.png';
+        if (type === 'bentor') return 'https://cdn-icons-png.flaticon.com/128/7890/7890227.png';
+        if (type === 'mobil') return 'https://cdn-icons-png.flaticon.com/128/12689/12689302.png';
+        if (type === 'kurir_motor') return 'https://cdn-icons-png.flaticon.com/128/9561/9561688.png';
+        if (type === 'kurir_bentor') return 'https://cdn-icons-png.flaticon.com/128/7890/7890227.png';
+        return 'https://cdn-icons-png.flaticon.com/128/5811/5811823.png';
+    }
+
+    function startSearchDriversForOrder(centerLatLng, radiusKm = 3) {
+        if (!database || !centerLatLng) return;
+        if (driversListener && driversRef) driversRef.off('value', driversListener);
+        driversRef = database.ref('driver_locations');
+        driversListener = driversRef.on('value', async (snapshot) => {
+            const locations = snapshot.val();
+            if (!locations) return;
+            const [pickupLng, pickupLat] = centerLatLng;
+            const driversInRadius = [];
+            Object.keys(locations).forEach(driverId => {
+                const driverData = locations[driverId];
+                if (driverData && driverData.tracking_enabled === true && driverData.latitude && driverData.longitude) {
+                    if (!isValidCoordinate(driverData.latitude, driverData.longitude)) return;
+                    const distance = getDistanceKm(pickupLat, pickupLng, driverData.latitude, driverData.longitude);
+                    if (distance <= radiusKm) driversInRadius.push(driverId);
+                }
+            });
+            // Tidak ada marker yang ditambahkan; hanya deteksi driver untuk penawaran
+        });
+    }
+
     // ==================== VALIDASI & CREATE ORDER ====================
     async function confirmRoute() {
         if (currentOrderId) {
             const snap = await database.ref(`orders/${currentOrderId}`).once('value');
             if (snap.val()?.status === 'waiting') {
                 isSearching = true;
-                if (autoDriverSearchEnabled) stopAutoShowDrivers();
                 if (pickupCoord) startSearchDriversForOrder(pickupCoord, 3);
-                document.getElementById('driverOffers').style.display = 'block';
+                document.getElementById('driverOffers').classList.add('active');
                 if (offerTimerInterval) clearInterval(offerTimerInterval);
                 if (cleanupInterval) clearInterval(cleanupInterval);
                 offerTimerInterval = setInterval(() => { updateOfferTimers(); }, 1000);
@@ -2022,9 +1987,8 @@ function handleNegoInput() {
         await database.ref(`userOrders/${currentUser.id}/${currentOrderId}`).set(true);
         localStorage.setItem('current_order_id', currentOrderId);
         isSearching = true;
-        if (autoDriverSearchEnabled) stopAutoShowDrivers();
         if (pickupCoord) startSearchDriversForOrder(pickupCoord, 3);
-        document.getElementById('driverOffers').style.display = 'block';
+        document.getElementById('driverOffers').classList.add('active');
         if (offerTimerInterval) clearInterval(offerTimerInterval);
         if (cleanupInterval) clearInterval(cleanupInterval);
         offerTimerInterval = setInterval(() => { updateOfferTimers(); }, 1000);
@@ -2039,26 +2003,6 @@ function handleNegoInput() {
         offersRef = database.ref(`orders/${currentOrderId}/driver_offers`);
         offersCallback = (snap) => renderOffers(snap.val());
         offersRef.on('value', offersCallback);
-    }
-
-    function startSearchDriversForOrder(centerLatLng, radiusKm = 3) {
-        if (!database || !centerLatLng) return;
-        if (driversListener && driversRef) driversRef.off('value', driversListener);
-        driversRef = database.ref('driver_locations');
-        driversListener = driversRef.on('value', async (snapshot) => {
-            const locations = snapshot.val();
-            if (!locations) return;
-            const [pickupLng, pickupLat] = centerLatLng;
-            const driversInRadius = [];
-            Object.keys(locations).forEach(driverId => {
-                const driverData = locations[driverId];
-                if (driverData && driverData.tracking_enabled === true && driverData.latitude && driverData.longitude) {
-                    if (!isValidCoordinate(driverData.latitude, driverData.longitude)) return;
-                    const distance = getDistanceKm(pickupLat, pickupLng, driverData.latitude, driverData.longitude);
-                    if (distance <= radiusKm) driversInRadius.push(driverId);
-                }
-            });
-        });
     }
 
     async function cancelSearch() {
@@ -2078,9 +2022,10 @@ function handleNegoInput() {
         isSearching = false;
         document.getElementById('radar').style.display = 'none';
         document.getElementById('radar').classList.remove('expanding');
-        document.getElementById('driverOffers').style.display = 'none';
+        document.getElementById('driverOffers').classList.remove('active');
         if (offerTimerInterval) { clearInterval(offerTimerInterval); offerTimerInterval = null; }
         if (cleanupInterval) { clearInterval(cleanupInterval); cleanupInterval = null; }
+        if (driversListener && driversRef) { driversRef.off('value', driversListener); driversListener = null; driversRef = null; }
         const btn = document.getElementById('confirmBtn');
         btn.removeEventListener('click', cancelSearchHandler);
         btn.addEventListener('click', confirmRoute);
@@ -2091,8 +2036,6 @@ function handleNegoInput() {
         currentOrderId = null;
         deactivateRadarOnPickup();
         stopSlowZoomOut();
-        if (driversListener && driversRef) { driversRef.off('value', driversListener); driversListener = null; driversRef = null; }
-        if (autoDriverSearchEnabled && pickupCoord) startAutoShowDrivers(pickupCoord, 3);
     }
 
     // ==================== INISIALISASI ====================
@@ -2114,12 +2057,10 @@ function handleNegoInput() {
                 if (!transportLoaded) return;
                 await autoFillPickupLocation();
             }
-            autoDriverSearchEnabled = false;
         } else {
             const transportLoaded = await loadSelectedTransport();
             if (!transportLoaded) return;
             await autoFillPickupLocation();
-            autoDriverSearchEnabled = true;
         }
 
         // Event listeners
@@ -2152,7 +2093,9 @@ function handleNegoInput() {
         document.getElementById('pickFromMapBtn').addEventListener('click', pickFromMap);
         document.getElementById('searchOverlay').addEventListener('click', function(e) { if (e.target === this) closeSearchOverlay(); });
         document.getElementById('confirmBtn').addEventListener('click', confirmRoute);
-        document.getElementById('closeDriverOffers').addEventListener('click', () => document.getElementById('driverOffers').style.display = 'none');
+        document.getElementById('closeDriverOffers').addEventListener('click', () => {
+            document.getElementById('driverOffers').classList.remove('active');
+        });
         document.getElementById('cancelBtn').addEventListener('click', cancelSearchHandler);
     };
 </script>
