@@ -10,6 +10,14 @@
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js">
     </script>
 
+    <!-- Eruda Console untuk Mobile Debugging -->
+    <script src="https://cdn.jsdelivr.net/npm/eruda"></script>
+    <script>
+        // Inisialisasi Eruda
+        eruda.init();
+        console.log('🔍 Eruda Console Active');
+    </script>
+
     <!-- OneSignal SDK -->
     <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
     <script>
@@ -18,7 +26,7 @@
             await OneSignal.init({
                 appId: "007d7eba-9cfc-40d1-a92e-f2299f770282",
                 safari_web_id: "web.onesignal.auto.18427476-d96c-4d38-9e88-40d33a9d693d",
-                serviceWorkerPath: "/admins/OneSignalSDKWorker.js", // Lokasi service worker
+                serviceWorkerPath: "/admins/OneSignalSDKWorker.js",
                 notifyButton: {
                     enable: true,
                 },
@@ -298,42 +306,6 @@
             opacity: 0.9;
         }
 
-        /* ====== CONSOLE LOG AREA ====== */
-        .console-log {
-            background: #1e1e1e;
-            color: #d4d4d4;
-            padding: 8px 12px;
-            font-family: 'Courier New', monospace;
-            font-size: 12px;
-            max-height: 120px;
-            overflow-y: auto;
-            border-top: 2px solid #FF9800;
-            display: none;
-        }
-        .console-log .log-entry {
-            padding: 2px 0;
-            border-bottom: 1px solid #333;
-        }
-        .console-log .log-time {
-            color: #888;
-        }
-        .console-log .log-success {
-            color: #4CAF50;
-        }
-        .console-log .log-info {
-            color: #2196F3;
-        }
-        .console-log .log-warning {
-            color: #FFC107;
-        }
-        .console-log .log-error {
-            color: #f44336;
-        }
-        .console-log .log-notif {
-            color: #FF9800;
-            font-weight: bold;
-        }
-
         @media (max-width: 700px) {
             .admin-body {
                 flex-direction: column;
@@ -343,9 +315,6 @@
                 max-height: 200px;
                 border-right: none;
                 border-bottom: 1px solid #ddd;
-            }
-            .console-log {
-                max-height: 80px;
             }
         }
     </style>
@@ -398,11 +367,6 @@
             </div>
 
         </div>
-
-        <!-- Console Log -->
-        <div class="console-log" id="consoleLog">
-            <div style="color:#888;padding:4px 0;font-weight:bold;">📋 LOG ACTIVITY</div>
-        </div>
     </div>
 
     <script>
@@ -422,37 +386,7 @@
         console.log('🔥 Firebase initialized');
 
         // =============================================================
-        // 2. CONSOLE LOG FUNCTION
-        // =============================================================
-        const consoleLog = document.getElementById('consoleLog');
-        let logCount = 0;
-
-        function addLog(message, type = 'info') {
-            logCount++;
-            const entry = document.createElement('div');
-            entry.className = 'log-entry';
-            const time = new Date().toLocaleTimeString();
-            const typeClass = `log-${type}`;
-            entry.innerHTML = `
-                <span class="log-time">[${time}]</span>
-                <span class="${typeClass}">${message}</span>
-            `;
-            consoleLog.appendChild(entry);
-            consoleLog.scrollTop = consoleLog.scrollHeight;
-
-            // Tampilkan console log jika ada log
-            consoleLog.style.display = 'block';
-
-            // Batasi jumlah log
-            if (logCount > 100) {
-                const first = consoleLog.querySelector('.log-entry');
-                if (first) first.remove();
-                logCount--;
-            }
-        }
-
-        // =============================================================
-        // 3. DOM REFS
+        // 2. DOM REFS
         // =============================================================
         const roomListEl = document.getElementById('roomList');
         const emptyChat = document.getElementById('emptyChat');
@@ -469,18 +403,17 @@
         const totalRooms = document.getElementById('totalRooms');
 
         // =============================================================
-        // 4. STATE
+        // 3. STATE
         // =============================================================
         let currentRoomId = null;
         let messagesQuery = null;
         let roomListener = null;
         let notificationPermission = false;
         let unreadCount = 0;
-        let isNotificationSoundEnabled = true;
         let totalMessageCount = 0;
 
         // =============================================================
-        // 5. UTILITY
+        // 4. UTILITY
         // =============================================================
         function getTime() {
             const now = new Date();
@@ -498,34 +431,33 @@
             container.appendChild(div);
             container.scrollTop = container.scrollHeight;
             totalMessageCount++;
-            addLog(`📝 Pesan ${isUser ? 'USER' : 'CS'}: "${text.substring(0, 40)}${text.length > 40 ? '...' : ''}"`, isUser ?
-                'warning' : 'info');
+            console.log(`📝 Pesan ${isUser ? 'USER' : 'CS'}: "${text.substring(0, 40)}${text.length > 40 ? '...' : ''}"`);
         }
 
         // =============================================================
-        // 6. NOTIFICATION FUNCTIONS
+        // 5. NOTIFICATION FUNCTIONS
         // =============================================================
 
         async function requestNotificationPermission() {
-            addLog('🔔 Meminta izin notifikasi...', 'info');
+            console.log('🔔 Meminta izin notifikasi...');
             try {
                 if (!('Notification' in window)) {
                     alert('Browser ini tidak mendukung notifikasi.');
-                    addLog('❌ Browser tidak mendukung notifikasi', 'error');
+                    console.log('❌ Browser tidak mendukung notifikasi');
                     return;
                 }
 
                 if (Notification.permission === 'granted') {
                     alert('Notifikasi sudah diizinkan.');
                     notificationPermission = true;
-                    addLog('✅ Notifikasi sudah diizinkan sebelumnya', 'success');
+                    console.log('✅ Notifikasi sudah diizinkan sebelumnya');
                     updateNotifButton();
                     return;
                 }
 
                 if (Notification.permission === 'denied') {
                     alert('Notifikasi diblokir. Silakan izinkan di pengaturan browser.');
-                    addLog('❌ Notifikasi diblokir oleh user', 'error');
+                    console.log('❌ Notifikasi diblokir oleh user');
                     return;
                 }
 
@@ -533,16 +465,15 @@
                 if (permission === 'granted') {
                     notificationPermission = true;
                     alert('Notifikasi diizinkan! Anda akan menerima pemberitahuan pesan baru.');
-                    addLog('✅ Notifikasi diizinkan oleh user', 'success');
+                    console.log('✅ Notifikasi diizinkan oleh user');
                 } else {
                     notificationPermission = false;
                     alert('Notifikasi tidak diizinkan.');
-                    addLog('❌ Notifikasi ditolak oleh user', 'error');
+                    console.log('❌ Notifikasi ditolak oleh user');
                 }
                 updateNotifButton();
             } catch (err) {
                 console.error('Gagal minta izin notifikasi:', err);
-                addLog(`❌ Gagal minta izin: ${err.message}`, 'error');
                 alert('Gagal meminta izin notifikasi.');
             }
         }
@@ -550,11 +481,11 @@
         function sendBrowserNotification(title, body, roomId) {
             try {
                 if (!('Notification' in window) || Notification.permission !== 'granted') {
-                    addLog('⚠️ Browser notification tidak diizinkan, lewati', 'warning');
+                    console.log('⚠️ Browser notification tidak diizinkan, lewati');
                     return;
                 }
 
-                addLog(`🔔 Mengirim notifikasi browser: "${title}"`, 'notif');
+                console.log(`🔔 Mengirim notifikasi browser: "${title}"`);
 
                 const options = {
                     body: body,
@@ -566,11 +497,11 @@
                 };
 
                 const notification = new Notification(title, options);
-                addLog('✅ Notifikasi browser terkirim', 'success');
+                console.log('✅ Notifikasi browser terkirim');
 
                 notification.onclick = function() {
                     window.focus();
-                    addLog(`👆 Admin klik notifikasi → buka room ${roomId}`, 'info');
+                    console.log(`👆 Admin klik notifikasi → buka room ${roomId}`);
                     if (roomId) {
                         openRoom(roomId);
                     }
@@ -581,7 +512,6 @@
 
             } catch (err) {
                 console.error('Gagal kirim notifikasi browser:', err);
-                addLog(`❌ Gagal kirim notifikasi: ${err.message}`, 'error');
             }
         }
 
@@ -589,12 +519,12 @@
             try {
                 const OneSignal = window.OneSignal;
                 if (!OneSignal) {
-                    addLog('⚠️ OneSignal belum siap', 'warning');
+                    console.log('⚠️ OneSignal belum siap');
                     return;
                 }
                 const isSubscribed = await OneSignal.Notifications.isSubscribed();
                 if (!isSubscribed) {
-                    addLog('⚠️ OneSignal notifikasi tidak diizinkan', 'warning');
+                    console.log('⚠️ OneSignal notifikasi tidak diizinkan');
                     return;
                 }
                 await OneSignal.Notifications.addNotification({
@@ -603,15 +533,14 @@
                     url: window.location.href + '?room=' + roomId,
                     icon: 'https://cdn-icons-png.flaticon.com/128/7890/7890227.png',
                 });
-                addLog('✅ OneSignal notifikasi terkirim', 'success');
+                console.log('✅ OneSignal notifikasi terkirim');
             } catch (err) {
                 console.error('Gagal kirim OneSignal:', err);
-                addLog(`❌ Gagal kirim OneSignal: ${err.message}`, 'error');
             }
         }
 
         function sendCombinedNotification(title, body, roomId) {
-            addLog(`🔔 PROSES NOTIFIKASI: ${title}`, 'notif');
+            console.log(`🔔 PROSES NOTIFIKASI: ${title}`);
 
             // Browser notification
             sendBrowserNotification(title, body, roomId);
@@ -623,7 +552,7 @@
             unreadCount++;
             updateNotifButton();
             document.title = `(${unreadCount}) JeGo - Admin CS`;
-            addLog(`📛 Unread count: ${unreadCount}`, 'info');
+            console.log(`📛 Unread count: ${unreadCount}`);
 
             // Suara
             playNotificationSound();
@@ -645,11 +574,10 @@
                 oscillator.start();
                 setTimeout(() => {
                     oscillator.stop();
-                    addLog('🔊 Suara notifikasi dimainkan', 'info');
+                    console.log('🔊 Suara notifikasi dimainkan');
                 }, 300);
             } catch (err) {
-                // Silakan jika audio tidak didukung
-                addLog('⚠️ Suara notifikasi tidak didukung', 'warning');
+                console.log('⚠️ Suara notifikasi tidak didukung');
             }
         }
 
@@ -681,14 +609,14 @@
                     notifText.textContent = '🔔 Izinkan';
                 }
             }
-            addLog(`🔄 Update notif button: unread=${unreadCount}, permission=${Notification.permission}`, 'info');
+            console.log(`🔄 Update notif button: unread=${unreadCount}, permission=${Notification.permission}`);
         }
 
         // =============================================================
-        // 7. FUNGSI: LOAD ROOM LIST
+        // 6. FUNGSI: LOAD ROOM LIST
         // =============================================================
         function loadRooms() {
-            addLog('📋 Memuat daftar room...', 'info');
+            console.log('📋 Memuat daftar room...');
             if (roomListener) {
                 roomListener.off();
                 roomListener = null;
@@ -701,13 +629,13 @@
                 if (!rooms) {
                     roomListEl.innerHTML = '<div style="padding:12px;color:#666;">Tidak ada percakapan aktif.</div>';
                     totalRooms.textContent = '0';
-                    addLog('📋 Tidak ada room aktif', 'info');
+                    console.log('📋 Tidak ada room aktif');
                     return;
                 }
                 const entries = Object.entries(rooms);
                 entries.sort((a, b) => (b[1].last_update || 0) - (a[1].last_update || 0));
                 totalRooms.textContent = entries.length;
-                addLog(`📋 Ditemukan ${entries.length} room aktif`, 'success');
+                console.log(`📋 Ditemukan ${entries.length} room aktif`);
 
                 for (const [key, room] of entries) {
                     const div = document.createElement('div');
@@ -727,7 +655,7 @@
                         ${unread > 0 ? `<span class="badge">${unread}</span>` : ''}
                     `;
                     div.addEventListener('click', () => {
-                        addLog(`👆 Admin klik room: ${key}`, 'info');
+                        console.log(`👆 Admin klik room: ${key}`);
                         openRoom(key);
                     });
                     roomListEl.appendChild(div);
@@ -736,15 +664,15 @@
         }
 
         // =============================================================
-        // 8. FUNGSI: BUKA ROOM
+        // 7. FUNGSI: BUKA ROOM
         // =============================================================
         function openRoom(roomId) {
-            addLog(`📂 Membuka room: ${roomId}`, 'info');
+            console.log(`📂 Membuka room: ${roomId}`);
 
             if (messagesQuery) {
                 messagesQuery.off();
                 messagesQuery = null;
-                addLog('🛑 Listener pesan sebelumnya dimatikan', 'info');
+                console.log('🛑 Listener pesan sebelumnya dimatikan');
             }
 
             currentRoomId = roomId;
@@ -767,42 +695,27 @@
             const query = ref.orderByChild('timestamp');
             messagesQuery = query;
 
-            addLog(`👂 Mendengarkan pesan di room ${roomId}...`, 'info');
+            console.log(`👂 Mendengarkan pesan di room ${roomId}...`);
 
             query.on('child_added', (snap) => {
                 const data = snap.val();
                 const isUser = data.sender === 'user';
-                addLog(`📩 Pesan ${isUser ? 'USER' : 'CS'} di room ${roomId}: "${data.text.substring(0, 30)}${data.text.length > 30 ? '...' : ''}"`,
-                    isUser ? 'warning' : 'info');
+                console.log(`📩 Pesan ${isUser ? 'USER' : 'CS'} di room ${roomId}: "${data.text.substring(0, 30)}${data.text.length > 30 ? '...' : ''}"`);
 
                 addMessageUI(chatMessages, data.text, isUser);
 
                 // Tandai pesan user sebagai sudah dibaca
                 if (isUser && !data.read) {
                     snap.ref.update({ read: true });
-                    addLog(`✅ Pesan user ditandai read`, 'success');
+                    console.log(`✅ Pesan user ditandai read`);
                 }
 
-                // Kirim notifikasi jika pesan dari user dan room tidak sedang dibuka
-                if (isUser && currentRoomId !== roomId) {
-                    addLog(`🔔 DETEKSI: Pesan USER di room ${roomId} saat admin tidak di room itu → KIRIM NOTIFIKASI!`, 'notif');
+                // 🔔 KIRIM NOTIFIKASI UNTUK SEMUA PESAN USER (termasuk saat room dibuka)
+                if (isUser) {
+                    console.log(`🔔 DETEKSI: Pesan USER di room ${roomId} → KIRIM NOTIFIKASI!`);
                     const title = `📩 Pesan baru dari ${roomId}`;
                     const message = data.text.substring(0, 60);
                     sendCombinedNotification(title, message, roomId);
-                } else if (isUser && currentRoomId === roomId) {
-                    addLog(`ℹ️ Pesan USER di room yang SEDANG DIBUKA → tidak kirim notifikasi`, 'info');
-                    // Tandai semua pesan user di room ini sebagai read
-                    const userMsgs = ref.orderByChild('sender').equalTo('user');
-                    userMsgs.once('value', (snap) => {
-                        snap.forEach(child => {
-                            if (!child.val().read) {
-                                child.ref.update({ read: true });
-                            }
-                        });
-                    });
-                    unreadCount = 0;
-                    updateNotifButton();
-                    document.title = 'JeGo - Admin CS';
                 }
             });
 
@@ -815,21 +728,20 @@
             sendBtn.disabled = false;
             msgInput.focus();
 
-            addLog(`✅ Room ${roomId} siap digunakan`, 'success');
+            console.log(`✅ Room ${roomId} siap digunakan`);
         }
 
         // =============================================================
-        // 9. FUNGSI: KIRIM PESAN (CS)
+        // 8. FUNGSI: KIRIM PESAN (CS)
         // =============================================================
         function sendMessage() {
             const text = msgInput.value.trim();
             if (!text || !currentRoomId) {
-                if (!text) addLog('⚠️ Pesan kosong, tidak dikirim', 'warning');
+                if (!text) console.log('⚠️ Pesan kosong, tidak dikirim');
                 return;
             }
 
-            addLog(`📤 CS mengirim pesan ke ${currentRoomId}: "${text.substring(0, 30)}${text.length > 30 ? '...' : ''}"`,
-                'info');
+            console.log(`📤 CS mengirim pesan ke ${currentRoomId}: "${text.substring(0, 30)}${text.length > 30 ? '...' : ''}"`);
 
             const ref = database.ref(`chat_cs/${currentRoomId}/messages`);
             ref.push({
@@ -846,33 +758,32 @@
             addMessageUI(chatMessages, text, false);
             msgInput.value = '';
             msgInput.focus();
-            addLog('✅ Pesan CS terkirim', 'success');
+            console.log('✅ Pesan CS terkirim');
         }
 
         // =============================================================
-        // 10. FUNGSI: TUTUP CHAT (HAPUS ROOM)
+        // 9. FUNGSI: TUTUP CHAT (HAPUS ROOM)
         // =============================================================
         function closeRoom() {
             if (!currentRoomId) {
-                addLog('⚠️ Tidak ada room yang dibuka', 'warning');
+                console.log('⚠️ Tidak ada room yang dibuka');
                 return;
             }
 
-            addLog(`🗑️ Menutup dan menghapus room: ${currentRoomId}`, 'error');
+            console.log(`🗑️ Menutup dan menghapus room: ${currentRoomId}`);
 
             if (messagesQuery) {
                 messagesQuery.off();
                 messagesQuery = null;
-                addLog('🛑 Listener pesan dimatikan', 'info');
+                console.log('🛑 Listener pesan dimatikan');
             }
 
             database.ref(`chat_cs/${currentRoomId}`).remove()
                 .then(() => {
-                    addLog(`✅ Room ${currentRoomId} berhasil dihapus dari Firebase`, 'success');
+                    console.log(`✅ Room ${currentRoomId} berhasil dihapus dari Firebase`);
                 })
                 .catch(err => {
                     console.error('Gagal hapus room:', err);
-                    addLog(`❌ Gagal hapus room: ${err.message}`, 'error');
                 });
 
             currentRoomId = null;
@@ -888,21 +799,21 @@
             unreadCount = 0;
             updateNotifButton();
             document.title = 'JeGo - Admin CS';
-            addLog('🔄 UI direset ke keadaan awal', 'info');
+            console.log('🔄 UI direset ke keadaan awal');
         }
 
         // =============================================================
-        // 11. LOGOUT
+        // 10. LOGOUT
         // =============================================================
         function logout() {
             if (confirm('Yakin ingin logout?')) {
-                addLog('🚪 Admin logout', 'info');
+                console.log('🚪 Admin logout');
                 window.location.href = 'index.html';
             }
         }
 
         // =============================================================
-        // 12. EVENT LISTENERS
+        // 11. EVENT LISTENERS
         // =============================================================
         sendBtn.addEventListener('click', sendMessage);
         msgInput.addEventListener('keypress', (e) => {
@@ -913,16 +824,16 @@
         notifBtn.addEventListener('click', requestNotificationPermission);
 
         // =============================================================
-        // 13. INIT
+        // 12. INIT
         // =============================================================
-        addLog('🚀 Admin CS Panel starting...', 'info');
+        console.log('🚀 Admin CS Panel starting...');
 
         loadRooms();
 
         const params = new URLSearchParams(window.location.search);
         const roomParam = params.get('room');
         if (roomParam) {
-            addLog(`🔗 Parameter room ditemukan: ${roomParam}`, 'info');
+            console.log(`🔗 Parameter room ditemukan: ${roomParam}`);
             setTimeout(() => {
                 openRoom(roomParam);
             }, 500);
@@ -933,22 +844,22 @@
             if ('Notification' in window) {
                 if (Notification.permission === 'granted') {
                     notificationPermission = true;
-                    addLog('✅ Notifikasi sudah diizinkan sebelumnya', 'success');
+                    console.log('✅ Notifikasi sudah diizinkan sebelumnya');
                 } else if (Notification.permission === 'denied') {
                     notificationPermission = false;
-                    addLog('❌ Notifikasi diblokir oleh browser', 'error');
+                    console.log('❌ Notifikasi diblokir oleh browser');
                 } else {
-                    addLog('ℹ️ Notifikasi belum diizinkan (default)', 'info');
+                    console.log('ℹ️ Notifikasi belum diizinkan (default)');
                 }
                 updateNotifButton();
             }
-            addLog('✅ Admin CS Panel siap!', 'success');
+            console.log('✅ Admin CS Panel siap!');
         }, 1500);
 
         // Hapus notifikasi di judul saat halaman difokuskan
         document.addEventListener('visibilitychange', () => {
             if (!document.hidden) {
-                addLog('👀 Halaman difokuskan, reset notifikasi', 'info');
+                console.log('👀 Halaman difokuskan, reset notifikasi');
                 unreadCount = 0;
                 updateNotifButton();
                 document.title = 'JeGo - Admin CS';
@@ -956,7 +867,7 @@
         });
 
         // =============================================================
-        // 14. DEBUG: Tampilkan status di console browser
+        // 13. DEBUG: Tampilkan status di console browser
         // =============================================================
         console.log('🔍 ===== DEBUG INFO =====');
         console.log('📌 Firebase:', firebase.apps.length > 0 ? '✅ Connected' : '❌ Not connected');
