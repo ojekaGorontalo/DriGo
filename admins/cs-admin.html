@@ -10,7 +10,7 @@
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js">
     </script>
 
-    <!-- OneSignal SDK -->
+    <!-- OneSignal -->
     <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
     <script>
         window.OneSignalDeferred = window.OneSignalDeferred || [];
@@ -76,9 +76,25 @@
             cursor: pointer;
             font-size: 13px;
             transition: 0.2s;
+            position: relative;
         }
         .admin-header .btn-notif:hover {
             background: rgba(255, 255, 255, 0.3);
+        }
+        .admin-header .btn-notif.has-notif {
+            background: rgba(244, 67, 54, 0.6);
+            animation: pulse 1s infinite;
+        }
+        @keyframes pulse {
+            0% {
+                transform: scale(1);
+            }
+            50% {
+                transform: scale(1.05);
+            }
+            100% {
+                transform: scale(1);
+            }
         }
         .admin-header .logout-btn {
             background: rgba(255, 255, 255, 0.2);
@@ -302,7 +318,7 @@
         <div class="admin-header">
             <h1><i class="fas fa-headset"></i> JeGo - Admin CS</h1>
             <div class="header-actions">
-                <button class="btn-notif" id="notifBtn"><i class="fas fa-bell"></i> Izinkan Notifikasi</button>
+                <button class="btn-notif" id="notifBtn"><i class="fas fa-bell"></i> <span id="notifText">Notifikasi</span></button>
                 <button class="logout-btn" id="logoutBtn"><i class="fas fa-sign-out-alt"></i> Logout</button>
             </div>
         </div>
@@ -373,6 +389,7 @@
         const closeChatBtn = document.getElementById('closeChatBtn');
         const logoutBtn = document.getElementById('logoutBtn');
         const notifBtn = document.getElementById('notifBtn');
+        const notifText = document.getElementById('notifText');
         const totalRooms = document.getElementById('totalRooms');
 
         // =============================================================
@@ -381,8 +398,9 @@
         let currentRoomId = null;
         let messagesQuery = null;
         let roomListener = null;
-        let oneSignalInitialized = false;
-        let totalRoomCount = 0;
+        let notificationPermission = false;
+        let unreadCount = 0;
+        let isNotificationSoundEnabled = true;
 
         // =============================================================
         // 4. UTILITY
@@ -405,52 +423,166 @@
         }
 
         // =============================================================
-        // 5. ONESIGNAL NOTIFICATION
+        // 5. NOTIFICATION FUNCTIONS
         // =============================================================
+
+        // Request browser notification permission
         async function requestNotificationPermission() {
+            try {
+                if (!('Notification' in window)) {
+                    alert('Browser ini tidak mendukung notifikasi.');
+                    return;
+                }
+
+                if (Notification.permission === 'granted') {
+                    alert('Notifikasi sudah diizinkan.');
+                    updateNotifButton();
+                    return;
+                }
+
+                if (Notification.permission === 'denied') {
+                    alert('Notifikasi diblokir. Silakan izinkan di pengaturan browser.');
+                    return;
+                }
+
+                const permission = await Notification.requestPermission();
+                if (permission === 'granted') {
+                    notificationPermission = true;
+                    alert('Notifikasi diizinkan! Anda akan menerima pemberitahuan pesan baru.');
+                } else {
+                    notificationPermission = false;
+                    alert('Notifikasi tidak diizinkan.');
+                }
+                updateNotifButton();
+            } catch (err) {
+                console.error('Gagal minta izin notifikasi:', err);
+                alert('Gagal meminta izin notifikasi.');
+            }
+        }
+
+        // Kirim notifikasi browser (tanpa OneSignal)
+        function sendBrowserNotification(title, body, roomId) {
+            try {
+                if (!('Notification' in window) || Notification.permission !== 'granted') {
+                    return;
+                }
+
+                const options = {
+                    body: body,
+                    icon: 'https://cdn-icons-png.flaticon.com/128/7890/7890227.png',
+                    badge: 'https://cdn-icons-png.flaticon.com/128/7890/7890227.png',
+                    tag: roomId,
+                    requireInteraction: true,
+                    silent: false,
+                };
+
+                const notification = new Notification(title, options);
+
+                notification.onclick = function() {
+                    window.focus();
+                    if (roomId) {
+                        openRoom(roomId);
+                    }
+                    this.close();
+                };
+
+                // Suara notifikasi
+                playNotificationSound();
+
+            } catch (err) {
+                console.error('Gagal kirim notifikasi browser:', err);
+            }
+        }
+
+        // Kirim notifikasi via OneSignal
+        async function sendOneSignalNotification(title, message, roomId) {
             try {
                 const OneSignal = window.OneSignal;
                 if (!OneSignal) {
                     console.warn('OneSignal belum siap');
                     return;
                 }
-                await OneSignal.Notifications.requestPermission({
-                    modal: {
-                        title: "Izinkan Notifikasi JeGo CS",
-                        message: "Dapatkan pemberitahuan saat ada pesan baru dari pengguna.",
-                        acceptButton: "Izinkan",
-                        cancelButton: "Nanti"
-                    }
-                });
-                const isSubscribed = await OneSignal.Notifications.isSubscribed();
-                if (isSubscribed) {
-                    alert('Notifikasi diizinkan! Anda akan menerima pemberitahuan pesan baru.');
-                } else {
-                    alert('Notifikasi tidak diizinkan. Anda bisa mengatur ulang di pengaturan browser.');
-                }
-            } catch (err) {
-                console.error('Gagal minta izin notifikasi:', err);
-            }
-        }
-
-        async function sendPushNotification(title, message, url) {
-            try {
-                const OneSignal = window.OneSignal;
-                if (!OneSignal) return;
                 const isSubscribed = await OneSignal.Notifications.isSubscribed();
                 if (!isSubscribed) {
-                    console.warn('Notifikasi tidak diizinkan, lewati pengiriman.');
+                    console.warn('OneSignal notifikasi tidak diizinkan');
                     return;
                 }
                 await OneSignal.Notifications.addNotification({
                     title: title,
                     message: message,
-                    url: url || window.location.href,
+                    url: window.location.href + '?room=' + roomId,
                     icon: 'https://cdn-icons-png.flaticon.com/128/7890/7890227.png',
                 });
-                console.log('Notifikasi terkirim');
+                console.log('OneSignal notifikasi terkirim');
             } catch (err) {
-                console.error('Gagal kirim notifikasi:', err);
+                console.error('Gagal kirim OneSignal:', err);
+            }
+        }
+
+        // Kirim notifikasi (gabungan)
+        function sendCombinedNotification(title, body, roomId) {
+            // Browser notification
+            sendBrowserNotification(title, body, roomId);
+
+            // OneSignal notification
+            sendOneSignalNotification(title, body, roomId);
+
+            // Update badge
+            unreadCount++;
+            updateNotifButton();
+            document.title = `(${unreadCount}) JeGo - Admin CS`;
+
+            // Suara
+            playNotificationSound();
+        }
+
+        // Suara notifikasi
+        function playNotificationSound() {
+            try {
+                const audioCtx = new(window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioCtx.createOscillator();
+                const gainNode = audioCtx.createGain();
+
+                oscillator.connect(gainNode);
+                gainNode.connect(audioCtx.destination);
+
+                oscillator.frequency.value = 800;
+                oscillator.type = 'sine';
+                gainNode.gain.value = 0.3;
+
+                oscillator.start();
+                setTimeout(() => {
+                    oscillator.stop();
+                }, 300);
+            } catch (err) {
+                // Silakan jika audio tidak didukung
+            }
+        }
+
+        // Update tombol notifikasi
+        function updateNotifButton() {
+            if (Notification.permission === 'granted') {
+                notificationPermission = true;
+                notifBtn.style.background = 'rgba(76, 175, 80, 0.4)';
+                notifBtn.style.borderColor = '#4CAF50';
+                notifText.textContent = '✅ Aktif';
+            } else {
+                notificationPermission = false;
+                notifBtn.style.background = '';
+                notifBtn.style.borderColor = '';
+                notifText.textContent = '🔔 Izinkan';
+            }
+
+            if (unreadCount > 0) {
+                notifBtn.classList.add('has-notif');
+                notifText.textContent = `🔔 ${unreadCount} baru`;
+            } else {
+                notifBtn.classList.remove('has-notif');
+                if (Notification.permission === 'granted') {
+                    notifText.textContent = '✅ Aktif';
+                } else {
+                    notifText.textContent = '🔔 Izinkan';
+                }
             }
         }
 
@@ -470,13 +602,11 @@
                 if (!rooms) {
                     roomListEl.innerHTML = '<div style="padding:12px;color:#666;">Tidak ada percakapan aktif.</div>';
                     totalRooms.textContent = '0';
-                    totalRoomCount = 0;
                     return;
                 }
                 const entries = Object.entries(rooms);
                 entries.sort((a, b) => (b[1].last_update || 0) - (a[1].last_update || 0));
-                totalRoomCount = entries.length;
-                totalRooms.textContent = totalRoomCount;
+                totalRooms.textContent = entries.length;
 
                 for (const [key, room] of entries) {
                     const div = document.createElement('div');
@@ -512,6 +642,11 @@
                 messagesQuery = null;
             }
 
+            // Reset unread count saat membuka room
+            if (currentRoomId !== roomId) {
+                // Hanya reset jika beda room
+            }
+
             currentRoomId = roomId;
 
             emptyChat.style.display = 'none';
@@ -542,14 +677,34 @@
                     snap.ref.update({ read: true });
                 }
 
-                // Kirim notifikasi jika pesan dari user dan room tidak sedang dibuka (atau tab tidak aktif)
+                // Kirim notifikasi jika pesan dari user dan room tidak sedang dibuka
                 if (isUser && currentRoomId !== roomId) {
-                    // Kirim notifikasi
-                    const title = `Pesan baru dari ${roomId}`;
+                    const title = `📩 Pesan baru dari ${roomId}`;
                     const message = data.text.substring(0, 60);
-                    sendPushNotification(title, message, window.location.href + '?room=' + roomId);
+                    sendCombinedNotification(title, message, roomId);
+                }
+
+                // Jika room sedang dibuka, reset unread count untuk room ini
+                if (isUser && currentRoomId === roomId) {
+                    // Tandai semua pesan user di room ini sebagai read
+                    const userMsgs = ref.orderByChild('sender').equalTo('user');
+                    userMsgs.once('value', (snap) => {
+                        snap.forEach(child => {
+                            if (!child.val().read) {
+                                child.ref.update({ read: true });
+                            }
+                        });
+                    });
+                    unreadCount = 0;
+                    updateNotifButton();
+                    document.title = 'JeGo - Admin CS';
                 }
             });
+
+            // Reset unread count
+            unreadCount = 0;
+            updateNotifButton();
+            document.title = 'JeGo - Admin CS';
 
             msgInput.disabled = false;
             sendBtn.disabled = false;
@@ -605,6 +760,11 @@
             inputArea.style.display = 'none';
             msgInput.disabled = true;
             sendBtn.disabled = true;
+
+            // Reset notifikasi
+            unreadCount = 0;
+            updateNotifButton();
+            document.title = 'JeGo - Admin CS';
         }
 
         // =============================================================
@@ -640,26 +800,27 @@
             }, 500);
         }
 
-        console.log('Admin CS Panel siap.');
-
         // Cek status notifikasi saat load
-        setTimeout(async () => {
-            try {
-                const OneSignal = window.OneSignal;
-                if (OneSignal) {
-                    const isSubscribed = await OneSignal.Notifications.isSubscribed();
-                    if (isSubscribed) {
-                        notifBtn.innerHTML = '<i class="fas fa-bell"></i> Notifikasi Aktif';
-                        notifBtn.style.background = 'rgba(76, 175, 80, 0.4)';
-                        notifBtn.style.borderColor = '#4CAF50';
-                    } else {
-                        notifBtn.innerHTML = '<i class="fas fa-bell-slash"></i> Aktifkan Notifikasi';
-                    }
+        setTimeout(() => {
+            if ('Notification' in window) {
+                if (Notification.permission === 'granted') {
+                    notificationPermission = true;
+                } else if (Notification.permission === 'denied') {
+                    notificationPermission = false;
                 }
-            } catch (e) {
-                console.warn('Gagal cek status notifikasi:', e);
+                updateNotifButton();
             }
-        }, 2000);
+            console.log('Admin CS Panel siap.');
+        }, 1500);
+
+        // Hapus notifikasi di judul saat halaman difokuskan
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden) {
+                unreadCount = 0;
+                updateNotifButton();
+                document.title = 'JeGo - Admin CS';
+            }
+        });
     </script>
 
 </body>
