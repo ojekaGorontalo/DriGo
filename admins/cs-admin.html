@@ -9,6 +9,23 @@
     </script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js">
     </script>
+
+    <!-- OneSignal SDK -->
+    <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
+    <script>
+        window.OneSignalDeferred = window.OneSignalDeferred || [];
+        OneSignalDeferred.push(async function(OneSignal) {
+            await OneSignal.init({
+                appId: "007d7eba-9cfc-40d1-a92e-f2299f770282",
+                safari_web_id: "web.onesignal.auto.18427476-d96c-4d38-9e88-40d33a9d693d",
+                notifyButton: {
+                    enable: true,
+                },
+            });
+            console.log('OneSignal initialized');
+        });
+    </script>
+
     <style>
         * {
             margin: 0;
@@ -45,6 +62,24 @@
             font-size: 20px;
             font-weight: 600;
         }
+        .admin-header .header-actions {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        .admin-header .btn-notif {
+            background: rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.4);
+            color: white;
+            padding: 6px 14px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: 0.2s;
+        }
+        .admin-header .btn-notif:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
         .admin-header .logout-btn {
             background: rgba(255, 255, 255, 0.2);
             border: 1px solid rgba(255, 255, 255, 0.4);
@@ -79,6 +114,8 @@
             font-weight: 600;
             color: #333;
             font-size: 14px;
+            display: flex;
+            justify-content: space-between;
         }
         .room-list {
             flex: 1;
@@ -261,16 +298,24 @@
 
     <div class="admin-container">
 
+        <!-- Header -->
         <div class="admin-header">
             <h1><i class="fas fa-headset"></i> JeGo - Admin CS</h1>
-            <button class="logout-btn" id="logoutBtn"><i class="fas fa-sign-out-alt"></i> Logout</button>
+            <div class="header-actions">
+                <button class="btn-notif" id="notifBtn"><i class="fas fa-bell"></i> Izinkan Notifikasi</button>
+                <button class="logout-btn" id="logoutBtn"><i class="fas fa-sign-out-alt"></i> Logout</button>
+            </div>
         </div>
 
+        <!-- Body -->
         <div class="admin-body">
 
             <!-- Sidebar -->
             <div class="room-sidebar">
-                <div class="sidebar-header">💬 Percakapan Aktif</div>
+                <div class="sidebar-header">
+                    <span>💬 Percakapan Aktif</span>
+                    <span id="totalRooms">0</span>
+                </div>
                 <div class="room-list" id="roomList">
                     <div style="padding:12px;color:#666;">Memuat...</div>
                 </div>
@@ -301,7 +346,7 @@
 
     <script>
         // =============================================================
-        // FIREBASE CONFIG
+        // 1. FIREBASE CONFIG
         // =============================================================
         const firebaseConfig = {
             apiKey: "AIzaSyCD0pgeZio-LdKqYDtWxcdXcZwyL4ngYQI",
@@ -315,7 +360,7 @@
         const database = firebase.database();
 
         // =============================================================
-        // DOM REFS
+        // 2. DOM REFS
         // =============================================================
         const roomListEl = document.getElementById('roomList');
         const emptyChat = document.getElementById('emptyChat');
@@ -327,16 +372,20 @@
         const sendBtn = document.getElementById('sendBtn');
         const closeChatBtn = document.getElementById('closeChatBtn');
         const logoutBtn = document.getElementById('logoutBtn');
+        const notifBtn = document.getElementById('notifBtn');
+        const totalRooms = document.getElementById('totalRooms');
 
         // =============================================================
-        // STATE
+        // 3. STATE
         // =============================================================
         let currentRoomId = null;
         let messagesQuery = null;
         let roomListener = null;
+        let oneSignalInitialized = false;
+        let totalRoomCount = 0;
 
         // =============================================================
-        // UTILITY
+        // 4. UTILITY
         // =============================================================
         function getTime() {
             const now = new Date();
@@ -356,7 +405,57 @@
         }
 
         // =============================================================
-        // FUNGSI: LOAD ROOM LIST
+        // 5. ONESIGNAL NOTIFICATION
+        // =============================================================
+        async function requestNotificationPermission() {
+            try {
+                const OneSignal = window.OneSignal;
+                if (!OneSignal) {
+                    console.warn('OneSignal belum siap');
+                    return;
+                }
+                await OneSignal.Notifications.requestPermission({
+                    modal: {
+                        title: "Izinkan Notifikasi JeGo CS",
+                        message: "Dapatkan pemberitahuan saat ada pesan baru dari pengguna.",
+                        acceptButton: "Izinkan",
+                        cancelButton: "Nanti"
+                    }
+                });
+                const isSubscribed = await OneSignal.Notifications.isSubscribed();
+                if (isSubscribed) {
+                    alert('Notifikasi diizinkan! Anda akan menerima pemberitahuan pesan baru.');
+                } else {
+                    alert('Notifikasi tidak diizinkan. Anda bisa mengatur ulang di pengaturan browser.');
+                }
+            } catch (err) {
+                console.error('Gagal minta izin notifikasi:', err);
+            }
+        }
+
+        async function sendPushNotification(title, message, url) {
+            try {
+                const OneSignal = window.OneSignal;
+                if (!OneSignal) return;
+                const isSubscribed = await OneSignal.Notifications.isSubscribed();
+                if (!isSubscribed) {
+                    console.warn('Notifikasi tidak diizinkan, lewati pengiriman.');
+                    return;
+                }
+                await OneSignal.Notifications.addNotification({
+                    title: title,
+                    message: message,
+                    url: url || window.location.href,
+                    icon: 'https://cdn-icons-png.flaticon.com/128/7890/7890227.png',
+                });
+                console.log('Notifikasi terkirim');
+            } catch (err) {
+                console.error('Gagal kirim notifikasi:', err);
+            }
+        }
+
+        // =============================================================
+        // 6. FUNGSI: LOAD ROOM LIST
         // =============================================================
         function loadRooms() {
             if (roomListener) {
@@ -370,10 +469,14 @@
                 roomListEl.innerHTML = '';
                 if (!rooms) {
                     roomListEl.innerHTML = '<div style="padding:12px;color:#666;">Tidak ada percakapan aktif.</div>';
+                    totalRooms.textContent = '0';
+                    totalRoomCount = 0;
                     return;
                 }
                 const entries = Object.entries(rooms);
                 entries.sort((a, b) => (b[1].last_update || 0) - (a[1].last_update || 0));
+                totalRoomCount = entries.length;
+                totalRooms.textContent = totalRoomCount;
 
                 for (const [key, room] of entries) {
                     const div = document.createElement('div');
@@ -401,7 +504,7 @@
         }
 
         // =============================================================
-        // FUNGSI: BUKA ROOM
+        // 7. FUNGSI: BUKA ROOM
         // =============================================================
         function openRoom(roomId) {
             if (messagesQuery) {
@@ -433,8 +536,18 @@
                 const data = snap.val();
                 const isUser = data.sender === 'user';
                 addMessageUI(chatMessages, data.text, isUser);
+
+                // Tandai pesan user sebagai sudah dibaca
                 if (isUser && !data.read) {
                     snap.ref.update({ read: true });
+                }
+
+                // Kirim notifikasi jika pesan dari user dan room tidak sedang dibuka (atau tab tidak aktif)
+                if (isUser && currentRoomId !== roomId) {
+                    // Kirim notifikasi
+                    const title = `Pesan baru dari ${roomId}`;
+                    const message = data.text.substring(0, 60);
+                    sendPushNotification(title, message, window.location.href + '?room=' + roomId);
                 }
             });
 
@@ -444,7 +557,7 @@
         }
 
         // =============================================================
-        // FUNGSI: KIRIM PESAN (CS)
+        // 8. FUNGSI: KIRIM PESAN (CS)
         // =============================================================
         function sendMessage() {
             const text = msgInput.value.trim();
@@ -468,7 +581,7 @@
         }
 
         // =============================================================
-        // FUNGSI: TUTUP CHAT (HAPUS ROOM)
+        // 9. FUNGSI: TUTUP CHAT (HAPUS ROOM)
         // =============================================================
         function closeRoom() {
             if (!currentRoomId) return;
@@ -478,14 +591,12 @@
                 messagesQuery = null;
             }
 
-            // Hapus room dari Firebase
             database.ref(`chat_cs/${currentRoomId}`).remove()
                 .then(() => {
                     console.log('Room chat dihapus:', currentRoomId);
                 })
                 .catch(err => console.error('Gagal hapus room:', err));
 
-            // Reset UI
             currentRoomId = null;
             emptyChat.style.display = 'flex';
             chatHeader.style.display = 'none';
@@ -494,12 +605,10 @@
             inputArea.style.display = 'none';
             msgInput.disabled = true;
             sendBtn.disabled = true;
-
-            // Sidebar otomatis update via listener
         }
 
         // =============================================================
-        // LOGOUT
+        // 10. LOGOUT
         // =============================================================
         function logout() {
             if (confirm('Yakin ingin logout?')) {
@@ -508,7 +617,7 @@
         }
 
         // =============================================================
-        // EVENT LISTENERS
+        // 11. EVENT LISTENERS
         // =============================================================
         sendBtn.addEventListener('click', sendMessage);
         msgInput.addEventListener('keypress', (e) => {
@@ -516,9 +625,10 @@
         });
         closeChatBtn.addEventListener('click', closeRoom);
         logoutBtn.addEventListener('click', logout);
+        notifBtn.addEventListener('click', requestNotificationPermission);
 
         // =============================================================
-        // INIT
+        // 12. INIT
         // =============================================================
         loadRooms();
 
@@ -531,6 +641,25 @@
         }
 
         console.log('Admin CS Panel siap.');
+
+        // Cek status notifikasi saat load
+        setTimeout(async () => {
+            try {
+                const OneSignal = window.OneSignal;
+                if (OneSignal) {
+                    const isSubscribed = await OneSignal.Notifications.isSubscribed();
+                    if (isSubscribed) {
+                        notifBtn.innerHTML = '<i class="fas fa-bell"></i> Notifikasi Aktif';
+                        notifBtn.style.background = 'rgba(76, 175, 80, 0.4)';
+                        notifBtn.style.borderColor = '#4CAF50';
+                    } else {
+                        notifBtn.innerHTML = '<i class="fas fa-bell-slash"></i> Aktifkan Notifikasi';
+                    }
+                }
+            } catch (e) {
+                console.warn('Gagal cek status notifikasi:', e);
+            }
+        }, 2000);
     </script>
 
 </body>
