@@ -39,6 +39,7 @@
     </script>
 
     <style>
+        /* === STYLE SAMA === */
         * {
             margin: 0;
             padding: 0;
@@ -98,9 +99,15 @@
             animation: pulse 1s infinite;
         }
         @keyframes pulse {
-            0% { transform: scale(1); }
-            50% { transform: scale(1.05); }
-            100% { transform: scale(1); }
+            0% {
+                transform: scale(1);
+            }
+            50% {
+                transform: scale(1.05);
+            }
+            100% {
+                transform: scale(1);
+            }
         }
         .admin-header .logout-btn {
             background: rgba(255, 255, 255, 0.2);
@@ -408,6 +415,7 @@
         let notificationPermission = false;
         let unreadCount = 0;
         let totalMessageCount = 0;
+        let globalListeners = {}; // Simpan listener per room untuk di-off
 
         // =============================================================
         // 4. UTILITY
@@ -432,7 +440,7 @@
         }
 
         // =============================================================
-        // 5. NOTIFICATION FUNCTIONS (ONLY ONESIGNAL + SW FALLBACK)
+        // 5. NOTIFICATION FUNCTIONS
         // =============================================================
 
         async function requestNotificationPermission() {
@@ -483,11 +491,28 @@
                     console.log('⚠️ OneSignal tidak tersedia');
                     return false;
                 }
-                const isSubscribed = await OneSignal.Notifications.isSubscribed();
+                // Coba metode yang benar (v16)
+                let isSubscribed = false;
+                try {
+                    if (OneSignal.User) {
+                        isSubscribed = await OneSignal.User.PushSubscription.getOptedIn();
+                    } else if (OneSignal.Notifications) {
+                        isSubscribed = await OneSignal.Notifications.isSubscribed();
+                    } else {
+                        // Fallback
+                        isSubscribed = OneSignal.isPushNotificationsEnabled && await OneSignal
+                            .isPushNotificationsEnabled();
+                    }
+                } catch (e) {
+                    console.warn('⚠️ Gagal cek status subscribe:', e);
+                    isSubscribed = false;
+                }
+
                 if (!isSubscribed) {
                     console.log('⚠️ OneSignal notifikasi tidak diizinkan');
                     return false;
                 }
+
                 await OneSignal.Notifications.addNotification({
                     title: title,
                     message: message,
@@ -502,7 +527,7 @@
             }
         }
 
-        // Kirim notifikasi melalui Service Worker (fallback jika OneSignal gagal)
+        // Kirim notifikasi melalui Service Worker
         async function sendServiceWorkerNotification(title, body, roomId) {
             try {
                 if (!('serviceWorker' in navigator)) {
@@ -530,14 +555,13 @@
             }
         }
 
-        // Fungsi notifikasi utama: coba OneSignal, jika gagal coba SW, jika gagal log
+        // Fungsi notifikasi utama
         async function sendNotification(title, body, roomId) {
             console.log(`🔔 PROSES NOTIFIKASI: ${title}`);
 
             // 1. Coba OneSignal
             const oneSignalOk = await sendOneSignalNotification(title, body, roomId);
             if (oneSignalOk) {
-                // Jika OneSignal berhasil, kita sudah selesai
                 console.log('✅ Notifikasi via OneSignal berhasil');
             } else {
                 // 2. Coba Service Worker
@@ -550,7 +574,7 @@
                 }
             }
 
-            // Update badge (selalu, terlepas dari notifikasi)
+            // Update badge
             unreadCount++;
             updateNotifButton();
             document.title = `(${unreadCount}) JeGo - Admin CS`;
@@ -615,7 +639,7 @@
         }
 
         // =============================================================
-        // 6. FUNGSI: LOAD ROOM LIST
+        // 6. FUNGSI: LOAD ROOM LIST + PASANG LISTENER GLOBAL
         // =============================================================
         function loadRooms() {
             console.log('📋 Memuat daftar room...');
@@ -623,30 +647,74 @@
                 roomListener.off();
                 roomListener = null;
             }
+
+            // Hapus semua listener global sebelumnya
+            for (const key in globalListeners) {
+                globalListeners[key].off();
+                delete globalListeners[key];
+            }
+
             const ref = database.ref('chat_cs');
             roomListener = ref.orderByChild('status').equalTo('open');
             roomListener.on('value', (snap) => {
                 const rooms = snap.val();
                 roomListEl.innerHTML = '';
+
+                // Hapus listener global untuk room yang tidak ada lagi
+                const existingRooms = rooms ? Object.keys(rooms) : [];
+                for (const key in globalListeners) {
+                    if (!existingRooms.includes(key)) {
+                        globalListeners[key].off();
+                        delete globalListeners[key];
+                        console.log(`🛑 Hapus listener global untuk room ${key}`);
+                    }
+                }
+
                 if (!rooms) {
                     roomListEl.innerHTML = '<div style="padding:12px;color:#666;">Tidak ada percakapan aktif.</div>';
                     totalRooms.textContent = '0';
                     console.log('📋 Tidak ada room aktif');
                     return;
                 }
+
                 const entries = Object.entries(rooms);
                 entries.sort((a, b) => (b[1].last_update || 0) - (a[1].last_update || 0));
                 totalRooms.textContent = entries.length;
                 console.log(`📋 Ditemukan ${entries.length} room aktif`);
 
                 for (const [key, room] of entries) {
+                    // === PASANG LISTENER GLOBAL UNTUK ROOM INI ===
+                    if (!globalListeners[key]) {
+                        const msgRef = database.ref(`chat_cs/${key}/messages`);
+                        const query = msgRef.orderByChild('timestamp');
+                        const listener = query.on('child_added', (snap) => {
+                            const data = snap.val();
+                            if (data.sender === 'user') {
+                                console.log(`🔔 [GLOBAL] Pesan USER di room ${key}: "${data.text.substring(0, 30)}"`);
+                                // Kirim notifikasi
+                                const title = `📩 Pesan baru dari ${key}`;
+                                const message = data.text.substring(0, 60);
+                                sendNotification(title, message, key);
+                                // Tandai sebagai read jika admin sedang membuka room ini
+                                if (currentRoomId === key) {
+                                    snap.ref.update({ read: true });
+                                    console.log(`✅ Pesan user di room ${key} ditandai read (karena sedang dibuka)`);
+                                }
+                            }
+                        });
+                        globalListeners[key] = listener;
+                        console.log(`👂 Pasang listener global untuk room ${key}`);
+                    }
+
+                    // === BUAT ELEMEN ROOM DI SIDEBAR ===
                     const div = document.createElement('div');
                     div.className = 'room-item';
                     if (key === currentRoomId) div.classList.add('active');
 
                     const lastMsg = room.messages ? Object.values(room.messages).pop() : null;
                     const lastText = lastMsg ? lastMsg.text : 'Tidak ada pesan';
-                    const unread = room.messages ? Object.values(room.messages).filter(m => m.sender === 'user' && !m.read).length : 0;
+                    const unread = room.messages ? Object.values(room.messages).filter(m => m.sender === 'user' && !m.read)
+                        .length : 0;
 
                     div.innerHTML = `
                         <div>
@@ -665,11 +733,12 @@
         }
 
         // =============================================================
-        // 7. FUNGSI: BUKA ROOM
+        // 7. FUNGSI: BUKA ROOM (untuk menampilkan riwayat & mengirim pesan)
         // =============================================================
         function openRoom(roomId) {
             console.log(`📂 Membuka room: ${roomId}`);
 
+            // Hentikan listener pesan sebelumnya (jika ada)
             if (messagesQuery) {
                 messagesQuery.off();
                 messagesQuery = null;
@@ -686,41 +755,37 @@
             currentRoomLabel.textContent = 'Room: ' + roomId;
             chatMessages.innerHTML = '';
 
+            // Tandai aktif di sidebar
             document.querySelectorAll('.room-item').forEach(el => el.classList.remove('active'));
             const activeItem = Array.from(document.querySelectorAll('.room-item')).find(el =>
                 el.textContent.includes(roomId)
             );
             if (activeItem) activeItem.classList.add('active');
 
+            // Ambil semua pesan yang sudah ada dan tampilkan
             const ref = database.ref(`chat_cs/${roomId}/messages`);
             const query = ref.orderByChild('timestamp');
             messagesQuery = query;
 
-            console.log(`👂 Mendengarkan pesan di room ${roomId}...`);
-
-            query.on('child_added', (snap) => {
-                const data = snap.val();
-                const isUser = data.sender === 'user';
-                console.log(`📩 Pesan ${isUser ? 'USER' : 'CS'} di room ${roomId}: "${data.text.substring(0, 30)}${data.text.length > 30 ? '...' : ''}"`);
-
-                addMessageUI(chatMessages, data.text, isUser);
-
-                // Tandai pesan user sebagai sudah dibaca
-                if (isUser && !data.read) {
-                    snap.ref.update({ read: true });
-                    console.log(`✅ Pesan user ditandai read`);
+            // Pertama, ambil semua pesan yang sudah ada (sekali)
+            query.once('value', (snap) => {
+                const msgs = snap.val();
+                if (msgs) {
+                    const entries = Object.entries(msgs);
+                    entries.sort((a, b) => a[1].timestamp - b[1].timestamp);
+                    for (const [, msg] of entries) {
+                        const isUser = msg.sender === 'user';
+                        addMessageUI(chatMessages, msg.text, isUser);
+                        if (isUser && !msg.read) {
+                            // Tandai sebagai read
+                            database.ref(`chat_cs/${roomId}/messages/${msg.key}`).update({ read: true });
+                        }
+                    }
                 }
-
-                // 🔔 KIRIM NOTIFIKASI UNTUK SEMUA PESAN USER (termasuk saat room dibuka)
-                if (isUser) {
-                    console.log(`🔔 DETEKSI: Pesan USER → KIRIM NOTIFIKASI!`);
-                    const title = `📩 Pesan baru dari ${roomId}`;
-                    const message = data.text.substring(0, 60);
-                    sendNotification(title, message, roomId);
-                }
+                chatMessages.scrollTop = chatMessages.scrollHeight;
             });
 
-            // Reset unread count
+            // Reset unread count untuk room ini
             unreadCount = 0;
             updateNotifButton();
             document.title = 'JeGo - Admin CS';
