@@ -1141,6 +1141,8 @@ const savedOffers = JSON.parse(localStorage.getItem('autobid_offered_orders') ||
 savedOffers.forEach(id => autobidOfferedOrders.add(id));
 console.log(`Loaded ${autobidOfferedOrders.size} offered orders from localStorage`);
 let isWaitingForConfirmation = false;
+let lastSentLat = null;
+let lastSentLng = null;
 
 // ==================== STATE UNTUK OPTIMASI LISTENER ====================
 let orderMap = new Map();                 // Semua order waiting yang diterima dari Firebase
@@ -2162,12 +2164,30 @@ function updateDriverLocation(position) {
   const lng = position.coords.longitude;
   if (!lat || !lng) return;
 
+  // ===== THRESHOLD JARAK 50 METER =====
+  const thresholdKm = 0.05; // 50 meter
+  let shouldUpdate = false;
+
+  if (lastSentLat === null || lastSentLng === null) {
+    shouldUpdate = true; // pertama kali, wajib kirim
+  } else {
+    const dist = calculateDistance(lastSentLat, lastSentLng, lat, lng);
+    if (dist !== null && dist > thresholdKm) {
+      shouldUpdate = true;
+    } else {
+      console.log(`⏭️ Lokasi tidak berubah signifikan (${dist?.toFixed(3)} km), lewati update.`);
+    }
+  }
+
+  // Selalu perbarui driverLocation di memori dan cache localStorage
   driverLocation = { latitude: lat, longitude: lng };
   localStorage.setItem('jego_last_driver_location', JSON.stringify({ lat, lng }));
 
+  // Update GPS indicator
   document.getElementById('gpsDot').className = 'gps-dot gps-active';
   document.getElementById('gpsText').textContent = 'GPS';
 
+  // Jika belum siap, langsung load orders (tanpa kirim ke Firebase)
   if (!gpsReady) {
     gpsReady = true;
     if (gpsLoadingInterval) {
@@ -2175,10 +2195,14 @@ function updateDriverLocation(position) {
       gpsLoadingInterval = null;
     }
     loadOrders();
+    // Tandai lastSent agar setelah ini hanya kirim jika berubah
+    lastSentLat = lat;
+    lastSentLng = lng;
     return;
   }
 
-  if (locationTrackingEnabled && currentDriverData && globalCurrentUid) {
+  // Kirim update ke Firebase hanya jika shouldUpdate === true
+  if (shouldUpdate && locationTrackingEnabled && currentDriverData && globalCurrentUid) {
     database.ref('drivers/' + globalCurrentUid).update({
       latitude: lat,
       longitude: lng,
@@ -2191,8 +2215,15 @@ function updateDriverLocation(position) {
       autobid_enabled: autobidEnabled,
       last_update: new Date().toISOString()
     }).catch(console.error);
+
+    // Perbarui lastSent setelah berhasil kirim
+    lastSentLat = lat;
+    lastSentLng = lng;
+    console.log(`📍 Kirim lokasi: ${lat}, ${lng}`);
+  } else {
+    // Jika tidak kirim, tapi tetap refresh tampilan dengan posisi baru di memori
+    refreshDisplay();
   }
-  refreshDisplay();
 }
 
 function checkDriverData() {
@@ -2241,6 +2272,14 @@ function toggleLocationTracking() {
   locationTrackingEnabled = !locationTrackingEnabled;
   localStorage.setItem(STORAGE_TRACKING, locationTrackingEnabled);
   updateTrackingButton();
+  
+  if (locationTrackingEnabled && driverLocation.latitude) {
+  // Reset lastSent agar posisi saat ini langsung dikirim
+  lastSentLat = null;
+  lastSentLng = null;
+  // Panggil updateDriverLocation dengan posisi terakhir
+  updateDriverLocation({ coords: { latitude: driverLocation.latitude, longitude: driverLocation.longitude } });
+}
 
   if (globalCurrentUid) {
     database.ref('drivers/' + globalCurrentUid).update({
