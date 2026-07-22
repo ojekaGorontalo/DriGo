@@ -26,16 +26,14 @@
                 await OneSignal.init({
                     appId: "007d7eba-9cfc-40d1-a92e-f2299f770282",
                     safari_web_id: "web.onesignal.auto.18427476-d96c-4d38-9e88-40d33a9d693d",
-                    // Service worker di ROOT (bukan /admins/)
                     serviceWorkerPath: "/OneSignalSDKWorker.js",
-                    // Tidak perlu serviceWorkerScope karena default root
                     notifyButton: {
                         enable: true,
                     },
                 });
                 console.log('✅ OneSignal initialized successfully');
             } catch (err) {
-                console.warn('⚠️ OneSignal init error (fallback to browser notification):', err);
+                console.warn('⚠️ OneSignal init error:', err);
             }
         });
     </script>
@@ -434,7 +432,7 @@
         }
 
         // =============================================================
-        // 5. NOTIFICATION FUNCTIONS
+        // 5. NOTIFICATION FUNCTIONS (ONLY ONESIGNAL + SW FALLBACK)
         // =============================================================
 
         async function requestNotificationPermission() {
@@ -482,13 +480,13 @@
             try {
                 const OneSignal = window.OneSignal;
                 if (!OneSignal) {
-                    console.log('⚠️ OneSignal tidak tersedia, lewati');
-                    return;
+                    console.log('⚠️ OneSignal tidak tersedia');
+                    return false;
                 }
                 const isSubscribed = await OneSignal.Notifications.isSubscribed();
                 if (!isSubscribed) {
                     console.log('⚠️ OneSignal notifikasi tidak diizinkan');
-                    return;
+                    return false;
                 }
                 await OneSignal.Notifications.addNotification({
                     title: title,
@@ -497,60 +495,62 @@
                     icon: 'https://cdn-icons-png.flaticon.com/128/7890/7890227.png',
                 });
                 console.log('✅ OneSignal notifikasi terkirim');
+                return true;
             } catch (err) {
                 console.warn('⚠️ OneSignal error:', err);
+                return false;
             }
         }
 
-        // Kirim notifikasi via Browser API
-        function sendBrowserNotification(title, body, roomId) {
+        // Kirim notifikasi melalui Service Worker (fallback jika OneSignal gagal)
+        async function sendServiceWorkerNotification(title, body, roomId) {
             try {
-                if (!('Notification' in window) || Notification.permission !== 'granted') {
-                    console.log('⚠️ Browser notification tidak diizinkan');
-                    return;
+                if (!('serviceWorker' in navigator)) {
+                    console.log('⚠️ Service Worker tidak tersedia');
+                    return false;
                 }
-
-                console.log(`🔔 Mengirim browser notification: "${title}"`);
-
-                const options = {
+                const registration = await navigator.serviceWorker.ready;
+                if (!registration) {
+                    console.log('⚠️ Service Worker tidak terdaftar');
+                    return false;
+                }
+                await registration.showNotification(title, {
                     body: body,
                     icon: 'https://cdn-icons-png.flaticon.com/128/7890/7890227.png',
                     badge: 'https://cdn-icons-png.flaticon.com/128/7890/7890227.png',
                     tag: roomId,
                     requireInteraction: true,
-                    silent: false,
-                };
-
-                const notification = new Notification(title, options);
-                console.log('✅ Browser notification terkirim');
-
-                notification.onclick = function() {
-                    window.focus();
-                    console.log(`👆 Klik notifikasi → buka room ${roomId}`);
-                    if (roomId) {
-                        openRoom(roomId);
-                    }
-                    this.close();
-                };
-
-                playNotificationSound();
-
+                    data: { roomId: roomId, url: window.location.href + '?room=' + roomId },
+                });
+                console.log('✅ Service Worker notification terkirim');
+                return true;
             } catch (err) {
-                console.error('Gagal kirim browser notification:', err);
+                console.warn('⚠️ Service Worker notification error:', err);
+                return false;
             }
         }
 
-        // Fungsi notifikasi gabungan
-        function sendCombinedNotification(title, body, roomId) {
+        // Fungsi notifikasi utama: coba OneSignal, jika gagal coba SW, jika gagal log
+        async function sendNotification(title, body, roomId) {
             console.log(`🔔 PROSES NOTIFIKASI: ${title}`);
 
-            // Kirim via OneSignal
-            sendOneSignalNotification(title, body, roomId);
+            // 1. Coba OneSignal
+            const oneSignalOk = await sendOneSignalNotification(title, body, roomId);
+            if (oneSignalOk) {
+                // Jika OneSignal berhasil, kita sudah selesai
+                console.log('✅ Notifikasi via OneSignal berhasil');
+            } else {
+                // 2. Coba Service Worker
+                console.log('🔄 Mencoba Service Worker notification...');
+                const swOk = await sendServiceWorkerNotification(title, body, roomId);
+                if (swOk) {
+                    console.log('✅ Notifikasi via Service Worker berhasil');
+                } else {
+                    console.log('❌ Semua metode notifikasi gagal');
+                }
+            }
 
-            // Kirim via Browser API (fallback/dua arah)
-            sendBrowserNotification(title, body, roomId);
-
-            // Update badge
+            // Update badge (selalu, terlepas dari notifikasi)
             unreadCount++;
             updateNotifButton();
             document.title = `(${unreadCount}) JeGo - Admin CS`;
@@ -716,7 +716,7 @@
                     console.log(`🔔 DETEKSI: Pesan USER → KIRIM NOTIFIKASI!`);
                     const title = `📩 Pesan baru dari ${roomId}`;
                     const message = data.text.substring(0, 60);
-                    sendCombinedNotification(title, message, roomId);
+                    sendNotification(title, message, roomId);
                 }
             });
 
