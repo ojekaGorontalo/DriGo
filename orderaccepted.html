@@ -248,6 +248,21 @@
   let driverMarker = null;
   let autoWelcomeSent = false;
 
+  // ==================== TAMBAHKAN DI SINI ====================
+  let lastSentLat = null;
+  let lastSentLng = null;
+  const LOCATION_THRESHOLD_KM = 0.05; // 50 meter
+
+  function calculateDistance(lat1, lon1, lat2, lon2) {
+    if (!lat1 || !lon1 || !lat2 || !lon2) return null;
+    const R = 6371;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat/2)**2 + Math.cos(lat1 * Math.PI/180) * Math.cos(lat2 * Math.PI/180) * Math.sin(dLon/2)**2;
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
+  }
+
   // ==================== LOCATION TRACKING ====================
   let locationWatchId = null;
   let isLocationTracking = false;
@@ -291,23 +306,45 @@
     if (isLocationTracking) return;
     
     isLocationTracking = true;
-    console.log("📍 Memulai pengiriman lokasi realtime...");
+    console.log("📍 Memulai pengiriman lokasi realtime (threshold 50m)...");
 
     locationWatchId = navigator.geolocation.watchPosition(
       (position) => {
         const { latitude, longitude, heading, speed } = position.coords;
         if (!driverUid) return;
         
+        // Selalu perbarui marker di peta
         updateDriverMarker(latitude, longitude, heading || 0);
 
-        database.ref(`driver_locations/${driverUid}`).update({
-          latitude: latitude,
-          longitude: longitude,
-          heading: heading || 0,
-          speed: speed || 0,
-          timestamp: Date.now(),
-          orderId: orderId
-        }).catch(err => console.warn("Gagal update lokasi:", err));
+        // Cek threshold jarak terhadap posisi terakhir yang dikirim
+        let shouldUpdate = false;
+        if (lastSentLat === null || lastSentLng === null) {
+          shouldUpdate = true; // Kirim pertama kali
+        } else {
+          const dist = calculateDistance(lastSentLat, lastSentLng, latitude, longitude);
+          if (dist !== null && dist > LOCATION_THRESHOLD_KM) {
+            shouldUpdate = true;
+          } else {
+            console.log(`⏭️ Lokasi tidak berubah signifikan (${dist?.toFixed(3)} km), lewati update.`);
+          }
+        }
+
+        if (shouldUpdate) {
+          // Update ke Firebase
+          database.ref(`driver_locations/${driverUid}`).update({
+            latitude: latitude,
+            longitude: longitude,
+            heading: heading || 0,
+            speed: speed || 0,
+            timestamp: Date.now(),
+            orderId: orderId
+          }).catch(err => console.warn("Gagal update lokasi:", err));
+
+          // Simpan posisi terakhir yang dikirim
+          lastSentLat = latitude;
+          lastSentLng = longitude;
+          console.log(`📍 Lokasi dikirim: ${latitude}, ${longitude}`);
+        }
       },
       (error) => {
         console.warn("Error geolocation:", error.message);
@@ -320,6 +357,7 @@
     );
   }
 
+  // ===== FUNGSI STOP LOCATION TRACKING (di luar) =====
   function stopLocationTracking() {
     if (locationWatchId !== null) {
       navigator.geolocation.clearWatch(locationWatchId);
@@ -865,25 +903,25 @@
   }
 
   function openChat(){
-  chatOpen = true;
-  const overlay = document.getElementById('chatOverlay');
-  overlay.style.display = 'flex';
-  overlay.classList.add('open');
-  loadChatHistory();
-  markMessagesAsRead();
-  document.getElementById('chatBadge').classList.add('hidden');
-  const mapBtn = document.getElementById('mapActionBtn');
-  if (mapBtn) mapBtn.style.display = 'none';
-}
+    chatOpen = true;
+    const overlay = document.getElementById('chatOverlay');
+    overlay.style.display = 'flex';
+    overlay.classList.add('open');
+    loadChatHistory();
+    markMessagesAsRead();
+    document.getElementById('chatBadge').classList.add('hidden');
+    const mapBtn = document.getElementById('mapActionBtn');
+    if (mapBtn) mapBtn.style.display = 'none';
+  }
 
-function closeChat(){
-  chatOpen = false;
-  const overlay = document.getElementById('chatOverlay');
-  overlay.style.display = 'none';
-  overlay.classList.remove('open');
-  updateUnreadBadge();
-  updateActionButtons();
-}
+  function closeChat(){
+    chatOpen = false;
+    const overlay = document.getElementById('chatOverlay');
+    overlay.style.display = 'none';
+    overlay.classList.remove('open');
+    updateUnreadBadge();
+    updateActionButtons();
+  }
 
   function loadChatHistory(){
     database.ref(`chat/${orderId}`).once('value', snap => {
@@ -975,6 +1013,11 @@ function closeChat(){
     if(o.driver_id !== driver.uid){ showErrorPage("Bukan order anda"); return; }
     orderData = o;
     customerId = o.user_id;
+    
+    // Reset posisi terkirim agar lokasi awal selalu dikirim
+    lastSentLat = null;
+    lastSentLng = null;
+    
     displayOrderUI();
     listenOrder();
     initChat();
