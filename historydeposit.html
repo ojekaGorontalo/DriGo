@@ -7,9 +7,7 @@
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
-  <!-- QRCode.js -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-  <!-- Font Awesome -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
     :root {
@@ -145,7 +143,6 @@
     }
     @keyframes spin { to { transform: rotate(360deg); } }
 
-    /* Modal */
     .modal-overlay {
       display: none;
       position: fixed;
@@ -252,7 +249,6 @@
 </head>
 <body>
 <script>
-  // Dark mode sinkron
   (function() {
     try {
       const theme = localStorage.getItem('jego_driver_theme');
@@ -274,7 +270,6 @@
   </div>
 </div>
 
-<!-- Modal Detail -->
 <div class="modal-overlay" id="detailModal">
   <div class="modal-content">
     <button class="modal-close" id="modalClose">&times;</button>
@@ -314,7 +309,6 @@
     window.location.href = 'loginDriver.html';
   }
 
-  // Sinkron dark mode
   window.addEventListener('storage', (e) => {
     if (e.key === 'jego_driver_theme') {
       const theme = e.newValue;
@@ -333,7 +327,6 @@
     await loadHistory();
   });
 
-  // ========== LOAD HISTORY FROM BOTH SOURCES ==========
   async function loadHistory() {
     const container = document.getElementById('historyContainer');
     container.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
@@ -342,33 +335,38 @@
       const logsSnap = await database.ref(`driver_balance_logs/${driverUid}`).orderByChild('timestamp').once('value');
       const logs = logsSnap.val() || {};
       
-      // 2. Ambil dari pending_deposits (untuk data pending yang mungkin belum tercatat di logs)
+      // 2. Ambil dari pending_deposits
       const pendingSnap = await database.ref('pending_deposits').orderByChild('driverId').equalTo(driverUid).once('value');
       const pendings = pendingSnap.val() || {};
+      console.log('Data pending dari Firebase:', pendings);
 
-      // Gabungkan: gunakan Map dengan key = id atau paymentId untuk menghindari duplikat
       const itemsMap = new Map();
 
       // Masukkan dari logs
       Object.entries(logs).forEach(([key, val]) => {
-        // Tandai sumber
         val._source = 'logs';
         val._id = key;
-        // Gunakan paymentId sebagai key jika ada,否则 fallback key
         const uniqueKey = val.paymentId || key;
         if (!itemsMap.has(uniqueKey) || (itemsMap.get(uniqueKey).status === 'pending' && val.status !== 'pending')) {
-          // Jika sudah ada pending dan yang baru bukan pending, timpa (prioritas non-pending)
           itemsMap.set(uniqueKey, val);
         }
       });
 
-      // Masukkan dari pending_deposits (hanya jika belum ada di logs atau statusnya pending)
+      // Masukkan dari pending_deposits
       Object.entries(pendings).forEach(([key, val]) => {
         if (val.driverId === driverUid) {
+          // Set default untuk field yang mungkin tidak ada (kompatibilitas data lama)
           val._source = 'pending';
           val._id = key;
+          val.timestamp = val.timestamp || val.createdAt || Date.now();
+          val.type = val.type || 'deposit_request';
+          val.status = val.status || 'pending';
+          val.amount = val.amount || 0;
+          val.uniqueAmount = val.uniqueAmount || 0;
+          val.uniqueDigits = val.uniqueDigits || '000';
+          val.paymentId = val.paymentId || key;
+
           const uniqueKey = val.paymentId || key;
-          // Jika sudah ada di logs dengan status bukan pending, jangan timpa
           const existing = itemsMap.get(uniqueKey);
           if (!existing || existing.status === 'pending') {
             itemsMap.set(uniqueKey, val);
@@ -376,7 +374,6 @@
         }
       });
 
-      // Konversi ke array dan urutkan
       let items = Array.from(itemsMap.values());
       items.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
 
@@ -400,7 +397,6 @@
             typeClass = 'type-expired';
             amountClass = 'expired';
           } else {
-            // pending
             typeLabel = '⏳ Deposit Menunggu Konfirmasi';
             typeClass = 'type-pending';
             amountClass = 'pending';
@@ -429,7 +425,6 @@
 
         const dateStr = item.timestamp ? new Date(item.timestamp).toLocaleString('id-ID') : '-';
         const noteHtml = item.note ? `<div class="meta">📝 ${escapeHtml(item.note)}</div>` : '';
-        // Tampilkan sumber data (opsional)
         const sourceLabel = item._source === 'pending' ? ' (dari pending)' : '';
         
         html += `
@@ -449,7 +444,6 @@
       }
       container.innerHTML = html;
 
-      // Event click setiap item
       document.querySelectorAll('.transaction-item').forEach(el => {
         el.addEventListener('click', function() {
           const itemData = JSON.parse(this.dataset.item);
@@ -463,7 +457,6 @@
     }
   }
 
-  // ========== MODAL DETAIL ==========
   function showDetailModal(item) {
     const modal = document.getElementById('detailModal');
     const body = document.getElementById('modalBody');
@@ -566,7 +559,6 @@
     }
   }
 
-  // ========== GENERATE QRIS ==========
   const QRIS_STRING = '00020101021126650013ID.CO.BCA.WWW011893600014000163408402150008850016340840303UMI51440014ID.CO.QRIS.WWW0215ID10221858786030303UMI5204599953033605802ID5914ASIA PAINTMENT6009GORONTALO61059611962070703A0163041490';
 
   async function generateQRIS(nominal) {
@@ -604,7 +596,6 @@
     }
   }
 
-  // ========== MODAL CLOSE ==========
   document.getElementById('modalClose').addEventListener('click', function() {
     document.getElementById('detailModal').classList.remove('active');
   });
@@ -614,7 +605,6 @@
     }
   });
 
-  // ========== UTILITY ==========
   function formatRupiah(amount) {
     return 'Rp ' + (amount || 0).toLocaleString('id-ID');
   }
@@ -629,7 +619,6 @@
     });
   }
 
-  // ========== PREFILL AMOUNT ==========
   (function() {
     const params = new URLSearchParams(window.location.search);
     const amountParam = params.get('amount');
