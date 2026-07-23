@@ -120,8 +120,7 @@
     const PER_PAGE = 10;
     let onesignalApiKey = null;
     const ONESIGNAL_APP_ID = "007d7eba-9cfc-40d1-a92e-f2299f770282";
-    let pendingListenerRef = null;
-    let pendingListener = null;
+    let isLoading = false;
 
     // ========== ONE SIGNAL ==========
     async function getOneSignalApiKey() {
@@ -172,18 +171,22 @@
 
     // ========== CLEANUP EXPIRED DEPOSITS ==========
     async function cleanupExpiredDeposits() {
-        const now = Date.now();
-        const ONE_DAY = 24 * 60 * 60 * 1000;
-        let expiredCount = 0;
+        if (isLoading) return;
+        isLoading = true;
         try {
-            const snap = await database.ref('pending_deposits').once('value');
+            const now = Date.now();
+            // Hanya baca yang sudah expired
+            const snap = await database.ref('pending_deposits')
+                .orderByChild('expiresAt')
+                .endAt(now)
+                .once('value');
+            
             const updates = {};
+            let expiredCount = 0;
             snap.forEach(child => {
                 const deposit = child.val();
-                if (deposit.status === 'pending' && (deposit.expiresAt || 0) < now) {
-                    updates[`pending_deposits/${child.key}/status`] = 'expired';
+                if (deposit.status === 'pending') {
                     expiredCount++;
-                    // Pindahkan ke driver_balance_logs
                     const logEntry = {
                         type: 'deposit_request',
                         amount: deposit.amount,
@@ -199,11 +202,9 @@
                         timestamp: deposit.createdAt || now,
                         expires_at: deposit.expiresAt || now
                     };
-                    // Simpan ke driver_balance_logs
                     if (deposit.driverId) {
                         const logRef = database.ref(`driver_balance_logs/${deposit.driverId}`).push();
                         updates[logRef.toString()] = logEntry;
-                        // Hapus dari pending
                         updates[`pending_deposits/${child.key}`] = null;
                     }
                 }
@@ -211,10 +212,10 @@
             if (expiredCount > 0) {
                 await database.ref().update(updates);
                 console.log(`✅ ${expiredCount} deposit expired otomatis`);
-                // Kirim notifikasi
+                // Kirim notifikasi (tanpa await)
                 snap.forEach(child => {
                     const deposit = child.val();
-                    if (deposit.status === 'pending' && (deposit.expiresAt || 0) < now) {
+                    if (deposit.status === 'pending') {
                         (async () => {
                             await saveDriverNotification(deposit.driverId, '⏰ Deposit Kadaluarsa', 
                                 `Permintaan deposit Rp ${deposit.amount?.toLocaleString()} telah kadaluarsa. Silakan ajukan deposit baru.`, 'expired');
@@ -229,29 +230,29 @@
             }
         } catch(err) {
             console.error("Gagal cleanup expired deposits:", err);
+        } finally {
+            isLoading = false;
         }
     }
 
     // ========== LOAD PENDING DEPOSITS ==========
     async function loadPendingDeposits() {
+        if (isLoading) return;
+        isLoading = true;
+
         const tbody = document.getElementById('depositTableBody');
         tbody.innerHTML = '<tr class="empty-row"><td colspan="8"><div class="loading-overlay"><div class="spinner"></div></div></td>';
 
-        // Lepas listener lama
-        if (pendingListener) {
-            pendingListenerRef.off('value', pendingListener);
-            pendingListener = null;
-        }
-
         try {
-            await cleanupExpiredDeposits(); // bersihkan yang expired
+            // Cleanup expired
+            await cleanupExpiredDeposits();
 
-            const snap = await database.ref('pending_deposits').orderByChild('status').equalTo('pending').once('value');
+            // Baca semua pending deposits
+            const snap = await database.ref('pending_deposits').once('value');
             const requests = [];
             snap.forEach(child => {
                 const deposit = child.val();
                 if (deposit.status === 'pending') {
-                    // Ambil nama driver jika belum ada
                     requests.push({
                         id: child.key,
                         driverId: deposit.driverId,
@@ -271,17 +272,12 @@
             allDeposits = requests;
             applyDepositFilter();
 
-            // Pasang listener real-time untuk pending_deposits
-            pendingListenerRef = database.ref('pending_deposits');
-            pendingListener = pendingListenerRef.on('value', async (snap) => {
-                // Refresh ulang data
-                await loadPendingDeposits();
-            });
-
         } catch(err) {
             console.error(err);
             showToast('Gagal load deposit pending', true);
             tbody.innerHTML = '<tr class="empty-row"><td colspan="8">⚠️ Gagal memuat data</td></tr>';
+        } finally {
+            isLoading = false;
         }
     }
 
@@ -330,8 +326,6 @@
             let statusHtml = '<span class="status-badge status-pending">Pending</span>';
             if (timeLeft < 3600000 && timeLeft > 0) {
                 statusHtml = '<span class="status-badge status-warning" style="background:#ffecb3;color:#b76e00;">Segera Expired</span>';
-            } else if (timeLeft <= 0) {
-                statusHtml = '<span class="status-badge" style="background:#f1f5f9;color:#64748b;">Expired</span>';
             }
             row.insertCell(6).innerHTML = statusHtml;
 
@@ -347,15 +341,12 @@
                 confirmBtn.disabled = true;
                 confirmBtn.textContent = 'Memproses...';
                 try {
-                    // Ambil saldo driver saat ini
                     const driverSnap = await database.ref(`drivers/${req.driverId}/balance`).once('value');
                     const oldBalance = driverSnap.val() || 0;
                     const newBalance = oldBalance + req.uniqueAmount;
 
-                    // Update balance
                     await database.ref(`drivers/${req.driverId}/balance`).set(newBalance);
 
-                    // Simpan ke driver_balance_logs
                     const logEntry = {
                         type: 'deposit_request',
                         amount: req.amount,
@@ -372,11 +363,8 @@
                         expires_at: req.expiresAt || Date.now() + 86400000
                     };
                     await database.ref(`driver_balance_logs/${req.driverId}`).push(logEntry);
-
-                    // Hapus dari pending_deposits
                     await database.ref(`pending_deposits/${req.id}`).remove();
 
-                    // Notifikasi
                     await saveDriverNotification(req.driverId, 'Deposit Dikonfirmasi', 
                         `Deposit Rp ${req.uniqueAmount.toLocaleString()} telah ditambahkan ke saldo Anda.`);
                     const playerId = await getDriverPlayerId(req.driverId);
@@ -385,7 +373,6 @@
                             `Saldo Anda bertambah Rp ${req.uniqueAmount.toLocaleString()}.`);
                     }
 
-                    // Hapus dari array lokal
                     const idx = allDeposits.findIndex(d => d.id === req.id);
                     if (idx !== -1) allDeposits.splice(idx, 1);
                     applyDepositFilter();
@@ -477,7 +464,6 @@
         document.getElementById('nextPageBtn').onclick = nextPage;
         document.getElementById('logoutBtn').onclick = async () => { await auth.signOut(); window.location.href = 'login_admin.html'; };
 
-        // Pencarian UID
         document.getElementById('uidSearchBtn').onclick = () => {
             const uid = document.getElementById('uidSearchInput').value.trim();
             searchDriverDeposits(uid);
@@ -489,7 +475,12 @@
         document.getElementById('closeSearchBtn').onclick = closeSearchResult;
 
         // Cleanup expired setiap 30 menit
-        setInterval(cleanupExpiredDeposits, 30 * 60 * 1000);
+        setInterval(async () => {
+            if (!isLoading) {
+                await cleanupExpiredDeposits();
+                await loadPendingDeposits();
+            }
+        }, 30 * 60 * 1000);
     });
 </script>
 </body>
