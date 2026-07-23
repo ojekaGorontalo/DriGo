@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-    <title>JeGo Admin - Permintaan Deposit (Auto Expired 1 Hari)</title>
+    <title>JeGo Admin - Permintaan Deposit</title>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
@@ -16,8 +16,8 @@
         .header h1 { font-size: 1.6rem; display: flex; align-items: center; gap: 12px; }
         .logout-btn { background: rgba(255,255,255,0.2); border: none; color: white; padding: 8px 18px; border-radius: 30px; cursor: pointer; font-weight: 600; transition: 0.2s; }
         .logout-btn:hover { background: rgba(255,255,255,0.35); }
-        .toolbar { padding: 16px 24px; background: #f8f9fa; border-bottom: 1px solid #e9ecef; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
-        .search-box { padding: 8px 14px; border: 1px solid #ddd; border-radius: 30px; width: 260px; outline: none; font-size: 0.85rem; }
+        .toolbar { padding: 16px 24px; background: #f8f9fa; border-bottom: 1px solid #e9ecef; display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+        .search-box { padding: 8px 14px; border: 1px solid #ddd; border-radius: 30px; outline: none; font-size: 0.85rem; flex: 1; min-width: 200px; }
         .refresh-btn { background: #FF9800; color: white; border: none; padding: 8px 18px; border-radius: 30px; cursor: pointer; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; }
         .stats-badge { background: #e9ecef; padding: 5px 14px; border-radius: 30px; font-size: 0.8rem; font-weight: 500; color: #1e293b; }
         .table-wrapper { overflow-x: auto; padding: 0 0 20px 0; }
@@ -26,7 +26,6 @@
         th { background: #f8fafc; font-weight: 600; color: #1e293b; }
         tr:hover { background: #fef9e6; }
         .confirm-deposit-btn { background: #10b981; color: white; border: none; padding: 6px 12px; border-radius: 8px; cursor: pointer; font-size: 0.7rem; font-weight: 600; }
-        .expired-badge { background: #f1f5f9; color: #64748b; padding: 4px 10px; border-radius: 20px; font-size: 0.7rem; font-weight: 600; }
         .status-badge { display: inline-block; padding: 4px 10px; border-radius: 20px; font-size: 0.7rem; font-weight: 600; }
         .status-pending { background: #fff3cd; color: #b45309; }
         .status-warning { background: #ffecb3; color: #b76e00; }
@@ -41,24 +40,47 @@
         @keyframes spin { to { transform: rotate(360deg); } }
         .empty-row td { text-align: center; padding: 40px; color: #64748b; }
         .footer-note { padding: 12px 24px; background: #f8fafc; text-align: center; font-size: 0.7rem; color: #475569; border-top: 1px solid #e2e8f0; }
+        .search-uid-section { background: #f8fafc; padding: 12px 24px; border-bottom: 1px solid #e9ecef; display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+        .search-uid-section input { flex: 1; min-width: 200px; }
+        .search-uid-section button { background: #3b82f6; color: white; border: none; padding: 8px 18px; border-radius: 30px; cursor: pointer; font-weight: 600; }
+        .search-result { padding: 20px; overflow-x: auto; display: none; }
+        .search-result table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+        .search-result th, .search-result td { padding: 8px; border: 1px solid #ddd; text-align: left; }
+        .search-result th { background: #f1f5f9; }
+        .close-search { float: right; background: none; border: none; font-size: 1.2rem; cursor: pointer; color: #ef4444; }
         @media (max-width: 700px) { body { padding: 10px; } th, td { padding: 6px; font-size: 0.7rem; } }
     </style>
 </head>
 <body>
 <div class="container">
     <div class="header">
-        <h1><i class="fas fa-money-bill-wave"></i> Permintaan Deposit (Expired 1 Hari)</h1>
+        <h1><i class="fas fa-money-bill-wave"></i> Permintaan Deposit (Pending)</h1>
         <button class="logout-btn" id="logoutBtn"><i class="fas fa-sign-out-alt"></i> Logout Admin</button>
     </div>
     <div class="toolbar">
         <div style="display: flex; gap: 10px; flex-wrap: wrap; width: 100%; align-items: center;">
             <input type="text" id="depositSearch" class="search-box" placeholder="Cari nama driver, telepon...">
             <div style="flex:1; display: flex; justify-content: flex-end; gap: 12px;">
-                <div class="stats-badge" id="depositStats">Total: <span id="totalDepositCount">0</span> | Halaman <span id="currentPageDisplay">1</span></div>
+                <div class="stats-badge" id="depositStats">Total: <span id="totalDepositCount">0</span></div>
                 <button class="refresh-btn" id="refreshDepositsBtn"><i class="fas fa-sync-alt"></i> Refresh</button>
             </div>
         </div>
     </div>
+
+    <!-- Form pencarian UID -->
+    <div class="search-uid-section">
+        <i class="fas fa-search"></i>
+        <input type="text" id="uidSearchInput" class="search-box" placeholder="Masukkan UID driver untuk cek riwayat deposit">
+        <button id="uidSearchBtn"><i class="fas fa-user"></i> Cari</button>
+        <button id="closeSearchBtn" style="background:#ef4444; color:white; border:none; padding:8px 16px; border-radius:30px; cursor:pointer; display:none;">Tutup</button>
+    </div>
+    <div id="searchResultContainer" class="search-result" style="display:none;">
+        <button class="close-search" id="closeSearchResult">&times;</button>
+        <h3>Riwayat Deposit Driver</h3>
+        <div id="searchResultBody"><div class="loading-overlay"><div class="spinner"></div></div></div>
+    </div>
+
+    <!-- Tabel pending deposits -->
     <div class="table-wrapper">
         <table id="depositTable">
             <thead>
@@ -98,7 +120,8 @@
     const PER_PAGE = 10;
     let onesignalApiKey = null;
     const ONESIGNAL_APP_ID = "007d7eba-9cfc-40d1-a92e-f2299f770282";
-    let depositListener = null;
+    let pendingListenerRef = null;
+    let pendingListener = null;
 
     // ========== ONE SIGNAL ==========
     async function getOneSignalApiKey() {
@@ -153,144 +176,111 @@
         const ONE_DAY = 24 * 60 * 60 * 1000;
         let expiredCount = 0;
         try {
-            const logsSnap = await database.ref('driver_balance_logs').once('value');
+            const snap = await database.ref('pending_deposits').once('value');
             const updates = {};
-            logsSnap.forEach(driverChild => {
-                const driverId = driverChild.key;
-                driverChild.forEach(logChild => {
-                    const log = logChild.val();
-                    if (log.type === 'deposit_request' && log.status === 'pending') {
-                        const depositTime = log.timestamp || 0;
-                        if (now - depositTime > ONE_DAY) {
-                            updates[`driver_balance_logs/${driverId}/${logChild.key}/status`] = 'expired';
-                            expiredCount++;
-                            (async () => {
-                                try {
-                                    await saveDriverNotification(driverId, '⏰ Deposit Kadaluarsa', 
-                                        `Permintaan deposit Rp ${log.amount?.toLocaleString()} telah kadaluarsa karena tidak dibayar dalam 24 jam. Silakan ajukan deposit baru.`, 'expired');
-                                    const playerId = await getDriverPlayerId(driverId);
-                                    if (playerId) {
-                                        await sendPushNotification(playerId, 'Deposit Kadaluarsa', 
-                                            `Deposit Rp ${log.amount?.toLocaleString()} expired. Ajukan deposit ulang.`);
-                                    }
-                                } catch(err) { console.error("Gagal kirim notifikasi expired:", err); }
-                            })();
-                        }
+            snap.forEach(child => {
+                const deposit = child.val();
+                if (deposit.status === 'pending' && (deposit.expiresAt || 0) < now) {
+                    updates[`pending_deposits/${child.key}/status`] = 'expired';
+                    expiredCount++;
+                    // Pindahkan ke driver_balance_logs
+                    const logEntry = {
+                        type: 'deposit_request',
+                        amount: deposit.amount,
+                        uniqueAmount: deposit.uniqueAmount,
+                        uniqueDigits: deposit.uniqueDigits,
+                        paymentId: deposit.paymentId,
+                        status: 'expired',
+                        old_balance: 0,
+                        new_balance: 0,
+                        note: `Deposit expired (otomatis)`,
+                        driver_name: deposit.driverName || 'Driver',
+                        driver_phone: deposit.driverPhone || '-',
+                        timestamp: deposit.createdAt || now,
+                        expires_at: deposit.expiresAt || now
+                    };
+                    // Simpan ke driver_balance_logs
+                    if (deposit.driverId) {
+                        const logRef = database.ref(`driver_balance_logs/${deposit.driverId}`).push();
+                        updates[logRef.toString()] = logEntry;
+                        // Hapus dari pending
+                        updates[`pending_deposits/${child.key}`] = null;
                     }
-                });
+                }
             });
             if (expiredCount > 0) {
                 await database.ref().update(updates);
                 console.log(`✅ ${expiredCount} deposit expired otomatis`);
+                // Kirim notifikasi
+                snap.forEach(child => {
+                    const deposit = child.val();
+                    if (deposit.status === 'pending' && (deposit.expiresAt || 0) < now) {
+                        (async () => {
+                            await saveDriverNotification(deposit.driverId, '⏰ Deposit Kadaluarsa', 
+                                `Permintaan deposit Rp ${deposit.amount?.toLocaleString()} telah kadaluarsa. Silakan ajukan deposit baru.`, 'expired');
+                            const playerId = await getDriverPlayerId(deposit.driverId);
+                            if (playerId) {
+                                await sendPushNotification(playerId, 'Deposit Kadaluarsa', 
+                                    `Deposit Rp ${deposit.amount?.toLocaleString()} expired. Ajukan deposit ulang.`);
+                            }
+                        })();
+                    }
+                });
             }
         } catch(err) {
             console.error("Gagal cleanup expired deposits:", err);
         }
     }
 
-    // ========== LOAD DEPOSIT REQUESTS (ONCE) + LISTENER ==========
-    async function loadDepositRequests() {
+    // ========== LOAD PENDING DEPOSITS ==========
+    async function loadPendingDeposits() {
         const tbody = document.getElementById('depositTableBody');
         tbody.innerHTML = '<tr class="empty-row"><td colspan="8"><div class="loading-overlay"><div class="spinner"></div></div></td>';
+
+        // Lepas listener lama
+        if (pendingListener) {
+            pendingListenerRef.off('value', pendingListener);
+            pendingListener = null;
+        }
+
         try {
-            // Lepas listener lama
-            if (depositListener) {
-                database.ref('driver_balance_logs').off('child_changed', depositListener);
-                depositListener = null;
-            }
+            await cleanupExpiredDeposits(); // bersihkan yang expired
 
-            // Bersihkan expired dulu
-            await cleanupExpiredDeposits();
-
-            const logsSnap = await database.ref('driver_balance_logs').once('value');
+            const snap = await database.ref('pending_deposits').orderByChild('status').equalTo('pending').once('value');
             const requests = [];
-            logsSnap.forEach(driverChild => {
-                const driverId = driverChild.key;
-                driverChild.forEach(logChild => {
-                    const log = logChild.val();
-                    if (log.type === 'deposit_request' && log.status === 'pending') {
-                        // Cari data driver untuk nama dan telepon
-                        (async () => {
-                            try {
-                                const driverSnap = await database.ref(`drivers/${driverId}`).once('value');
-                                const driverData = driverSnap.val();
-                                log.driver_name = driverData?.name || 'Driver';
-                                log.driver_phone = driverData?.phone || '-';
-                            } catch(e) {}
-                        })();
-                        requests.push({ 
-                            driverId, 
-                            logId: logChild.key, 
-                            ...log, 
-                            timestamp: log.timestamp || 0,
-                            driver_name: log.driver_name || 'Driver',
-                            driver_phone: log.driver_phone || '-'
-                        });
-                    }
-                });
+            snap.forEach(child => {
+                const deposit = child.val();
+                if (deposit.status === 'pending') {
+                    // Ambil nama driver jika belum ada
+                    requests.push({
+                        id: child.key,
+                        driverId: deposit.driverId,
+                        driverName: deposit.driverName || 'Driver',
+                        driverPhone: deposit.driverPhone || '-',
+                        amount: deposit.amount || 0,
+                        uniqueAmount: deposit.uniqueAmount || 0,
+                        uniqueDigits: deposit.uniqueDigits || '000',
+                        timestamp: deposit.createdAt || 0,
+                        expiresAt: deposit.expiresAt || 0,
+                        ...deposit
+                    });
+                }
             });
-
-            // Tunggu sebentar agar nama driver selesai diambil
-            await new Promise(r => setTimeout(r, 500));
-
-            // Update data di array
-            for (let req of requests) {
-                try {
-                    const driverSnap = await database.ref(`drivers/${req.driverId}`).once('value');
-                    const driverData = driverSnap.val();
-                    req.driver_name = driverData?.name || 'Driver';
-                    req.driver_phone = driverData?.phone || '-';
-                } catch(e) {}
-            }
 
             requests.sort((a,b) => (b.timestamp || 0) - (a.timestamp || 0));
             allDeposits = requests;
             applyDepositFilter();
 
-            // === PASANG LISTENER REAL-TIME ===
-            depositListener = (snap) => {
-                const data = snap.val();
-                if (!data) return;
-                // Cek apakah ada perubahan status dari pending ke confirmed/expired
-                for (let driverId in data) {
-                    const driverLogs = data[driverId];
-                    if (!driverLogs) continue;
-                    for (let logId in driverLogs) {
-                        const log = driverLogs[logId];
-                        if (log.type === 'deposit_request' && log.status !== 'pending') {
-                            // Hapus dari allDeposits
-                            const idx = allDeposits.findIndex(d => d.logId === logId && d.driverId === driverId);
-                            if (idx !== -1) {
-                                allDeposits.splice(idx, 1);
-                                applyDepositFilter();
-                            }
-                        }
-                    }
-                }
-            };
-            database.ref('driver_balance_logs').on('child_changed', depositListener);
-            // Juga child_removed
-            database.ref('driver_balance_logs').on('child_removed', (snap) => {
-                // Hapus deposit yang dihapus
-                const driverId = snap.key;
-                const data = snap.val();
-                if (data) {
-                    for (let logId in data) {
-                        const log = data[logId];
-                        if (log.type === 'deposit_request') {
-                            const idx = allDeposits.findIndex(d => d.logId === logId && d.driverId === driverId);
-                            if (idx !== -1) {
-                                allDeposits.splice(idx, 1);
-                                applyDepositFilter();
-                            }
-                        }
-                    }
-                }
+            // Pasang listener real-time untuk pending_deposits
+            pendingListenerRef = database.ref('pending_deposits');
+            pendingListener = pendingListenerRef.on('value', async (snap) => {
+                // Refresh ulang data
+                await loadPendingDeposits();
             });
 
-        } catch(err) { 
-            console.error(err); 
-            showToast('Gagal load deposit', true);
+        } catch(err) {
+            console.error(err);
+            showToast('Gagal load deposit pending', true);
             tbody.innerHTML = '<tr class="empty-row"><td colspan="8">⚠️ Gagal memuat data</td></tr>';
         }
     }
@@ -299,8 +289,8 @@
         const keyword = document.getElementById('depositSearch').value.toLowerCase();
         let filtered = allDeposits.filter(req => 
             keyword === '' || 
-            (req.driver_name && req.driver_name.toLowerCase().includes(keyword)) || 
-            (req.driver_phone && req.driver_phone.toLowerCase().includes(keyword))
+            (req.driverName && req.driverName.toLowerCase().includes(keyword)) || 
+            (req.driverPhone && req.driverPhone.toLowerCase().includes(keyword))
         );
         filteredDeposits = filtered;
         document.getElementById('totalDepositCount').innerText = filtered.length;
@@ -315,7 +305,6 @@
         const end = start + PER_PAGE;
         const pageData = filteredDeposits.slice(start, end);
         renderDepositTable(pageData);
-        document.getElementById('currentPageDisplay').innerText = currentPage;
         document.getElementById('pageInfo').innerText = `Halaman ${currentPage} dari ${totalPages}`;
         document.getElementById('prevPageBtn').disabled = currentPage <= 1;
         document.getElementById('nextPageBtn').disabled = currentPage >= totalPages;
@@ -323,68 +312,156 @@
 
     function renderDepositTable(requests) {
         const tbody = document.getElementById('depositTableBody');
-        if (!requests.length) { 
-            tbody.innerHTML = '<tr class="empty-row"><td colspan="8">Tidak ada permintaan deposit pending (expired otomatis setelah 24 jam)</td>'; 
-            return; 
+        if (!requests.length) {
+            tbody.innerHTML = '<tr class="empty-row"><td colspan="8">Tidak ada permintaan deposit pending</td></tr>';
+            return;
         }
         tbody.innerHTML = '';
         requests.forEach(req => {
             const row = tbody.insertRow();
             row.insertCell(0).textContent = req.timestamp ? new Date(req.timestamp).toLocaleString('id-ID') : '-';
-            row.insertCell(1).textContent = req.driver_name || '-';
-            row.insertCell(2).textContent = req.driver_phone || '-';
+            row.insertCell(1).textContent = req.driverName || '-';
+            row.insertCell(2).textContent = req.driverPhone || '-';
             row.insertCell(3).innerHTML = formatRupiah(req.amount);
             row.insertCell(4).innerHTML = formatRupiah(req.uniqueAmount);
             row.insertCell(5).textContent = req.uniqueDigits || '-';
-            
-            const timeLeft = (req.timestamp + 24*60*60*1000) - Date.now();
+
+            const timeLeft = (req.expiresAt || 0) - Date.now();
             let statusHtml = '<span class="status-badge status-pending">Pending</span>';
-            if (timeLeft < 3600000) {
+            if (timeLeft < 3600000 && timeLeft > 0) {
                 statusHtml = '<span class="status-badge status-warning" style="background:#ffecb3;color:#b76e00;">Segera Expired</span>';
+            } else if (timeLeft <= 0) {
+                statusHtml = '<span class="status-badge" style="background:#f1f5f9;color:#64748b;">Expired</span>';
             }
             row.insertCell(6).innerHTML = statusHtml;
-            
+
             const confirmBtn = document.createElement('button');
             confirmBtn.textContent = '✅ Konfirmasi & Tambah Saldo';
             confirmBtn.className = 'confirm-deposit-btn';
             confirmBtn.onclick = async () => {
-                const now = Date.now();
-                if (req.timestamp + 24*60*60*1000 < now) {
+                if (Date.now() > (req.expiresAt || 0)) {
                     showToast('Deposit sudah kadaluarsa, tidak bisa dikonfirmasi', true);
-                    await loadDepositRequests();
+                    await loadPendingDeposits();
                     return;
                 }
-                confirmBtn.disabled = true; confirmBtn.textContent = 'Memproses...';
+                confirmBtn.disabled = true;
+                confirmBtn.textContent = 'Memproses...';
                 try {
-                    const driverSnap = await database.ref(`drivers/${req.driverId}`).once('value');
-                    const driverData = driverSnap.val();
-                    const oldBalance = driverData.balance || 0;
+                    // Ambil saldo driver saat ini
+                    const driverSnap = await database.ref(`drivers/${req.driverId}/balance`).once('value');
+                    const oldBalance = driverSnap.val() || 0;
                     const newBalance = oldBalance + req.uniqueAmount;
+
+                    // Update balance
                     await database.ref(`drivers/${req.driverId}/balance`).set(newBalance);
-                    await database.ref(`driver_balance_logs/${req.driverId}/${req.logId}/status`).set('confirmed');
-                    await saveDriverNotification(req.driverId, 'Deposit Dikonfirmasi', `Deposit Rp ${req.uniqueAmount.toLocaleString()} telah ditambahkan.`);
+
+                    // Simpan ke driver_balance_logs
+                    const logEntry = {
+                        type: 'deposit_request',
+                        amount: req.amount,
+                        uniqueAmount: req.uniqueAmount,
+                        uniqueDigits: req.uniqueDigits,
+                        paymentId: req.paymentId || 'manual',
+                        status: 'confirmed',
+                        old_balance: oldBalance,
+                        new_balance: newBalance,
+                        note: `Deposit dikonfirmasi admin`,
+                        driver_name: req.driverName || 'Driver',
+                        driver_phone: req.driverPhone || '-',
+                        timestamp: Date.now(),
+                        expires_at: req.expiresAt || Date.now() + 86400000
+                    };
+                    await database.ref(`driver_balance_logs/${req.driverId}`).push(logEntry);
+
+                    // Hapus dari pending_deposits
+                    await database.ref(`pending_deposits/${req.id}`).remove();
+
+                    // Notifikasi
+                    await saveDriverNotification(req.driverId, 'Deposit Dikonfirmasi', 
+                        `Deposit Rp ${req.uniqueAmount.toLocaleString()} telah ditambahkan ke saldo Anda.`);
                     const playerId = await getDriverPlayerId(req.driverId);
-                    if (playerId) await sendPushNotification(playerId, 'Deposit Diterima', `Saldo Anda bertambah Rp ${req.uniqueAmount.toLocaleString()}.`);
-                    // Hapus dari array
-                    const idx = allDeposits.findIndex(d => d.logId === req.logId && d.driverId === req.driverId);
+                    if (playerId) {
+                        await sendPushNotification(playerId, 'Deposit Diterima', 
+                            `Saldo Anda bertambah Rp ${req.uniqueAmount.toLocaleString()}.`);
+                    }
+
+                    // Hapus dari array lokal
+                    const idx = allDeposits.findIndex(d => d.id === req.id);
                     if (idx !== -1) allDeposits.splice(idx, 1);
                     applyDepositFilter();
-                    showToast(`Saldo ${req.driver_name} berhasil ditambah ${formatRupiah(req.uniqueAmount)}`);
-                } catch(err) { showToast(err.message, true); } 
-                finally { confirmBtn.disabled = false; confirmBtn.textContent = '✅ Konfirmasi & Tambah Saldo'; }
+                    showToast(`Saldo ${req.driverName} berhasil ditambah ${formatRupiah(req.uniqueAmount)}`);
+                } catch(err) {
+                    showToast(err.message, true);
+                } finally {
+                    confirmBtn.disabled = false;
+                    confirmBtn.textContent = '✅ Konfirmasi & Tambah Saldo';
+                }
             };
             row.insertCell(7).appendChild(confirmBtn);
         });
     }
 
-    function prevPage() {
-        if (currentPage > 1) { currentPage--; renderPage(); }
+    // ========== PENCARIAN UID ==========
+    async function searchDriverDeposits(uid) {
+        if (!uid.trim()) {
+            showToast('Masukkan UID driver', true);
+            return;
+        }
+        const container = document.getElementById('searchResultContainer');
+        const body = document.getElementById('searchResultBody');
+        container.style.display = 'block';
+        document.getElementById('closeSearchBtn').style.display = 'inline-block';
+        body.innerHTML = '<div class="loading-overlay"><div class="spinner"></div></div>';
+
+        try {
+            const snap = await database.ref(`driver_balance_logs/${uid.trim()}`).once('value');
+            const data = snap.val();
+            if (!data) {
+                body.innerHTML = '<p>Tidak ada riwayat deposit untuk driver ini.</p>';
+                return;
+            }
+            let logs = [];
+            Object.keys(data).forEach(key => {
+                const log = data[key];
+                if (log.type === 'deposit_request') {
+                    logs.push({ id: key, ...log });
+                }
+            });
+            logs.sort((a,b) => (b.timestamp || 0) - (a.timestamp || 0));
+
+            let html = `<table>
+                <thead><tr><th>Waktu</th><th>Jumlah Deposit</th><th>Total Transfer</th><th>Kode Unik</th><th>Status</th><th>Catatan</th></tr></thead><tbody>`;
+            if (!logs.length) {
+                html += `<tr><td colspan="6">Tidak ada deposit request</td></tr>`;
+            } else {
+                logs.forEach(log => {
+                    const status = log.status || 'unknown';
+                    const statusColor = status === 'confirmed' ? '#10b981' : (status === 'expired' ? '#ef4444' : '#f59e0b');
+                    html += `<tr>
+                        <td>${log.timestamp ? new Date(log.timestamp).toLocaleString('id-ID') : '-'}</td>
+                        <td>${formatRupiah(log.amount)}</td>
+                        <td>${formatRupiah(log.uniqueAmount)}</td>
+                        <td>${log.uniqueDigits || '-'}</td>
+                        <td><span style="background:${statusColor}; color:white; padding:2px 8px; border-radius:12px;">${status}</span></td>
+                        <td>${log.note || '-'}</td>
+                    </tr>`;
+                });
+            }
+            html += '</tbody></table>';
+            body.innerHTML = html;
+        } catch(err) {
+            body.innerHTML = `<p style="color:red;">Error: ${err.message}</p>`;
+        }
     }
 
-    function nextPage() {
-        const totalPages = Math.ceil(filteredDeposits.length / PER_PAGE) || 1;
-        if (currentPage < totalPages) { currentPage++; renderPage(); }
+    function closeSearchResult() {
+        document.getElementById('searchResultContainer').style.display = 'none';
+        document.getElementById('closeSearchBtn').style.display = 'none';
     }
+
+    // ========== PAGINATION ==========
+    function prevPage() { if (currentPage > 1) { currentPage--; renderPage(); } }
+    function nextPage() { const totalPages = Math.ceil(filteredDeposits.length / PER_PAGE) || 1; if (currentPage < totalPages) { currentPage++; renderPage(); } }
 
     // ========== AUTH & INIT ==========
     auth.onAuthStateChanged(async (user) => {
@@ -392,12 +469,26 @@
         const adminSnap = await database.ref(`admins/${user.uid}`).once('value');
         if (!adminSnap.exists()) { showToast('Bukan admin', true); await auth.signOut(); setTimeout(() => window.location.href = 'login_admin.html', 1500); return; }
         await getOneSignalApiKey();
-        await loadDepositRequests();
-        document.getElementById('refreshDepositsBtn').onclick = loadDepositRequests;
+        await loadPendingDeposits();
+
+        document.getElementById('refreshDepositsBtn').onclick = loadPendingDeposits;
         document.getElementById('depositSearch').addEventListener('input', applyDepositFilter);
         document.getElementById('prevPageBtn').onclick = prevPage;
         document.getElementById('nextPageBtn').onclick = nextPage;
         document.getElementById('logoutBtn').onclick = async () => { await auth.signOut(); window.location.href = 'login_admin.html'; };
+
+        // Pencarian UID
+        document.getElementById('uidSearchBtn').onclick = () => {
+            const uid = document.getElementById('uidSearchInput').value.trim();
+            searchDriverDeposits(uid);
+        };
+        document.getElementById('uidSearchInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') document.getElementById('uidSearchBtn').click();
+        });
+        document.getElementById('closeSearchResult').onclick = closeSearchResult;
+        document.getElementById('closeSearchBtn').onclick = closeSearchResult;
+
+        // Cleanup expired setiap 30 menit
         setInterval(cleanupExpiredDeposits, 30 * 60 * 1000);
     });
 </script>
