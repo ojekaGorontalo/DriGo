@@ -174,7 +174,6 @@
     .step { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
     .step-number { width: 28px; height: 28px; background: var(--primary); color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 0.8rem; }
     .step-text { font-size: 0.85rem; color: var(--text-primary); }
-    /* Toast sudah dihapus, tidak digunakan lagi */
     .loading {
       display: flex;
       flex-direction: column;
@@ -235,7 +234,7 @@
   </style>
 </head>
 <body>
-  <!-- Script dark mode segera -->
+  <!-- Script dark mode -->
   <script>
     (function() {
       try {
@@ -329,8 +328,6 @@
     </div>
   </div>
 
-  <!-- Toast sudah dihapus -->
-
   <!-- Font Awesome -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
@@ -379,7 +376,7 @@
       console.error('Error inisialisasi Firebase:', error);
     }
 
-    // ==================== QRIS STATIS (DINAMIS) ====================
+    // ==================== QRIS STATIS ====================
     const QRIS_STRING = '00020101021126650013ID.CO.BCA.WWW011893600014000163408402150008850016340840303UMI51440014ID.CO.QRIS.WWW0215ID10221858786030303UMI5204599953033605802ID5914ASIA PAINTMENT6009GORONTALO61059611962070703A0163041490';
 
     // ==================== VARIABEL GLOBAL ====================
@@ -526,8 +523,8 @@
         document.getElementById('displayMerchantName').textContent = 'ASIA PAINTMENT';
         document.getElementById('merchantDisplay').style.display = 'flex';
 
-        await saveDepositRequestToBalanceLog();
-        await saveDepositToFirebase();
+        // ===== SIMPAN KE pending_deposits =====
+        await savePendingDeposit();
 
         startCountdown();
 
@@ -540,6 +537,33 @@
         generateBtn.disabled = false;
         generateBtn.innerHTML = 'Generate Kode Pembayaran';
         document.getElementById('loadingState').style.display = 'none';
+      }
+    }
+
+    // ==================== SIMPAN DEPOSIT KE PENDING_DEPOSITS ====================
+    async function savePendingDeposit() {
+      if (!driverData.uid) throw new Error('UID driver tidak ditemukan');
+      
+      const depositEntry = {
+        driverId: driverData.uid,
+        driverName: driverData.name || driverData.fullName || 'Driver',
+        driverPhone: driverData.phone || '-',
+        amount: depositAmount,
+        uniqueAmount: uniqueAmount,
+        uniqueDigits: uniqueDigits,
+        paymentId: paymentId,
+        status: 'pending',
+        createdAt: firebase.database.ServerValue.TIMESTAMP,
+        expiresAt: Date.now() + (24 * 60 * 60 * 1000) // 24 jam
+      };
+
+      try {
+        const newRef = await database.ref('pending_deposits').push(depositEntry);
+        console.log('✅ Deposit pending tersimpan di pending_deposits dengan key:', newRef.key);
+        return newRef.key;
+      } catch (error) {
+        console.error('❌ Gagal simpan pending deposit:', error);
+        throw error;
       }
     }
 
@@ -630,59 +654,6 @@
       link.click();
       
       alert('QRIS berhasil diunduh!');
-    }
-
-    // ==================== SIMPAN KE FIREBASE ====================
-    async function saveDepositRequestToBalanceLog() {
-      if (!driverData.uid) return false;
-      const logEntry = {
-        type: 'deposit_request',
-        amount: depositAmount,
-        uniqueAmount: uniqueAmount,
-        uniqueDigits: uniqueDigits,
-        paymentId: paymentId,
-        status: 'pending',
-        old_balance: driverData.balance || 0,
-        new_balance: driverData.balance || 0,
-        note: `Permintaan deposit Rp ${depositAmount.toLocaleString('id-ID')} (kode unik: ${uniqueDigits})`,
-        driver_name: driverData.name || driverData.fullName,
-        driver_phone: driverData.phone || '-',
-        timestamp: firebase.database.ServerValue.TIMESTAMP,
-        expires_at: Date.now() + (24 * 60 * 60 * 1000)
-      };
-      try {
-        const newLogRef = await database.ref(`driver_balance_logs/${driverData.uid}`).push();
-        await newLogRef.set(logEntry);
-        console.log('Permintaan deposit tercatat di driver_balance_logs');
-        return true;
-      } catch (error) {
-        console.error('Gagal simpan ke driver_balance_logs:', error);
-        return false;
-      }
-    }
-
-    async function saveDepositToFirebase() {
-      if (!driverData.uid) return false;
-      const depositData = {
-        paymentId: paymentId,
-        driverId: driverData.uid,
-        driverName: driverData.name || driverData.fullName || 'Driver',
-        driverPhone: driverData.phone || '-',
-        depositAmount: depositAmount,
-        uniqueAmount: uniqueAmount,
-        uniqueDigits: uniqueDigits,
-        status: 'pending',
-        createdAt: new Date().toISOString(),
-        timestamp: firebase.database.ServerValue.TIMESTAMP
-      };
-      try {
-        await database.ref(`drivers/${driverData.uid}/deposits/${paymentId}`).set(depositData);
-        console.log('Deposit tersimpan di drivers path');
-        return true;
-      } catch (error) {
-        console.error('Gagal menyimpan deposit (drivers path):', error);
-        return false;
-      }
     }
 
     // ==================== UTILITY ====================
