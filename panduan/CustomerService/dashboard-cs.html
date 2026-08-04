@@ -82,6 +82,10 @@
         .stat-card.orange { border-color: var(--secondary); }
         .stat-card.red { border-color: var(--danger); }
         .stat-card.yellow { border-color: var(--warning); }
+        .stat-card.blue { border-color: #3b82f6; }
+        .stat-card.purple { border-color: #8b5cf6; }
+        .stat-card.teal { border-color: #14b8a6; }
+        .stat-card.pink { border-color: #ec4899; }
         .guidelines-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px,1fr)); gap: 18px; margin: 16px 0 28px; }
         .guideline-item { background: white; padding: 20px 22px; border-radius: var(--radius); box-shadow: var(--shadow); border-bottom: 3px solid var(--primary); }
         .guideline-item i { font-size: 26px; color: var(--primary); margin-bottom: 8px; display: inline-block; }
@@ -179,6 +183,7 @@
         .flow-wrapper { background: #fafafa; border-radius: 16px; padding: 16px 20px; margin: 16px 0 24px; border: 1px solid #e9ecef; overflow-x: auto; }
         .flow-wrapper .mermaid { text-align: center; }
         .stats-badge { background: #e9ecef; padding: 5px 14px; border-radius: 30px; font-size: 0.8rem; font-weight: 500; color: #1e293b; }
+        .last-update { font-size: 12px; color: var(--text-gray); margin-top: 8px; text-align: right; }
 
         /* ====== LOGIN ====== */
         #loginPage {
@@ -314,13 +319,23 @@
                     <h2>Selamat Datang di Dashboard CS JeGo! 👋</h2>
                     <p>Anda adalah ujung tombak pelayanan kami. Gunakan menu di samping untuk mengakses panduan, mencari driver, dan memantau statistik.</p>
                 </div>
+                <!-- Kartu Utama (Driver) -->
                 <div class="stats-grid">
-                    <div class="stat-card"><span class="icon"><i class="fas fa-user-plus"></i></span><div class="label">Pendaftaran Hari Ini</div><div class="value">0</div></div>
-                    <div class="stat-card green"><span class="icon"><i class="fas fa-user-check"></i></span><div class="label">Driver Aktif</div><div class="value">0</div></div>
-                    <div class="stat-card yellow"><span class="icon"><i class="fas fa-clock"></i></span><div class="label">Menunggu Verifikasi</div><div class="value">0</div></div>
-                    <div class="stat-card red"><span class="icon"><i class="fas fa-headset"></i></span><div class="label">Total Driver</div><div class="value">0</div></div>
+                    <div class="stat-card"><span class="icon"><i class="fas fa-users"></i></span><div class="label">Total Driver</div><div class="value" id="berandaTotalDriver">0</div></div>
+                    <div class="stat-card green"><span class="icon"><i class="fas fa-user-check"></i></span><div class="label">Driver Aktif</div><div class="value" id="berandaAktif">0</div></div>
+                    <div class="stat-card yellow"><span class="icon"><i class="fas fa-clock"></i></span><div class="label">Menunggu Verifikasi</div><div class="value" id="berandaPending">0</div></div>
+                    <div class="stat-card red"><span class="icon"><i class="fas fa-user-slash"></i></span><div class="label">Nonaktif / Diblokir</div><div class="value" id="berandaNonaktif">0</div></div>
                 </div>
-                <h3 style="font-size:18px; margin-bottom:6px;"><i class="fas fa-star" style="color:var(--primary);"></i> Etos Kerja Profesional CS JeGo</h3>
+                <!-- Kartu Tambahan (Customer, Order, Revenue, Deposit) -->
+                <div class="stats-grid">
+                    <div class="stat-card blue"><span class="icon"><i class="fas fa-user-friends"></i></span><div class="label">Total Customer</div><div class="value" id="berandaTotalCustomers">0</div></div>
+                    <div class="stat-card teal"><span class="icon"><i class="fas fa-shopping-cart"></i></span><div class="label">Order Hari Ini</div><div class="value" id="berandaOrdersToday">0</div></div>
+                    <div class="stat-card purple"><span class="icon"><i class="fas fa-money-bill-wave"></i></span><div class="label">Revenue Hari Ini</div><div class="value" id="berandaRevenueToday">Rp 0</div></div>
+                    <div class="stat-card pink"><span class="icon"><i class="fas fa-hourglass-half"></i></span><div class="label">Deposit Pending</div><div class="value" id="berandaPendingDeposits">0</div></div>
+                </div>
+                <div class="last-update" id="berandaUpdateTime">🔄 Terakhir update: -</div>
+
+                <h3 style="font-size:18px; margin-bottom:6px; margin-top:20px;"><i class="fas fa-star" style="color:var(--primary);"></i> Etos Kerja Profesional CS JeGo</h3>
                 <div class="guidelines-grid">
                     <div class="guideline-item"><i class="fas fa-bolt"></i><h4>Cepat & Responsif</h4><p>Balas pertanyaan driver dalam waktu singkat. Gunakan template jawaban yang tersedia.</p></div>
                     <div class="guideline-item"><i class="fas fa-heart"></i><h4>Empati & Ramah</h4><p>Dengarkan keluhan driver dengan sabar. Tunjukkan bahwa Anda peduli dengan solusi terbaik.</p></div>
@@ -340,6 +355,7 @@
 
             <!-- ===== PANDUAN ===== -->
             <div class="page-container" id="page-panduan">
+                <!-- (Konten panduan tetap sama, tidak diubah) -->
                 <div style="margin-bottom:16px;"><h1><i class="fas fa-book-open"></i> Panduan Pendaftaran Driver</h1><p style="color:var(--text-gray);">Dokumen ini untuk membantu Customer Service memandu calon driver yang mendaftar.</p></div>
                 <div class="callout"><i class="fas fa-lock"></i><strong>Akses ke database hanya dilakukan oleh Founder / tim teknis.</strong> CS cukup menggunakan dashboard ini untuk melihat data.</div>
                 <h3 style="margin-top:20px;">Ikhtisar Proses</h3>
@@ -401,23 +417,34 @@
             <!-- ===== STATISTIK ===== -->
             <div class="page-container" id="page-statistik">
                 <div style="margin-bottom:16px;"><h1><i class="fas fa-chart-pie"></i> Statistik Driver</h1><p style="color:var(--text-gray);">Ringkasan data mitra driver JeGo</p></div>
-                <div style="display:flex; justify-content:flex-end; margin-bottom:16px;"><button class="btn-refresh" id="refreshStatistik"><i class="fas fa-sync-alt"></i> Refresh</button></div>
+                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; margin-bottom:16px;">
+                    <div class="last-update" id="statistikUpdateTime">🔄 Terakhir update: -</div>
+                    <button class="btn-refresh" id="refreshStatistik"><i class="fas fa-sync-alt"></i> Refresh</button>
+                </div>
+                <!-- Kartu Statistik Utama -->
                 <div class="stats-grid" id="statsGrid">
                     <div class="stat-card"><span class="icon"><i class="fas fa-users"></i></span><div class="label">Total Driver</div><div class="value" id="statTotal">-</div></div>
                     <div class="stat-card green"><span class="icon"><i class="fas fa-user-check"></i></span><div class="label">Aktif</div><div class="value" id="statAktif">-</div></div>
                     <div class="stat-card yellow"><span class="icon"><i class="fas fa-clock"></i></span><div class="label">Menunggu Verifikasi</div><div class="value" id="statPending">-</div></div>
                     <div class="stat-card red"><span class="icon"><i class="fas fa-user-slash"></i></span><div class="label">Nonaktif / Diblokir</div><div class="value" id="statNonaktif">-</div></div>
                 </div>
+                <!-- Kartu Tambahan -->
+                <div class="stats-grid">
+                    <div class="stat-card blue"><span class="icon"><i class="fas fa-user-friends"></i></span><div class="label">Total Customer</div><div class="value" id="statTotalCustomers">-</div></div>
+                    <div class="stat-card teal"><span class="icon"><i class="fas fa-shopping-cart"></i></span><div class="label">Order Hari Ini</div><div class="value" id="statOrdersToday">-</div></div>
+                    <div class="stat-card purple"><span class="icon"><i class="fas fa-money-bill-wave"></i></span><div class="label">Revenue Hari Ini</div><div class="value" id="statRevenueToday">Rp -</div></div>
+                    <div class="stat-card pink"><span class="icon"><i class="fas fa-hourglass-half"></i></span><div class="label">Deposit Pending</div><div class="value" id="statPendingDeposits">-</div></div>
+                </div>
                 <div class="chart-section"><h3><i class="fas fa-car" style="color:var(--primary);"></i> Jenis Kendaraan</h3><div class="bar-chart" id="vehicleChart"></div></div>
                 <div style="margin-top:20px;"><h3><i class="fas fa-list" style="color:var(--primary);"></i> Rincian Status</h3><div class="table-wrapper"><table><thead><tr><th>Status</th><th>Jumlah</th><th>Persentase</th></tr></thead><tbody id="statusTableBody"><tr><td colspan="3" style="text-align:center;">Memuat...</td></tr></tbody></table></div></div>
             </div>
 
-            <div class="footer">© 2026 JeGo – Customer Service Dashboard (SPA - Cari Driver)</div>
+            <div class="footer">© 2026 JeGo – Customer Service Dashboard (SPA - Cari Driver) | Data diperbarui otomatis setiap jam</div>
         </div>
     </div>
 
-    <!-- ===== MODALS ===== -->
-    <!-- EDIT DRIVER MODAL (dengan field photoURL) -->
+    <!-- ===== MODALS (sama seperti sebelumnya) ===== -->
+    <!-- EDIT DRIVER MODAL -->
     <div id="editDriverModal" class="modal">
         <div class="modal-content">
             <div class="modal-header"><h2><i class="fas fa-edit"></i> Edit Driver</h2><button class="modal-close close-driver-modal">&times;</button></div>
@@ -426,7 +453,6 @@
                 <div class="form-group"><label>Nama Lengkap</label><input type="text" id="editDriverName"></div>
                 <div class="form-group"><label>Telepon</label><input type="tel" id="editDriverPhone"></div>
                 <div class="form-group"><label>Email</label><input type="email" id="editDriverEmail"></div>
-                <!-- 📸 FIELD PHOTOURL BARU -->
                 <div class="form-group"><label>URL Foto Profil</label><input type="text" id="editDriverPhotoURL" placeholder="https://example.com/foto.jpg"></div>
                 <div class="form-group"><label>Tanggal Lahir</label><input type="date" id="editDriverDob"></div>
                 <div class="form-group"><label>Jenis Kendaraan</label><input type="text" id="editDriverVehicleType" placeholder="motor / bentor"></div>
@@ -676,7 +702,6 @@
             const d = driver;
             const row = document.createElement('tr');
 
-            // Foto
             const img = document.createElement('img');
             img.src = d.photoURL || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png';
             img.className = 'driver-photo-td';
@@ -707,7 +732,6 @@
             reasonInput.value = d.ketGagal || '';
             row.insertCell(10).appendChild(reasonInput);
 
-            // Tracking toggle
             const trackToggle = document.createElement('label');
             trackToggle.className = 'toggle-switch';
             const trackCheck = document.createElement('input');
@@ -720,7 +744,6 @@
             trackToggle.appendChild(trackSlider);
             row.insertCell(11).appendChild(trackToggle);
 
-            // Autobid toggle
             const autoToggle = document.createElement('label');
             autoToggle.className = 'toggle-switch';
             const autoCheck = document.createElement('input');
@@ -733,7 +756,6 @@
             autoToggle.appendChild(autoSlider);
             row.insertCell(12).appendChild(autoToggle);
 
-            // Action buttons
             const actionDiv = document.createElement('div');
             actionDiv.className = 'action-buttons';
             const updateBtn = document.createElement('button');
@@ -751,7 +773,6 @@
             actionDiv.append(updateBtn, editBtn, topupBtn, notifBtn);
             row.insertCell(13).appendChild(actionDiv);
 
-            // Event handlers
             updateBtn.onclick = async () => {
                 if (!currentDriver) return;
                 const newStatus = prompt("Masukkan status baru (accepted, pending, rejected, blocked):", currentDriver.status);
@@ -863,13 +884,12 @@
             }
         }
 
-        // ========== EDIT MODAL (dengan photoURL) ==========
+        // ========== EDIT MODAL ==========
         function openDriverEditModal(driver) {
             document.getElementById('editDriverUid').value = driver.uid;
             document.getElementById('editDriverName').value = driver.name || '';
             document.getElementById('editDriverPhone').value = driver.phone || '';
             document.getElementById('editDriverEmail').value = driver.email || '';
-            // 📸 isi photoURL
             document.getElementById('editDriverPhotoURL').value = driver.photoURL || '';
             document.getElementById('editDriverDob').value = driver.date_of_birth || '';
             document.getElementById('editDriverVehicleType').value = (driver.vehicle_type === '-' ? '' : driver.vehicle_type) || '';
@@ -890,7 +910,7 @@
                 name: document.getElementById('editDriverName').value.trim(),
                 phone: document.getElementById('editDriverPhone').value.trim(),
                 email: document.getElementById('editDriverEmail').value.trim(),
-                photoURL: document.getElementById('editDriverPhotoURL').value.trim() || '', // 📸 simpan photoURL
+                photoURL: document.getElementById('editDriverPhotoURL').value.trim() || '',
                 date_of_birth: document.getElementById('editDriverDob').value,
                 vehicle_type: document.getElementById('editDriverVehicleType').value.trim().toLowerCase() || 'motor',
                 vehicle_brand: document.getElementById('editDriverVehicleBrand').value.trim(),
@@ -1047,7 +1067,7 @@
             }
         };
 
-        // ========== BROADCAST & AKTIFKAN UNTUK DRIVER TERPILIH ==========
+        // ========== BROADCAST & AKTIFKAN ==========
         async function broadcastToDriver() {
             if (!currentDriver) {
                 showToast('Tidak ada driver yang ditampilkan. Cari driver terlebih dahulu.', true);
@@ -1097,12 +1117,95 @@
             }
         }
 
-        // ========== STATISTIK ==========
+        // ==================== LOAD STATISTIK (dari stats/daily) ====================
         function loadStatistik() {
+            const tbody = document.getElementById('statusTableBody');
+            const chartContainer = document.getElementById('vehicleChart');
+            
+            if (tbody) tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;">Memuat...</td></tr>';
+            if (chartContainer) chartContainer.innerHTML = '<div class="loading"><div class="spinner"></div> Memuat grafik...</div>';
+
+            database.ref('stats/daily').once('value').then(snap => {
+                const stats = snap.val();
+                if (!stats) {
+                    console.warn('⚠️ stats/daily tidak ditemukan, fallback ke hitung manual dari drivers');
+                    fallbackManualStatistik();
+                    return;
+                }
+
+                // === Driver stats ===
+                const total = stats.totalDrivers || 0;
+                const aktif = stats.activeDrivers || 0;
+                const pending = stats.pendingDrivers || 0;
+                const verified = stats.verifiedDrivers || 0;
+                const blocked = stats.blockedDrivers || 0;
+                const nonaktif = total - verified - pending - blocked;
+                const nonaktifFinal = nonaktif < 0 ? 0 : nonaktif;
+
+                // === Additional stats ===
+                const totalCustomers = stats.totalCustomers || 0;
+                const ordersToday = stats.ordersToday || 0;
+                const revenueToday = stats.revenueToday || 0;
+                const pendingDeposits = stats.pendingDeposits || 0;
+                const updatedAt = stats.updatedAt || '';
+
+                // === Update Beranda ===
+                document.getElementById('berandaTotalDriver').textContent = total;
+                document.getElementById('berandaAktif').textContent = aktif;
+                document.getElementById('berandaPending').textContent = pending;
+                document.getElementById('berandaNonaktif').textContent = nonaktifFinal;
+                document.getElementById('berandaTotalCustomers').textContent = totalCustomers;
+                document.getElementById('berandaOrdersToday').textContent = ordersToday;
+                document.getElementById('berandaRevenueToday').textContent = formatRupiah(revenueToday);
+                document.getElementById('berandaPendingDeposits').textContent = pendingDeposits;
+                if (updatedAt) {
+                    document.getElementById('berandaUpdateTime').textContent = '🔄 Terakhir update: ' + new Date(updatedAt).toLocaleString('id-ID');
+                }
+
+                // === Update Statistik ===
+                document.getElementById('statTotal').textContent = total;
+                document.getElementById('statAktif').textContent = aktif;
+                document.getElementById('statPending').textContent = pending;
+                document.getElementById('statNonaktif').textContent = nonaktifFinal;
+                document.getElementById('statTotalCustomers').textContent = totalCustomers;
+                document.getElementById('statOrdersToday').textContent = ordersToday;
+                document.getElementById('statRevenueToday').textContent = formatRupiah(revenueToday);
+                document.getElementById('statPendingDeposits').textContent = pendingDeposits;
+                if (updatedAt) {
+                    document.getElementById('statistikUpdateTime').textContent = '🔄 Terakhir update: ' + new Date(updatedAt).toLocaleString('id-ID');
+                }
+
+                // === Grafik Kendaraan ===
+                if (stats.vehicleCounts) {
+                    renderVehicleChart(stats.vehicleCounts);
+                } else {
+                    console.warn('⚠️ stats/daily tidak memiliki vehicleCounts, fallback ke hitung manual');
+                    fallbackManualStatistik();
+                    return;
+                }
+
+                // === Tabel Rincian Status ===
+                if (stats.statusCounts && stats.totalDrivers) {
+                    renderStatusTable(stats.statusCounts, stats.totalDrivers);
+                } else {
+                    console.warn('⚠️ stats/daily tidak memiliki statusCounts, fallback ke hitung manual');
+                    fallbackManualStatistik();
+                    return;
+                }
+
+            }).catch(err => {
+                console.error('❌ Gagal baca stats/daily:', err);
+                fallbackManualStatistik();
+            });
+        }
+
+        // ==================== FALLBACK MANUAL ====================
+        function fallbackManualStatistik() {
+            console.log('📊 Menghitung statistik manual dari node drivers (fallback)');
             database.ref('drivers').once('value').then(snap => {
                 const data = snap.val();
                 if (!data) {
-                    ['statTotal','statAktif','statPending','statNonaktif'].forEach(id => {
+                    ['statTotal','statAktif','statPending','statNonaktif','statTotalCustomers','statOrdersToday','statRevenueToday','statPendingDeposits'].forEach(id => {
                         const el = document.getElementById(id);
                         if (el) el.textContent = '0';
                     });
@@ -1110,11 +1213,18 @@
                     if (chart) chart.innerHTML = '<p style="color:var(--text-gray);">Belum ada data</p>';
                     const table = document.getElementById('statusTableBody');
                     if (table) table.innerHTML = '<tr><td colspan="3" style="text-align:center;">Tidak ada data</td></tr>';
+                    // Beranda
+                    ['berandaTotalDriver','berandaAktif','berandaPending','berandaNonaktif','berandaTotalCustomers','berandaOrdersToday','berandaRevenueToday','berandaPendingDeposits'].forEach(id => {
+                        const el = document.getElementById(id);
+                        if (el) el.textContent = '0';
+                    });
+                    document.getElementById('berandaRevenueToday').textContent = 'Rp 0';
+                    document.getElementById('statRevenueToday').textContent = 'Rp 0';
                     return;
                 }
                 const drivers = Object.values(data);
                 const total = drivers.length;
-                let aktif=0, pending=0, inactive=0, banned=0;
+                let aktif=0, pending=0, inactive=0, blocked=0;
                 const vehicleCount = { motor:0, mobil:0, bentor:0, other:0 };
                 const statusMap = {};
                 drivers.forEach(d => {
@@ -1122,43 +1232,83 @@
                     if (s === 'active' || s === 'accepted') aktif++;
                     else if (s === 'pending') pending++;
                     else if (s === 'inactive') inactive++;
-                    else if (s === 'blocked') banned++;
+                    else if (s === 'blocked') blocked++;
                     const v = d.vehicle_type || 'other';
                     if (v === 'motor' || v === 'mobil' || v === 'bentor') vehicleCount[v] = (vehicleCount[v]||0) + 1;
                     else vehicleCount.other = (vehicleCount.other||0) + 1;
                     statusMap[s] = (statusMap[s]||0) + 1;
                 });
+                const nonaktifFinal = inactive + blocked;
+
+                // Driver stats
                 document.getElementById('statTotal').textContent = total;
                 document.getElementById('statAktif').textContent = aktif;
                 document.getElementById('statPending').textContent = pending;
-                document.getElementById('statNonaktif').textContent = inactive + banned;
+                document.getElementById('statNonaktif').textContent = nonaktifFinal;
+                document.getElementById('berandaTotalDriver').textContent = total;
+                document.getElementById('berandaAktif').textContent = aktif;
+                document.getElementById('berandaPending').textContent = pending;
+                document.getElementById('berandaNonaktif').textContent = nonaktifFinal;
 
-                const chart = document.getElementById('vehicleChart');
-                if (chart) {
-                    const labels = ['Motor','Mobil','Bentor','Lainnya'];
-                    const values = [vehicleCount.motor||0, vehicleCount.mobil||0, vehicleCount.bentor||0, vehicleCount.other||0];
-                    const maxVal = Math.max(1, ...values);
-                    const colors = ['#FF9800','#FF5722','#4CAF50','#ffc107'];
-                    let html = '';
-                    values.forEach((v,i) => {
-                        const pct = (v/maxVal)*100;
-                        html += `<div class="bar-item"><div class="bar-value">${v}</div><div class="bar" style="height:${Math.max(8,pct)}px;background:${colors[i]};"></div><div class="bar-label">${labels[i]}</div></div>`;
-                    });
-                    chart.innerHTML = html;
-                }
-
-                const statusOrder = ['active','accepted','pending','inactive','blocked'];
-                const statusLabel = { active:'Aktif', accepted:'Accepted', pending:'Menunggu Verifikasi', inactive:'Nonaktif', blocked:'Diblokir' };
-                const statusColors = { active:'#2e7d32', accepted:'#2e7d32', pending:'#e65100', inactive:'#c62828', blocked:'#b71c1c' };
-                let tableHtml = '';
-                statusOrder.forEach(s => {
-                    const count = statusMap[s] || 0;
-                    const pct = total ? ((count/total)*100).toFixed(1) : '0.0';
-                    tableHtml += `<tr><td><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:${statusColors[s]};margin-right:8px;"></span>${statusLabel[s]||s}</td><td>${count}</td><td>${pct}%</td></tr>`;
+                // Additional (fallback tidak punya data ini, set 0)
+                ['statTotalCustomers','statOrdersToday','statPendingDeposits','berandaTotalCustomers','berandaOrdersToday','berandaPendingDeposits'].forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) el.textContent = '0';
                 });
-                const tableBody = document.getElementById('statusTableBody');
-                if (tableBody) tableBody.innerHTML = tableHtml;
-            }).catch(console.error);
+                document.getElementById('statRevenueToday').textContent = 'Rp 0';
+                document.getElementById('berandaRevenueToday').textContent = 'Rp 0';
+                document.getElementById('berandaUpdateTime').textContent = '🔄 Terakhir update: -';
+                document.getElementById('statistikUpdateTime').textContent = '🔄 Terakhir update: -';
+
+                renderVehicleChart(vehicleCount);
+                renderStatusTable(statusMap, total);
+            }).catch(err => {
+                console.error('❌ Fallback gagal:', err);
+            });
+        }
+
+        // ==================== RENDER GRAFIK KENDARAAN ====================
+        function renderVehicleChart(vehicleCounts) {
+            const chart = document.getElementById('vehicleChart');
+            if (!chart) return;
+            const labels = ['Motor','Mobil','Bentor','Lainnya'];
+            const values = [
+                vehicleCounts.motor || 0,
+                vehicleCounts.mobil || 0,
+                vehicleCounts.bentor || 0,
+                vehicleCounts.other || 0
+            ];
+            const maxVal = Math.max(1, ...values);
+            const colors = ['#FF9800','#FF5722','#4CAF50','#ffc107'];
+            let html = '';
+            values.forEach((v,i) => {
+                const pct = (v/maxVal)*100;
+                html += `<div class="bar-item"><div class="bar-value">${v}</div><div class="bar" style="height:${Math.max(8,pct)}px;background:${colors[i]};"></div><div class="bar-label">${labels[i]}</div></div>`;
+            });
+            chart.innerHTML = html;
+        }
+
+        // ==================== RENDER TABEL STATUS ====================
+        function renderStatusTable(statusCounts, total) {
+            const tableBody = document.getElementById('statusTableBody');
+            if (!tableBody) return;
+            const statusOrder = ['active','accepted','pending','inactive','blocked'];
+            const statusLabel = { active:'Aktif', accepted:'Accepted', pending:'Menunggu Verifikasi', inactive:'Nonaktif', blocked:'Diblokir' };
+            const statusColors = { active:'#2e7d32', accepted:'#2e7d32', pending:'#e65100', inactive:'#c62828', blocked:'#b71c1c' };
+            let html = '';
+            statusOrder.forEach(s => {
+                const count = statusCounts[s] || 0;
+                const pct = total ? ((count/total)*100).toFixed(1) : '0.0';
+                html += `<tr><td><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:${statusColors[s]};margin-right:8px;"></span>${statusLabel[s]||s}</td><td>${count}</td><td>${pct}%</td></tr>`;
+            });
+            for (let s in statusCounts) {
+                if (!statusOrder.includes(s)) {
+                    const count = statusCounts[s];
+                    const pct = total ? ((count/total)*100).toFixed(1) : '0.0';
+                    html += `<tr><td><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#999;margin-right:8px;"></span>${s}</td><td>${count}</td><td>${pct}%</td></tr>`;
+                }
+            }
+            tableBody.innerHTML = html;
         }
 
         // ========== EVENT LISTENER ==========
@@ -1186,7 +1336,8 @@
         // ========== INIT ==========
         resetSearch();
         console.log('✅ Dashboard CS SPA dengan Cari Driver & Edit PhotoURL siap!');
-        console.log('📌 Sekarang admin bisa mengubah URL foto driver di modal Edit Data.');
+        console.log('📌 Statistik sekarang menggunakan node stats/daily dari Cloud Functions.');
+        console.log('📊 Data tambahan: totalCustomers, ordersToday, revenueToday, pendingDeposits, updatedAt ditampilkan.');
     </script>
 </body>
 </html>
