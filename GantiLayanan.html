@@ -1,0 +1,743 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Ganti Jenis Layanan - JeGo</title>
+    
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-database-compat.js"></script>
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f5f7fa;
+            color: #333;
+            padding: 20px 16px 40px;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 480px;
+            margin: 0 auto;
+        }
+        
+        /* Header */
+        .header {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 16px 0 24px;
+            border-bottom: 1px solid #e9ecef;
+            margin-bottom: 24px;
+        }
+        
+        .back-btn {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: #555;
+            padding: 4px 8px;
+            transition: 0.2s;
+        }
+        
+        .back-btn:hover {
+            color: #FF9800;
+        }
+        
+        .header h1 {
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: #FF9800;
+            flex: 1;
+        }
+        
+        .header-subtitle {
+            font-size: 0.8rem;
+            color: #6c757d;
+            margin-top: 2px;
+        }
+        
+        /* Card */
+        .card {
+            background: white;
+            border-radius: 16px;
+            padding: 24px 20px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+            margin-bottom: 20px;
+        }
+        
+        .card-title {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: #555;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .card-title i {
+            color: #FF9800;
+        }
+        
+        /* Current Service */
+        .current-service {
+            background: #fff8f0;
+            border: 1px solid #ffe0b5;
+            border-radius: 12px;
+            padding: 14px 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+        
+        .current-service-label {
+            font-size: 0.8rem;
+            color: #6c757d;
+        }
+        
+        .current-service-value {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: #FF9800;
+            text-transform: capitalize;
+        }
+        
+        .current-service-value i {
+            margin-right: 6px;
+        }
+        
+        /* Service Options */
+        .service-options {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        
+        .service-option {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 14px 16px;
+            border: 2px solid #e9ecef;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            background: white;
+        }
+        
+        .service-option:hover {
+            border-color: #FFB74D;
+            background: #fffbf5;
+        }
+        
+        .service-option.selected {
+            border-color: #FF9800;
+            background: #fff8f0;
+            box-shadow: 0 0 0 4px rgba(255, 152, 0, 0.12);
+        }
+        
+        .service-option .icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.4rem;
+            flex-shrink: 0;
+            color: white;
+        }
+        
+        .service-option .icon.motor {
+            background: #4CAF50;
+        }
+        .service-option .icon.bentor {
+            background: #FF9800;
+        }
+        .service-option .icon.mobil {
+            background: #2196F3;
+        }
+        
+        .service-option .info {
+            flex: 1;
+        }
+        
+        .service-option .info .name {
+            font-weight: 600;
+            font-size: 1rem;
+            color: #333;
+        }
+        
+        .service-option .info .desc {
+            font-size: 0.75rem;
+            color: #6c757d;
+            margin-top: 2px;
+        }
+        
+        .service-option .check {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            border: 2px solid #d0d8e3;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: 0.2s;
+            flex-shrink: 0;
+        }
+        
+        .service-option.selected .check {
+            background: #FF9800;
+            border-color: #FF9800;
+            color: white;
+        }
+        
+        .service-option .check i {
+            font-size: 0.7rem;
+            opacity: 0;
+            transition: 0.2s;
+        }
+        
+        .service-option.selected .check i {
+            opacity: 1;
+        }
+        
+        /* Form Input */
+        .form-group {
+            margin-top: 16px;
+        }
+        
+        .form-group label {
+            display: block;
+            font-weight: 600;
+            font-size: 0.85rem;
+            color: #555;
+            margin-bottom: 6px;
+        }
+        
+        .form-group label i {
+            color: #FF9800;
+            margin-right: 6px;
+        }
+        
+        .form-group input,
+        .form-group textarea {
+            width: 100%;
+            padding: 12px 14px;
+            border: 2px solid #e9ecef;
+            border-radius: 10px;
+            font-size: 0.9rem;
+            font-family: inherit;
+            transition: 0.2s;
+            background: white;
+            color: #333;
+        }
+        
+        .form-group input:focus,
+        .form-group textarea:focus {
+            border-color: #FF9800;
+            outline: none;
+            box-shadow: 0 0 0 4px rgba(255, 152, 0, 0.1);
+        }
+        
+        .form-group textarea {
+            min-height: 80px;
+            resize: vertical;
+        }
+        
+        .form-group .helper-text {
+            font-size: 0.7rem;
+            color: #6c757d;
+            margin-top: 4px;
+        }
+        
+        /* Info Box */
+        .info-box {
+            background: #e3f2fd;
+            border-radius: 12px;
+            padding: 14px 16px;
+            font-size: 0.8rem;
+            color: #1a5a8c;
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            margin-top: 16px;
+        }
+        
+        .info-box i {
+            font-size: 1rem;
+            margin-top: 2px;
+            flex-shrink: 0;
+        }
+        
+        /* Button WhatsApp */
+        .btn-whatsapp {
+            width: 100%;
+            padding: 16px;
+            background: #25D366;
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-weight: 700;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.25s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 16px;
+        }
+        
+        .btn-whatsapp:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(37, 211, 102, 0.35);
+        }
+        
+        .btn-whatsapp:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        
+        .btn-whatsapp i {
+            font-size: 1.2rem;
+        }
+        
+        /* Toast Notification */
+        .toast {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #333;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 30px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            z-index: 9999;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            pointer-events: none;
+            max-width: 90%;
+            text-align: center;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+        
+        .toast.show {
+            opacity: 1;
+        }
+        .toast.success {
+            background: #4CAF50;
+        }
+        .toast.error {
+            background: #F44336;
+        }
+        .toast.warning {
+            background: #FF9800;
+        }
+        
+        /* Dark mode */
+        body.dark {
+            background: #121212;
+            color: #e9ecef;
+        }
+        
+        body.dark .card {
+            background: #1e1e1e;
+        }
+        
+        body.dark .service-option {
+            background: #2c2c2c;
+            border-color: #444;
+        }
+        
+        body.dark .service-option:hover {
+            border-color: #FF9800;
+            background: #333;
+        }
+        
+        body.dark .service-option.selected {
+            border-color: #FF9800;
+            background: #2a241a;
+        }
+        
+        body.dark .service-option .info .name {
+            color: #e9ecef;
+        }
+        
+        body.dark .current-service {
+            background: #2a241a;
+            border-color: #FF9800;
+        }
+        
+        body.dark .info-box {
+            background: #1a2a3a;
+            color: #8bb8d8;
+        }
+        
+        body.dark .header {
+            border-color: #333;
+        }
+        
+        body.dark .back-btn {
+            color: #aaa;
+        }
+        
+        body.dark .service-option .check {
+            border-color: #555;
+        }
+        
+        body.dark .form-group input,
+        body.dark .form-group textarea {
+            background: #2c2c2c;
+            border-color: #444;
+            color: #e9ecef;
+        }
+        
+        body.dark .form-group input:focus,
+        body.dark .form-group textarea:focus {
+            border-color: #FF9800;
+        }
+        
+        body.dark .form-group label {
+            color: #aaa;
+        }
+        
+        /* Responsive */
+        @media (max-width: 480px) {
+            .service-option {
+                padding: 12px 14px;
+            }
+            .service-option .icon {
+                width: 40px;
+                height: 40px;
+                font-size: 1.1rem;
+            }
+            .header h1 {
+                font-size: 1.1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <!-- Header -->
+    <div class="header">
+        <button class="back-btn" onclick="goBack()">
+            <i class="fas fa-arrow-left"></i>
+        </button>
+        <div>
+            <h1>🔄 Ganti Layanan</h1>
+            <div class="header-subtitle">Ajukan perubahan jenis kendaraan ke admin</div>
+        </div>
+    </div>
+    
+    <!-- Card -->
+    <div class="card">
+        <div class="card-title">
+            <i class="fas fa-car"></i> Pilih Jenis Layanan
+        </div>
+        
+        <!-- Current Service -->
+        <div class="current-service">
+            <div>
+                <div class="current-service-label">Layanan saat ini</div>
+                <div class="current-service-value" id="currentServiceDisplay">
+                    <i class="fas fa-circle"></i> <span id="currentServiceName">Memuat...</span>
+                </div>
+            </div>
+            <i class="fas fa-check-circle" style="color:#4CAF50; font-size:1.4rem;"></i>
+        </div>
+        
+        <!-- Service Options -->
+        <div class="service-options" id="serviceOptions">
+            <!-- Motor -->
+            <div class="service-option" data-value="motor" onclick="selectService('motor')">
+                <div class="icon motor"><i class="fas fa-motorcycle"></i></div>
+                <div class="info">
+                    <div class="name">Motor</div>
+                    <div class="desc">Cocok untuk jarak dekat dan kemacetan</div>
+                </div>
+                <div class="check"><i class="fas fa-check"></i></div>
+            </div>
+            
+            <!-- Bentor -->
+            <div class="service-option" data-value="bentor" onclick="selectService('bentor')">
+                <div class="icon bentor"><i class="fas fa-truck"></i></div>
+                <div class="info">
+                    <div class="name">Bentor</div>
+                    <div class="desc">Roda tiga, cocok untuk medan berat</div>
+                </div>
+                <div class="check"><i class="fas fa-check"></i></div>
+            </div>
+            
+            <!-- Mobil -->
+            <div class="service-option" data-value="mobil" onclick="selectService('mobil')">
+                <div class="icon mobil"><i class="fas fa-car"></i></div>
+                <div class="info">
+                    <div class="name">Mobil</div>
+                    <div class="desc">Nyaman untuk perjalanan jauh dan keluarga</div>
+                </div>
+                <div class="check"><i class="fas fa-check"></i></div>
+            </div>
+        </div>
+        
+        <!-- Form Input Data -->
+        <div class="form-group">
+            <label><i class="fas fa-id-card"></i> Plat Nomor</label>
+            <input type="text" id="plateNumber" placeholder="Masukkan plat nomor kendaraan" />
+            <div class="helper-text">Masukkan plat nomor kendaraan baru Anda</div>
+        </div>
+        
+        <div class="form-group">
+            <label><i class="fas fa-pencil-alt"></i> Alasan Perubahan</label>
+            <textarea id="reason" placeholder="Contoh: Ingin melayani order dengan kapasitas lebih besar"></textarea>
+            <div class="helper-text">Jelaskan alasan Anda ingin mengganti layanan</div>
+        </div>
+        
+        <!-- Info Box -->
+        <div class="info-box" id="infoBox">
+            <i class="fas fa-info-circle"></i>
+            <div>
+                <strong>Catatan:</strong> Pilih layanan baru, isi data yang diperlukan, lalu klik tombol <strong>"Kirim ke Admin"</strong> di bawah. Admin akan memverifikasi dan mengubah layanan Anda.
+            </div>
+        </div>
+        
+        <!-- Button WhatsApp -->
+        <button class="btn-whatsapp" id="whatsappBtn" onclick="sendToWhatsApp()" disabled>
+            <i class="fab fa-whatsapp"></i>
+            <span>📱 Kirim ke Admin</span>
+        </button>
+    </div>
+</div>
+
+<!-- Toast Notification -->
+<div class="toast" id="toast"></div>
+
+<script>
+    // ========== FIREBASE CONFIG ==========
+    const firebaseConfig = {
+        apiKey: "AIzaSyCD0pgeZio-LdKqYDtWxcdXcZwyL4ngYQI",
+        authDomain: "jego-35a2b.firebaseapp.com",
+        databaseURL: "https://jego-35a2b-default-rtdb.asia-southeast1.firebasedatabase.app",
+        projectId: "jego-35a2b",
+        storageBucket: "jego-35a2b.firebasestorage.app",
+        messagingSenderId: "600037007040",
+        appId: "1:600037007040:web:ac3243ad9b472647ffd725"
+    };
+    
+    if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+    const database = firebase.database();
+    const auth = firebase.auth();
+    
+    // ========== GLOBAL ==========
+    const ADMIN_WHATSAPP = '6281994174297';
+    let currentUid = null;
+    let currentService = null;
+    let selectedService = null;
+    let driverData = {};
+    
+    // ========== TOAST ==========
+    let toastTimeout = null;
+    
+    function showToast(message, type = 'info') {
+        const toast = document.getElementById('toast');
+        toast.textContent = message;
+        toast.className = 'toast';
+        if (type) toast.classList.add(type);
+        
+        if (toastTimeout) clearTimeout(toastTimeout);
+        
+        setTimeout(() => toast.classList.add('show'), 10);
+        
+        toastTimeout = setTimeout(() => {
+            toast.classList.remove('show');
+            setTimeout(() => {
+                toast.className = 'toast';
+            }, 300);
+        }, 3000);
+    }
+    
+    // ========== THEME ==========
+    function applyTheme() {
+        const savedTheme = localStorage.getItem('jego_driver_theme');
+        if (savedTheme === 'dark') {
+            document.body.classList.add('dark');
+        } else {
+            document.body.classList.remove('dark');
+        }
+    }
+    applyTheme();
+    
+    // ========== BACK BUTTON ==========
+    function goBack() {
+        window.history.back();
+    }
+    
+    // ========== SELECT SERVICE ==========
+    function selectService(value) {
+        selectedService = value;
+        
+        // Update UI
+        document.querySelectorAll('.service-option').forEach(el => {
+            el.classList.toggle('selected', el.dataset.value === value);
+        });
+        
+        // Enable WhatsApp button jika berbeda
+        const whatsappBtn = document.getElementById('whatsappBtn');
+        if (value !== currentService) {
+            whatsappBtn.disabled = false;
+            whatsappBtn.innerHTML = `<i class="fab fa-whatsapp"></i> 📱 Kirim ke Admin`;
+        } else {
+            whatsappBtn.disabled = true;
+            whatsappBtn.innerHTML = `<i class="fab fa-whatsapp"></i> ✅ Sudah Aktif`;
+        }
+    }
+    
+    // ========== LOAD CURRENT SERVICE ==========
+    async function loadCurrentService() {
+        if (!currentUid) return;
+        
+        try {
+            const snap = await database.ref(`drivers/${currentUid}`).once('value');
+            driverData = snap.val() || {};
+            currentService = driverData.vehicleType || 'motor';
+            
+            // Update display
+            const displayNames = {
+                motor: 'Motor 🏍️',
+                bentor: 'Bentor 🚛',
+                mobil: 'Mobil 🚗'
+            };
+            document.getElementById('currentServiceName').textContent = displayNames[currentService] || currentService;
+            
+            // Isi plat nomor dari Firebase jika ada
+            const plateInput = document.getElementById('plateNumber');
+            if (driverData.plateNumber) {
+                plateInput.value = driverData.plateNumber;
+            } else {
+                plateInput.placeholder = 'Masukkan plat nomor kendaraan';
+            }
+            
+            // Tandai yang aktif
+            document.querySelectorAll('.service-option').forEach(el => {
+                el.classList.toggle('selected', el.dataset.value === currentService);
+            });
+            
+            selectedService = currentService;
+            
+            // Disable WhatsApp button
+            const whatsappBtn = document.getElementById('whatsappBtn');
+            whatsappBtn.disabled = true;
+            whatsappBtn.innerHTML = `<i class="fab fa-whatsapp"></i> ✅ Sudah Aktif`;
+            
+        } catch (error) {
+            console.error('Gagal load data:', error);
+            showToast('Gagal memuat data layanan', 'error');
+        }
+    }
+    
+    // ========== SEND WHATSAPP ==========
+    function sendToWhatsApp() {
+        if (!selectedService || selectedService === currentService) {
+            showToast('Pilih layanan yang berbeda terlebih dahulu', 'warning');
+            return;
+        }
+        
+        // Ambil data dari form
+        const plateNumber = document.getElementById('plateNumber').value.trim();
+        const reason = document.getElementById('reason').value.trim() || '(tidak diisi)';
+        
+        if (!plateNumber) {
+            showToast('Silakan isi plat nomor kendaraan terlebih dahulu', 'warning');
+            document.getElementById('plateNumber').focus();
+            return;
+        }
+        
+        // Data driver
+        const driverName = driverData.name || driverData.fullName || 'Driver';
+        const driverPhone = driverData.phone || '-';
+        const driverEmail = driverData.email || '-';
+        const currentServiceName = currentService || 'motor';
+        const uid = currentUid || '-';
+        
+        // Nama layanan yang lebih rapi
+        const serviceNames = {
+            motor: 'Motor 🏍️',
+            bentor: 'Bentor 🚛',
+            mobil: 'Mobil 🚗'
+        };
+        
+        // Buat pesan WhatsApp dengan data dari form
+        const message = `Hallo Admin JeGo, saya *${driverName}* ingin mengajukan perubahan jenis layanan kendaraan saya.
+
+Berikut data saya:
+🆔 ID Driver: ${uid}
+👤 Nama: ${driverName}
+📱 No HP: ${driverPhone}
+📧 Email: ${driverEmail}
+🚗 Plat Nomor: ${plateNumber}
+
+*Permintaan Perubahan:*
+Saat ini saya menggunakan layanan: *${serviceNames[currentServiceName] || currentServiceName}*
+Saya ingin mengubah ke: *${serviceNames[selectedService] || selectedService}*
+
+*Alasan Perubahan:*
+${reason}
+
+Mohon bantuannya untuk proses perubahan ini.
+Terima kasih. 🙏`;
+
+        // Encode untuk URL
+        const encodedMessage = encodeURIComponent(message);
+        const whatsappUrl = `https://wa.me/${ADMIN_WHATSAPP}?text=${encodedMessage}`;
+        
+        // Buka WhatsApp
+        window.open(whatsappUrl, '_blank');
+        
+        showToast('Membuka WhatsApp...', 'info');
+    }
+    
+    // ========== INIT ==========
+    auth.onAuthStateChanged(async (user) => {
+        if (user) {
+            currentUid = user.uid;
+            await loadCurrentService();
+        } else {
+            showToast('Silakan login terlebih dahulu', 'error');
+            setTimeout(() => {
+                window.location.href = 'loginDriver.html';
+            }, 1500);
+        }
+    });
+    
+    // ========== BACK BUTTON HANDLER (Cordova) ==========
+    document.addEventListener('backbutton', function() {
+        if (window.history.length > 1) {
+            window.history.back();
+        } else {
+            window.location.href = 'index.html';
+        }
+    }, false);
+</script>
+
+</body>
+</html>
