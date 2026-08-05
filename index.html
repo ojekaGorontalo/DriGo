@@ -2378,6 +2378,96 @@ function showToast(message, type = 'info') {
   }, 2500);
 }
 
+// ========== ONESIGNAL OTOMATIS DENGAN SINKRONISASI ==========
+// Simpan playerId dari SDK ke localStorage, lalu bandingkan dengan Firebase
+const STORAGE_ONESIGNAL_PLAYERID = 'jego_onesignal_playerid';
+
+async function autoInitOneSignal() {
+    if (!globalCurrentUid) {
+        console.warn('autoInitOneSignal: UID tidak tersedia');
+        return;
+    }
+
+    // Cek apakah median/OneSignal tersedia
+    if (typeof median === 'undefined' || !median.onesignal) {
+        console.warn("⚠️ Median OneSignal tidak tersedia, coba lagi nanti.");
+        setTimeout(autoInitOneSignal, 5000);
+        return;
+    }
+
+    try {
+        // 1. Ambil playerId dari OneSignal SDK (langsung dari info)
+        let sdkPlayerId = null;
+        let isSubscribed = false;
+        try {
+            const info = await median.onesignal.onesignalInfo();
+            sdkPlayerId = info?.userId || info?.oneSignalUserId || info?.subscription?.id || null;
+            isSubscribed = info?.subscription?.optedIn === true || info?.oneSignalSubscribed === true;
+            console.log(`📱 OneSignal SDK: playerId=${sdkPlayerId}, subscribed=${isSubscribed}`);
+        } catch(e) {
+            console.warn('Gagal ambil info OneSignal:', e);
+        }
+
+        // 2. Simpan sdkPlayerId ke localStorage (jika ada)
+        if (sdkPlayerId) {
+            localStorage.setItem(STORAGE_ONESIGNAL_PLAYERID, sdkPlayerId);
+        } else {
+            // Jika tidak ada, hapus dari localStorage agar tidak usang
+            localStorage.removeItem(STORAGE_ONESIGNAL_PLAYERID);
+        }
+
+        // 3. Ambil playerId dari Firebase
+        const snap = await database.ref(`drivers/${globalCurrentUid}/playerId`).once('value');
+        const firebasePlayerId = snap.val();
+
+        // 4. Bandingkan: localStorage (yang berasal dari SDK) dengan Firebase
+        const localPlayerId = localStorage.getItem(STORAGE_ONESIGNAL_PLAYERID);
+
+        // Kondisi perlu sinkron:
+        // - Jika tidak ada playerId di Firebase (null/undefined)
+        // - Atau jika localPlayerId ada dan berbeda dengan firebasePlayerId
+        // - Atau jika localPlayerId tidak ada tapi sdkPlayerId ada (belum disimpan ke localStorage)
+        const needSync = !firebasePlayerId || 
+                         (sdkPlayerId && sdkPlayerId !== firebasePlayerId) ||
+                         (localPlayerId && localPlayerId !== firebasePlayerId);
+
+        if (needSync) {
+            console.log(`🔄 Perlu sinkronisasi: Firebase=${firebasePlayerId}, Local=${localPlayerId}, SDK=${sdkPlayerId}`);
+            // Jika SDK memberikan playerId yang berbeda, gunakan yang dari SDK
+            if (sdkPlayerId) {
+                // Update Firebase dengan playerId dari SDK
+                await database.ref(`drivers/${globalCurrentUid}`).update({ 
+                    playerId: sdkPlayerId,
+                    subscriptionId: sdkPlayerId,
+                    last_playerid_update: new Date().toISOString() 
+                });
+                await database.ref(`driver_locations/${globalCurrentUid}`).update({ 
+                    playerId: sdkPlayerId,
+                    subscriptionId: sdkPlayerId,
+                    last_update: new Date().toISOString() 
+                });
+                // Perbarui localStorage dengan yang baru
+                localStorage.setItem(STORAGE_ONESIGNAL_PLAYERID, sdkPlayerId);
+                showToast("Notifikasi disinkronkan ✅", "success");
+                console.log(`✅ PlayerId ${sdkPlayerId} berhasil disimpan ke Firebase dan localStorage`);
+            } else {
+                // Jika SDK tidak memberi playerId, mungkin perlu registrasi ulang
+                console.log('🔔 SDK tidak memberikan playerId, lakukan inisialisasi ulang...');
+                // Hapus Firebase agar initOneSignal bisa menyimpan yang baru
+                await database.ref(`drivers/${globalCurrentUid}/playerId`).remove();
+                await database.ref(`driver_locations/${globalCurrentUid}/playerId`).remove();
+                localStorage.removeItem(STORAGE_ONESIGNAL_PLAYERID);
+                // Panggil initOneSignal untuk registrasi ulang
+                await initOneSignal();
+            }
+        } else {
+            console.log(`✅ PlayerId sudah sinkron: ${firebasePlayerId}`);
+        }
+    } catch (e) {
+        console.warn('⚠️ Gagal autoInitOneSignal:', e);
+    }
+}
+
 async function initOneSignal() {
   if (typeof median === 'undefined' || !median.onesignal) {
     console.warn("⚠️ Median OneSignal tidak tersedia");
@@ -2399,14 +2489,26 @@ async function initOneSignal() {
       await new Promise(r => setTimeout(r, 5000));
     }
     if (playerId && globalCurrentUid) {
-      await database.ref(`drivers/${globalCurrentUid}`).update({ playerId, last_playerid_update: new Date().toISOString() });
-      await database.ref(`driver_locations/${globalCurrentUid}`).update({ playerId, last_update: new Date().toISOString() });
-      showToast("Notifikasi Aktif", "success");
+      await database.ref(`drivers/${globalCurrentUid}`).update({ 
+        playerId, 
+        subscriptionId: playerId,
+        last_playerid_update: new Date().toISOString() 
+      });
+      await database.ref(`driver_locations/${globalCurrentUid}`).update({ 
+        playerId, 
+        subscriptionId: playerId,
+        last_update: new Date().toISOString() 
+      });
+      localStorage.setItem(STORAGE_ONESIGNAL_PLAYERID, playerId);
+      showToast("Notifikasi Aktif ✅", "success");
+      console.log(`✅ PlayerId ${playerId} berhasil disimpan ke Firebase dan localStorage`);
       return true;
     }
+    console.warn('⚠️ Gagal mendapatkan playerId setelah 3 percobaan');
     return false;
   } catch (err) {
     console.error("OneSignal error:", err);
+    showToast("Gagal mengaktifkan notifikasi.", "warning");
     return false;
   }
 }
@@ -2678,7 +2780,10 @@ window.addEventListener('click', (e) => {
     }
     loadOrders();
     setTimeout(startGPSMonitoring, 1000);
-    await checkPlayerIdAndPrompt();
+    
+    // ========== GANTI: AUTO INIT ONESIGNAL ==========
+    await autoInitOneSignal();  // otomatis sinkron jika tidak cocok
+    // await checkPlayerIdAndPrompt(); // dinonaktifkan, diganti auto
   } else {
     console.warn('❌ Driver tidak login, redirect ke loginDriver.html');
     window.location.href = 'loginDriver.html';
