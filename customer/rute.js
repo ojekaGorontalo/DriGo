@@ -1,4 +1,5 @@
-// ==================== KONFIGURASI ====================
+// ==================== KONFIGURASI ==================== 
+
 console.log('🚀 JeGo - Rute Customer (Google Maps)');
 
 const FIREBASE_CONFIG = {
