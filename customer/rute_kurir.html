@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="utf-8" />
+    <title>JeGo Kurir</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+
+    <!-- Google Maps Platform -->
+    <script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyA1c0N-_Cx6E_yKXcIN87EC4zqCEkC5ysM&libraries=places,geometry&language=id&region=ID&loading=async">
+    </script>
+
+    <!-- CSS -->
+    <link rel="stylesheet" href="rute_kurir.css">
+
+    <!-- JS -->
+    <script src="rute_kurir.js" defer></script>
+</head>
+<body>
+
+    <!-- Map -->
+    <div id="map"></div>
+
+    <!-- Loading -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="spinner"></div>
+    </div>
+
+    <!-- Popup -->
+    <div class="popup-overlay" id="popupOverlay">
+        <div class="popup">
+            <div class="popup-header"><h3 id="popupTitle">Pemberitahuan</h3></div>
+            <div class="popup-content">
+                <div id="popupMessage">Pesan</div>
+                <div class="popup-buttons" id="popupButtons">
+                    <button class="popup-button popup-button-primary" id="popupButton">OK</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== BOTTOM SHEET UTAMA ===== -->
+    <div class="bottom-sheet open" id="mainSheet">
+        <div class="handle"></div>
+        <div class="header">
+            <span>📦 Pengantaran oleh Kurir</span>
+            <button class="close-btn" id="closeMainSheet">✕</button>
+        </div>
+        <div class="body" id="mainSheetBody">
+            <div id="addressList"></div>
+
+            <!-- Card Tawarkan ongkos -->
+            <div class="offer-card" id="offerCard" style="display:none;">
+                <div class="price-row">
+                    <span class="label">💰 Harga rekomendasi</span>
+                    <span class="value" id="recommendedPrice">Rp 0</span>
+                </div>
+                <input type="number" id="offerInput" placeholder="Masukkan tawaran Anda" step="1000" />
+                <div class="min-hint">Minimal tawaran: <span id="minOfferHint">Rp 0</span></div>
+            </div>
+        </div>
+        <div class="footer">
+            <button class="btn btn-primary" id="nextToDetailBtn">📝 Detail Order →</button>
+        </div>
+    </div>
+
+    <!-- ===== SEARCH SHEET ===== -->
+    <div class="search-sheet" id="searchSheet">
+        <div class="header">
+            <button class="back" id="searchBackBtn">←</button>
+            <input type="text" id="searchInput" placeholder="Cari alamat..." autocomplete="off" />
+        </div>
+        <div class="body" id="searchBody">
+            <!-- Lokasi terdekat -->
+            <div id="searchDefault">
+                <div style="padding:12px 16px; font-size:13px; color:#999; font-weight:600;">Lokasi terdekat</div>
+                <div class="result-item" id="useGpsBtn">
+                    <div class="icon">📍</div>
+                    <div class="text">Lokasi Anda</div>
+                </div>
+                <div class="result-item" id="pickOnMapBtn">
+                    <div class="icon">🗺️</div>
+                    <div class="text">Pilih di peta</div>
+                </div>
+            </div>
+
+            <!-- Riwayat Pencarian -->
+            <div id="historyContainer" class="history-section"></div>
+
+            <div id="searchResults" style="display:none;"></div>
+            <div class="loading" id="searchLoading" style="display:none;">🔍 Mencari...</div>
+            <div class="no-result" id="searchNoResult" style="display:none;">Alamat tidak ditemukan</div>
+        </div>
+    </div>
+
+    <!-- ===== DETAIL SHEET ===== -->
+    <div class="detail-sheet" id="detailSheet">
+        <div class="header">
+            <span>📋 Detail Pengiriman</span>
+            <button class="close-btn" id="closeDetailSheet">✕</button>
+        </div>
+        <div class="body" id="detailBody">
+            <!-- Card Penjemputan -->
+            <div class="address-card">
+                <div class="label">📍 Penjemputan</div>
+                <div class="address" id="detailPickup">-</div>
+            </div>
+            <!-- Card Tujuan -->
+            <div class="address-card">
+                <div class="label">🏁 Tujuan</div>
+                <div class="address" id="detailDest">-</div>
+            </div>
+
+            <!-- Daftar Perhentian -->
+            <div style="margin-top:12px;">
+                <div style="font-weight:600; font-size:0.9rem; color:#666; margin-bottom:8px;">🔄 Perhentian</div>
+                <div id="waypointList"></div>
+                <div class="add-wp-btn" id="addWpFromDetail">
+                    <span>➕ Tambah perhentian</span>
+                </div>
+            </div>
+
+            <!-- Form Detail Order -->
+            <div class="order-detail-form">
+                <div style="font-weight:600; font-size:0.9rem; color:#666; margin-bottom:12px;">📝 Detail Order</div>
+                <div class="form-group">
+                    <label>📱 Nomor ponsel pengirim</label>
+                    <input type="tel" id="senderPhone" placeholder="Masukkan nomor ponsel" />
+                </div>
+                <div class="form-group">
+                    <label>📱 Nomor ponsel penerima</label>
+                    <div class="phone-row">
+                        <input type="tel" id="receiverPhone" placeholder="Masukkan nomor ponsel" />
+                        <button id="openContactsBtn">📇 Kontak</button>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>📦 Kategori barang</label>
+                    <select id="itemCategory">
+                        <option value="">Pilih kategori</option>
+                        <option value="Makanan">Makanan</option>
+                        <option value="Pakaian">Pakaian</option>
+                        <option value="Paket">Paket</option>
+                        <option value="Elektronik">Elektronik</option>
+                        <option value="Dokumen">Dokumen</option>
+                        <option value="Obat-obatan">Obat-obatan</option>
+                        <option value="Lainnya">Lainnya</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>📝 Deskripsi (opsional)</label>
+                    <textarea id="itemDesc" rows="2" placeholder="Catatan tambahan untuk kurir"></textarea>
+                </div>
+            </div>
+
+            <!-- Harga tawaran di detail -->
+            <div class="detail-offer-price" id="detailOfferPrice" style="margin-top: 16px;">
+                <div class="label">💰 Harga tawaran Anda</div>
+                <div class="value" id="detailOfferValue">Rp 0</div>
+            </div>
+        </div>
+        <div class="footer">
+            <button class="btn btn-secondary" id="backToMainBtn">← Kembali</button>
+            <button class="btn btn-primary" id="saveOrderBtn">Cari Kurir</button>
+        </div>
+    </div>
+
+    <!-- ===== MODAL WAYPOINT (Edit/Hapus) ===== -->
+    <div class="wp-modal" id="wpModal">
+        <div class="handle"></div>
+        <div class="wp-header" id="wpModalTitle">Edit Perhentian</div>
+        <div class="wp-address" id="wpModalAddress">
+            <span class="wp-addr-text" id="wpModalAddrText">-</span>
+            <span style="color:#999; font-size:14px;">✎</span>
+        </div>
+        <div class="wp-actions">
+            <button class="btn btn-danger" id="wpDeleteBtn">Hapus</button>
+            <button class="btn btn-secondary" id="wpCancelBtn">Batal</button>
+        </div>
+    </div>
+
+    <!-- ===== DRIVER OFFERS OVERLAY ===== -->
+    <div id="driverOffers">
+        <div class="offers-panel">
+            <div class="header">
+                <strong>🏆 Penawaran Driver</strong>
+                <button class="close-btn" id="closeDriverOffers">✕</button>
+            </div>
+            <div id="driverOfferList"></div>
+            <div class="offers-footer">
+                <button class="btn" id="cancelSearchBtn">Batalkan Pencarian</button>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>
