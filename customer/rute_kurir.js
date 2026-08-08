@@ -59,6 +59,64 @@ const detailSheet = document.getElementById('detailSheet');
 const wpModal = document.getElementById('wpModal');
 let wpModalIndex = -1;
 
+// ==================== LOAD GOOGLE MAPS DYNAMICALLY ====================
+let googleMapsLoaded = false;
+let googleMapsLoading = false;
+let mapInitCallbacks = [];
+
+async function loadGoogleMapsFromFirebase() {
+    if (googleMapsLoaded) return true;
+    if (googleMapsLoading) {
+        return new Promise((resolve) => {
+            mapInitCallbacks.push(resolve);
+        });
+    }
+    
+    googleMapsLoading = true;
+    
+    try {
+        const snapshot = await database.ref('data-jego/apikey-google-maps').once('value');
+        let apiKey = snapshot.val();
+        
+        if (!apiKey) {
+            console.error('❌ API Key Google Maps tidak ditemukan di Firebase');
+            showPopup('Error', 'API Key Google Maps tidak ditemukan. Hubungi administrator.');
+            googleMapsLoading = false;
+            return false;
+        }
+        
+        console.log('✅ API Key Google Maps berhasil diambil dari Firebase');
+        
+        return new Promise((resolve, reject) => {
+            const script = document.createElement('script');
+            script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places,geometry&language=id&region=ID&loading=async`;
+            script.async = true;
+            script.defer = true;
+            script.onload = () => {
+                console.log('✅ Google Maps berhasil diload');
+                googleMapsLoaded = true;
+                googleMapsLoading = false;
+                mapInitCallbacks.forEach(cb => cb(true));
+                mapInitCallbacks = [];
+                resolve(true);
+            };
+            script.onerror = (err) => {
+                console.error('❌ Gagal load Google Maps:', err);
+                googleMapsLoading = false;
+                mapInitCallbacks.forEach(cb => cb(false));
+                mapInitCallbacks = [];
+                reject(err);
+            };
+            document.head.appendChild(script);
+        });
+    } catch (error) {
+        console.error('❌ Gagal mengambil API Key dari Firebase:', error);
+        googleMapsLoading = false;
+        showPopup('Error', 'Gagal mengambil konfigurasi Google Maps.');
+        return false;
+    }
+}
+
 // ==================== UTILITY ====================
 function showPopup(title, message, onClose = null) {
     document.getElementById('popupTitle').innerText = title;
@@ -1515,11 +1573,23 @@ window.onload = async () => {
 
     await fetchTransportData();
 
+    // ===== LOAD GOOGLE MAPS DARI FIREBASE =====
+    const mapsLoaded = await loadGoogleMapsFromFirebase();
+    if (!mapsLoaded) {
+        showPopup('Error', 'Gagal memuat Google Maps. Periksa koneksi internet.');
+        return;
+    }
+
+    // Tunggu sebentar agar Google Maps benar-benar siap
+    await new Promise(r => setTimeout(r, 500));
+
+    // Cek apakah Google Maps sudah tersedia
     if (typeof google === 'undefined' || !google.maps) {
         showPopup('Error', 'Google Maps tidak dapat dimuat. Periksa koneksi internet.');
         return;
     }
 
+    // Inisialisasi map
     initMap();
     renderMainSheet();
 };
