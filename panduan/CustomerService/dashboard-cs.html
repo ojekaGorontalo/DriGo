@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>Dashboard CS - JeGo (SPA - Cari Driver + Manajemen)</title>
+    <title>Dashboard CS - JeGo (SPA - Cari Driver + Statistik)</title>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
     <script src="https://www.gstatic.com/firebasejs/11.0.2/firebase-app-compat.js"></script>
@@ -260,7 +260,7 @@
             .bar { width: 28px; }
         }
 
-        /* Tambahan untuk manajemen driver */
+        /* Tambahan untuk cari driver */
         .driver-photo { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; border: 1px solid #e2e8f0; background: #f1f5f9; }
         .driver-photo-td { width: 36px; height: 36px; border-radius: 50%; object-fit: cover; border: 2px solid var(--primary); }
         .reason-input { width: 120px; padding: 6px 8px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 0.75rem; }
@@ -319,7 +319,6 @@
         <button class="menu-item" data-page="panduan"><i class="fas fa-book-open"></i> Panduan Pendaftaran</button>
         <button class="menu-item" data-page="caridriver"><i class="fas fa-search"></i> Cari Driver</button>
         <button class="menu-item" data-page="statistik"><i class="fas fa-chart-bar"></i> Statistik Driver</button>
-        <button class="menu-item" data-page="manajemen"><i class="fas fa-users-cog"></i> Manajemen Driver</button>
         <button class="menu-item logout" id="logoutBtn"><i class="fas fa-sign-out-alt"></i> Keluar</button>
     </nav>
 
@@ -364,7 +363,6 @@
                     <li><i class="fas fa-chevron-right"></i><strong>Panduan Pendaftaran:</strong> Bantu driver yang kesulitan mengisi formulir. <span style="color:var(--primary);margin-left:8px;">(Klik menu Panduan Pendaftaran)</span></li>
                     <li><i class="fas fa-chevron-right"></i><strong>Cari Driver:</strong> Gunakan menu <span style="color:var(--primary);">Cari Driver</span> untuk mencari data driver berdasarkan UID.</li>
                     <li><i class="fas fa-chevron-right"></i><strong>Statistik:</strong> Pantau grafik di menu <span style="color:var(--primary);">Statistik Driver</span> untuk evaluasi.</li>
-                    <li><i class="fas fa-chevron-right"></i><strong>Manajemen Driver:</strong> Kelola semua driver dengan filter dan paginasi.</li>
                 </ul>
                 <div class="note"><i class="fas fa-info-circle" style="color:var(--secondary);margin-right:10px;"></i><strong>Catatan:</strong> Akses ke database hanya dilakukan oleh Founder / Tim Teknis.</div>
             </div>
@@ -453,54 +451,12 @@
             <div style="margin-top:20px;"><h3><i class="fas fa-list" style="color:var(--primary);"></i> Rincian Status</h3><div class="table-wrapper"><table><thead><tr><th>Status</th><th>Jumlah</th><th>Persentase</th></tr></thead><tbody id="statusTableBody"><tr><td colspan="3" style="text-align:center;">Memuat...</td></tr></tbody></table></div></div>
         </div>
 
-        <!-- ===== MANAJEMEN DRIVER ===== -->
-        <div class="page-container" id="page-manajemen">
-            <div style="margin-bottom:16px;">
-                <h1><i class="fas fa-users-cog"></i> Manajemen Driver</h1>
-                <p style="color:var(--text-gray);">Kelola semua driver dengan filter, paginasi, dan aksi massal.</p>
-            </div>
-            <div class="filter-bar">
-                <input type="text" id="searchDriverManajemen" class="search-box" placeholder="Cari nama, telepon, plat..." style="flex:1; min-width:150px;">
-                <select id="vehicleFilterManajemen" class="filter-select">
-                    <option value="all">🚗 Semua kendaraan</option>
-                </select>
-                <select id="statusFilterManajemen" class="filter-select">
-                    <option value="all">📋 Semua status</option>
-                    <option value="accepted">✅ Accepted</option>
-                    <option value="pending">⏳ Pending</option>
-                    <option value="rejected">❌ Rejected</option>
-                    <option value="blocked">🚫 Blocked</option>
-                </select>
-                <div style="flex:1; display: flex; justify-content: flex-end; gap: 12px; flex-wrap: wrap;">
-                    <span class="stats-badge" id="driverStatsManajemen">Total: <span id="driverTotalCountManajemen">0</span> | Halaman <span id="currentPageManajemen">1</span></span>
-                    <button class="btn-refresh blue" id="broadcastAllBtn"><i class="fas fa-bullhorn"></i> Broadcast Semua</button>
-                    <button class="btn-refresh green" id="activateAllBtn"><i class="fas fa-check-double"></i> Aktifkan Semua</button>
-                    <button class="btn-refresh" id="refreshManajemenBtn"><i class="fas fa-sync-alt"></i> Refresh</button>
-                </div>
-            </div>
-            <div class="table-wrapper">
-                <table>
-                    <thead>
-                        <tr><th>Foto</th><th>Nama</th><th>Telepon</th><th>Email</th><th>Kendaraan</th><th>Plat</th><th>Rating</th><th>Perjalanan</th><th>Saldo</th><th>Status</th><th>Alasan</th><th>Tracking</th><th>Autobid</th><th>Aksi</th></tr>
-                    </thead>
-                    <tbody id="driverTableManajemenBody"><tr class="empty-row"><td colspan="14"><div class="loading"><div class="spinner"></div> Memuat...</div></td></tr>
-                    </tbody>
-                </table>
-            </div>
-            <div class="pagination">
-                <button id="prevPageManajemenBtn" disabled><i class="fas fa-chevron-left"></i> Sebelumnya</button>
-                <span id="pageInfoManajemen">Halaman 1 dari 1</span>
-                <button id="nextPageManajemenBtn"><i class="fas fa-chevron-right"></i> Selanjutnya</button>
-            </div>
-            <div style="padding:12px 0; font-size:0.7rem; color:#475569;"><i class="fas fa-info-circle"></i> Data dimuat dengan cache 5 menit. <strong>Refresh</strong> untuk memuat ulang dari server.</div>
-        </div>
-
-        <div class="footer">© 2026 JeGo – Customer Service Dashboard (SPA - Cari Driver + Manajemen) | Data diperbarui otomatis setiap jam</div>
+        <div class="footer">© 2026 JeGo – Customer Service Dashboard (SPA - Cari Driver + Statistik) | Data diperbarui otomatis setiap jam</div>
     </div>
 </div>
 
 <!-- ===== MODALS ===== -->
-<!-- EDIT DRIVER MODAL (sama) -->
+<!-- EDIT DRIVER MODAL -->
 <div id="editDriverModal" class="modal">
     <div class="modal-content">
         <div class="modal-header"><h2><i class="fas fa-edit"></i> Edit Driver</h2><button class="modal-close close-driver-modal">&times;</button></div>
@@ -578,14 +534,6 @@
     // STATE untuk Cari Driver
     let currentDriver = null;
 
-    // STATE untuk Manajemen Driver
-    let allDriversCache = [];
-    let cacheTimestamp = 0;
-    let useLocalStorage = true; // flag untuk fallback jika localStorage penuh
-    const CACHE_TTL = 5 * 60 * 1000; // 5 menit
-    let currentPageManajemen = 1;
-    const PER_PAGE = 10;
-    let totalFilteredCountManajemen = 0;
     let onesignalApiKey = null;
     const ONESIGNAL_APP_ID = "007d7eba-9cfc-40d1-a92e-f2299f770282";
     let currentDriverForTopup = null;
@@ -619,18 +567,16 @@
         beranda: 'Dashboard CS',
         panduan: 'Panduan Pendaftaran',
         caridriver: 'Cari Driver',
-        statistik: 'Statistik Driver',
-        manajemen: 'Manajemen Driver'
+        statistik: 'Statistik Driver'
     };
     function navigateTo(page) {
         document.querySelectorAll('.page-container').forEach(el => el.classList.remove('active'));
         const target = document.getElementById('page-' + page);
         if (target) target.classList.add('active');
         menuItems.forEach(item => item.classList.toggle('active', item.dataset.page === page));
-        const iconMap = { beranda: 'tachometer-alt', panduan: 'book-open', caridriver: 'search', statistik: 'chart-pie', manajemen: 'users-cog' };
+        const iconMap = { beranda: 'tachometer-alt', panduan: 'book-open', caridriver: 'search', statistik: 'chart-pie' };
         if (pageTitle) pageTitle.innerHTML = '<i class="fas fa-' + iconMap[page] + '"></i> ' + (pageTitles[page] || page);
         if (page === 'statistik') loadStatistik();
-        if (page === 'manajemen') loadAllDriversWithCache();
         if (window.innerWidth <= 768) { sidebar.classList.remove('open'); overlay.classList.remove('active'); }
     }
     menuItems.forEach(item => item.addEventListener('click', () => navigateTo(item.dataset.page)));
@@ -1166,382 +1112,7 @@
     }
 
     // ============================================================
-    // FUNGSI MANAJEMEN DRIVER (dengan cache dan fallback quota)
-    // ============================================================
-    function saveToLocalStorage(key, data) {
-        if (!useLocalStorage) return false;
-        try {
-            localStorage.setItem(key, JSON.stringify(data));
-            logInfo(`✅ Data tersimpan di localStorage (${key})`);
-            return true;
-        } catch (e) {
-            if (e.name === 'QuotaExceededError' || e.code === 22) {
-                console.warn('⚠️ localStorage penuh! Matikan cache dan gunakan memory-only.');
-                useLocalStorage = false;
-                showToast('⚠️ Penyimpanan lokal penuh, cache dinonaktifkan. Data tetap berfungsi.', true);
-                // Hapus cache lama untuk membersihkan ruang
-                try {
-                    localStorage.removeItem(key);
-                    logInfo(`🗑️ Cache ${key} dihapus karena quota exceeded`);
-                } catch (ex) {}
-                return false;
-            }
-            console.error('❌ Gagal simpan ke localStorage:', e);
-            return false;
-        }
-    }
-
-    function getFromLocalStorage(key) {
-        if (!useLocalStorage) return null;
-        try {
-            const raw = localStorage.getItem(key);
-            if (!raw) return null;
-            return JSON.parse(raw);
-        } catch (e) {
-            console.warn('⚠️ Gagal baca dari localStorage:', e);
-            return null;
-        }
-    }
-
-    async function loadAllDriversWithCache() {
-        const tbody = document.getElementById('driverTableManajemenBody');
-        tbody.innerHTML = '<tr class="empty-row"><td colspan="14"><div class="loading"><div class="spinner"></div> Memuat...</div></td></tr>';
-        logInfo('🔄 Memuat data driver untuk manajemen...');
-
-        const now = Date.now();
-        // Coba baca dari localStorage jika masih aktif
-        if (useLocalStorage) {
-            const cached = getFromLocalStorage('jego_drivers_cache_manajemen');
-            if (cached && cached.timestamp && (now - cached.timestamp) < CACHE_TTL) {
-                allDriversCache = cached.drivers || [];
-                cacheTimestamp = cached.timestamp;
-                logInfo(`📦 Gunakan cache manajemen (${allDriversCache.length} driver)`);
-                populateVehicleFilterManajemen();
-                applyFilterAndRenderManajemen();
-                setupRealTimeListenerManajemen();
-                return;
-            }
-        }
-
-        // Jika tidak ada cache atau sudah expired, load dari Firebase
-        try {
-            const [driversSnap, locSnap] = await Promise.all([
-                database.ref('drivers').once('value'),
-                database.ref('driver_locations').once('value')
-            ]);
-            const driversObj = driversSnap.val() || {};
-            const locObj = locSnap.val() || {};
-            const driversArray = [];
-            for (const [uid, data] of Object.entries(driversObj)) {
-                if (data.role === 'driver') {
-                    const locData = locObj[uid] || {};
-                    driversArray.push({
-                        uid,
-                        name: data.name || '-',
-                        phone: data.phone || '-',
-                        email: data.email || '-',
-                        vehicle_type: data.vehicle_type || '-',
-                        vehicle_brand: data.vehicle_brand || '-',
-                        vehicle_year: data.vehicle_year || '',
-                        plate_number: data.plate_number || '-',
-                        rating: data.rating || 0,
-                        perjalanan: data.perjalanan || 0,
-                        balance: data.balance || 0,
-                        status: data.status || 'pending',
-                        ketGagal: data.ketGagal || '',
-                        photoURL: data.photoURL || '',
-                        date_of_birth: data.date_of_birth || '',
-                        tracking_enabled: locData.tracking_enabled === true,
-                        autobid_enabled: locData.autobid_enabled === true
-                    });
-                }
-            }
-            allDriversCache = driversArray;
-            cacheTimestamp = now;
-            logInfo(`✅ Load ${allDriversCache.length} driver dari Firebase`);
-
-            // Simpan ke localStorage jika memungkinkan
-            if (useLocalStorage) {
-                const saved = saveToLocalStorage('jego_drivers_cache_manajemen', { drivers: allDriversCache, timestamp: now });
-                if (saved) {
-                    logInfo('💾 Cache manajemen disimpan');
-                } else {
-                    logInfo('⚠️ Cache tidak disimpan (localStorage penuh atau disabled)');
-                }
-            }
-
-            populateVehicleFilterManajemen();
-            applyFilterAndRenderManajemen();
-            setupRealTimeListenerManajemen();
-        } catch (err) {
-            tbody.innerHTML = `<tr class="empty-row"><td colspan="14">⚠️ Gagal load driver: ${err.message}</td></tr>`;
-            console.error('❌ Gagal load driver manajemen:', err);
-            showToast(`Gagal load driver: ${err.message}`, true);
-        }
-    }
-
-    function populateVehicleFilterManajemen() {
-        const vehicles = [...new Set(allDriversCache.map(d => d.vehicle_type).filter(v => v && v !== '-'))];
-        const select = document.getElementById('vehicleFilterManajemen');
-        select.innerHTML = '<option value="all">🚗 Semua kendaraan</option>';
-        vehicles.forEach(v => { const opt = document.createElement('option'); opt.value = v; opt.textContent = v; select.appendChild(opt); });
-        logInfo(`🚗 Filter kendaraan: ${vehicles.length} jenis`);
-    }
-
-    function applyFilterAndRenderManajemen() {
-        const keyword = document.getElementById('searchDriverManajemen').value.toLowerCase().trim();
-        const selectedVehicle = document.getElementById('vehicleFilterManajemen').value;
-        const selectedStatus = document.getElementById('statusFilterManajemen').value;
-
-        const filtered = allDriversCache.filter(d => {
-            const matchKeyword = keyword === '' ||
-                d.name.toLowerCase().includes(keyword) ||
-                d.phone.toLowerCase().includes(keyword) ||
-                d.plate_number.toLowerCase().includes(keyword);
-            const matchVehicle = selectedVehicle === 'all' || d.vehicle_type === selectedVehicle;
-            const matchStatus = selectedStatus === 'all' || d.status === selectedStatus;
-            return matchKeyword && matchVehicle && matchStatus;
-        });
-
-        totalFilteredCountManajemen = filtered.length;
-        document.getElementById('driverTotalCountManajemen').innerText = totalFilteredCountManajemen;
-
-        const totalPages = Math.ceil(totalFilteredCountManajemen / PER_PAGE) || 1;
-        if (currentPageManajemen > totalPages) currentPageManajemen = totalPages;
-        const start = (currentPageManajemen - 1) * PER_PAGE;
-        const end = start + PER_PAGE;
-        const pageData = filtered.slice(start, end);
-
-        renderDriverTableManajemen(pageData);
-        document.getElementById('currentPageManajemen').innerText = currentPageManajemen;
-        document.getElementById('pageInfoManajemen').innerText = `Halaman ${currentPageManajemen} dari ${totalPages}`;
-        document.getElementById('prevPageManajemenBtn').disabled = currentPageManajemen <= 1;
-        document.getElementById('nextPageManajemenBtn').disabled = currentPageManajemen >= totalPages;
-        logInfo(`📄 Halaman ${currentPageManajemen} dari ${totalPages} (${pageData.length} driver)`);
-    }
-
-    function renderDriverTableManajemen(drivers) {
-        const tbody = document.getElementById('driverTableManajemenBody');
-        if (!drivers.length) { tbody.innerHTML = '<tr class="empty-row"><td colspan="14">Tidak ada driver</td></tr>'; return; }
-        tbody.innerHTML = '';
-        drivers.forEach(d => {
-            const row = tbody.insertRow();
-            row.setAttribute('data-uid', d.uid);
-
-            const img = document.createElement('img');
-            img.src = d.photoURL || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png';
-            img.className = 'driver-photo';
-            img.onerror = () => img.src = 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png';
-            row.insertCell(0).appendChild(img);
-
-            row.insertCell(1).textContent = d.name;
-            row.insertCell(2).textContent = d.phone;
-            row.insertCell(3).textContent = d.email;
-            row.insertCell(4).textContent = d.vehicle_type;
-            row.insertCell(5).textContent = d.plate_number;
-            row.insertCell(6).textContent = d.rating.toFixed(1);
-            row.insertCell(7).textContent = d.perjalanan;
-            row.insertCell(8).innerHTML = `<strong>${formatRupiah(d.balance)}</strong>`;
-
-            const statusSpan = document.createElement('span');
-            let statusClass = d.status === 'active' ? 'accepted' : d.status;
-            statusSpan.className = `status-badge status-${statusClass}`;
-            statusSpan.textContent = d.status.toUpperCase();
-            row.insertCell(9).appendChild(statusSpan);
-
-            const reasonInput = document.createElement('input');
-            reasonInput.type = 'text';
-            reasonInput.className = 'reason-input';
-            reasonInput.placeholder = 'Alasan';
-            reasonInput.value = d.ketGagal || '';
-            row.insertCell(10).appendChild(reasonInput);
-
-            // Tracking toggle
-            const trackingToggle = document.createElement('label');
-            trackingToggle.className = 'toggle-switch';
-            const trackingCheck = document.createElement('input');
-            trackingCheck.type = 'checkbox';
-            trackingCheck.checked = d.tracking_enabled === true;
-            trackingCheck.onchange = () => toggleDriverSettingManajemen(d.uid, 'tracking_enabled', trackingCheck.checked);
-            trackingToggle.appendChild(trackingCheck);
-            trackingToggle.appendChild(document.createElement('span')).className = 'toggle-slider';
-            row.insertCell(11).appendChild(trackingToggle);
-
-            // Autobid toggle
-            const autobidToggle = document.createElement('label');
-            autobidToggle.className = 'toggle-switch';
-            const autobidCheck = document.createElement('input');
-            autobidCheck.type = 'checkbox';
-            autobidCheck.checked = d.autobid_enabled === true;
-            autobidCheck.onchange = () => toggleDriverSettingManajemen(d.uid, 'autobid_enabled', autobidCheck.checked);
-            autobidToggle.appendChild(autobidCheck);
-            autobidToggle.appendChild(document.createElement('span')).className = 'toggle-slider';
-            row.insertCell(12).appendChild(autobidToggle);
-
-            // Aksi
-            const actionDiv = document.createElement('div');
-            actionDiv.className = 'action-buttons';
-            const updateBtn = document.createElement('button');
-            updateBtn.textContent = 'Update Status';
-            updateBtn.className = 'action-btn update';
-            const editBtn = document.createElement('button');
-            editBtn.textContent = 'Edit Data';
-            editBtn.className = 'action-btn edit';
-            const topupBtn = document.createElement('button');
-            topupBtn.innerHTML = 'Atur Saldo';
-            topupBtn.className = 'action-btn topup';
-            const notifBtn = document.createElement('button');
-            notifBtn.innerHTML = 'Kirim Notif';
-            notifBtn.className = 'action-btn notif';
-            actionDiv.append(updateBtn, editBtn, topupBtn, notifBtn);
-            row.insertCell(13).appendChild(actionDiv);
-
-            updateBtn.onclick = async () => {
-                const newStatus = prompt("Masukkan status baru (accepted, pending, rejected, blocked):", d.status);
-                if (!newStatus) return;
-                const newReason = reasonInput.value.trim();
-                updateBtn.disabled = true;
-                try {
-                    const updates = {};
-                    updates[`drivers/${d.uid}/status`] = newStatus;
-                    if (newStatus === 'rejected' || newStatus === 'blocked')
-                        updates[`drivers/${d.uid}/ketGagal`] = newReason || (newStatus === 'rejected' ? 'Ditolak admin' : 'Diblokir admin');
-                    else
-                        updates[`drivers/${d.uid}/ketGagal`] = null;
-                    await database.ref().update(updates);
-                    const msg = `Status Anda diubah menjadi ${newStatus.toUpperCase()}.`;
-                    await saveDriverNotification(d.uid, 'Status Berubah', msg, 'status');
-                    const pid = await getDriverPlayerId(d.uid);
-                    if (pid) await sendPushNotification(pid, 'Status Akun', msg);
-                    const idx = allDriversCache.findIndex(dd => dd.uid === d.uid);
-                    if (idx !== -1) { allDriversCache[idx].status = newStatus; allDriversCache[idx].ketGagal = updates[`drivers/${d.uid}/ketGagal`] || null; }
-                    await saveAdminLog(`Admin mengubah status driver ${d.name} (${d.uid}) menjadi ${newStatus}`);
-                    applyFilterAndRenderManajemen();
-                    showToast(`Status ${d.name} => ${newStatus}`);
-                } catch (err) { showToast(err.message, true); } finally { updateBtn.disabled = false; }
-            };
-
-            editBtn.onclick = () => { openDriverEditModal(d); };
-            topupBtn.onclick = () => { openTopupModal(d); };
-            notifBtn.onclick = () => { openNotifModal(d); };
-        });
-    }
-
-    async function toggleDriverSettingManajemen(uid, field, newValue) {
-        try {
-            const updates = {};
-            updates[`drivers/${uid}/${field}`] = newValue;
-            updates[`driver_locations/${uid}/${field}`] = newValue;
-            await database.ref().update(updates);
-            const idx = allDriversCache.findIndex(d => d.uid === uid);
-            if (idx !== -1) allDriversCache[idx][field] = newValue;
-            const name = allDriversCache[idx]?.name || uid;
-            showToast(`Setting ${field} untuk ${name} diubah menjadi ${newValue ? 'ON' : 'OFF'}`);
-            await saveAdminLog(`Admin mengubah ${field} driver ${name} menjadi ${newValue ? 'ON' : 'OFF'}`);
-        } catch (err) { showToast(`Gagal: ${err.message}`, true); }
-    }
-
-    async function activateAllDrivers() {
-        if (!allDriversCache.length) { showToast('Tidak ada driver', true); return; }
-        const btn = document.getElementById('activateAllBtn');
-        btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-pulse"></i> Memproses...';
-        let successCount = 0, errorCount = 0;
-        for (const driver of allDriversCache) {
-            try {
-                const updates = {};
-                updates[`drivers/${driver.uid}/tracking_enabled`] = true;
-                updates[`drivers/${driver.uid}/autobid_enabled`] = true;
-                updates[`driver_locations/${driver.uid}/tracking_enabled`] = true;
-                updates[`driver_locations/${driver.uid}/autobid_enabled`] = true;
-                await database.ref().update(updates);
-                driver.tracking_enabled = true;
-                driver.autobid_enabled = true;
-                successCount++;
-            } catch (err) { errorCount++; }
-        }
-        await saveAdminLog(`Admin mengaktifkan tracking dan autobid untuk ${successCount} driver`);
-        applyFilterAndRenderManajemen();
-        btn.disabled = false; btn.innerHTML = '<i class="fas fa-check-double"></i> Aktifkan Semua';
-        showToast(`Berhasil mengaktifkan ${successCount} driver. Gagal: ${errorCount}`);
-        logInfo(`✅ Aktifkan semua: ${successCount} sukses, ${errorCount} gagal`);
-    }
-
-    async function broadcastToAllDrivers() {
-        const title = prompt("Masukkan judul notifikasi broadcast:", "Pengumuman dari Admin");
-        if (!title) return;
-        const message = prompt("Masukkan pesan broadcast:");
-        if (!message) return;
-        if (!confirm(`Kirim broadcast ke ${allDriversCache.length} driver?\nJudul: ${title}\nPesan: ${message}`)) return;
-        let success = 0, fail = 0;
-        for (const driver of allDriversCache) {
-            try {
-                await saveDriverNotification(driver.uid, title, message, 'broadcast');
-                const pid = await getDriverPlayerId(driver.uid);
-                if (pid) { await sendPushNotification(pid, title, message, { broadcast: true }); success++; } else fail++;
-                await new Promise(r => setTimeout(r, 200));
-            } catch (e) { fail++; }
-        }
-        await saveAdminLog(`Admin melakukan broadcast ke ${allDriversCache.length} driver dengan judul: ${title}`);
-        showToast(`Broadcast selesai: ${success} terkirim push, ${fail} hanya tersimpan.`);
-        logInfo(`📢 Broadcast: ${success} push, ${fail} hanya tersimpan`);
-    }
-
-    function setupRealTimeListenerManajemen() {
-        if (window._driversListenerManajemen) {
-            database.ref('drivers').off('child_changed', window._driversListenerManajemen.change);
-            database.ref('drivers').off('child_removed', window._driversListenerManajemen.remove);
-            logInfo('🔄 Listener lama dihapus');
-        }
-        const changeListener = (snap) => {
-            const uid = snap.key;
-            const data = snap.val();
-            if (!data) return;
-            const idx = allDriversCache.findIndex(d => d.uid === uid);
-            if (idx !== -1) {
-                const old = allDriversCache[idx];
-                allDriversCache[idx] = {
-                    ...old,
-                    name: data.name || '-',
-                    phone: data.phone || '-',
-                    email: data.email || '-',
-                    vehicle_type: data.vehicle_type || '-',
-                    vehicle_brand: data.vehicle_brand || '-',
-                    vehicle_year: data.vehicle_year || '',
-                    plate_number: data.plate_number || '-',
-                    rating: data.rating || 0,
-                    perjalanan: data.perjalanan || 0,
-                    balance: data.balance || 0,
-                    status: data.status || 'pending',
-                    ketGagal: data.ketGagal || '',
-                    photoURL: data.photoURL || '',
-                    date_of_birth: data.date_of_birth || ''
-                };
-                if (useLocalStorage) {
-                    saveToLocalStorage('jego_drivers_cache_manajemen', { drivers: allDriversCache, timestamp: Date.now() });
-                }
-                applyFilterAndRenderManajemen();
-                logInfo(`🔄 Driver ${old.name} (${uid}) diperbarui real-time`);
-            }
-        };
-        const removeListener = (snap) => {
-            const uid = snap.key;
-            const removed = allDriversCache.find(d => d.uid === uid);
-            allDriversCache = allDriversCache.filter(d => d.uid !== uid);
-            if (useLocalStorage) {
-                saveToLocalStorage('jego_drivers_cache_manajemen', { drivers: allDriversCache, timestamp: Date.now() });
-            }
-            applyFilterAndRenderManajemen();
-            showToast(`Driver ${uid} telah dihapus`, true);
-            logInfo(`🗑️ Driver ${removed?.name || uid} dihapus real-time`);
-        };
-        database.ref('drivers').on('child_changed', changeListener);
-        database.ref('drivers').on('child_removed', removeListener);
-        window._driversListenerManajemen = { change: changeListener, remove: removeListener };
-        logInfo('🔌 Real-time listener aktif');
-    }
-
-    // ============================================================
-    // MODAL FUNCTIONS (digunakan bersama)
+    // MODAL FUNCTIONS
     // ============================================================
     function openDriverEditModal(driver) {
         document.getElementById('editDriverUid').value = driver.uid;
@@ -1589,15 +1160,7 @@
             const pid = await getDriverPlayerId(uid);
             if (pid) await sendPushNotification(pid, 'Data Diperbarui', 'Silakan cek aplikasi untuk perubahan data.');
             await saveAdminLog(`Admin mengedit data driver ${data.name} (${uid})`);
-            // Update cache manajemen
-            const idx = allDriversCache.findIndex(d => d.uid === uid);
-            if (idx !== -1) Object.assign(allDriversCache[idx], data);
-            if (useLocalStorage) {
-                saveToLocalStorage('jego_drivers_cache_manajemen', { drivers: allDriversCache, timestamp: Date.now() });
-            }
-            // Update currentDriver jika sedang ditampilkan
             if (currentDriver && currentDriver.uid === uid) { Object.assign(currentDriver, data); displayDriver(currentDriver); }
-            applyFilterAndRenderManajemen();
             showToast('Data driver disimpan');
             logInfo(`💾 Data driver ${data.name} berhasil diedit`);
             document.getElementById('editDriverModal').style.display = 'none';
@@ -1618,8 +1181,8 @@
         const title = document.getElementById('notifTitle').value.trim();
         const message = document.getElementById('notifMessage').value.trim();
         if (!title || !message) { showToast('Judul dan pesan harus diisi', true); return; }
-        const driver = allDriversCache.find(d => d.uid === uid);
-        if (!driver) return;
+        const driver = currentDriver && currentDriver.uid === uid ? currentDriver : null;
+        if (!driver) { showToast('Driver tidak ditemukan', true); return; }
         const btn = document.getElementById('sendNotifNowBtn');
         btn.disabled = true; btn.textContent = 'Mengirim...';
         try {
@@ -1687,13 +1250,7 @@
             const pid = await getDriverPlayerId(uid);
             if (pid) await sendPushNotification(pid, title, msg);
             await saveAdminLog(`Admin ${type === 'add' ? 'menambah' : 'mengurangi'} saldo driver ${driverData.name} (${uid}) sebesar Rp ${amount.toLocaleString()} (${note})`);
-            const idx = allDriversCache.findIndex(d => d.uid === uid);
-            if (idx !== -1) allDriversCache[idx].balance = newBalance;
             if (currentDriver && currentDriver.uid === uid) currentDriver.balance = newBalance;
-            if (useLocalStorage) {
-                saveToLocalStorage('jego_drivers_cache_manajemen', { drivers: allDriversCache, timestamp: Date.now() });
-            }
-            applyFilterAndRenderManajemen();
             document.getElementById('topupModal').style.display = 'none';
             showToast(`Saldo berhasil ${type === 'add' ? 'ditambah' : 'dikurangi'} Rp ${amount.toLocaleString()}`);
             logInfo(`💰 Saldo ${driverData.name} ${type === 'add' ? 'ditambah' : 'dikurangi'} Rp ${amount.toLocaleString()}`);
@@ -1709,21 +1266,6 @@
     document.getElementById('activateDriverBtn').addEventListener('click', activateDriver);
     document.getElementById('refreshStatistik').addEventListener('click', loadStatistik);
 
-    // Manajemen Driver
-    document.getElementById('searchDriverManajemen').addEventListener('input', applyFilterAndRenderManajemen);
-    document.getElementById('vehicleFilterManajemen').addEventListener('change', applyFilterAndRenderManajemen);
-    document.getElementById('statusFilterManajemen').addEventListener('change', applyFilterAndRenderManajemen);
-    document.getElementById('prevPageManajemenBtn').addEventListener('click', () => { if (currentPageManajemen > 1) { currentPageManajemen--; applyFilterAndRenderManajemen(); } });
-    document.getElementById('nextPageManajemenBtn').addEventListener('click', () => { const totalPages = Math.ceil(totalFilteredCountManajemen / PER_PAGE) || 1; if (currentPageManajemen < totalPages) { currentPageManajemen++; applyFilterAndRenderManajemen(); } });
-    document.getElementById('refreshManajemenBtn').addEventListener('click', () => {
-        logInfo('🔄 Refresh manual manajemen driver');
-        localStorage.removeItem('jego_drivers_cache_manajemen');
-        useLocalStorage = true; // reset flag
-        loadAllDriversWithCache();
-    });
-    document.getElementById('broadcastAllBtn').addEventListener('click', broadcastToAllDrivers);
-    document.getElementById('activateAllBtn').addEventListener('click', activateAllDrivers);
-
     document.querySelectorAll('.close-driver-modal, .close-notif-modal, .close-topup-modal').forEach(el => {
         el.addEventListener('click', () => {
             document.getElementById('editDriverModal').style.display = 'none';
@@ -1737,9 +1279,8 @@
     // INIT
     // ============================================================
     resetSearch();
-    console.log('✅ Dashboard CS SPA dengan Cari Driver, Statistik, dan Manajemen Driver siap!');
+    console.log('✅ Dashboard CS SPA dengan Cari Driver + Statistik siap!');
     console.log('📌 Statistik menggunakan node stats/daily dari Cloud Functions.');
-    console.log('📌 Manajemen driver menggunakan cache 5 menit (dengan fallback jika localStorage penuh).');
     console.log('📌 Logging aktif untuk debugging.');
 </script>
 </body>
