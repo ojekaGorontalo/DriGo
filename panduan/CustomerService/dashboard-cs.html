@@ -989,15 +989,16 @@
     }
 
     // ============================================================
-    // FUNGSI STATISTIK (dari stats/daily)
+    // FUNGSI STATISTIK (dari stats/daily) - SUDAH DIPERBAIKI
     // ============================================================
-    function loadStatistik() {
+    async function loadStatistik() {
         const tbody = document.getElementById('statusTableBody');
         const chartContainer = document.getElementById('vehicleChart');
         if (tbody) tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;">Memuat...</td></tr>';
         if (chartContainer) chartContainer.innerHTML = '<div class="loading"><div class="spinner"></div> Memuat grafik...</div>';
 
-        database.ref('stats/daily').once('value').then(snap => {
+        try {
+            const snap = await database.ref('stats/daily').once('value');
             const stats = snap.val();
             if (!stats) {
                 console.warn('⚠️ stats/daily tidak ditemukan, fallback ke hitung manual dari drivers');
@@ -1014,9 +1015,23 @@
             const totalCustomers = stats.totalCustomers || 0;
             const ordersToday = stats.ordersToday || 0;
             const revenueToday = stats.revenueToday || 0;
-            const pendingDeposits = stats.pendingDeposits || 0;
+            let pendingDeposits = stats.pendingDeposits || 0;   // <-- let, bukan const
             const updatedAt = stats.updatedAt || '';
 
+            // === AMBIL JUMLAH DEPOSIT PENDING REAL-TIME ===
+            try {
+                const pendingSnap = await database.ref('pending_deposits')
+                    .orderByChild('status')
+                    .equalTo('pending')
+                    .once('value');
+                const realPending = pendingSnap.numChildren();
+                // Timpa nilai yang sebelumnya dari stats
+                pendingDeposits = realPending;
+            } catch (e) {
+                console.warn('Gagal baca pending deposits langsung:', e);
+            }
+
+            // Update elemen statistik
             document.getElementById('statTotal').textContent = total;
             document.getElementById('statAktif').textContent = aktif;
             document.getElementById('statPending').textContent = pending;
@@ -1029,6 +1044,7 @@
                 document.getElementById('statistikUpdateTime').textContent = '🔄 Terakhir update: ' + new Date(updatedAt).toLocaleString('id-ID');
             }
 
+            // Update elemen beranda
             document.getElementById('berandaTotal').textContent = total;
             document.getElementById('berandaAktif').textContent = aktif;
             document.getElementById('berandaPending').textContent = pending;
@@ -1055,10 +1071,10 @@
                 fallbackManualStatistik();
                 return;
             }
-        }).catch(err => {
+        } catch (err) {
             console.error('❌ Gagal baca stats/daily:', err);
             fallbackManualStatistik();
-        });
+        }
     }
 
     function fallbackManualStatistik() {
