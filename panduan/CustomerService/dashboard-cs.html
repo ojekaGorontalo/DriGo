@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>Dashboard CS - JeGo (SPA - Cari Driver + Statistik)</title>
+    <title>Dashboard CS - JeGo (SPA - Cari Driver + Statistik + Deposit)</title>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
     <script src="https://www.gstatic.com/firebasejs/11.0.2/firebase-app-compat.js"></script>
@@ -11,7 +11,7 @@
     <script src="https://www.gstatic.com/firebasejs/11.0.2/firebase-database-compat.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
     <style>
-        /* ====== CSS SAMA SEPERTI SEBELUMNYA ====== */
+        /* ====== CSS ====== */
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Poppins', sans-serif; }
         :root {
             --primary: #FF9800;
@@ -109,6 +109,7 @@
         .status-pending { background: #fff3e0; color: #e65100; }
         .status-rejected { background: #ffebee; color: #c62828; }
         .status-blocked { background: #ffebee; color: #b71c1c; }
+        .status-warning { background: #ffecb3; color: #b76e00; }
         .driver-photo-td { width: 36px; height: 36px; border-radius: 50%; object-fit: cover; border: 2px solid var(--primary); }
         .filter-bar { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 18px; background: #fafafa; padding: 14px 18px; border-radius: 12px; align-items: center; }
         .filter-bar input, .filter-bar select { padding: 8px 14px; border: 1px solid #ddd; border-radius: 10px; font-size: 14px; background: white; flex: 1 1 160px; }
@@ -132,6 +133,7 @@
         .action-btn.edit { background: #3b82f6; color: white; }
         .action-btn.topup { background: #10b981; color: white; }
         .action-btn.notif { background: #8b5cf6; color: white; }
+        .confirm-deposit-btn { background: #10b981; color: white; border: none; padding: 6px 12px; border-radius: 8px; cursor: pointer; font-size: 0.7rem; font-weight: 600; }
         .toggle-switch { position: relative; display: inline-block; width: 44px; height: 22px; margin: 0 5px; }
         .toggle-switch input { opacity: 0; width: 0; height: 0; }
         .toggle-slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .3s; border-radius: 22px; }
@@ -260,7 +262,6 @@
             .bar { width: 28px; }
         }
 
-        /* Tambahan untuk cari driver */
         .driver-photo { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; border: 1px solid #e2e8f0; background: #f1f5f9; }
         .driver-photo-td { width: 36px; height: 36px; border-radius: 50%; object-fit: cover; border: 2px solid var(--primary); }
         .reason-input { width: 120px; padding: 6px 8px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 0.75rem; }
@@ -273,6 +274,7 @@
         .filter-bar .btn-refresh.blue { background: #3b82f6; }
         .filter-bar .btn-refresh.green { background: #10b981; }
         .driver-photo-td { width: 36px; height: 36px; border-radius: 50%; object-fit: cover; border: 2px solid var(--primary); }
+        .stats-badge { background: #e9ecef; padding: 5px 14px; border-radius: 30px; font-size: 0.8rem; font-weight: 500; color: #1e293b; }
     </style>
 </head>
 <body>
@@ -319,6 +321,8 @@
         <button class="menu-item" data-page="panduan"><i class="fas fa-book-open"></i> Panduan Pendaftaran</button>
         <button class="menu-item" data-page="caridriver"><i class="fas fa-search"></i> Cari Driver</button>
         <button class="menu-item" data-page="statistik"><i class="fas fa-chart-bar"></i> Statistik Driver</button>
+        <!-- MENU DEPOSIT BARU -->
+        <button class="menu-item" data-page="deposit"><i class="fas fa-money-bill-wave"></i> Deposit</button>
         <button class="menu-item logout" id="logoutBtn"><i class="fas fa-sign-out-alt"></i> Keluar</button>
     </nav>
 
@@ -335,7 +339,7 @@
         <div class="page-container active" id="page-beranda">
             <div class="welcome-card">
                 <h2>Selamat Datang di Dashboard CS JeGo! 👋</h2>
-                <p>Anda adalah ujung tombak pelayanan kami. Gunakan menu di samping untuk mengakses panduan, mencari driver, dan memantau statistik.</p>
+                <p>Anda adalah ujung tombak pelayanan kami. Gunakan menu di samping untuk mengakses panduan, mencari driver, memantau statistik, dan mengelola deposit.</p>
             </div>
             <div class="stats-grid">
                 <div class="stat-card"><span class="icon"><i class="fas fa-user-plus"></i></span><div class="label">Pendaftaran Hari Ini</div><div class="value" id="berandaTotal">0</div></div>
@@ -363,6 +367,7 @@
                     <li><i class="fas fa-chevron-right"></i><strong>Panduan Pendaftaran:</strong> Bantu driver yang kesulitan mengisi formulir. <span style="color:var(--primary);margin-left:8px;">(Klik menu Panduan Pendaftaran)</span></li>
                     <li><i class="fas fa-chevron-right"></i><strong>Cari Driver:</strong> Gunakan menu <span style="color:var(--primary);">Cari Driver</span> untuk mencari data driver berdasarkan UID.</li>
                     <li><i class="fas fa-chevron-right"></i><strong>Statistik:</strong> Pantau grafik di menu <span style="color:var(--primary);">Statistik Driver</span> untuk evaluasi.</li>
+                    <li><i class="fas fa-chevron-right"></i><strong>Deposit:</strong> Kelola permintaan deposit driver di menu <span style="color:var(--primary);">Deposit</span>.</li>
                 </ul>
                 <div class="note"><i class="fas fa-info-circle" style="color:var(--secondary);margin-right:10px;"></i><strong>Catatan:</strong> Akses ke database hanya dilakukan oleh Founder / Tim Teknis.</div>
             </div>
@@ -451,7 +456,40 @@
             <div style="margin-top:20px;"><h3><i class="fas fa-list" style="color:var(--primary);"></i> Rincian Status</h3><div class="table-wrapper"><table><thead><tr><th>Status</th><th>Jumlah</th><th>Persentase</th></tr></thead><tbody id="statusTableBody"><tr><td colspan="3" style="text-align:center;">Memuat...</td></tr></tbody></table></div></div>
         </div>
 
-        <div class="footer">© 2026 JeGo – Customer Service Dashboard (SPA - Cari Driver + Statistik) | Data diperbarui otomatis setiap jam</div>
+        <!-- ===== DEPOSIT (BARU) ===== -->
+        <div class="page-container" id="page-deposit">
+            <div style="margin-bottom:16px;">
+                <h1><i class="fas fa-money-bill-wave"></i> Permintaan Deposit (Pending)</h1>
+                <p style="color:var(--text-gray);">Daftar deposit yang belum dikonfirmasi. Deposit otomatis expired setelah 1x24 jam.</p>
+            </div>
+            <div class="filter-bar">
+                <input type="text" id="depositSearch" class="search-box" placeholder="Cari nama driver, telepon..." style="flex:1; min-width:200px;">
+                <div style="flex:1; display: flex; justify-content: flex-end; gap: 12px;">
+                    <div class="stats-badge" id="depositStats">Total: <span id="totalDepositCount">0</span></div>
+                    <button class="btn-refresh" id="refreshDepositsBtn"><i class="fas fa-sync-alt"></i> Refresh</button>
+                </div>
+            </div>
+            <div class="table-wrapper">
+                <table>
+                    <thead>
+                        <tr><th>Waktu</th><th>Driver</th><th>Telepon</th><th>Jumlah Deposit</th><th>Total Transfer</th><th>Kode Unik</th><th>Status</th><th>Aksi</th></tr>
+                    </thead>
+                    <tbody id="depositTableBody">
+                        <tr class="empty-row"><td colspan="8"><div class="loading"><div class="spinner"></div> Memuat...</div></td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="pagination">
+                <button id="prevPageBtn" disabled><i class="fas fa-chevron-left"></i> Sebelumnya</button>
+                <span id="pageInfo">Halaman 1 dari 1</span>
+                <button id="nextPageBtn"><i class="fas fa-chevron-right"></i> Selanjutnya</button>
+            </div>
+            <div style="padding:12px 0; font-size:0.7rem; color:#475569; border-top:1px solid #e9ecef; margin-top:12px;">
+                <i class="fas fa-info-circle"></i> Deposit yang tidak dikonfirmasi dalam <strong>1x24 jam</strong> akan otomatis kadaluarsa (expired) dan tidak dapat dikonfirmasi lagi.
+            </div>
+        </div>
+
+        <div class="footer">© 2026 JeGo – Customer Service Dashboard (SPA - Cari Driver + Statistik + Deposit) | Data diperbarui otomatis</div>
     </div>
 </div>
 
@@ -534,9 +572,15 @@
     // STATE untuk Cari Driver
     let currentDriver = null;
 
+    // STATE untuk Deposit
+    let allDeposits = [];
+    let filteredDeposits = [];
+    let currentPage = 1;
+    const PER_PAGE = 10;
     let onesignalApiKey = null;
     const ONESIGNAL_APP_ID = "007d7eba-9cfc-40d1-a92e-f2299f770282";
     let currentDriverForTopup = null;
+    let isLoadingDeposit = false;
 
     // ============================================================
     // TOAST & FORMAT
@@ -567,16 +611,18 @@
         beranda: 'Dashboard CS',
         panduan: 'Panduan Pendaftaran',
         caridriver: 'Cari Driver',
-        statistik: 'Statistik Driver'
+        statistik: 'Statistik Driver',
+        deposit: 'Permintaan Deposit'
     };
     function navigateTo(page) {
         document.querySelectorAll('.page-container').forEach(el => el.classList.remove('active'));
         const target = document.getElementById('page-' + page);
         if (target) target.classList.add('active');
         menuItems.forEach(item => item.classList.toggle('active', item.dataset.page === page));
-        const iconMap = { beranda: 'tachometer-alt', panduan: 'book-open', caridriver: 'search', statistik: 'chart-pie' };
+        const iconMap = { beranda: 'tachometer-alt', panduan: 'book-open', caridriver: 'search', statistik: 'chart-pie', deposit: 'money-bill-wave' };
         if (pageTitle) pageTitle.innerHTML = '<i class="fas fa-' + iconMap[page] + '"></i> ' + (pageTitles[page] || page);
         if (page === 'statistik') loadStatistik();
+        if (page === 'deposit') loadPendingDeposits();
         if (window.innerWidth <= 768) { sidebar.classList.remove('open'); overlay.classList.remove('active'); }
     }
     menuItems.forEach(item => item.addEventListener('click', () => navigateTo(item.dataset.page)));
@@ -625,6 +671,7 @@
             loginPage.style.display = 'none';
             dashboardPage.classList.add('show');
             loadStatistik();
+            loadPendingDeposits(); // load deposit awal
             if (typeof mermaid !== 'undefined') {
                 mermaid.initialize({ theme: 'default', themeVariables: { primaryColor: '#FF9800', primaryBorderColor: '#FF5722', primaryTextColor: '#343a40', lineColor: '#FF5722', secondaryColor: '#fff3e0' }, flowchart: { useMaxWidth: true, htmlLabels: true } });
             }
@@ -668,6 +715,7 @@
                     loginPage.style.display = 'none';
                     dashboardPage.classList.add('show');
                     loadStatistik();
+                    loadPendingDeposits();
                     if (typeof mermaid !== 'undefined') {
                         mermaid.initialize({ theme: 'default', themeVariables: { primaryColor: '#FF9800', primaryBorderColor: '#FF5722', primaryTextColor: '#343a40', lineColor: '#FF5722', secondaryColor: '#fff3e0' }, flowchart: { useMaxWidth: true, htmlLabels: true } });
                     }
@@ -700,7 +748,7 @@
     }
 
     // ============================================================
-    // ONE SIGNAL
+    // ONE SIGNAL (sudah ada)
     // ============================================================
     async function getOneSignalApiKey() {
         if (onesignalApiKey) return onesignalApiKey;
@@ -1112,6 +1160,227 @@
     }
 
     // ============================================================
+    // FUNGSI DEPOSIT (BARU)
+    // ============================================================
+    async function cleanupExpiredDeposits() {
+        if (isLoadingDeposit) return;
+        isLoadingDeposit = true;
+        try {
+            const now = Date.now();
+            const snap = await database.ref('pending_deposits')
+                .orderByChild('expiresAt')
+                .endAt(now)
+                .once('value');
+            
+            const updates = {};
+            let expiredCount = 0;
+            snap.forEach(child => {
+                const deposit = child.val();
+                if (deposit.status === 'pending') {
+                    expiredCount++;
+                    const logEntry = {
+                        type: 'deposit_request',
+                        amount: deposit.amount,
+                        uniqueAmount: deposit.uniqueAmount,
+                        uniqueDigits: deposit.uniqueDigits,
+                        paymentId: deposit.paymentId,
+                        status: 'expired',
+                        old_balance: 0,
+                        new_balance: 0,
+                        note: `Deposit expired (otomatis)`,
+                        driver_name: deposit.driverName || 'Driver',
+                        driver_phone: deposit.driverPhone || '-',
+                        timestamp: deposit.createdAt || now,
+                        expires_at: deposit.expiresAt || now
+                    };
+                    if (deposit.driverId) {
+                        const logRef = database.ref(`driver_balance_logs/${deposit.driverId}`).push();
+                        updates[logRef.toString()] = logEntry;
+                        updates[`pending_deposits/${child.key}`] = null;
+                    }
+                }
+            });
+            if (expiredCount > 0) {
+                await database.ref().update(updates);
+                console.log(`✅ ${expiredCount} deposit expired otomatis`);
+                snap.forEach(child => {
+                    const deposit = child.val();
+                    if (deposit.status === 'pending') {
+                        (async () => {
+                            await saveDriverNotification(deposit.driverId, '⏰ Deposit Kadaluarsa', 
+                                `Permintaan deposit Rp ${deposit.amount?.toLocaleString()} telah kadaluarsa. Silakan ajukan deposit baru.`, 'expired');
+                            const playerId = await getDriverPlayerId(deposit.driverId);
+                            if (playerId) {
+                                await sendPushNotification(playerId, 'Deposit Kadaluarsa', 
+                                    `Deposit Rp ${deposit.amount?.toLocaleString()} expired. Ajukan deposit ulang.`);
+                            }
+                        })();
+                    }
+                });
+            }
+        } catch(err) {
+            console.error("Gagal cleanup expired deposits:", err);
+        } finally {
+            isLoadingDeposit = false;
+        }
+    }
+
+    async function loadPendingDeposits() {
+        if (isLoadingDeposit) return;
+        isLoadingDeposit = true;
+
+        const tbody = document.getElementById('depositTableBody');
+        tbody.innerHTML = '<tr class="empty-row"><td colspan="8"><div class="loading"><div class="spinner"></div> Memuat...</div></td></tr>';
+
+        try {
+            await cleanupExpiredDeposits();
+
+            const snap = await database.ref('pending_deposits').once('value');
+            const requests = [];
+            snap.forEach(child => {
+                const deposit = child.val();
+                if (deposit.status === 'pending') {
+                    requests.push({
+                        id: child.key,
+                        driverId: deposit.driverId,
+                        driverName: deposit.driverName || 'Driver',
+                        driverPhone: deposit.driverPhone || '-',
+                        amount: deposit.amount || 0,
+                        uniqueAmount: deposit.uniqueAmount || 0,
+                        uniqueDigits: deposit.uniqueDigits || '000',
+                        timestamp: deposit.createdAt || 0,
+                        expiresAt: deposit.expiresAt || 0,
+                        ...deposit
+                    });
+                }
+            });
+
+            requests.sort((a,b) => (b.timestamp || 0) - (a.timestamp || 0));
+            allDeposits = requests;
+            applyDepositFilter();
+
+        } catch(err) {
+            console.error(err);
+            showToast('Gagal load deposit pending', true);
+            tbody.innerHTML = '<tr class="empty-row"><td colspan="8">⚠️ Gagal memuat data</td></tr>';
+        } finally {
+            isLoadingDeposit = false;
+        }
+    }
+
+    function applyDepositFilter() {
+        const keyword = document.getElementById('depositSearch').value.toLowerCase();
+        let filtered = allDeposits.filter(req => 
+            keyword === '' || 
+            (req.driverName && req.driverName.toLowerCase().includes(keyword)) || 
+            (req.driverPhone && req.driverPhone.toLowerCase().includes(keyword))
+        );
+        filteredDeposits = filtered;
+        document.getElementById('totalDepositCount').innerText = filtered.length;
+        currentPage = 1;
+        renderDepositPage();
+    }
+
+    function renderDepositPage() {
+        const totalPages = Math.ceil(filteredDeposits.length / PER_PAGE) || 1;
+        if (currentPage > totalPages) currentPage = totalPages;
+        const start = (currentPage - 1) * PER_PAGE;
+        const end = start + PER_PAGE;
+        const pageData = filteredDeposits.slice(start, end);
+        renderDepositTable(pageData);
+        document.getElementById('pageInfo').innerText = `Halaman ${currentPage} dari ${totalPages}`;
+        document.getElementById('prevPageBtn').disabled = currentPage <= 1;
+        document.getElementById('nextPageBtn').disabled = currentPage >= totalPages;
+    }
+
+    function renderDepositTable(requests) {
+        const tbody = document.getElementById('depositTableBody');
+        if (!requests.length) {
+            tbody.innerHTML = '<tr class="empty-row"><td colspan="8">Tidak ada permintaan deposit pending</td></tr>';
+            return;
+        }
+        tbody.innerHTML = '';
+        requests.forEach(req => {
+            const row = tbody.insertRow();
+            row.insertCell(0).textContent = req.timestamp ? new Date(req.timestamp).toLocaleString('id-ID') : '-';
+            row.insertCell(1).textContent = req.driverName || '-';
+            row.insertCell(2).textContent = req.driverPhone || '-';
+            row.insertCell(3).innerHTML = formatRupiah(req.amount);
+            row.insertCell(4).innerHTML = formatRupiah(req.uniqueAmount);
+            row.insertCell(5).textContent = req.uniqueDigits || '-';
+
+            const timeLeft = (req.expiresAt || 0) - Date.now();
+            let statusHtml = '<span class="status-badge status-pending">Pending</span>';
+            if (timeLeft < 3600000 && timeLeft > 0) {
+                statusHtml = '<span class="status-badge status-warning" style="background:#ffecb3;color:#b76e00;">Segera Expired</span>';
+            }
+            row.insertCell(6).innerHTML = statusHtml;
+
+            const confirmBtn = document.createElement('button');
+            confirmBtn.textContent = '✅ Konfirmasi & Tambah Saldo';
+            confirmBtn.className = 'confirm-deposit-btn';
+            confirmBtn.onclick = async () => {
+                if (Date.now() > (req.expiresAt || 0)) {
+                    showToast('Deposit sudah kadaluarsa, tidak bisa dikonfirmasi', true);
+                    await loadPendingDeposits();
+                    return;
+                }
+                // POPUP KONFIRMASI
+                if (!confirm('Yakin ingin tambahkan saldo pada driver ini? Data ini akan dicatat pada database.')) {
+                    return;
+                }
+                confirmBtn.disabled = true;
+                confirmBtn.textContent = 'Memproses...';
+                try {
+                    const driverSnap = await database.ref(`drivers/${req.driverId}/balance`).once('value');
+                    const oldBalance = driverSnap.val() || 0;
+                    const newBalance = oldBalance + req.uniqueAmount;
+
+                    await database.ref(`drivers/${req.driverId}/balance`).set(newBalance);
+
+                    const logEntry = {
+                        type: 'deposit_request',
+                        amount: req.amount,
+                        uniqueAmount: req.uniqueAmount,
+                        uniqueDigits: req.uniqueDigits,
+                        paymentId: req.paymentId || 'manual',
+                        status: 'confirmed',
+                        old_balance: oldBalance,
+                        new_balance: newBalance,
+                        note: `Deposit dikonfirmasi admin`,
+                        driver_name: req.driverName || 'Driver',
+                        driver_phone: req.driverPhone || '-',
+                        timestamp: Date.now(),
+                        expires_at: req.expiresAt || Date.now() + 86400000
+                    };
+                    await database.ref(`driver_balance_logs/${req.driverId}`).push(logEntry);
+                    await database.ref(`pending_deposits/${req.id}`).remove();
+
+                    await saveDriverNotification(req.driverId, 'Deposit Dikonfirmasi', 
+                        `Deposit Rp ${req.uniqueAmount.toLocaleString()} telah ditambahkan ke saldo Anda.`);
+                    const playerId = await getDriverPlayerId(req.driverId);
+                    if (playerId) {
+                        await sendPushNotification(playerId, 'Deposit Diterima', 
+                            `Saldo Anda bertambah Rp ${req.uniqueAmount.toLocaleString()}.`);
+                    }
+
+                    const idx = allDeposits.findIndex(d => d.id === req.id);
+                    if (idx !== -1) allDeposits.splice(idx, 1);
+                    applyDepositFilter();
+                    showToast(`Saldo ${req.driverName} berhasil ditambah ${formatRupiah(req.uniqueAmount)}`);
+                    await saveAdminLog(`Admin mengkonfirmasi deposit ${req.driverName} (${req.driverId}) sebesar Rp ${req.uniqueAmount.toLocaleString()}`);
+                } catch(err) {
+                    showToast(err.message, true);
+                } finally {
+                    confirmBtn.disabled = false;
+                    confirmBtn.textContent = '✅ Konfirmasi & Tambah Saldo';
+                }
+            };
+            row.insertCell(7).appendChild(confirmBtn);
+        });
+    }
+
+    // ============================================================
     // MODAL FUNCTIONS
     // ============================================================
     function openDriverEditModal(driver) {
@@ -1266,6 +1535,17 @@
     document.getElementById('activateDriverBtn').addEventListener('click', activateDriver);
     document.getElementById('refreshStatistik').addEventListener('click', loadStatistik);
 
+    // Deposit events
+    document.getElementById('refreshDepositsBtn').addEventListener('click', loadPendingDeposits);
+    document.getElementById('depositSearch').addEventListener('input', applyDepositFilter);
+    document.getElementById('prevPageBtn').addEventListener('click', () => {
+        if (currentPage > 1) { currentPage--; renderDepositPage(); }
+    });
+    document.getElementById('nextPageBtn').addEventListener('click', () => {
+        const totalPages = Math.ceil(filteredDeposits.length / PER_PAGE) || 1;
+        if (currentPage < totalPages) { currentPage++; renderDepositPage(); }
+    });
+
     document.querySelectorAll('.close-driver-modal, .close-notif-modal, .close-topup-modal').forEach(el => {
         el.addEventListener('click', () => {
             document.getElementById('editDriverModal').style.display = 'none';
@@ -1276,11 +1556,22 @@
     window.addEventListener('click', (e) => { if (e.target.classList.contains('modal')) e.target.style.display = 'none'; });
 
     // ============================================================
+    // CLEANUP INTERVAL UNTUK DEPOSIT (tiap 30 menit)
+    // ============================================================
+    setInterval(async () => {
+        if (!isLoadingDeposit) {
+            await cleanupExpiredDeposits();
+            await loadPendingDeposits();
+        }
+    }, 30 * 60 * 1000);
+
+    // ============================================================
     // INIT
     // ============================================================
     resetSearch();
-    console.log('✅ Dashboard CS SPA dengan Cari Driver + Statistik siap!');
+    console.log('✅ Dashboard CS SPA dengan Cari Driver + Statistik + Deposit siap!');
     console.log('📌 Statistik menggunakan node stats/daily dari Cloud Functions.');
+    console.log('📌 Deposit: otomatis expired, konfirmasi dengan popup konfirmasi.');
     console.log('📌 Logging aktif untuk debugging.');
 </script>
 </body>
