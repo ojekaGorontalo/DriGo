@@ -1242,47 +1242,52 @@
     }
 
     async function loadPendingDeposits() {
-        if (isLoadingDeposit) return;
-        isLoadingDeposit = true;
+    if (isLoadingDeposit) return;
+    isLoadingDeposit = true;
 
-        const tbody = document.getElementById('depositTableBody');
-        tbody.innerHTML = '<tr class="empty-row"><td colspan="8"><div class="loading"><div class="spinner"></div> Memuat...</div></td></tr>';
+    const tbody = document.getElementById('depositTableBody');
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="8"><div class="loading"><div class="spinner"></div> Memuat...</div></td></tr>';
 
-        try {
-            await cleanupExpiredDeposits();
+    try {
+        // 1. Bersihkan deposit expired (masih pakai query expiresAt)
+        await cleanupExpiredDeposits();
 
-            const snap = await database.ref('pending_deposits').once('value');
-            const requests = [];
-            snap.forEach(child => {
-                const deposit = child.val();
-                if (deposit.status === 'pending') {
-                    requests.push({
-                        id: child.key,
-                        driverId: deposit.driverId,
-                        driverName: deposit.driverName || 'Driver',
-                        driverPhone: deposit.driverPhone || '-',
-                        amount: deposit.amount || 0,
-                        uniqueAmount: deposit.uniqueAmount || 0,
-                        uniqueDigits: deposit.uniqueDigits || '000',
-                        timestamp: deposit.createdAt || 0,
-                        expiresAt: deposit.expiresAt || 0,
-                        ...deposit
-                    });
-                }
+        // 2. 🔥 AMBIL HANYA DATA PENDING dari server (filter di sisi Firebase)
+        const snap = await database.ref('pending_deposits')
+            .orderByChild('status')
+            .equalTo('pending')
+            .once('value');
+
+        const requests = [];
+        snap.forEach(child => {
+            const deposit = child.val();
+            // Karena sudah dipastikan status = 'pending', tidak perlu pengecekan ulang
+            requests.push({
+                id: child.key,
+                driverId: deposit.driverId,
+                driverName: deposit.driverName || 'Driver',
+                driverPhone: deposit.driverPhone || '-',
+                amount: deposit.amount || 0,
+                uniqueAmount: deposit.uniqueAmount || 0,
+                uniqueDigits: deposit.uniqueDigits || '000',
+                timestamp: deposit.createdAt || 0,
+                expiresAt: deposit.expiresAt || 0,
+                ...deposit
             });
+        });
 
-            requests.sort((a,b) => (b.timestamp || 0) - (a.timestamp || 0));
-            allDeposits = requests;
-            applyDepositFilter();
+        requests.sort((a,b) => (b.timestamp || 0) - (a.timestamp || 0));
+        allDeposits = requests;
+        applyDepositFilter();
 
-        } catch(err) {
-            console.error(err);
-            showToast('Gagal load deposit pending', true);
-            tbody.innerHTML = '<tr class="empty-row"><td colspan="8">⚠️ Gagal memuat data</td></tr>';
-        } finally {
-            isLoadingDeposit = false;
-        }
+    } catch(err) {
+        console.error(err);
+        showToast('Gagal load deposit pending', true);
+        tbody.innerHTML = '<tr class="empty-row"><td colspan="8">⚠️ Gagal memuat data</td></tr>';
+    } finally {
+        isLoadingDeposit = false;
     }
+}
 
     function applyDepositFilter() {
         const keyword = document.getElementById('depositSearch').value.toLowerCase();
