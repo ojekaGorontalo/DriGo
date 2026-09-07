@@ -811,54 +811,6 @@
       to { opacity: 1; transform: scale(1); }
     }
 
-    /* ===== NOTIF PROMPT ===== */
-    .notif-prompt-modal {
-      display: none;
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(0,0,0,0.7);
-      z-index: 2100;
-      align-items: center;
-      justify-content: center;
-    }
-    .notif-prompt-content {
-      background: white;
-      border-radius: 16px;
-      width: 85%;
-      max-width: 320px;
-      text-align: center;
-      padding: 20px;
-    }
-    .notif-prompt-icon { font-size: 48px; margin-bottom: 12px; }
-    .notif-prompt-title {
-      font-size: 1.2rem;
-      font-weight: bold;
-      margin-bottom: 8px;
-      color: var(--primary);
-    }
-    .notif-prompt-message {
-      font-size: 0.85rem;
-      color: #666;
-      margin-bottom: 20px;
-    }
-    .notif-prompt-buttons {
-      display: flex;
-      gap: 10px;
-      justify-content: center;
-    }
-    .notif-prompt-buttons button {
-      padding: 10px 20px;
-      border: none;
-      border-radius: 8px;
-      font-weight: 600;
-      cursor: pointer;
-    }
-    .btn-allow { background: var(--primary); color: white; }
-    .btn-later { background: #e0e0e0; color: #333; }
-
     /* ===== NOTIF BADGE ===== */
     #notifBtn { position: relative; }
     .notif-badge {
@@ -1240,18 +1192,9 @@
   </div>
 </div>
 
-<!-- ===== NOTIF PROMPT ===== -->
-<div id="notifPromptModal" class="notif-prompt-modal">
-  <div class="notif-prompt-content">
-    <div class="notif-prompt-icon">🔔</div>
-    <div class="notif-prompt-title">Aktifkan Notifikasi</div>
-    <div class="notif-prompt-message">Aktifkan notifikasi untuk mendapatkan informasi order baru dengan cepat.</div>
-    <div class="notif-prompt-buttons">
-      <button id="promptAllowBtn" class="btn-allow">Aktifkan</button>
-      <button id="promptLaterBtn" class="btn-later">Nanti</button>
-    </div>
-  </div>
-</div>
+<!-- ===== NOTIF PROMPT (DIHAPUS KARENA PAKAI FCM) ===== -->
+<!-- Elemen ini tidak digunakan lagi, kita sembunyikan dengan style -->
+<div id="notifPromptModal" class="notif-prompt-modal" style="display:none !important;"></div>
 
 <!-- ===== POPUP ===== -->
 <div class="popup-overlay" id="popupOverlay">
@@ -1282,8 +1225,6 @@
   <source src="https://jego-movego-hld.netlify.app/sounds/tonggle_off.mp3" type="audio/mpeg">
 </audio>
 
-  
-
 <script>
 // ==================== FIREBASE CONFIG ====================
 const firebaseConfig = {
@@ -1308,6 +1249,9 @@ try {
 } catch (error) {
   console.error('❌ Error inisialisasi Firebase:', error);
 }
+
+// ==================== KONFIGURASI REDIS ====================
+const REDIS_API_URL = 'https://movego.my.id';
 
 // ==================== VARIABEL GLOBAL ====================
 let ordersRef = null, ordersListener = null;
@@ -1385,16 +1329,87 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
   return R * c;
 }
 
+// ==================== FUNGSI REDIS ====================
+async function getDriverStatusFromRedis(driverId) {
+    try {
+        const response = await fetch(`${REDIS_API_URL}/api/driver/status/${driverId}`);
+        if (!response.ok) {
+            console.warn('⚠️ Gagal ambil status dari Redis (HTTP ' + response.status + '), fallback ke localStorage');
+            return null;
+        }
+        const result = await response.json();
+        if (result.success && result.data) {
+            return result.data; // { tracking_enabled, autobid_enabled, fcmToken, ... }
+        }
+        return null;
+    } catch (error) {
+        console.warn('⚠️ Error ambil status dari Redis:', error.message);
+        return null;
+    }
+}
+
+async function syncDriverStatusToRedis() {
+    try {
+        const token = localStorage.getItem('fcmToken') || null;
+        const response = await fetch(`${REDIS_API_URL}/api/driver/status`, {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify({
+                driverId: globalCurrentUid,
+                tracking_enabled: locationTrackingEnabled,
+                autobid_enabled: autobidEnabled,
+                fcmToken: token
+            })
+        });
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        const result = await response.json();
+        console.log('✅ Status lengkap terkirim ke Redis:', result);
+        return result;
+    } catch (error) {
+        console.error('❌ Gagal sinkron status ke Redis:', error.message);
+    }
+}
+
+async function sendLocationToRedis(lat, lng) {
+    try {
+        const response = await fetch(`${REDIS_API_URL}/api/driver/location`, {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify({
+                driverId: globalCurrentUid,
+                latitude: lat,
+                longitude: lng,
+                tracking_enabled: locationTrackingEnabled,
+                autobid_enabled: autobidEnabled
+            })
+        });
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        const result = await response.json();
+        console.log('✅ Lokasi terkirim ke Redis:', result);
+        return result;
+    } catch (error) {
+        console.error('❌ Gagal kirim lokasi ke Redis:', error.message);
+    }
+}
+
 // ==================== LOAD GOOGLE MAPS DYNAMICALLY ====================
 function loadGoogleMaps(apiKey) {
   return new Promise((resolve, reject) => {
-    // Cek apakah sudah termuat
     if (typeof google !== 'undefined' && google.maps) {
       console.log('✅ Google Maps sudah termuat sebelumnya');
       resolve();
       return;
     }
-    // Definisikan callback global yang dipanggil oleh script
     window.initMap = function() {
       console.log('✅ Google Maps callback initMap dipanggil');
       resolve();
@@ -1450,7 +1465,6 @@ function hidePopup() {
   document.getElementById('popupOverlay').style.display = 'none'; 
 }
 
-// ===== PERBAIKAN: showConfirmPopupTracking dengan Promise =====
 function showConfirmPopupTracking(title, message, onConfirm, onCancel) {
     console.log('🔄 showConfirmPopupTracking dipanggil dengan title:', title);
     const overlay = document.getElementById('popupOverlay');
@@ -1568,18 +1582,45 @@ function stopRadarMessages() {
 }
 
 // ==================== SETTINGS ====================
-function loadStoredSettings() {
-    locationTrackingEnabled = localStorage.getItem(STORAGE_TRACKING) === 'true';
+async function loadStoredSettings() {
+    // Prioritas: Redis -> localStorage -> default
+    if (globalCurrentUid) {
+        const redisStatus = await getDriverStatusFromRedis(globalCurrentUid);
+        if (redisStatus) {
+            if (redisStatus.tracking_enabled !== undefined) {
+                locationTrackingEnabled = redisStatus.tracking_enabled;
+                localStorage.setItem(STORAGE_TRACKING, locationTrackingEnabled);
+            }
+            if (redisStatus.autobid_enabled !== undefined) {
+                autobidEnabled = redisStatus.autobid_enabled;
+                localStorage.setItem(STORAGE_AUTOBID, autobidEnabled);
+            }
+            if (redisStatus.fcmToken) {
+                localStorage.setItem('fcmToken', redisStatus.fcmToken);
+            }
+            console.log('✅ Status dari Redis:', { locationTrackingEnabled, autobidEnabled });
+        } else {
+            // fallback ke localStorage
+            locationTrackingEnabled = localStorage.getItem(STORAGE_TRACKING) === 'true';
+            autobidEnabled = localStorage.getItem(STORAGE_AUTOBID) === 'true';
+            console.log('📦 Status dari localStorage (fallback)');
+        }
+    } else {
+        locationTrackingEnabled = localStorage.getItem(STORAGE_TRACKING) === 'true';
+        autobidEnabled = localStorage.getItem(STORAGE_AUTOBID) === 'true';
+    }
     updateTrackingButton();
-    autobidEnabled = localStorage.getItem(STORAGE_AUTOBID) === 'true';
     updateAutobidButton();
     acceptKurirEnabled = localStorage.getItem(STORAGE_ACCEPT_KURIR) === 'true';
     const kurirToggle = document.getElementById('acceptKurirToggle');
     if (kurirToggle) kurirToggle.checked = acceptKurirEnabled;
 }
+
 function updateTrackingButton() {
   const toggleBtn = document.getElementById('locationToggleBtn');
+  if (!toggleBtn) return;
   const icon = toggleBtn.querySelector('.icon');
+  if (!icon) return;
   if (locationTrackingEnabled) {
     toggleBtn.classList.add('active');
     icon.textContent = '📡';
@@ -1588,6 +1629,7 @@ function updateTrackingButton() {
     icon.textContent = '📍';
   }
 }
+
 function updateAutobidButton() {
   const toggle = document.getElementById('autobidToggle');
   if (toggle) toggle.checked = autobidEnabled;
@@ -1632,7 +1674,9 @@ function toggleLocationTracking() {
     localStorage.setItem(STORAGE_TRACKING, locationTrackingEnabled);
 
     const toggleBtn = document.getElementById('locationToggleBtn');
+    if (!toggleBtn) return;
     const icon = toggleBtn.querySelector('.icon');
+    if (!icon) return;
 
     if (locationTrackingEnabled) {
         toggleBtn.classList.add('active');
@@ -1653,38 +1697,9 @@ function toggleLocationTracking() {
         }
     }
 
-    if (isAndroidAvailable()) {
-        if (locationTrackingEnabled) {
-            Android.startDriverTracking();
-            Android.startFloatingButton();
-            console.log('📍 Service tracking dimulai dari tombol');
-        } else {
-            Android.stopDriverTracking();
-            Android.stopFloatingButton();
-            console.log('⏹️ Service tracking dihentikan dari tombol');
-        }
-    }
-
+    // Kirim status ke Redis
     if (globalCurrentUid) {
-        database.ref('drivers/' + globalCurrentUid).update({
-            tracking_enabled: locationTrackingEnabled,
-            last_update: new Date().toISOString()
-        }).catch(console.error);
-        database.ref(`driver_locations/${globalCurrentUid}`).update({
-            tracking_enabled: locationTrackingEnabled,
-            last_update: new Date().toISOString()
-        }).catch(console.error);
-    }
-
-    if (locationTrackingEnabled && driverLocation.latitude && currentDriverData && globalCurrentUid) {
-        database.ref('drivers/' + globalCurrentUid).update({
-            latitude: driverLocation.latitude,
-            longitude: driverLocation.longitude
-        }).catch(console.error);
-        database.ref(`driver_locations/${globalCurrentUid}`).update({
-            latitude: driverLocation.latitude,
-            longitude: driverLocation.longitude
-        }).catch(console.error);
+        syncDriverStatusToRedis();
     }
 }
 
@@ -1695,21 +1710,78 @@ function toggleAutobid() {
   updateAutobidButton();
 
   if (globalCurrentUid) {
-    database.ref('drivers/' + globalCurrentUid).update({
-      autobid_enabled: autobidEnabled,
-      last_update: new Date().toISOString()
-    }).catch(console.error);
-    database.ref(`driver_locations/${globalCurrentUid}`).update({
-      autobid_enabled: autobidEnabled,
-      last_update: new Date().toISOString()
-    }).catch(console.error);
+    syncDriverStatusToRedis();
   }
 }
 
 function updateAcceptKurirSetting() {
-    acceptKurirEnabled = document.getElementById('acceptKurirToggle').checked;
+    const toggle = document.getElementById('acceptKurirToggle');
+    if (!toggle) return;
+    acceptKurirEnabled = toggle.checked;
     localStorage.setItem(STORAGE_ACCEPT_KURIR, acceptKurirEnabled);
     refreshDisplay();
+}
+
+// ==================== INISIALISASI FCM ====================
+async function initFCM() {
+    if (typeof median === 'undefined' || !median.firebaseMessaging) {
+        console.warn("⚠️ Median Firebase Messaging tidak tersedia, coba lagi nanti.");
+        setTimeout(initFCM, 5000);
+        return;
+    }
+    try {
+        // Minta izin notifikasi
+        const permissionResult = await median.firebaseMessaging.requestPermission();
+        console.log('📱 Izin notifikasi:', permissionResult.granted ? 'GRANTED' : 'DENIED');
+
+        if (!permissionResult.granted) {
+            showToast('Izin notifikasi ditolak, aktifkan di pengaturan.', 'warning');
+            return;
+        }
+
+        // Daftar perangkat
+        await median.firebaseMessaging.register();
+
+        // Ambil token FCM
+        const tokenResult = await median.firebaseMessaging.getToken();
+        const token = tokenResult?.token;
+        if (token) {
+            localStorage.setItem('fcmToken', token);
+            console.log('✅ FCM Token:', token);
+            // Kirim token ke Redis
+            if (globalCurrentUid) {
+                await syncDriverStatusToRedis();
+            }
+        } else {
+            console.warn('⚠️ Gagal mendapatkan FCM token');
+        }
+
+        // Aktifkan banner di foreground (sesuai kebutuhan)
+        await median.firebaseMessaging.enableForegroundBanners();
+
+        // Listener notifikasi diterima saat foreground
+        median.firebaseMessaging.notificationReceived.addListener((data) => {
+            console.log('📩 Notifikasi FCM diterima (foreground):', data);
+            showToast(data?.notification?.body || 'Notifikasi baru', 'info');
+            // Refresh daftar order jika perlu
+            refreshDisplay();
+        });
+
+        // Listener notifikasi diklik
+        median.firebaseMessaging.notificationClicked.addListener((data) => {
+            console.log('👆 Notifikasi FCM diklik:', data);
+            // Bisa navigasi ke halaman tertentu
+            if (data?.data?.orderId) {
+                // Contoh: buka detail order
+                // Implementasi sesuai kebutuhan
+            }
+        });
+
+        showToast('Notifikasi FCM siap ✅', 'success');
+    } catch (error) {
+        console.error('❌ Gagal inisialisasi FCM:', error);
+        showToast('Gagal mengaktifkan notifikasi FCM.', 'error');
+    }
 }
 
 // ==================== GPS ====================
@@ -1788,21 +1860,11 @@ function updateDriverLocation(position) {
   }
 
   if (shouldUpdate && locationTrackingEnabled && currentDriverData && globalCurrentUid) {
-    database.ref('drivers/' + globalCurrentUid).update({
-      latitude: lat,
-      longitude: lng,
-      last_update: new Date().toISOString()
-    }).catch(console.error);
-    database.ref(`driver_locations/${globalCurrentUid}`).update({
-      latitude: lat,
-      longitude: lng,
-      tracking_enabled: locationTrackingEnabled,
-      autobid_enabled: autobidEnabled,
-      last_update: new Date().toISOString()
-    }).catch(console.error);
+    // Kirim ke Redis
+    sendLocationToRedis(lat, lng);
     lastSentLat = lat;
     lastSentLng = lng;
-    console.log(`📍 Kirim lokasi: ${lat}, ${lng}`);
+    console.log(`📍 Kirim lokasi ke Redis: ${lat}, ${lng}`);
   } else {
     refreshDisplay();
   }
@@ -1930,6 +1992,13 @@ function createOrderElement(order) {
     const harga = order.price || 0;
     const isKurir = order.transport_type && order.transport_type.includes('kurir');
 
+    // ===== BARU: Badge metode pembayaran =====
+    const isJePay = order.payment_method === 'jepay';
+    const paymentBadge = isJePay 
+        ? '<span class="payment-badge jepay">💳 JePay</span>' 
+        : '<span class="payment-badge cash">💵 Tunai</span>';
+    // =====================================
+
     let deskripsiBarang = '';
     if (isKurir && order.item_description) {
         deskripsiBarang = `<div class="delivery-desc-card">${escapeHtml(order.item_description)}</div>`;
@@ -1968,7 +2037,10 @@ function createOrderElement(order) {
 
     orderItem.innerHTML = `
         <div class="order-header">
-            <div class="order-badges">${isKurir ? '<span class="kurir-badge">📦 KURIR</span>' : ''}</div>
+            <div class="order-badges">
+                ${isKurir ? '<span class="kurir-badge">📦 KURIR</span>' : ''}
+                ${paymentBadge}
+            </div>
         </div>
         <div class="route-info-with-photo">
             <div class="customer-info-left">
@@ -2141,18 +2213,8 @@ function loadOrders() {
                     driverLocation.longitude = loc.lng;
 
                     if (globalCurrentUid) {
-                        database.ref('drivers/' + globalCurrentUid).update({
-                            latitude: loc.lat,
-                            longitude: loc.lng,
-                            last_update: new Date().toISOString()
-                        }).catch(console.error);
-                        database.ref('driver_locations/' + globalCurrentUid).update({
-                            latitude: loc.lat,
-                            longitude: loc.lng,
-                            tracking_enabled: locationTrackingEnabled,
-                            autobid_enabled: autobidEnabled,
-                            last_update: new Date().toISOString()
-                        }).catch(console.error);
+                        // Kirim ke Redis
+                        sendLocationToRedis(loc.lat, loc.lng);
                     }
 
                     const dist = calculateDistance(
@@ -2452,13 +2514,23 @@ async function showOrderDetail(orderObj, fromAuto = false, isAutoTrigger = false
     }
     currentSelectedOrder = { orderId: orderId, orderData: currentOrder };
 
+    // ===== TAMBAHAN: Badge metode pembayaran untuk modal =====
+    const isJePay = currentOrder.payment_method === 'jepay';
+    const paymentBadgeDetail = isJePay 
+        ? '<span class="payment-badge jepay" style="font-size:0.7rem; padding:2px 8px; border-radius:12px; font-weight:600; background:#e3f2fd; color:#0d47a1; border:1px solid #90caf9; display:inline-block; margin-left:8px;">💳 JePay</span>' 
+        : '<span class="payment-badge cash" style="font-size:0.7rem; padding:2px 8px; border-radius:12px; font-weight:600; background:#e8f5e9; color:#1b5e20; border:1px solid #a5d6a7; display:inline-block; margin-left:8px;">💵 Tunai</span>';
+    // =====================================================
+
     const content = document.getElementById('bottomSheetContent');
     let html = `
         <div id="bottomSheetMap" class="map-container" style="height:180px; margin-bottom:12px;"></div>
         <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
             <img src="${currentOrder.photoURL || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png'}" style="width:36px; height:36px; border-radius:50%; object-fit:cover; border:2px solid var(--primary);">
-            <div>
-                <div style="font-weight:600; font-size:0.95rem;">${escapeHtml(currentOrder.customer_name || 'Customer')}</div>
+            <div style="flex:1;">
+                <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+                    <span style="font-weight:600; font-size:0.95rem;">${escapeHtml(currentOrder.customer_name || 'Customer')}</span>
+                    ${paymentBadgeDetail}
+                </div>
                 <div style="font-size:0.7rem; color:#666;">⭐ ${(currentOrder.passenger_rating || 0).toFixed(1)} (${currentOrder.perjalanan || 0} perjalanan)</div>
             </div>
         </div>
@@ -2850,152 +2922,9 @@ function navigateToScreen(screen) {
     else if (screen === 'notif_status') window.location.href = 'statusOneSignal.html';
 }
 
-// ==================== NOTIFICATIONS (ONLY ONESIGNAL) ====================
-// ========== ONESIGNAL OTOMATIS DENGAN SINKRONISASI ==========
-// Simpan playerId dari SDK ke localStorage, lalu bandingkan dengan Firebase
-const STORAGE_ONESIGNAL_PLAYERID = 'jego_onesignal_playerid';
-
-async function autoInitOneSignal() {
-    if (!globalCurrentUid) {
-        console.warn('autoInitOneSignal: UID tidak tersedia');
-        return;
-    }
-
-    // Cek apakah median/OneSignal tersedia
-    if (typeof median === 'undefined' || !median.onesignal) {
-        console.warn("⚠️ Median OneSignal tidak tersedia, coba lagi nanti.");
-        setTimeout(autoInitOneSignal, 5000);
-        return;
-    }
-
-    try {
-        // 1. Ambil playerId dari OneSignal SDK (langsung dari info)
-        let sdkPlayerId = null;
-        let isSubscribed = false;
-        try {
-            const info = await median.onesignal.onesignalInfo();
-            sdkPlayerId = info?.userId || info?.oneSignalUserId || info?.subscription?.id || null;
-            isSubscribed = info?.subscription?.optedIn === true || info?.oneSignalSubscribed === true;
-            console.log(`📱 OneSignal SDK: playerId=${sdkPlayerId}, subscribed=${isSubscribed}`);
-        } catch(e) {
-            console.warn('Gagal ambil info OneSignal:', e);
-        }
-
-        // 2. Simpan sdkPlayerId ke localStorage (jika ada)
-        if (sdkPlayerId) {
-            localStorage.setItem(STORAGE_ONESIGNAL_PLAYERID, sdkPlayerId);
-        } else {
-            // Jika tidak ada, hapus dari localStorage agar tidak usang
-            localStorage.removeItem(STORAGE_ONESIGNAL_PLAYERID);
-        }
-
-        // 3. Ambil playerId dari Firebase
-        const snap = await database.ref(`drivers/${globalCurrentUid}/playerId`).once('value');
-        const firebasePlayerId = snap.val();
-
-        // 4. Bandingkan: localStorage (yang berasal dari SDK) dengan Firebase
-        const localPlayerId = localStorage.getItem(STORAGE_ONESIGNAL_PLAYERID);
-
-        // Kondisi perlu sinkron:
-        // - Jika tidak ada playerId di Firebase (null/undefined)
-        // - Atau jika localPlayerId ada dan berbeda dengan firebasePlayerId
-        // - Atau jika localPlayerId tidak ada tapi sdkPlayerId ada (belum disimpan ke localStorage)
-        const needSync = !firebasePlayerId || 
-                         (sdkPlayerId && sdkPlayerId !== firebasePlayerId) ||
-                         (localPlayerId && localPlayerId !== firebasePlayerId);
-
-        if (needSync) {
-            console.log(`🔄 Perlu sinkronisasi: Firebase=${firebasePlayerId}, Local=${localPlayerId}, SDK=${sdkPlayerId}`);
-            // Jika SDK memberikan playerId yang berbeda, gunakan yang dari SDK
-            if (sdkPlayerId) {
-                // Update Firebase dengan playerId dari SDK
-                await database.ref(`drivers/${globalCurrentUid}`).update({ 
-                    playerId: sdkPlayerId,
-                    subscriptionId: sdkPlayerId,
-                    last_playerid_update: new Date().toISOString() 
-                });
-                await database.ref(`driver_locations/${globalCurrentUid}`).update({ 
-                    playerId: sdkPlayerId,
-                    subscriptionId: sdkPlayerId,
-                    last_update: new Date().toISOString() 
-                });
-                // Perbarui localStorage dengan yang baru
-                localStorage.setItem(STORAGE_ONESIGNAL_PLAYERID, sdkPlayerId);
-                showToast("Notifikasi disinkronkan ✅", "success");
-                console.log(`✅ PlayerId ${sdkPlayerId} berhasil disimpan ke Firebase dan localStorage`);
-            } else {
-                // Jika SDK tidak memberi playerId, mungkin perlu registrasi ulang
-                console.log('🔔 SDK tidak memberikan playerId, lakukan inisialisasi ulang...');
-                // Hapus Firebase agar initOneSignal bisa menyimpan yang baru
-                await database.ref(`drivers/${globalCurrentUid}/playerId`).remove();
-                await database.ref(`driver_locations/${globalCurrentUid}/playerId`).remove();
-                localStorage.removeItem(STORAGE_ONESIGNAL_PLAYERID);
-                // Panggil initOneSignal untuk registrasi ulang
-                await initOneSignal();
-            }
-        } else {
-            console.log(`✅ PlayerId sudah sinkron: ${firebasePlayerId}`);
-        }
-    } catch (e) {
-        console.warn('⚠️ Gagal autoInitOneSignal:', e);
-    }
-}
-
-async function initOneSignal() {
-  if (typeof median === 'undefined' || !median.onesignal) {
-    console.warn("⚠️ Median OneSignal tidak tersedia");
-    showToast("OneSignal tidak tersedia.", "warning");
-    return false;
-  }
-  try {
-    if (median.onesignal.setConsentGiven) await median.onesignal.setConsentGiven(true);
-    await median.onesignal.register();
-    if (median.onesignal.promptForPushNotificationsWithUserResponse) {
-      await median.onesignal.promptForPushNotificationsWithUserResponse();
-    }
-    await new Promise(r => setTimeout(r, 8000));
-    let playerId = null;
-    for (let i = 0; i < 3; i++) {
-      const info = await median.onesignal.onesignalInfo();
-      playerId = info?.userId || info?.oneSignalUserId || info?.subscription?.id;
-      if (playerId) break;
-      await new Promise(r => setTimeout(r, 5000));
-    }
-    if (playerId && globalCurrentUid) {
-      await database.ref(`drivers/${globalCurrentUid}`).update({ 
-        playerId, 
-        subscriptionId: playerId,
-        last_playerid_update: new Date().toISOString() 
-      });
-      await database.ref(`driver_locations/${globalCurrentUid}`).update({ 
-        playerId, 
-        subscriptionId: playerId,
-        last_update: new Date().toISOString() 
-      });
-      localStorage.setItem(STORAGE_ONESIGNAL_PLAYERID, playerId);
-      showToast("Notifikasi Aktif ✅", "success");
-      console.log(`✅ PlayerId ${playerId} berhasil disimpan ke Firebase dan localStorage`);
-      return true;
-    }
-    console.warn('⚠️ Gagal mendapatkan playerId setelah 3 percobaan');
-    return false;
-  } catch (err) {
-    console.error("OneSignal error:", err);
-    showToast("Gagal mengaktifkan notifikasi.", "warning");
-    return false;
-  }
-}
-
-async function checkPlayerIdAndPrompt() {
-  if (!globalCurrentUid) return;
-  try {
-    const snap = await database.ref(`drivers/${globalCurrentUid}/playerId`).once('value');
-    if (!snap.val()) {
-      document.getElementById('notifPromptModal').style.display = 'flex';
-    }
-  } catch (err) {}
-}
-function closeNotifPrompt() { document.getElementById('notifPromptModal').style.display = 'none'; }
+// ==================== NOTIFICATIONS (INTERNAL, BUKAN ONESIGNAL) ====================
+// Bagian ini untuk notifikasi internal dari Firebase (driver_notifications)
+// Tidak ada kode OneSignal sama sekali.
 
 let notifListenerRef = null;
 let notifListener = null;
@@ -3191,35 +3120,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         showToast('Gagal memuat Google Maps', 'error');
       }
 
-      loadStoredSettings();
-      if (globalCurrentUid) {
-        database.ref('drivers/' + globalCurrentUid).once('value').then(snap => {
-          const data = snap.val();
-          if (data) {
-            if (data.tracking_enabled !== undefined) {
-              locationTrackingEnabled = data.tracking_enabled;
-              localStorage.setItem(STORAGE_TRACKING, locationTrackingEnabled);
-              updateTrackingButton();
-              if (locationTrackingEnabled && isAndroidAvailable()) {
-                Android.startDriverTracking();
-                console.log('📍 Service tracking dimulai otomatis saat login');
-              }
-            }
-            if (data.autobid_enabled !== undefined) {
-              autobidEnabled = data.autobid_enabled;
-              localStorage.setItem(STORAGE_AUTOBID, autobidEnabled);
-              updateAutobidButton();
-            }
-          }
-        }).catch(console.error);
-      }
+      // 🔥 PRIORITASKAN AMBIL STATUS DARI REDIS
+      await loadStoredSettings();
+
+      // 🔥 Inisialisasi FCM (Median.co)
+      await initFCM();
+
       loadOrders();
       setTimeout(startGPSMonitoring, 1000);
-      
-      // ========== GANTI: AUTO INIT ONESIGNAL (tanpa FCM) ==========
-      await autoInitOneSignal();  // otomatis sinkron jika tidak cocok
-      // checkPlayerIdAndPrompt() tetap dipertahankan untuk prompt manual
-      await checkPlayerIdAndPrompt();
     } else {
       console.warn('❌ Driver tidak login, redirect ke loginDriver.html');
       window.location.href = 'loginDriver.html';
@@ -3268,11 +3176,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
   document.getElementById('autobidToggle').addEventListener('change', toggleAutobid);
   document.getElementById('acceptKurirToggle').addEventListener('change', updateAcceptKurirSetting);
-  document.getElementById('promptAllowBtn')?.addEventListener('click', async () => {
-    closeNotifPrompt();
-    await initOneSignal();
-  });
-  document.getElementById('promptLaterBtn')?.addEventListener('click', closeNotifPrompt);
 });
 
 function refreshData() {
