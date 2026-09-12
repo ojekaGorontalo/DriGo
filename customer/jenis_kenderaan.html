@@ -11,6 +11,9 @@
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
 
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
     <style>
         * {
             margin: 0;
@@ -83,6 +86,17 @@
             flex-direction: column;
             color: var(--text-primary);
             transition: background-color 0.3s, color 0.2s;
+            user-select: none;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+        }
+
+        input, textarea {
+            user-select: text;
+            -webkit-user-select: text;
+            -moz-user-select: text;
+            -ms-user-select: text;
         }
 
         .status-bar {
@@ -180,11 +194,29 @@
             align-items: center;
             gap: 6px;
         }
-        
+
         .action-btn:active {
             background: rgba(255,255,255,0.4);
         }
 
+        /* ===== BANNER ===== */
+        #bannerContainer {
+            padding: 12px 16px;
+            background: var(--background);
+            display: none;
+        }
+        #bannerImage {
+            width: 100%;
+            border-radius: 16px;
+            cursor: pointer;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            transition: transform 0.2s;
+        }
+        #bannerImage:active {
+            transform: scale(0.98);
+        }
+
+        /* ===== MAIN ===== */
         .main-container {
             flex: 1;
             padding: 20px 16px 80px;
@@ -193,26 +225,77 @@
             width: 100%;
         }
 
-        .welcome-card {
-            background: var(--surface);
+        /* ---- SALDO CARD (pengganti welcome-card) ---- */
+        .balance-card {
+            background: linear-gradient(145deg, #ffffff, #f5f7fa);
             border-radius: 28px;
-            padding: 20px 20px;
+            padding: 20px 20px 18px;
             margin-bottom: 24px;
             box-shadow: 0 4px 12px rgba(0,0,0,0.05);
             border: 1px solid var(--gray-light);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            transition: background 0.3s;
+            cursor: pointer;
         }
-        
-        .welcome-title {
-            font-size: 1.3rem;
-            font-weight: 700;
-            color: var(--primary-dark);
-            margin-bottom: 4px;
+        body.dark-mode .balance-card {
+            background: var(--surface);
         }
-        
-        .welcome-text {
-            font-size: 0.9rem;
+        .balance-card .left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .balance-card .left .icon-wrap {
+            width: 48px;
+            height: 48px;
+            background: rgba(255,109,0,0.12);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            color: var(--primary);
+        }
+        .balance-card .left .label {
+            font-size: 0.8rem;
             color: var(--text-secondary);
-            line-height: 1.4;
+            font-weight: 500;
+        }
+        .balance-card .left .amount {
+            font-size: 1.4rem;
+            font-weight: 800;
+            color: var(--text-primary);
+            letter-spacing: 0.5px;
+        }
+        .balance-card .left .amount .currency {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--primary);
+            margin-right: 2px;
+        }
+        .balance-card .right {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 40px;
+            font-weight: 600;
+            font-size: 0.75rem;
+            cursor: pointer;
+            transition: 0.2s;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            box-shadow: 0 2px 8px rgba(255,109,0,0.25);
+        }
+        .balance-card .right:active {
+            transform: scale(0.96);
+        }
+        .balance-card .right i {
+            font-size: 0.9rem;
         }
 
         .alert-warning-custom {
@@ -240,7 +323,7 @@
             align-items: center;
             gap: 8px;
         }
-        
+
         .section-title span {
             background: var(--primary-light);
             width: 6px;
@@ -249,19 +332,28 @@
             display: inline-block;
         }
 
-        .transport-grid {
-            display: flex;
-            flex-direction: column;
+        /* ===== GRID KENDARAAN ===== */
+        .transport-grid-top {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
             gap: 16px;
+            margin-bottom: 16px;
+        }
+
+        .transport-grid-bottom {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
         }
 
         .transport-card {
             background: var(--surface);
-            border-radius: 24px;
-            padding: 16px;
+            border-radius: 20px;
+            padding: 16px 12px;
             display: flex;
+            flex-direction: column;
             align-items: center;
-            gap: 16px;
+            text-align: center;
             cursor: pointer;
             transition: all 0.25s ease;
             border: 1px solid var(--gray-light);
@@ -269,9 +361,9 @@
             position: relative;
             overflow: hidden;
         }
-        
+
         .transport-card:active {
-            transform: scale(0.98);
+            transform: scale(0.96);
             background: #fef9f0;
         }
         body.dark-mode .transport-card:active {
@@ -288,57 +380,159 @@
         }
 
         .transport-icon {
-            width: 70px;
-            height: 70px;
+            width: 60px;
+            height: 60px;
             background: #FFF2E5;
-            border-radius: 28px;
+            border-radius: 24px;
             display: flex;
             align-items: center;
             justify-content: center;
             flex-shrink: 0;
+            margin-bottom: 8px;
         }
         body.dark-mode .transport-icon {
             background: #3a2a1a;
         }
-        
+
         .transport-icon img {
-            width: 50px;
-            height: 50px;
+            width: 40px;
+            height: 40px;
             object-fit: contain;
         }
 
         .transport-info {
-            flex: 1;
+            width: 100%;
         }
 
         .transport-name {
-            font-size: 1.25rem;
+            font-size: 1.1rem;
             font-weight: 800;
             color: var(--text-primary);
-            margin-bottom: 4px;
+            margin-bottom: 2px;
         }
 
         .transport-capacity {
-            font-size: 0.75rem;
+            font-size: 0.7rem;
             color: var(--primary);
             font-weight: 600;
             background: rgba(255,109,0,0.1);
             display: inline-block;
-            padding: 2px 10px;
+            padding: 1px 10px;
             border-radius: 20px;
-            margin-bottom: 6px;
+            margin-bottom: 4px;
         }
 
         .transport-description {
-            font-size: 0.8rem;
+            font-size: 0.7rem;
             color: var(--text-secondary);
-            line-height: 1.3;
+            line-height: 1.2;
         }
 
-        .card-arrow {
-            color: var(--gray-light);
-            font-size: 20px;
-            font-weight: 300;
+        /* penyesuaian untuk grid 3 kolom */
+        .transport-grid-bottom .transport-card {
+            padding: 12px 8px;
+        }
+        .transport-grid-bottom .transport-icon {
+            width: 50px;
+            height: 50px;
+        }
+        .transport-grid-bottom .transport-icon img {
+            width: 35px;
+            height: 35px;
+        }
+        .transport-grid-bottom .transport-name {
+            font-size: 0.95rem;
+        }
+        .transport-grid-bottom .transport-description {
+            font-size: 0.65rem;
+        }
+
+        /* ===== MODE PENUMPANG ===== */
+        .mode-penumpang-card {
+            background: linear-gradient(135deg, #FF9800, #FF5722);
+            border-radius: 12px;
+            padding: 10px 12px;
+            margin-top: 10px;
+            margin-bottom: 6px;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 12px rgba(255, 152, 0, 0.3);
+        }
+        .mode-penumpang-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(255, 152, 0, 0.4);
+        }
+        .mode-penumpang-card:active {
+            transform: scale(0.98);
+        }
+        .mode-penumpang-icon {
+            width: 36px;
+            height: 36px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            color: white;
+        }
+        .mode-penumpang-text {
+            flex: 1;
+        }
+        .mode-penumpang-title {
+            font-size: 0.85rem;
+            font-weight: 700;
+            color: white;
+            margin-bottom: 4px;
+        }
+        .mode-penumpang-desc {
+            font-size: 0.65rem;
+            color: rgba(255, 255, 255, 0.8);
+        }
+        .mode-penumpang-arrow {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: white;
+            opacity: 0.8;
+        }
+
+        /* ===== SOCIAL ICONS ===== */
+        .social-icons {
+            display: flex;
+            justify-content: space-evenly;
+            align-items: center;
+            width: 100%;
+            margin-top: 16px;
+            margin-bottom: 8px;
+            gap: 12px;
+        }
+        .social-icons a {
+            flex: 1;
+            text-align: center;
+            font-size: 24px;
+            color: #444;
+            background: #f5f5f5;
+            padding: 10px 0;
+            border-radius: 40px;
+            transition: all 0.2s ease;
+            text-decoration: none;
+        }
+        .social-icons a i {
+            font-size: 1.5rem;
+        }
+        .social-icons a:hover {
+            background: #e0e0e0;
+            transform: translateY(-2px);
+        }
+        body.dark-mode .social-icons a {
+            background: #2c2c2c;
+            color: #e9ecef;
+        }
+        body.dark-mode .social-icons a:hover {
+            background: #3a3a3a;
         }
 
         .loading-container {
@@ -347,7 +541,7 @@
             align-items: center;
             padding: 40px;
         }
-        
+
         .spinner {
             width: 44px;
             height: 44px;
@@ -368,18 +562,18 @@
             text-align: center;
             box-shadow: 0 12px 28px rgba(0,0,0,0.08);
         }
-        
+
         .login-card h2 {
             color: var(--primary-dark);
             margin-bottom: 12px;
             font-size: 1.7rem;
         }
-        
+
         .login-card p {
             color: var(--text-secondary);
             margin-bottom: 28px;
         }
-        
+
         .login-card .btn-primary-custom {
             background: linear-gradient(135deg, var(--primary), var(--secondary));
             color: white;
@@ -445,6 +639,107 @@
             color: white;
             margin-top: 20px;
             font-weight: 500;
+        }
+
+        /* ===== MODAL PILIHAN KURIR ===== */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.7);
+            backdrop-filter: blur(4px);
+            z-index: 1500;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .modal.active {
+            display: flex;
+        }
+        .modal-content {
+            background: var(--surface);
+            width: 100%;
+            max-width: 360px;
+            border-radius: 32px;
+            overflow: hidden;
+            animation: modalFade 0.2s ease;
+            box-shadow: 0 12px 40px rgba(0,0,0,0.3);
+        }
+        @keyframes modalFade {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .modal-header {
+            background: linear-gradient(135deg, var(--primary-dark), var(--primary));
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+        .modal-header h2 {
+            font-size: 1.3rem;
+            margin: 0;
+        }
+        .modal-body {
+            padding: 20px;
+        }
+        .modal-option {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 16px;
+            background: var(--light);
+            border-radius: 20px;
+            margin-bottom: 12px;
+            cursor: pointer;
+            transition: 0.2s;
+            border: 2px solid transparent;
+        }
+        .modal-option:active {
+            transform: scale(0.98);
+        }
+        .modal-option:hover {
+            border-color: var(--primary-light);
+        }
+        .modal-option .icon {
+            font-size: 2rem;
+            width: 50px;
+            height: 50px;
+            background: var(--surface);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+        .modal-option .info {
+            flex: 1;
+        }
+        .modal-option .title {
+            font-weight: 700;
+            font-size: 1.1rem;
+            color: var(--text-primary);
+        }
+        .modal-option .desc {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+        .modal-close {
+            display: block;
+            width: 100%;
+            padding: 14px;
+            border: none;
+            background: var(--light);
+            border-radius: 40px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            cursor: pointer;
+            margin-top: 8px;
+        }
+        .modal-close:active {
+            background: var(--gray-light);
         }
 
         .bottom-nav {
@@ -531,6 +826,7 @@
         .sidebar-menu {
             flex: 1;
             padding: 16px 0;
+            overflow-y: auto;
         }
         .sidebar-item {
             display: flex;
@@ -559,77 +855,207 @@
             z-index: 1002;
         }
 
-        .notif-prompt-modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0,0,0,0.7);
-            z-index: 2100;
-            align-items: center;
-            justify-content: center;
-        }
-        .notif-prompt-content {
-            background: white;
-            border-radius: 16px;
-            width: 85%;
-            max-width: 320px;
-            text-align: center;
-            padding: 20px;
-        }
-        .notif-prompt-icon {
-            font-size: 48px;
-            margin-bottom: 12px;
-        }
-        .notif-prompt-title {
-            font-size: 1.2rem;
-            font-weight: bold;
-            margin-bottom: 8px;
-            color: var(--primary);
-        }
-        .notif-prompt-message {
-            font-size: 0.85rem;
-            color: #666;
-            margin-bottom: 20px;
-        }
-        .notif-prompt-buttons {
-            display: flex;
-            gap: 10px;
-            justify-content: center;
-        }
-        .notif-prompt-buttons button {
-            padding: 10px 20px;
-            border: none;
-            border-radius: 8px;
-            font-weight: 600;
-            cursor: pointer;
-        }
-        .btn-allow {
-            background: var(--primary);
-            color: white;
-        }
-        .btn-later {
-            background: #e0e0e0;
-            color: #333;
+        /* ===== SEMBUNYIKAN LOG UI ===== */
+        #logContainer, .log-btn {
+            display: none !important;
         }
 
         @media (max-width: 480px) {
             .app-bar-title {
                 font-size: 1.2rem;
             }
+            .transport-card {
+                padding: 12px 8px;
+            }
             .transport-icon {
-                width: 60px;
-                height: 60px;
+                width: 50px;
+                height: 50px;
             }
             .transport-icon img {
-                width: 40px;
-                height: 40px;
+                width: 35px;
+                height: 35px;
             }
             .transport-name {
-                font-size: 1.1rem;
+                font-size: 0.95rem;
             }
+            .transport-grid-bottom .transport-card {
+                padding: 10px 6px;
+            }
+            .transport-grid-bottom .transport-icon {
+                width: 44px;
+                height: 44px;
+            }
+            .transport-grid-bottom .transport-icon img {
+                width: 30px;
+                height: 30px;
+            }
+            .transport-grid-bottom .transport-name {
+                font-size: 0.85rem;
+            }
+            .balance-card .left .amount {
+                font-size: 1.2rem;
+            }
+        }
+
+        /* ===== LOG UI (tetap ada di DOM tapi tersembunyi) ===== */
+        #logContainer {
+            position: fixed;
+            bottom: 80px;
+            left: 10px;
+            right: 10px;
+            background: rgba(0,0,0,0.85);
+            color: #0f0;
+            padding: 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-family: monospace;
+            max-height: 200px;
+            overflow-y: auto;
+            z-index: 9999;
+            border: 1px solid #0f0;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+        }
+        #logContainer .log-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 6px;
+            color: #fff;
+            font-weight: bold;
+        }
+        #logContainer .log-header button {
+            background: none;
+            border: none;
+            color: #fff;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        #logContent {
+            max-height: 160px;
+            overflow-y: auto;
+        }
+        #logContent div {
+            padding: 2px 0;
+            border-bottom: 1px solid #333;
+        }
+        .log-btn {
+            position: fixed;
+            bottom: 130px;
+            right: 20px;
+            background: #FF9800;
+            color: white;
+            border: none;
+            border-radius: 30px;
+            padding: 8px 16px;
+            font-weight: bold;
+            z-index: 9998;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        }
+        .log-btn:active {
+            background: #E65100;
+        }
+
+        /* ===== CUSTOM POPUP ===== */
+        .custom-popup-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.6);
+            backdrop-filter: blur(8px);
+            z-index: 3000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .custom-popup-overlay.active {
+            display: flex;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes slideUp {
+            from { transform: translateY(30px) scale(0.95); opacity: 0; }
+            to { transform: translateY(0) scale(1); opacity: 1; }
+        }
+
+        .custom-popup {
+            background: var(--surface);
+            border-radius: 28px;
+            max-width: 380px;
+            width: 100%;
+            padding: 32px 24px 24px;
+            text-align: center;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            animation: slideUp 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .custom-popup .popup-icon {
+            font-size: 56px;
+            margin-bottom: 12px;
+            display: block;
+        }
+
+        .custom-popup .popup-title {
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 8px;
+        }
+
+        .custom-popup .popup-message {
+            font-size: 0.95rem;
+            color: var(--text-secondary);
+            line-height: 1.5;
+            margin-bottom: 24px;
+        }
+
+        .custom-popup .popup-btn {
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            color: white;
+            border: none;
+            padding: 12px 40px;
+            border-radius: 40px;
+            font-size: 1rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s;
+            width: 100%;
+        }
+
+        .custom-popup .popup-btn:active {
+            transform: scale(0.96);
+        }
+
+        .custom-popup.success .popup-icon { color: var(--success); }
+        .custom-popup.warning .popup-icon { color: #FF9800; }
+        .custom-popup.error .popup-icon { color: var(--danger); }
+        .custom-popup.info .popup-icon { color: #2196F3; }
+
+        .custom-popup.success .popup-btn {
+            background: linear-gradient(135deg, var(--success), #66BB6A);
+        }
+        .custom-popup.warning .popup-btn {
+            background: linear-gradient(135deg, #FF9800, #FFB74D);
+        }
+        .custom-popup.error .popup-btn {
+            background: linear-gradient(135deg, var(--danger), #EF5350);
+        }
+        .custom-popup.info .popup-btn {
+            background: linear-gradient(135deg, #2196F3, #64B5F6);
+        }
+
+        body.dark-mode .custom-popup {
+            background: var(--surface);
         }
     </style>
 </head>
@@ -638,19 +1064,6 @@
 <div class="global-loading" id="globalLoading">
     <div class="spinner"></div>
     <p>Memproses...</p>
-</div>
-
-<!-- MODAL PROMPT NOTIFIKASI UNTUK CUSTOMER -->
-<div id="notifPromptModalCustomer" class="notif-prompt-modal">
-    <div class="notif-prompt-content">
-        <div class="notif-prompt-icon">🔔</div>
-        <div class="notif-prompt-title">Aktifkan Notifikasi</div>
-        <div class="notif-prompt-message">Aktifkan notifikasi untuk mendapatkan update pesanan dan promo terbaru.</div>
-        <div class="notif-prompt-buttons">
-            <button id="promptAllowBtnCustomer" class="btn-allow">Aktifkan</button>
-            <button id="promptLaterBtnCustomer" class="btn-later">Nanti</button>
-        </div>
-    </div>
 </div>
 
 <!-- Android Native Style App Bar -->
@@ -665,6 +1078,11 @@
     </div>
 </div>
 
+<!-- ===== BANNER IKLAN ===== -->
+<div id="bannerContainer">
+    <img id="bannerImage" src="" alt="Banner Promo">
+</div>
+
 <!-- Sidebar -->
 <div class="sidebar-overlay" id="sidebarOverlay"></div>
 <div class="sidebar" id="sidebar">
@@ -674,27 +1092,29 @@
         <p style="font-size:0.8rem; opacity:0.9;">Halo, Customer</p>
     </div>
     <div class="sidebar-menu">
-        <div class="sidebar-item" data-link="profile">
-            <span class="icon">👤</span> Profil Saya
+        <div class="sidebar-item" data-link="profile"><span class="icon">👤</span> Profil Saya</div>
+        <div class="sidebar-item" data-link="referral"><span class="icon">🎁</span> Referral</div>
+        <div class="sidebar-item" data-link="help"><span class="icon">❓</span> Bantuan & Dukungan</div>
+        <div class="sidebar-item" data-link="about"><span class="icon">ℹ️</span> Tentang JeGo</div>
+        <div class="sidebar-item" id="shareToFriend"><span class="icon">📤</span> Bagikan ke teman</div>
+        <div class="sidebar-item" id="notificationBtn"><span class="icon">🔔</span> Notifikasi</div>
+        <div class="sidebar-item" id="merchantMenuBtn"><span class="icon">🏪</span> Jual Produk Anda</div>
+        <div class="sidebar-item" data-link="logout"><span class="icon">🚪</span> Logout</div>
+    </div>
+    <div class="sidebar-bottom">
+        <div class="mode-penumpang-card" id="modeDriverBtn">
+            <div class="mode-penumpang-icon"><i class="fas fa-exchange-alt"></i></div>
+            <div class="mode-penumpang-text">
+                <div class="mode-penumpang-title">Mode Pengemudi</div>
+                <div class="mode-penumpang-desc">Beralih ke aplikasi pengemudi</div>
+            </div>
+            <div class="mode-penumpang-arrow">›</div>
         </div>
-        <div class="sidebar-item" data-link="referral">
-            <span class="icon">🎁</span> Referral
-        </div>
-        <div class="sidebar-item" data-link="help">
-            <span class="icon">❓</span> Bantuan & Dukungan
-        </div>
-        <div class="sidebar-item" data-link="about">
-            <span class="icon">ℹ️</span> Tentang JeGo
-        </div>
-        <div class="sidebar-item" id="shareToFriend">
-            <span class="icon">📤</span> Bagikan ke teman
-        </div>
-        <div class="sidebar-item" data-link="logout">
-            <span class="icon">🚪</span> Logout
-        </div>
-        <div class="sidebar-item" id="modeDriverBtn">
-            <span class="icon">🚗</span> Mode Pengemudi
-        </div>
+    </div>
+    <div class="social-icons">
+        <a href="https://whatsapp.com/channel/0029VbCtkcaEQIaidcHMTy0G" target="_blank"><i class="fab fa-whatsapp"></i></a>
+        <a href="https://www.facebook.com/share/18gp8qJRdM/" target="_blank"><i class="fab fa-facebook"></i></a>
+        <a href="https://www.tiktok.com/@jego.gorontalo" target="_blank"><i class="fab fa-tiktok"></i></a>
     </div>
 </div>
 
@@ -703,9 +1123,23 @@
     <div id="errorAlert" class="alert alert-danger"></div>
 
     <div id="mainContent" style="display: none;">
-        <div class="welcome-card" id="welcomeCard">
-            <div class="welcome-title">Halo, <span id="userNameSpan">Pengguna</span> 👋</div>
-            <div class="welcome-text" id="welcomeMessageText">Pilih kendaraan favoritmu untuk memulai perjalanan</div>
+        <!-- SALDO CARD (pengganti welcome-card) -->
+        <div class="balance-card" id="balanceCard">
+            <div class="left">
+                <div class="icon-wrap">
+                    <i class="fas fa-wallet"></i>
+                </div>
+                <div>
+                    <div class="label">Saldo JePay Wallet</div>
+                    <div class="amount">
+                        <span class="currency">Rp</span>
+                        <span id="balanceAmount">0</span>
+                    </div>
+                </div>
+            </div>
+            <div class="right" id="topupNowBtn">
+                <i class="fas fa-plus-circle"></i> Top Up
+            </div>
         </div>
 
         <div id="photoProfileAlert" class="alert-warning-custom" style="display: none;">
@@ -714,15 +1148,13 @@
                 <button id="closePhotoAlert" style="background: none; border: none; font-size: 1.2rem; cursor: pointer; color: inherit;">&times;</button>
             </div>
         </div>
-        
-        <div class="section-title">
-            <span></span> Pilih Kendaraan
-        </div>
-        
-        <div id="loadingSpinner" class="loading-container" style="display: none;">
-            <div class="spinner"></div>
-        </div>
-        <div id="transportGrid" class="transport-grid"></div>
+
+        <div class="section-title"><span></span> Pilih Kendaraan</div>
+        <div id="loadingSpinner" class="loading-container" style="display: none;"><div class="spinner"></div></div>
+
+        <!-- Grid kendaraan: 2 kolom atas (motor, bentor), 3 kolom bawah (mobil, kurir motor, kurir bentor) -->
+        <div class="transport-grid-top" id="transportGridTop"></div>
+        <div class="transport-grid-bottom" id="transportGridBottom"></div>
     </div>
 
     <div id="loginRequiredContent" style="display: none;">
@@ -737,56 +1169,50 @@
 
 <!-- Bottom Navigation Bar -->
 <div class="bottom-nav">
-    <div class="nav-item" id="navHome">
-        <div class="nav-icon">🏠</div>
-        <span>Beranda</span>
-    </div>
-    <div class="nav-item" id="navAccount">
-        <div class="nav-icon">👤</div>
-        <span>Akun</span>
-    </div>
-    <div class="nav-item" id="navHistory">
-        <div class="nav-icon">📜</div>
-        <span>Riwayat</span>
+    <div class="nav-item" id="navHome"><div class="nav-icon">🏠</div><span>Beranda</span></div>
+    <div class="nav-item" id="navAccount"><div class="nav-icon">👤</div><span>Akun</span></div>
+    <div class="nav-item" id="navHistory"><div class="nav-icon">📜</div><span>Riwayat</span></div>
+</div>
+
+<!-- ===== MODAL PILIHAN KURIR ===== -->
+<div id="kurirChoiceModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>📦 Pilih Layanan</h2>
+        </div>
+        <div class="modal-body">
+            <div class="modal-option" id="chooseKurir">
+                <div class="icon">📦</div>
+                <div class="info">
+                    <div class="title">Jego Kurir</div>
+                    <div class="desc">Pengantaran barang &amp; paket</div>
+                </div>
+                <div style="font-size:1.5rem; color:var(--primary);">→</div>
+            </div>
+            <button class="modal-close" id="closeChoiceModal">Batal</button>
+        </div>
     </div>
 </div>
 
-<!-- Modal Edit Profil -->
-<div id="editProfileModal" class="modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); backdrop-filter:blur(4px); z-index:1500; align-items:center; justify-content:center; padding:20px;">
-    <div style="background:var(--surface); border-radius:28px; max-width:400px; width:100%; max-height:90vh; overflow-y:auto; padding:24px;">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
-            <h2 style="font-size:1.3rem; color:var(--primary);">✏️ Lengkapi Profil</h2>
-            <button id="closeEditModal" style="background:none; border:none; font-size:1.8rem; cursor:pointer; color:var(--text-primary);">&times;</button>
-        </div>
-        <div>
-            <div style="margin-bottom:16px;">
-                <label style="font-weight:600; display:block; margin-bottom:4px;">Nama Lengkap <span style="color:red;">*</span></label>
-                <input type="text" id="editName" placeholder="Masukkan nama Anda" style="width:100%; padding:12px; border:1.5px solid var(--gray-light); border-radius:12px; background:var(--light); color:var(--text-primary); font-size:1rem;">
-            </div>
-            <div style="margin-bottom:16px;">
-                <label style="font-weight:600; display:block; margin-bottom:4px;">Nomor Telepon <span style="color:red;">*</span></label>
-                <input type="tel" id="editPhone" placeholder="08xx-xxxx-xxxx" style="width:100%; padding:12px; border:1.5px solid var(--gray-light); border-radius:12px; background:var(--light); color:var(--text-primary); font-size:1rem;">
-            </div>
-            <div style="margin-bottom:16px;">
-                <label style="font-weight:600; display:block; margin-bottom:4px;">Alamat Lengkap <span style="color:red;">*</span></label>
-                <textarea id="editAddress" rows="2" placeholder="Masukkan alamat lengkap" style="width:100%; padding:12px; border:1.5px solid var(--gray-light); border-radius:12px; background:var(--light); color:var(--text-primary); font-size:1rem; resize:vertical;"></textarea>
-            </div>
-            <div style="margin-bottom:20px;">
-                <label style="font-weight:600; display:block; margin-bottom:4px;">Foto Profil (opsional)</label>
-                <div style="display:flex; flex-direction:column; align-items:center;">
-                    <img id="photoPreviewEdit" src="" alt="Preview" style="width:100px; height:100px; border-radius:50%; object-fit:cover; border:2px solid var(--primary); margin-bottom:10px;">
-                    <input type="file" id="photoFileEdit" accept="image/*" style="display:none;">
-                    <button type="button" id="uploadPhotoEditBtn" style="background:var(--light); border:1px solid var(--gray-light); border-radius:40px; padding:8px 20px; cursor:pointer; font-weight:600;">📷 Upload Foto</button>
-                    <div id="uploadStatusEdit" style="margin-top:8px; font-size:0.75rem; color:var(--text-secondary);"></div>
-                </div>
-            </div>
-            <div style="display:flex; gap:12px;">
-                <button id="cancelEdit" style="flex:1; padding:12px; border-radius:40px; border:1px solid var(--gray-light); background:var(--light); font-weight:600; cursor:pointer; color:var(--text-primary);">Batal</button>
-                <button id="saveEdit" style="flex:1; padding:12px; border-radius:40px; border:none; background:linear-gradient(135deg, var(--primary), var(--secondary)); color:white; font-weight:700; cursor:pointer;">Simpan</button>
-            </div>
-        </div>
+<!-- ===== CUSTOM POPUP ===== -->
+<div class="custom-popup-overlay" id="customPopup">
+    <div class="custom-popup" id="customPopupContent">
+        <span class="popup-icon" id="popupIcon">🔔</span>
+        <div class="popup-title" id="popupTitle">Notifikasi</div>
+        <div class="popup-message" id="popupMessage">Pesan Anda</div>
+        <button class="popup-btn" id="popupBtn">OK</button>
     </div>
 </div>
+
+<!-- ===== LOG CONSOLE UI (tetap ada tapi disembunyikan) ===== -->
+<div id="logContainer">
+    <div class="log-header">
+        <span>📋 LOG</span>
+        <button onclick="document.getElementById('logContainer').style.display='none'">✕</button>
+    </div>
+    <div id="logContent"></div>
+</div>
+<button class="log-btn" onclick="toggleLog()">📋 Log</button>
 
 <script>
     // ==================== KONFIGURASI FIREBASE ====================
@@ -799,6 +1225,9 @@
         messagingSenderId: "600037007040",
         appId: "1:600037007040:web:ac3243ad9b472647ffd725"
     };
+
+    // ==================== KONFIGURASI REDIS (untuk saldo) ====================
+    const REDIS_API_URL = 'https://movego.my.id';
 
     let firebaseDatabase = null;
     let firebaseAuth = null;
@@ -821,67 +1250,10 @@
         'JeGo Trike Send': 'kurir_bentor'
     };
 
-    // ==================== ONE SIGNAL UNTUK CUSTOMER ====================
-    async function initOneSignalForCustomer() {
-        if (typeof median === 'undefined' || !median.onesignal) {
-            console.warn("⚠️ Median OneSignal tidak tersedia");
-            showToastCustomer("OneSignal tidak tersedia.", "warning");
-            return false;
-        }
-        try {
-            if (median.onesignal.setConsentGiven) await median.onesignal.setConsentGiven(true);
-            await median.onesignal.register();
-            if (median.onesignal.promptForPushNotificationsWithUserResponse) {
-                await median.onesignal.promptForPushNotificationsWithUserResponse();
-            }
-            await new Promise(r => setTimeout(r, 8000));
-            let playerId = null;
-            for (let i = 0; i < 3; i++) {
-                const info = await median.onesignal.onesignalInfo();
-                playerId = info?.userId || info?.oneSignalUserId || info?.subscription?.id;
-                if (playerId) break;
-                await new Promise(r => setTimeout(r, 5000));
-            }
-            if (playerId && currentUser && currentUser.uid) {
-                await firebaseDatabase.ref(`users/${currentUser.uid}`).update({ 
-                    playerId, 
-                    last_playerid_update: new Date().toISOString() 
-                });
-                showToastCustomer("Notifikasi Aktif", "success");
-                return true;
-            }
-            return false;
-        } catch (err) {
-            console.error("OneSignal error:", err);
-            return false;
-        }
-    }
-
-    async function checkPlayerIdAndPromptForCustomer() {
-        if (!currentUser || !currentUser.uid) return;
-        try {
-            const snap = await firebaseDatabase.ref(`users/${currentUser.uid}/playerId`).once('value');
-            if (!snap.val()) {
-                document.getElementById('notifPromptModalCustomer').style.display = 'flex';
-            }
-        } catch (err) {
-            console.warn("Gagal cek playerId:", err);
-        }
-    }
-
-    function closeNotifPromptCustomer() {
-        document.getElementById('notifPromptModalCustomer').style.display = 'none';
-    }
-
-    function showToastCustomer(message, type) {
-        alert(message);
-    }
-
     // ========== DARK MODE TOGGLE ==========
     function initDarkMode() {
         const darkModeToggle = document.getElementById('darkModeToggle');
         if (!darkModeToggle) return;
-        
         const isDarkMode = localStorage.getItem('jego_dark_mode') === 'true';
         if (isDarkMode) {
             document.body.classList.add('dark-mode');
@@ -890,7 +1262,6 @@
             document.body.classList.remove('dark-mode');
             darkModeToggle.textContent = '🌙';
         }
-        
         darkModeToggle.addEventListener('click', () => {
             document.body.classList.toggle('dark-mode');
             const isDark = document.body.classList.contains('dark-mode');
@@ -923,22 +1294,37 @@
     async function switchToDriver() {
         const customerDataStr = localStorage.getItem('jego_logged_in_user');
         if (!customerDataStr) {
-            alert('Anda belum login sebagai customer. Silakan login terlebih dahulu.');
-            window.location.href = 'customer/loginUser.html';
+            showCustomPopup(
+                'Login Diperlukan',
+                'Anda belum login sebagai customer. Silakan login terlebih dahulu.',
+                'warning',
+                '⚠️'
+            );
+            setTimeout(() => window.location.href = 'loginUser.html', 1500);
             return;
         }
         let customerData;
         try {
             customerData = JSON.parse(customerDataStr);
         } catch(e) {
-            alert('Data sesi tidak valid. Silakan login ulang.');
-            window.location.href = 'customer/loginUser.html';
+            showCustomPopup(
+                'Error',
+                'Data sesi tidak valid. Silakan login ulang.',
+                'error',
+                '❌'
+            );
+            setTimeout(() => window.location.href = 'loginUser.html', 1500);
             return;
         }
         const uid = customerData.uid;
         if (!uid) {
-            alert('UID tidak ditemukan. Silakan login ulang.');
-            window.location.href = '/customer/loginUser.html';
+            showCustomPopup(
+                'Error',
+                'UID tidak ditemukan. Silakan login ulang.',
+                'error',
+                '❌'
+            );
+            setTimeout(() => window.location.href = 'loginUser.html', 1500);
             return;
         }
 
@@ -951,7 +1337,7 @@
             const driverSnap = await firebaseDatabase.ref(`drivers/${uid}`).once('value');
             if (!driverSnap.exists()) {
                 showGlobalLoading(false);
-                window.location.href = '../lengkapiData.html';
+                window.location.href = 'lengkapiData.html';
                 return;
             }
 
@@ -959,7 +1345,7 @@
             const isComplete = driverData.vehicle_type && driverData.plate_number && driverData.phone && driverData.address;
             if (!isComplete) {
                 showGlobalLoading(false);
-                window.location.href = '../lengkapiData.html';
+                window.location.href = 'lengkapiData.html';
                 return;
             }
 
@@ -985,14 +1371,19 @@
 
             const statusDriver = driverData.status || 'pending';
             if (statusDriver === 'active' || statusDriver === 'accepted') {
-                window.location.href = '../index.html';
+                window.location.href = 'index.html';
             } else {
-                window.location.href = '../verifikasi_driver.html';
+                window.location.href = 'verifikasi_driver.html';
             }
         } catch (err) {
             console.error('Gagal beralih ke mode driver:', err);
             showGlobalLoading(false);
-            alert('Terjadi kesalahan, silakan coba lagi.');
+            showCustomPopup(
+                'Error',
+                'Terjadi kesalahan, silakan coba lagi.',
+                'error',
+                '❌'
+            );
         }
     }
 
@@ -1001,13 +1392,11 @@
         const navHome = document.getElementById('navHome');
         const navAccount = document.getElementById('navAccount');
         const navHistory = document.getElementById('navHistory');
-        
         if (currentPath === 'jenis_kenderaan.html' || currentPath === '') {
             navHome.classList.add('active');
         } else {
             navHome.classList.remove('active');
         }
-        
         navHome.addEventListener('click', () => {
             if (currentPath !== 'jenis_kenderaan.html' && currentPath !== '') {
                 window.location.href = 'jenis_kenderaan.html';
@@ -1031,10 +1420,14 @@
                     shareToWhatsApp();
                     return;
                 }
-                if (item.id === 'modeDriverBtn') {
-                    e.stopPropagation();
+                if (item.id === 'merchantMenuBtn') {
                     toggleSidebar(false);
-                    await switchToDriver();
+                    window.location.href = 'merchant_ket.html';
+                    return;
+                }
+                if (item.id === 'notificationBtn') {
+                    toggleSidebar(false);
+                    await checkNotificationStatus();
                     return;
                 }
                 toggleSidebar(false);
@@ -1045,7 +1438,12 @@
                 } else if (link === 'help') {
                     window.location.href = 'cs_jego.html';
                 } else if (link === 'about') {
-                    alert('JeGo v1.0 - Aplikasi transportasi & ekspedisi.');
+                    showCustomPopup(
+                        'Tentang JeGo',
+                        'JeGo v1.0 - Aplikasi transportasi & ekspedisi.',
+                        'info',
+                        'ℹ️'
+                    );
                 } else if (link === 'logout') {
                     if (firebaseAuth) {
                         await firebaseAuth.signOut();
@@ -1057,9 +1455,94 @@
             });
         });
 
+        document.getElementById('modeDriverBtn')?.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            toggleSidebar(false);
+            await switchToDriver();
+        });
+
         document.getElementById('menuButton').addEventListener('click', () => toggleSidebar(true));
         document.getElementById('closeSidebar').addEventListener('click', () => toggleSidebar(false));
         document.getElementById('sidebarOverlay').addEventListener('click', () => toggleSidebar(false));
+    }
+
+    // ========== CEK STATUS NOTIFIKASI (FCM) ==========
+    async function checkNotificationStatus() {
+        if (!currentUser || !currentUser.uid) {
+            showCustomPopup(
+                'Login Diperlukan',
+                'Silakan login terlebih dahulu untuk melihat status notifikasi.',
+                'warning',
+                '⚠️'
+            );
+            return;
+        }
+
+        try {
+            if (!firebaseDatabase) await initializeFirebase();
+            const snapshot = await firebaseDatabase.ref(`users/${currentUser.uid}/fcmTokens`).once('value');
+            const tokens = snapshot.val();
+
+            if (tokens && Object.keys(tokens).length > 0) {
+                showCustomPopup(
+                    'Notifikasi Aktif ✅',
+                    'Anda akan menerima notifikasi terbaru dari JeGo.',
+                    'success',
+                    '✅'
+                );
+            } else {
+                showCustomPopup(
+                    'Notifikasi Belum Aktif ⚠️',
+                    'Silakan aktifkan notifikasi di pengaturan aplikasi Anda.',
+                    'warning',
+                    '⚠️'
+                );
+            }
+        } catch (error) {
+            console.error('Gagal cek status notifikasi:', error);
+            showCustomPopup(
+                'Gagal Memeriksa ❌',
+                'Terjadi kesalahan. Silakan coba lagi nanti.',
+                'error',
+                '❌'
+            );
+        }
+    }
+
+    // ========== CUSTOM POPUP ==========
+    function showCustomPopup(title, message, type = 'info', icon = '🔔') {
+        const overlay = document.getElementById('customPopup');
+        const content = document.getElementById('customPopupContent');
+        const iconEl = document.getElementById('popupIcon');
+        const titleEl = document.getElementById('popupTitle');
+        const msgEl = document.getElementById('popupMessage');
+        const btn = document.getElementById('popupBtn');
+
+        const iconMap = {
+            success: '✅',
+            warning: '⚠️',
+            error: '❌',
+            info: 'ℹ️'
+        };
+        
+        iconEl.textContent = icon || iconMap[type] || '🔔';
+        titleEl.textContent = title || 'Notifikasi';
+        msgEl.textContent = message || '';
+
+        content.className = 'custom-popup';
+        content.classList.add(type);
+
+        overlay.classList.add('active');
+
+        btn.onclick = function() {
+            overlay.classList.remove('active');
+        };
+
+        overlay.onclick = function(e) {
+            if (e.target === overlay) {
+                overlay.classList.remove('active');
+            }
+        };
     }
 
     async function cekOrderAktifDanRedirect() {
@@ -1073,7 +1556,7 @@
                 return false;
             }
             if (order.status === 'waiting') {
-                window.location.href = 'rute.html';
+                window.location.href = 'rute_kurir.html';
                 return true;
             }
             const statusAktif = ['accepted', 'on_the_way', 'arrived', 'on_trip'];
@@ -1133,6 +1616,45 @@
         });
     }
 
+    // ========== AMBIL SALDO JEPAY DARI REDIS (FALLBACK FIREBASE) ==========
+    async function loadWalletBalance(uid) {
+        try {
+            // 1. Coba dari Redis
+            const response = await fetch(`${REDIS_API_URL}/api/wallet/${uid}`, {
+                method: 'GET',
+                headers: { 'Accept': 'application/json' }
+            });
+            if (response.ok) {
+                const result = await response.json();
+                if (result.success && result.data) {
+                    const balance = result.data.balance || 0;
+                    document.getElementById('balanceAmount').textContent = balance.toLocaleString('id-ID');
+                    console.log('✅ Saldo JePay dari Redis:', balance);
+                    return;
+                }
+            }
+            // 2. Fallback ke Firebase
+            if (firebaseDatabase) {
+                const snap = await firebaseDatabase.ref(`users/${uid}/wallet/balance`).once('value');
+                const balance = snap.val() || 0;
+                document.getElementById('balanceAmount').textContent = balance.toLocaleString('id-ID');
+                console.log('📦 Saldo JePay dari Firebase (fallback):', balance);
+            } else {
+                document.getElementById('balanceAmount').textContent = '0';
+            }
+        } catch (error) {
+            console.warn('Gagal ambil saldo JePay:', error);
+            // Tampilkan 0 jika error
+            document.getElementById('balanceAmount').textContent = '0';
+        }
+    }
+
+    // ========== FUNGSI TOPUP ==========
+    function goToTopUp() {
+        window.location.href = 'JePay.html';
+    }
+
+    // ========== CHECK LOGIN ==========
     async function checkLogin() {
         const loggedInUser = localStorage.getItem('jego_logged_in_user');
         if (loggedInUser) {
@@ -1140,9 +1662,11 @@
                 currentUser = JSON.parse(loggedInUser);
                 document.getElementById('mainContent').style.display = 'block';
                 document.getElementById('loginRequiredContent').style.display = 'none';
-                document.getElementById('userNameSpan').innerText = escapeHtml(currentUser.name.split(' ')[0]);
-                document.getElementById('welcomeMessageText').innerHTML = `Selamat datang kembali, ${escapeHtml(currentUser.name)}! Pilih kendaraan untuk melanjutkan perjalanan.`;
 
+                // Tampilkan saldo JePay
+                await loadWalletBalance(currentUser.uid);
+
+                // Sembunyikan foto profile alert
                 if (!currentUser.photoURL || currentUser.photoURL === '') {
                     const photoAlert = document.getElementById('photoProfileAlert');
                     if (photoAlert) {
@@ -1167,7 +1691,7 @@
                 badge.className = 'profile-badge';
                 badge.innerHTML = `<div class="avatar">${escapeHtml(currentUser.name.charAt(0).toUpperCase())}</div><span>${escapeHtml(currentUser.name.split(' ')[0])}</span>`;
                 appBarRight.appendChild(badge);
-                
+
                 const firebaseReady = await initializeFirebase();
                 if (!firebaseReady) {
                     showAlert('❌ Gagal koneksi Firebase', 'error');
@@ -1183,7 +1707,7 @@
                 }
                 if (!firebaseUser) {
                     showAlert('⚠️ Sesi tidak valid, silakan login ulang', 'error');
-                    setTimeout(() => window.location.href = '../loginUser.html', 2000);
+                    setTimeout(() => window.location.href = 'loginUser.html', 2000);
                     return false;
                 }
                 if (firebaseUser.uid !== currentUser.uid) {
@@ -1195,6 +1719,7 @@
                 const orderAktif = await cekOrderAktifDanRedirect();
                 if (orderAktif) return true;
                 await fetchTransportData();
+                await loadBanner();
 
                 const requiredFields = ['name', 'phone', 'address'];
                 const missingFields = requiredFields.filter(field => !currentUser[field] || currentUser[field].trim() === '');
@@ -1206,13 +1731,7 @@
                     return;
                 }
 
-                checkPlayerIdAndPromptForCustomer();
-                document.getElementById('promptAllowBtnCustomer')?.addEventListener('click', async () => {
-                    closeNotifPromptCustomer();
-                    await initOneSignalForCustomer();
-                });
-                document.getElementById('promptLaterBtnCustomer')?.addEventListener('click', closeNotifPromptCustomer);
-
+                uiLog('✅ User berhasil login', 'info');
                 return true;
             } catch (error) {
                 console.error(error);
@@ -1249,6 +1768,31 @@
         return str.replace(/[&<>]/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[m]));
     }
 
+    // ========== LOAD BANNER ==========
+    async function loadBanner() {
+        try {
+            if (!firebaseDatabase) return;
+            const snapshot = await firebaseDatabase.ref('data-jego/banner-iklan/banner').once('value');
+            const bannerUrl = snapshot.val();
+            const container = document.getElementById('bannerContainer');
+            const img = document.getElementById('bannerImage');
+            if (bannerUrl && typeof bannerUrl === 'string' && bannerUrl.trim() !== '') {
+                img.src = bannerUrl;
+                container.style.display = 'block';
+                img.onclick = function() {
+                    window.location.href = 'bannerPromo.html';
+                };
+                console.log('✅ Banner dimuat');
+            } else {
+                container.style.display = 'none';
+            }
+        } catch (error) {
+            console.warn('Gagal memuat banner:', error);
+            document.getElementById('bannerContainer').style.display = 'none';
+        }
+    }
+
+    // ========== FETCH DATA KENDARAAN ==========
     async function fetchTransportData() {
         try {
             if (!firebaseDatabase) throw new Error('Firebase null');
@@ -1296,32 +1840,48 @@
         renderTransportCards();
     }
 
+    // ========== RENDER KENDARAAN GRID ==========
     function renderTransportCards() {
-        const grid = document.getElementById('transportGrid');
-        if (!grid) return;
-        grid.innerHTML = '';
-        const order = ['motor', 'bentor', 'mobil', 'kurir_motor', 'kurir_bentor'];
-        order.forEach(type => {
+        const topGrid = document.getElementById('transportGridTop');
+        const bottomGrid = document.getElementById('transportGridBottom');
+        if (!topGrid || !bottomGrid) return;
+        topGrid.innerHTML = '';
+        bottomGrid.innerHTML = '';
+
+        const topOrder = ['motor', 'bentor'];
+        const bottomOrder = ['mobil', 'kurir_motor', 'kurir_bentor'];
+
+        function createCard(type, t) {
+            const card = document.createElement('div');
+            card.className = 'transport-card';
+            card.innerHTML = `
+                <div class="transport-icon"><img src="${t.icon}" alt="${t.name}" loading="lazy"></div>
+                <div class="transport-info">
+                    <div class="transport-name">${t.name}</div>
+                    <div class="transport-capacity">${t.capacity}</div>
+                    <div class="transport-description">${t.description}</div>
+                </div>
+            `;
+            card.addEventListener('click', () => selectTransport(type, t, card));
+            return card;
+        }
+
+        topOrder.forEach(type => {
             const t = transportData[type];
             if (t) {
-                const card = document.createElement('div');
-                card.className = 'transport-card';
-                card.innerHTML = `
-                    <div class="transport-icon"><img src="${t.icon}" alt="${t.name}" loading="lazy"></div>
-                    <div class="transport-info">
-                        <div class="transport-name">${t.name}</div>
-                        <div class="transport-capacity">${t.capacity}</div>
-                        <div class="transport-description">${t.description}</div>
-                    </div>
-                    <div class="card-arrow">›</div>
-                `;
-                card.addEventListener('click', () => selectTransport(type, t, card));
-                grid.appendChild(card);
+                topGrid.appendChild(createCard(type, t));
+            }
+        });
+
+        bottomOrder.forEach(type => {
+            const t = transportData[type];
+            if (t) {
+                bottomGrid.appendChild(createCard(type, t));
             }
         });
     }
 
-    // ========== PERUBAHAN UTAMA: LANGSUNG REDIRECT TANPA MODAL ==========
+    // ========== PILIH KENDARAAN ==========
     function selectTransport(type, t, card) {
         if (isProcessing) return;
         showGlobalLoading(true);
@@ -1338,41 +1898,54 @@
             minimalDistance: t.minimalDistance,
             minimalPrice: t.minimalPrice
         };
-        
-        // Jika kurir, langsung proses ke rute_kurir.html tanpa modal
-        if (type.includes('kurir')) {
-            setTimeout(() => processTransportSelection(selectedTransport), 600);
+
+        if (type === 'kurir_motor' || type === 'kurir_bentor') {
+            showGlobalLoading(false);
+            isProcessing = false;
+            showKurirChoiceModal();
         } else {
-            // Penumpang: tetap ke rute.html
-            setTimeout(() => processTransportSelection(selectedTransport), 600);
+            setTimeout(() => processTransportSelection(selectedTransport, 'rute.html'), 600);
         }
     }
 
-    // ========== FUNGSI REDIRECT (SUDAH DIPERBAIKI) ==========
-    function processTransportSelection(transport) {
+    // ========== MODAL KURIR ==========
+    function showKurirChoiceModal() {
+        document.getElementById('kurirChoiceModal').classList.add('active');
+    }
+
+    function closeKurirChoiceModal() {
+        document.getElementById('kurirChoiceModal').classList.remove('active');
+        selectedTransport = null;
+        document.querySelectorAll('.transport-card').forEach(c => c.classList.remove('selected'));
+        isProcessing = false;
+    }
+
+    document.getElementById('chooseKurir').addEventListener('click', () => {
+        if (selectedTransport) {
+            document.getElementById('kurirChoiceModal').classList.remove('active');
+            showGlobalLoading(true);
+            setTimeout(() => processTransportSelection(selectedTransport, 'rute_kurir.html'), 400);
+        }
+    });
+
+    document.getElementById('closeChoiceModal').addEventListener('click', closeKurirChoiceModal);
+    document.getElementById('kurirChoiceModal').addEventListener('click', function(e) {
+        if (e.target === this) closeKurirChoiceModal();
+    });
+
+    function processTransportSelection(transport, targetPage) {
         localStorage.setItem('jego_last_transport', JSON.stringify(transport));
-        
-        // Deteksi apakah ini kurir (JeGo Send atau JeGo Trike Send)
-        const isKurir = transport.type && (
-            transport.type === 'kurir_motor' ||
-            transport.type === 'kurir_bentor' ||
-            transport.name.toLowerCase().includes('send') ||
-            transport.name.toLowerCase().includes('kurir')
-        );
-        
-        if (isKurir) {
-            window.location.href = "rute_kurir.html";
-        } else {
-            window.location.href = "rute.html";
-        }
+        window.location.href = targetPage;
     }
 
-    // ========== FUNGSI LAINNYA (LOADING, ALERT, DLL) ==========
+    // ========== LOADING ==========
     function showLoading(show) {
         const spinner = document.getElementById('loadingSpinner');
-        const grid = document.getElementById('transportGrid');
+        const topGrid = document.getElementById('transportGridTop');
+        const bottomGrid = document.getElementById('transportGridBottom');
         if (spinner) spinner.style.display = show ? 'flex' : 'none';
-        if (grid) grid.style.display = show ? 'none' : 'flex';
+        if (topGrid) topGrid.style.display = show ? 'none' : 'grid';
+        if (bottomGrid) bottomGrid.style.display = show ? 'none' : 'grid';
     }
 
     function showGlobalLoading(show) {
@@ -1388,125 +1961,66 @@
         }
     }
 
-    // ========== MODAL EDIT PROFIL ==========
-    let newPhotoBase64 = null;
+    // ========== LOG UI ==========
+    function toggleLog() {
+        const container = document.getElementById('logContainer');
+        container.style.display = container.style.display === 'none' ? 'block' : 'none';
+    }
 
+    function uiLog(message, type = 'info') {
+        const logContent = document.getElementById('logContent');
+        const colors = {
+            info: '#0f0',
+            success: '#0f0',
+            error: '#f44',
+            warning: '#ff0'
+        };
+        const entry = document.createElement('div');
+        entry.style.color = colors[type] || '#fff';
+        entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+        logContent.appendChild(entry);
+        logContent.scrollTop = logContent.scrollHeight;
+        const container = document.getElementById('logContainer');
+        if (container.style.display === 'none') {
+            container.style.display = 'block';
+        }
+        console.log(message);
+    }
+
+    // ========== EDIT PROFIL (placeholder) ==========
     function openEditProfileModal() {
-        if (!currentUser) return;
-        document.getElementById('editName').value = currentUser.name || '';
-        document.getElementById('editPhone').value = currentUser.phone || '';
-        document.getElementById('editAddress').value = currentUser.address || '';
-        const preview = document.getElementById('photoPreviewEdit');
-        preview.src = currentUser.photoURL || 'https://www.gravatar.com/avatar/?d=mp';
-        newPhotoBase64 = null;
-        document.getElementById('uploadStatusEdit').innerHTML = '';
-        document.getElementById('editProfileModal').style.display = 'flex';
+        showCustomPopup('Lengkapi Data', 'Silakan perbarui profil Anda di menu Akun.', 'warning', '⚠️');
     }
 
-    function closeEditProfileModal() {
-        document.getElementById('editProfileModal').style.display = 'none';
-        document.getElementById('photoFileEdit').value = '';
-        newPhotoBase64 = null;
+    // ========== UPDATE FCM TOKEN ==========
+    function updateFCMToken(token) {
+        uiLog('📩 FCM Token diterima dari Android', 'info');
+        uiLog('Token: ' + token.substring(0, 20) + '...', 'info');
+        if (currentUser && currentUser.uid) {
+            firebaseDatabase.ref(`users/${currentUser.uid}/fcmTokens`).push(token)
+                .then(() => {
+                    uiLog('✅ Token FCM berhasil disimpan di database!', 'success');
+                })
+                .catch(err => {
+                    uiLog('❌ Gagal simpan token: ' + err.message, 'error');
+                });
+        } else {
+            uiLog('⚠️ User belum login, token tidak disimpan.', 'warning');
+        }
     }
 
-    document.getElementById('uploadPhotoEditBtn').addEventListener('click', () => {
-        document.getElementById('photoFileEdit').click();
-    });
-
-    document.getElementById('photoFileEdit').addEventListener('change', async (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-        if (!file.type.startsWith('image/')) {
-            showAlert('Hanya file gambar yang diperbolehkan!', 'error');
-            return;
-        }
-        if (file.size > 2 * 1024 * 1024) {
-            showAlert('Ukuran file maksimal 2MB!', 'error');
-            return;
-        }
-        const btn = document.getElementById('uploadPhotoEditBtn');
-        btn.disabled = true;
-        btn.innerHTML = 'Memproses...';
-        document.getElementById('uploadStatusEdit').innerHTML = 'Mengompres...';
-        try {
-            const base64 = await compressImage(file, 300, 300, 0.7);
-            document.getElementById('photoPreviewEdit').src = base64;
-            newPhotoBase64 = base64;
-            document.getElementById('uploadStatusEdit').innerHTML = '✅ Foto siap';
-        } catch (err) {
-            console.error(err);
-            document.getElementById('uploadStatusEdit').innerHTML = '❌ Gagal';
-            showAlert('Gagal memproses foto.', 'error');
-        } finally {
-            btn.disabled = false;
-            btn.innerHTML = '📷 Upload Foto';
-        }
-    });
-
-    document.getElementById('saveEdit').addEventListener('click', async () => {
-        const name = document.getElementById('editName').value.trim();
-        const phone = document.getElementById('editPhone').value.trim();
-        const address = document.getElementById('editAddress').value.trim();
-        if (!name || !phone || !address) {
-            showAlert('Semua field wajib diisi!', 'error');
-            return;
-        }
-        const btn = document.getElementById('saveEdit');
-        btn.disabled = true;
-        btn.innerHTML = 'Menyimpan...';
-        try {
-            const updates = { name, phone, address };
-            if (newPhotoBase64) updates.photoURL = newPhotoBase64;
-            await firebaseDatabase.ref(`users/${currentUser.uid}`).update(updates);
-            currentUser = { ...currentUser, ...updates };
-            localStorage.setItem('jego_logged_in_user', JSON.stringify(currentUser));
-            document.getElementById('userNameSpan').innerText = escapeHtml(currentUser.name.split(' ')[0]);
-            document.getElementById('welcomeMessageText').innerHTML = `Selamat datang kembali, ${escapeHtml(currentUser.name)}! Pilih kendaraan untuk melanjutkan perjalanan.`;
-            closeEditProfileModal();
-            showAlert('✅ Profil berhasil diperbarui!', 'success');
-        } catch (err) {
-            console.error(err);
-            showAlert('Gagal menyimpan: ' + err.message, 'error');
-        } finally {
-            btn.disabled = false;
-            btn.innerHTML = 'Simpan';
-        }
-    });
-
-    document.getElementById('cancelEdit').addEventListener('click', closeEditProfileModal);
-    document.getElementById('closeEditModal').addEventListener('click', closeEditProfileModal);
-    window.addEventListener('click', (e) => {
-        if (e.target === document.getElementById('editProfileModal')) closeEditProfileModal();
-    });
-
-    function compressImage(file, maxWidth = 300, maxHeight = 300, quality = 0.7) {
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                const img = new Image();
-                img.onload = () => {
-                    const canvas = document.createElement('canvas');
-                    let width = img.width, height = img.height;
-                    if (width > height) {
-                        if (width > maxWidth) { height *= maxWidth / width; width = maxWidth; }
-                    } else {
-                        if (height > maxHeight) { width *= maxHeight / height; height = maxHeight; }
-                    }
-                    canvas.width = width;
-                    canvas.height = height;
-                    const ctx = canvas.getContext('2d');
-                    ctx.drawImage(img, 0, 0, width, height);
-                    resolve(canvas.toDataURL('image/jpeg', quality));
-                };
-                img.onerror = reject;
-                img.src = e.target.result;
-            };
-            reader.onerror = reject;
-            reader.readAsDataURL(file);
-        });
-    }
-
+    // ==================== INIT ====================
     window.onload = () => {
+        // Tambahkan event listener untuk tombol Top Up
+        document.getElementById('topupNowBtn').addEventListener('click', goToTopUp);
+        // Tombol saldo card juga bisa diklik
+        document.getElementById('balanceCard').addEventListener('click', function(e) {
+            // Jika klik bukan di tombol topup, tetap arahkan ke JePay
+            if (!e.target.closest('#topupNowBtn')) {
+                goToTopUp();
+            }
+        });
+
         checkLogin();
         setupBottomNav();
         setupSidebarActions();
