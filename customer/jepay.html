@@ -31,11 +31,31 @@
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-      background: #f0f2f5;
-      color: #333;
-      padding-bottom: 80px;
-    }
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  background: #f0f2f5;
+  color: #333;
+  padding-bottom: 20px;
+}
+
+/* --- Disable Text Selection (Native Feel) --- */
+* {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;   /* Disable long-press menu di iOS */
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Kecualikan input agar tetap bisa diketik */
+input,
+textarea,
+[contenteditable="true"] {
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+  user-select: text;
+}
 
     /* --- Header --- */
     .app-header {
@@ -350,33 +370,6 @@
     }
     .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
-    /* --- Bottom Nav --- */
-    .bottom-nav {
-      position: fixed;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      background: white;
-      border-top: 1px solid #e0e0e0;
-      display: flex;
-      justify-content: space-around;
-      padding: 8px 0 env(safe-area-inset-bottom, 8px);
-      z-index: 50;
-    }
-    .bottom-nav a {
-      text-decoration: none;
-      color: #888;
-      font-size: 0.7rem;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 2px;
-      padding: 4px 12px;
-      transition: 0.2s;
-    }
-    .bottom-nav a .nav-icon { font-size: 1.5rem; }
-    .bottom-nav a.active { color: var(--primary); font-weight: 600; }
-
     @media (max-width: 400px) {
       .balance-card .amount { font-size: 2rem; }
       .quick-actions { grid-template-columns: repeat(4, 1fr); gap: 6px; }
@@ -504,12 +497,6 @@
   <!-- Toast -->
   <div class="toast" id="toast"></div>
 
-  <nav class="bottom-nav">
-    <a href="jenis_kenderaan.html"><span class="nav-icon">🏠</span>Beranda</a>
-    <a href="JePay.html" class="active"><span class="nav-icon">💳</span>JePay</a>
-    <a href="userAccount.html"><span class="nav-icon">👤</span>Akun</a>
-  </nav>
-
   <script>
     // ==================== KONFIGURASI FIREBASE (AUTH & PROFIL SAJA) ====================
     const FIREBASE_CONFIG = {
@@ -563,71 +550,85 @@
 
     // ==================== STATUS KONEKSI ====================
     function updateConnectionStatus(online, message = '') {
-      connStatus.className = 'connection-status';
-      if (online === true) {
-        connStatus.classList.add('online');
-        connStatus.textContent = '✅ Terhubung ke JeGo ' + (message ? ' • ' + message : '');
-      } else if (online === false) {
-        connStatus.classList.add('offline');
-        connStatus.textContent = '❌ Redis tidak dapat diakses. Transaksi disimpan lokal. ' + (message ? ' • ' + message : '');
-      } else if (online === 'syncing') {
-        connStatus.classList.add('syncing');
-        connStatus.textContent = '🔄 Menyinkronkan data... ' + (message ? ' • ' + message : '');
-      }
-      connStatus.style.display = (online !== undefined) ? 'block' : 'none';
-      isRedisOnline = online === true;
-    }
+  connStatus.className = 'connection-status';
+
+  if (online === true) {
+    // Koneksi normal → sembunyikan status
+    connStatus.style.display = 'none';
+  } else if (online === false) {
+    // Ada masalah koneksi → tampilkan error
+    connStatus.classList.add('offline');
+    connStatus.textContent = '⚠️ Koneksi bermasalah, data ditampilkan dari perangkat Anda.';
+    connStatus.style.display = 'block';
+  } else if (online === 'syncing') {
+    // Sedang memuat → tampilkan sementara
+    connStatus.classList.add('syncing');
+    connStatus.textContent = '🔄 Memuat data...';
+    connStatus.style.display = 'block';
+  } else {
+    // Undefined → sembunyikan
+    connStatus.style.display = 'none';
+  }
+
+  isRedisOnline = online === true;
+}
 
     // ==================== FUNGSI REDIS (WALLET) ====================
     async function getWalletFromRedis(uid) {
-      try {
-        const response = await fetch(`${REDIS_API_URL}/api/wallet/${uid}`, {
-          method: 'GET',
-          headers: { 'Accept': 'application/json' }
-        });
-        if (!response.ok) {
-          if (response.status === 404) return null;
-          throw new Error(`HTTP ${response.status} - ${response.statusText}`);
-        }
-        const result = await response.json();
-        if (result.success && result.data) return result.data;
-        return null;
-      } catch (error) {
-        console.error('❌ Gagal fetch wallet dari Redis:', error.message);
-        throw error;
-      }
+  try {
+    const response = await fetch(`${REDIS_API_URL}/api/wallet/${uid}`, {
+      method: 'GET',
+      headers: { 'Accept': 'application/json' }
+    });
+
+    // 404 = Redis ONLINE, hanya wallet user ini belum ada
+    if (response.status === 404) {
+      return { __notFound: true };
     }
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status} - ${response.statusText}`);
+    }
+    const result = await response.json();
+    if (result.success && result.data) return result.data;
+
+    // Response OK tapi tanpa data → anggap not found
+    return { __notFound: true };
+  } catch (error) {
+    console.error('❌ Gagal memuat data dompet:', error.message);
+    throw error; // ini benar-benar error koneksi
+  }
+}
 
     async function syncWalletToRedis(uid, walletData) {
-      try {
-        const response = await fetch(`${REDIS_API_URL}/api/wallet`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-          },
-          body: JSON.stringify({
-            userId: uid,
-            balance: walletData.balance,
-            transactions: walletData.transactions,
-            last_update: new Date().toISOString()
-          })
-        });
-        if (!response.ok) throw new Error(`HTTP ${response.status} - ${response.statusText}`);
-        const result = await response.json();
-        console.log('✅ Wallet tersimpan ke Redis:', result);
-        return result;
-      } catch (error) {
-        console.error('❌ Gagal sync wallet ke Redis:', error.message);
-        throw error;
-      }
-    }
+  try {
+    const response = await fetch(`${REDIS_API_URL}/api/wallet`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      body: JSON.stringify({
+        userId: uid,
+        balance: walletData.balance,
+        transactions: walletData.transactions,
+        last_update: new Date().toISOString()
+      })
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status} - ${response.statusText}`);
+    const result = await response.json();
+    console.log('✅ Data tersimpan');
+    return result;
+  } catch (error) {
+    console.error('❌ Gagal simpan data:', error.message);
+    throw error;
+  }
+}
 
     // ==================== LOCAL STORAGE (OFFLINE FALLBACK) ====================
     function saveWalletToLocal(uid, data) {
       try {
         localStorage.setItem(`jepay_wallet_${uid}`, JSON.stringify(data));
-        console.log('💾 Wallet disimpan ke localStorage (offline)');
+        console.log('💾 Data disimpan ke perangkat');
       } catch (e) { console.warn('Gagal simpan ke localStorage:', e); }
     }
     function getWalletFromLocal(uid) {
@@ -640,57 +641,69 @@
 
     // ==================== LOAD WALLET ====================
     async function loadWalletData(uid) {
-      try {
-        let data = await getWalletFromRedis(uid);
-        if (data) {
-          balance = data.balance || 0;
-          transactions = data.transactions || [];
+  try {
+    const data = await getWalletFromRedis(uid);
+
+    if (data && !data.__notFound) {
+      // Wallet sudah ada
+      balance = data.balance || 0;
+      transactions = data.transactions || [];
+      updateConnectionStatus(true);
+
+    } else {
+      // Wallet belum ada (user baru)
+      const localData = getWalletFromLocal(uid);
+
+      if (localData) {
+        balance = localData.balance || 0;
+        transactions = localData.transactions || [];
+        try {
+          updateConnectionStatus('syncing');
+          await syncWalletToRedis(uid, { balance, transactions });
           updateConnectionStatus(true);
-        } else {
-          const localData = getWalletFromLocal(uid);
-          if (localData) {
-            balance = localData.balance || 0;
-            transactions = localData.transactions || [];
-            updateConnectionStatus(false, 'Data dari cache lokal');
-            try {
-              updateConnectionStatus('syncing', 'Menyinkronkan ke Redis...');
-              await syncWalletToRedis(uid, { balance, transactions });
-              updateConnectionStatus(true);
-            } catch (syncErr) {
-              updateConnectionStatus(false, 'Gagal sync, pakai lokal');
-            }
-          } else {
-            balance = 0;
-            transactions = [];
-            updateConnectionStatus(false, 'Belum ada data');
-          }
+        } catch (syncErr) {
+          updateConnectionStatus(false);
         }
-        transactions.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
-        renderBalance();
-        renderTransactions();
-        balanceTime.textContent = `Sumber: ${isRedisOnline ? 'Redis' : 'Lokal'} • ${new Date().toLocaleString('id-ID')}`;
-      } catch (err) {
-        console.error('Gagal load wallet:', err);
-        const localData = getWalletFromLocal(uid);
-        if (localData) {
-          balance = localData.balance || 0;
-          transactions = localData.transactions || [];
-          updateConnectionStatus(false, 'Menggunakan data lokal');
-          renderBalance();
-          renderTransactions();
-          balanceTime.textContent = `Sumber: Lokal (offline) • ${new Date().toLocaleString('id-ID')}`;
-          showToast('Gagal terhubung ke server, menggunakan data lokal', 3000);
-        } else {
-          balance = 0;
-          transactions = [];
-          updateConnectionStatus(false, 'Tidak ada data');
-          renderBalance();
-          renderTransactions();
-          balanceTime.textContent = 'Sumber: - • Gagal terhubung';
-          showToast('Gagal memuat data dompet', 3000);
+      } else {
+        balance = 0;
+        transactions = [];
+        try {
+          await syncWalletToRedis(uid, { balance: 0, transactions: [] });
+          updateConnectionStatus(true);
+        } catch (e) {
+          updateConnectionStatus(true);
         }
       }
     }
+
+    transactions.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+    renderBalance();
+    renderTransactions();
+    balanceTime.textContent = `Diperbarui: ${new Date().toLocaleString('id-ID')}`;
+
+  } catch (err) {
+    console.error('Gagal load wallet:', err);
+
+    const localData = getWalletFromLocal(uid);
+    if (localData) {
+      balance = localData.balance || 0;
+      transactions = localData.transactions || [];
+      updateConnectionStatus(false);
+      renderBalance();
+      renderTransactions();
+      balanceTime.textContent = `Diperbarui: ${new Date().toLocaleString('id-ID')}`;
+      showToast('Koneksi bermasalah, menampilkan data tersimpan', 3000);
+    } else {
+      balance = 0;
+      transactions = [];
+      updateConnectionStatus(false);
+      renderBalance();
+      renderTransactions();
+      balanceTime.textContent = `Diperbarui: ${new Date().toLocaleString('id-ID')}`;
+      showToast('Gagal memuat data dompet', 3000);
+    }
+  }
+}
 
     // ==================== RENDER ====================
     function renderBalance() {
@@ -1024,16 +1037,16 @@
         saveWalletToLocal(receiverUid, { balance: receiverWallet.balance, transactions: receiverWallet.transactions });
 
         try {
-          await Promise.all([
-            syncWalletToRedis(currentUser.uid, { balance, transactions }),
-            syncWalletToRedis(receiverUid, { balance: receiverWallet.balance, transactions: receiverWallet.transactions })
-          ]);
-          updateConnectionStatus(true);
-          balanceTime.textContent = `Sumber: Redis • ${new Date().toLocaleString('id-ID')}`;
-        } catch (redisErr) {
-          updateConnectionStatus(false, 'Transfer disimpan lokal (server offline)');
-          showToast('Server offline, transfer disimpan lokal', 3000);
-        }
+  await Promise.all([
+    syncWalletToRedis(currentUser.uid, { balance, transactions }),
+    syncWalletToRedis(receiverUid, { balance: receiverWallet.balance, transactions: receiverWallet.transactions })
+  ]);
+  updateConnectionStatus(true);
+  balanceTime.textContent = `Diperbarui: ${new Date().toLocaleString('id-ID')}`;
+} catch (redisErr) {
+  updateConnectionStatus(false);
+  showToast('Koneksi bermasalah, transfer dicatat di perangkat', 3000);
+}
 
         showToast(`Transfer Rp ${formatRupiah(amount)} ke ${receiverName} berhasil!`);
         document.getElementById('modalTransfer').classList.remove('show');
@@ -1144,8 +1157,7 @@
       auth.onAuthStateChanged(() => {});
     }
 
-    console.log('💳 JePay loaded with QRIS top-up (Redis only, no Firebase deposit)');
-    console.log(`🔗 Redis API URL: ${REDIS_API_URL}`);
+    console.log('💳 JePay siap digunakan');
   </script>
 
 </body>
