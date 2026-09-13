@@ -171,6 +171,27 @@
     </div>
   </div>
 
+  <!-- ===== MODAL WAJIB UPDATE (BARU) ===== -->
+  <div id="updateRequiredModal" class="base64-modal-overlay">
+    <div class="base64-modal">
+      <h2>⚠️ Update Diperlukan</h2>
+      <p>
+        Aplikasi Anda sudah <span class="highlight">usang</span>.<br><br>
+        Untuk terus menggunakan JeGo, silakan update ke versi terbaru di Google Play Store.
+        <br><br>
+        <small style="color:#888;">Versi terpasang: <span id="currentVersionText">-</span></small><br>
+        <small style="color:#888;">Versi minimum: <span id="minVersionText">-</span></small>
+      </p>
+      <a href="https://play.google.com/store/apps/details?id=co.median.android.abekdjw"
+         class="btn-update"
+         target="_blank"
+         id="goToPlayStoreBtn"
+         style="text-align: center; display: block;">
+        🚀 Update Sekarang
+      </a>
+    </div>
+  </div>
+
   <script>
     // ================= FIREBASE CONFIG =================
     const firebaseConfig = {
@@ -196,6 +217,13 @@
 
     let selectedFile = null;
     let isUploading = false;
+
+    // ================= KONFIGURASI VERSI =================
+    const MIN_APP_VERSION = "2.0.0"; // Versi minimum yang diizinkan (ubah sesuai kebutuhan)
+    const PLAYSTORE_URL = "https://play.google.com/store/apps/details?id=co.median.android.abekdjw";
+    let appVersionDetected = false;
+    let detectedVersion = '0.0.0';
+    let isUpdateRequired = false;
 
     // ================= HELPER FUNCTIONS =================
     function isValidDriverSession(session) {
@@ -229,6 +257,116 @@
         if (raw) return JSON.parse(raw);
       } catch(e) { /* ignore */ }
       return null;
+    }
+
+    // ================= FUNGSI BANDINGKAN VERSI =================
+    // Mengembalikan: 1 jika v1 > v2, -1 jika v1 < v2, 0 jika sama
+    function compareVersion(v1, v2) {
+      // Bersihkan prefix 'v' jika ada
+      const cleanV1 = String(v1).replace(/^v/i, '').trim();
+      const cleanV2 = String(v2).replace(/^v/i, '').trim();
+      
+      const a = cleanV1.split('.').map(function(n) { return parseInt(n, 10) || 0; });
+      const b = cleanV2.split('.').map(function(n) { return parseInt(n, 10) || 0; });
+      const maxLen = Math.max(a.length, b.length);
+      
+      for (let i = 0; i < maxLen; i++) {
+        const num1 = a[i] || 0;
+        const num2 = b[i] || 0;
+        if (num1 > num2) return 1;
+        if (num1 < num2) return -1;
+      }
+      return 0;
+    }
+
+    // ================= FUNGSI MEDIAN DEVICE INFO =================
+    // Fungsi ini dipanggil OTOMATIS oleh Median.co saat halaman dimuat
+    // Tidak perlu dipanggil manual
+    function median_device_info(deviceInfo) {
+      console.log('📱 [Median] Device info diterima:', deviceInfo);
+      
+      try {
+        // Ambil versi aplikasi dari Median
+        detectedVersion = deviceInfo.appVersion || deviceInfo.version || '0.0.0';
+        const appBuild = deviceInfo.appBuild || deviceInfo.buildVersion || '0';
+        const platform = deviceInfo.platform || 'unknown';
+        
+        console.log('📱 Versi terpasang:', detectedVersion);
+        console.log('📱 Build:', appBuild);
+        console.log('📱 Platform:', platform);
+        
+        appVersionDetected = true;
+        
+        // Jalankan pengecekan versi
+        checkVersionAndBlock();
+      } catch (err) {
+        console.error('❌ Error parsing device info:', err);
+        appVersionDetected = true;
+        detectedVersion = '0.0.0';
+        checkVersionAndBlock();
+      }
+    }
+
+    // ================= FUNGSI CEK VERSI & BLOKIR =================
+    async function checkVersionAndBlock() {
+      try {
+        console.log('🔍 Mulai cek versi...');
+        console.log('📊 Versi terpasang:', detectedVersion);
+        console.log('📊 Versi minimum:', MIN_APP_VERSION);
+        
+        // Bandingkan versi terpasang dengan minimum
+        const comparison = compareVersion(detectedVersion, MIN_APP_VERSION);
+        console.log('📊 Hasil perbandingan:', comparison);
+        
+        if (comparison < 0) {
+          // Versi terpasang di bawah minimum → WAJIB UPDATE
+          console.log('🚫 Versi usang terdeteksi! Menampilkan modal update...');
+          isUpdateRequired = true;
+          showUpdateRequiredModal();
+          return true;
+        } else {
+          console.log('✅ Versi memenuhi syarat, lanjutkan...');
+          isUpdateRequired = false;
+          return false;
+        }
+      } catch (err) {
+        console.error('❌ Error cek versi:', err);
+        // Kalau error, jangan blokir (fail-safe)
+        isUpdateRequired = false;
+        return false;
+      }
+    }
+
+    // ================= FUNGSI TAMPILKAN MODAL UPDATE =================
+    function showUpdateRequiredModal() {
+      console.log('📢 Menampilkan modal wajib update...');
+      
+      const modal = document.getElementById('updateRequiredModal');
+      const currentVersionText = document.getElementById('currentVersionText');
+      const minVersionText = document.getElementById('minVersionText');
+      const playStoreBtn = document.getElementById('goToPlayStoreBtn');
+      
+      if (currentVersionText) currentVersionText.textContent = detectedVersion;
+      if (minVersionText) minVersionText.textContent = MIN_APP_VERSION;
+      if (playStoreBtn) playStoreBtn.href = PLAYSTORE_URL;
+      
+      // Sembunyikan splash screen
+      const splash = document.getElementById('splashScreen');
+      if (splash) splash.classList.add('hide-splash');
+      document.body.classList.remove('splash-active');
+      
+      // Tampilkan modal update
+      if (modal) {
+        modal.classList.add('active');
+        modal.style.display = 'flex';
+      }
+      
+      // Sembunyikan modal base64 jika sedang tampil
+      const base64Modal = document.getElementById('base64Modal');
+      if (base64Modal) {
+        base64Modal.classList.remove('active');
+        base64Modal.style.display = 'none';
+      }
     }
 
     // ================= FUNGSI UPLOAD KE IMGBB =================
@@ -329,7 +467,7 @@
       processUpload(selectedFile);
     });
 
-    // ================= FUNGSI TAMPILKAN MODAL =================
+    // ================= FUNGSI TAMPILKAN MODAL BASE64 =================
     function showBase64Modal() {
       modalOverlay.classList.add('active');
       document.getElementById('splashScreen').classList.add('hide-splash');
@@ -337,6 +475,12 @@
     }
 
     function redirectTo(redirectUrl) {
+      // Jangan redirect jika sedang wajib update
+      if (isUpdateRequired) {
+        console.log('🚫 Redirect diblokir karena wajib update');
+        return;
+      }
+      
       const splash = document.getElementById('splashScreen');
       splash.classList.add('hide-splash');
       setTimeout(() => {
@@ -346,6 +490,12 @@
 
     // ================= CEK DAN REDIRECT =================
     function checkAndRedirect() {
+      // Jangan lanjutkan jika sedang wajib update
+      if (isUpdateRequired) {
+        console.log('🚫 checkAndRedirect diblokir karena wajib update');
+        return;
+      }
+      
       let driverSession = getDriverSession();
       let customerSession = getCustomerSession();
 
@@ -358,6 +508,9 @@
         const uid = driverSession.uid;
         database.ref(`drivers/${uid}/photoURL`).once('value')
           .then((snap) => {
+            // Cek lagi apakah wajib update
+            if (isUpdateRequired) return;
+            
             const photoURL = snap.val();
             if (isBase64Photo(photoURL)) {
               showBase64Modal();
@@ -366,6 +519,8 @@
             }
           })
           .catch(() => {
+            if (isUpdateRequired) return;
+            
             if (isBase64Photo(driverSession.photoURL)) {
               showBase64Modal();
             } else {
@@ -384,14 +539,40 @@
     }
 
     // ================= EKSEKUSI =================
-    setTimeout(() => {
+    // Tunggu device info dari Median dulu, baru cek versi
+    // Kalau dalam 2.5 detik tidak ada device info (misal di browser biasa),
+    // tetap lanjutkan dengan versi default
+    setTimeout(async () => {
+      console.log('⏰ Timeout 2.5s tercapai');
+      
+      if (!appVersionDetected) {
+        console.warn('⚠️ Median device info tidak terdeteksi (mungkin di browser biasa)');
+        // Di browser biasa, skip pengecekan versi (anggap versi terkini)
+        isUpdateRequired = false;
+      }
+      
+      // Kalau wajib update, jangan lanjutkan
+      if (isUpdateRequired) {
+        console.log('🚫 Wajib update, stop di sini');
+        return;
+      }
+      
+      // Jalankan alur normal
       checkAndRedirect();
-    }, 3000);
+    }, 2500);
 
-    // Timeout fallback
+    // Timeout fallback (kalau modal update muncul, jangan redirect)
     setTimeout(() => {
+      // Jangan lakukan apa-apa jika wajib update
+      if (isUpdateRequired) {
+        console.log('🚫 Fallback diblokir karena wajib update');
+        return;
+      }
+      
       const modalActive = modalOverlay.classList.contains('active');
-      if (!modalActive) {
+      const updateModalActive = document.getElementById('updateRequiredModal')?.classList.contains('active');
+      
+      if (!modalActive && !updateModalActive) {
         const splash = document.getElementById('splashScreen');
         if (!splash.classList.contains('hide-splash')) {
           splash.classList.add('hide-splash');
