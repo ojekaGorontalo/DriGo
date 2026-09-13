@@ -1286,6 +1286,7 @@ const MAX_DISTANCE_KM = 20;
 const STORAGE_TRACKING = 'jego_location_tracking';
 const STORAGE_AUTOBID = 'jego_autobid_enabled';
 const STORAGE_ACCEPT_KURIR = 'jego_accept_kurir';
+let fcmInitRunning = false;
 
 // ==================== FUNGSI BANTUAN ====================
 function applyTheme() {
@@ -1746,12 +1747,18 @@ async function waitForFCM() {
 }
 
 async function initFCM() {
-    const ready = await waitForFCM();
-    if (!ready) {
-        console.warn("⚠️ Median FCM SDK tidak siap setelah 15 detik");
-        return; // silent, jangan toast error
+    if (fcmInitRunning) {
+        console.log('⏭️ initFCM sudah berjalan, skip');
+        return;
     }
+    fcmInitRunning = true;
     try {
+        const ready = await waitForFCM();
+        if (!ready) {
+            console.warn("⚠️ Median FCM SDK tidak siap setelah 15 detik");
+            fcmInitRunning = false; // reset biar bisa dicoba lagi nanti
+            return;
+        }
         const permissionResult = await median.firebaseMessaging.requestPermission();
         console.log('📱 Izin notifikasi:', permissionResult.granted ? 'GRANTED' : 'DENIED');
         if (!permissionResult.granted) return;
@@ -3043,6 +3050,13 @@ async function checkDriverActiveOrder() {
 // ==================== DOM READY ====================
 document.addEventListener('DOMContentLoaded', async () => {
   console.log('📄 DOM siap, memulai inisialisasi...');
+
+  // ✅ Listener deviceready dipasang LEBIH AWAL, di luar onAuthStateChanged
+  document.addEventListener('deviceready', () => {
+      console.log('📱 deviceready fired, init FCM...');
+      setTimeout(initFCM, 1000);
+  }, false);
+
   auth.onAuthStateChanged(async (user) => {
     if (user) {
       console.log('🔐 Driver terautentikasi dengan UID:', user.uid);
@@ -3129,8 +3143,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       // 🔥 PRIORITASKAN AMBIL STATUS DARI REDIS
       await loadStoredSettings();
 
-      // 🔥 Inisialisasi FCM (Median.co)
-      await initFCM();
+      // 🔥 Inisialisasi FCM (Median.co) — hanya fallback timer
+      setTimeout(initFCM, 3000);
 
       loadOrders();
       setTimeout(startGPSMonitoring, 1000);
