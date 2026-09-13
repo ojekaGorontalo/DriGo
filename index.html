@@ -1723,64 +1723,70 @@ function updateAcceptKurirSetting() {
 }
 
 // ==================== INISIALISASI FCM ====================
-async function initFCM() {
-    if (typeof median === 'undefined' || !median.firebaseMessaging) {
-        console.warn("⚠️ Median Firebase Messaging tidak tersedia, coba lagi nanti.");
-        setTimeout(initFCM, 5000);
-        return;
-    }
-    try {
-        // Minta izin notifikasi
-        const permissionResult = await median.firebaseMessaging.requestPermission();
-        console.log('📱 Izin notifikasi:', permissionResult.granted ? 'GRANTED' : 'DENIED');
-
-        if (!permissionResult.granted) {
-            showToast('Izin notifikasi ditolak, aktifkan di pengaturan.', 'warning');
+async function waitForFCM() {
+    return new Promise((resolve) => {
+        if (typeof median !== 'undefined' && median.firebaseMessaging
+            && typeof median.firebaseMessaging.requestPermission === 'function') {
+            resolve(true);
             return;
         }
-
-        // Daftar perangkat
-        await median.firebaseMessaging.register();
-
-        // Ambil token FCM
-        const tokenResult = await median.firebaseMessaging.getToken();
-        const token = tokenResult?.token;
-        if (token) {
-            localStorage.setItem('fcmToken', token);
-            console.log('✅ FCM Token:', token);
-            // Kirim token ke Redis
-            if (globalCurrentUid) {
-                await syncDriverStatusToRedis();
+        let attempts = 0;
+        const interval = setInterval(() => {
+            attempts++;
+            if (typeof median !== 'undefined' && median.firebaseMessaging
+                && typeof median.firebaseMessaging.requestPermission === 'function') {
+                clearInterval(interval);
+                resolve(true);
+            } else if (attempts > 30) { // 15 detik
+                clearInterval(interval);
+                resolve(false);
             }
-        } else {
-            console.warn('⚠️ Gagal mendapatkan FCM token');
-        }
+        }, 500);
+    });
+}
 
-        // Aktifkan banner di foreground (sesuai kebutuhan)
+async function initFCM() {
+    const ready = await waitForFCM();
+    if (!ready) {
+        console.warn("⚠️ Median FCM SDK tidak siap setelah 15 detik");
+        return; // silent, jangan toast error
+    }
+    try {
+        const permissionResult = await median.firebaseMessaging.requestPermission();
+        console.log('📱 Izin notifikasi:', permissionResult.granted ? 'GRANTED' : 'DENIED');
+        if (!permissionResult.granted) return;
+
+        await median.firebaseMessaging.register();
         await median.firebaseMessaging.enableForegroundBanners();
 
-        // Listener notifikasi diterima saat foreground
+        // Retry getToken 5x dengan jeda 2 detik
+        let token = null;
+        for (let i = 0; i < 5; i++) {
+            const t = await median.firebaseMessaging.getToken();
+            token = t?.token;
+            if (token) break;
+            await new Promise(r => setTimeout(r, 2000));
+        }
+        if (!token) {
+            console.warn("⚠️ Gagal dapat FCM token setelah retry");
+            return;
+        }
+        localStorage.setItem('fcmToken', token);
+        console.log('✅ FCM Token:', token);
+        if (globalCurrentUid) await syncDriverStatusToRedis();
+
         median.firebaseMessaging.notificationReceived.addListener((data) => {
             console.log('📩 Notifikasi FCM diterima (foreground):', data);
             showToast(data?.notification?.body || 'Notifikasi baru', 'info');
-            // Refresh daftar order jika perlu
             refreshDisplay();
         });
-
-        // Listener notifikasi diklik
         median.firebaseMessaging.notificationClicked.addListener((data) => {
             console.log('👆 Notifikasi FCM diklik:', data);
-            // Bisa navigasi ke halaman tertentu
-            if (data?.data?.orderId) {
-                // Contoh: buka detail order
-                // Implementasi sesuai kebutuhan
-            }
         });
-
-        showToast('Notifikasi FCM siap ✅', 'success');
+        console.log('✅ FCM siap sepenuhnya');
     } catch (error) {
-        console.error('❌ Gagal inisialisasi FCM:', error);
-        showToast('Gagal mengaktifkan notifikasi FCM.', 'error');
+        // ⚠️ HANYA LOG, jangan toast merah saat auto-init
+        console.warn('⚠️ FCM init tertunda:', error.message);
     }
 }
 
