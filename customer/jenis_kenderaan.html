@@ -971,25 +971,6 @@
         body.dark-mode .custom-popup {
             background: var(--surface);
         }
-
-        /* ===== TOMBOL KONFIRMASI KELUAR ===== */
-        .exit-btn-group {
-            display: flex;
-            gap: 10px;
-            margin-top: 8px;
-        }
-        .exit-btn-group .popup-btn {
-            flex: 1;
-            padding: 12px 16px;
-        }
-        .popup-btn-secondary {
-            background: var(--gray-light) !important;
-            color: var(--text-primary) !important;
-        }
-        body.dark-mode .popup-btn-secondary {
-            background: var(--gray-dark) !important;
-            color: var(--white) !important;
-        }
     </style>
 </head>
 <body>
@@ -1117,19 +1098,6 @@
     </div>
 </div>
 
-<!-- ===== EXIT CONFIRMATION POPUP ===== -->
-<div class="custom-popup-overlay" id="exitConfirmPopup">
-    <div class="custom-popup warning">
-        <span class="popup-icon">🚪</span>
-        <div class="popup-title">Keluar Aplikasi?</div>
-        <div class="popup-message">Apakah Anda yakin ingin keluar dari JeGo?</div>
-        <div class="exit-btn-group">
-            <button class="popup-btn popup-btn-secondary" id="exitNoBtn">Tidak</button>
-            <button class="popup-btn" id="exitYesBtn">Ya, Keluar</button>
-        </div>
-    </div>
-</div>
-
 <!-- ===== LOG CONSOLE UI (tetap ada tapi disembunyikan) ===== -->
 <div id="logContainer">
     <div class="log-header">
@@ -1162,9 +1130,6 @@
     let tariffRates = {};
     let selectedTransport = null;
     let isProcessing = false;
-
-    // Flag untuk mencegah popup exit muncul saat navigasi internal
-    let allowNavigation = false;
 
     const transportNameMapping = {
         'Motor': 'motor',
@@ -1372,70 +1337,6 @@
         };
     }
 
-    // ========== HANDLE TOMBOL BACK ANDROID = KONFIRMASI KELUAR ==========
-    function setupBackButtonHandler() {
-        // Sisipkan state dummy supaya tombol back selalu memicu popstate
-        history.pushState({ page: 'jenis_kenderaan' }, '', location.href);
-
-        window.addEventListener('popstate', function (e) {
-            // Jika sedang navigasi internal (pindah halaman), izinkan
-            if (allowNavigation) {
-                allowNavigation = false;
-                return;
-            }
-
-            // Cek apakah popup exit sudah aktif, hindari double
-            const exitPopup = document.getElementById('exitConfirmPopup');
-            if (exitPopup.classList.contains('active')) {
-                // Kunci history lagi supaya tidak keluar
-                history.pushState({ page: 'jenis_kenderaan' }, '', location.href);
-                return;
-            }
-
-            // Kunci history lagi supaya user tidak bisa back ke halaman sebelumnya
-            history.pushState({ page: 'jenis_kenderaan' }, '', location.href);
-
-            // Munculkan popup konfirmasi keluar
-            exitPopup.classList.add('active');
-        });
-
-        // Aksi tombol "Ya, Keluar" → tutup aplikasi
-        document.getElementById('exitYesBtn').addEventListener('click', function () {
-            document.getElementById('exitConfirmPopup').classList.remove('active');
-            exitApp();
-        });
-
-        // Aksi tombol "Tidak" → tutup popup, tetap di halaman
-        document.getElementById('exitNoBtn').addEventListener('click', function () {
-            document.getElementById('exitConfirmPopup').classList.remove('active');
-        });
-    }
-
-    // Fungsi menutup aplikasi via Median.co / GoNative Bridge
-    function exitApp() {
-        try {
-            // Median.co (versi baru)
-            if (window.median && median.navigation && typeof median.navigation.exitApp === 'function') {
-                median.navigation.exitApp();
-                return;
-            }
-            // GoNative (versi lama / kompatibel)
-            if (window.gonative && gonative.navigation && typeof gonative.navigation.exitApp === 'function') {
-                gonative.navigation.exitApp();
-                return;
-            }
-            // Cordova fallback
-            if (navigator.app && typeof navigator.app.exitApp === 'function') {
-                navigator.app.exitApp();
-                return;
-            }
-            // Fallback browser biasa
-            window.close();
-        } catch (err) {
-            console.error('Gagal keluar aplikasi:', err);
-        }
-    }
-
     async function cekOrderAktifDanRedirect() {
         const orderId = localStorage.getItem('current_order_id');
         if (!orderId) return false;
@@ -1447,13 +1348,11 @@
                 return false;
             }
             if (order.status === 'waiting') {
-                allowNavigation = true;
                 window.location.href = 'rute_kurir.html';
                 return true;
             }
             const statusAktif = ['accepted', 'on_the_way', 'arrived', 'on_trip'];
             if (statusAktif.includes(order.status)) {
-                allowNavigation = true;
                 window.location.href = 'tracking_customer.html';
                 return true;
             } else {
@@ -1541,13 +1440,11 @@
 
     // ========== FUNGSI TOPUP ==========
     function goToTopUp() {
-        allowNavigation = true;
         window.location.href = 'JePay.html';
     }
 
     // ========== REDIRECT KE LOGIN ==========
     function redirectToLogin() {
-        allowNavigation = true;
         window.location.href = 'loginUser.html';
     }
 
@@ -1665,7 +1562,6 @@
                 img.src = bannerUrl;
                 container.style.display = 'block';
                 img.onclick = function() {
-                    allowNavigation = true;
                     window.location.href = 'bannerPromo.html';
                 };
                 console.log('✅ Banner dimuat');
@@ -1820,7 +1716,6 @@
     });
 
     function processTransportSelection(transport, targetPage) {
-        allowNavigation = true;
         localStorage.setItem('jego_last_transport', JSON.stringify(transport));
         window.location.href = targetPage;
     }
@@ -1904,9 +1799,6 @@
                 goToTopUp();
             }
         });
-
-        // Setup handler tombol back Android LEBIH DULU
-        setupBackButtonHandler();
 
         checkLogin();
         setupBottomNav();
