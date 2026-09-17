@@ -1250,9 +1250,6 @@ try {
   console.error('❌ Error inisialisasi Firebase:', error);
 }
 
-// ==================== KONFIGURASI REDIS ====================
-const REDIS_API_URL = 'https://movego.my.id';
-
 // ==================== VARIABEL GLOBAL ====================
 let ordersRef = null, ordersListener = null;
 let bottomSheetMap = null;
@@ -1330,76 +1327,67 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
   return R * c;
 }
 
-// ==================== FUNGSI REDIS ====================
-async function getDriverStatusFromRedis(driverId) {
+// ==================== FUNGSI FIREBASE (LOKASI & STATUS DRIVER) ====================
+async function getDriverStatusFromFirebase(driverId) {
     try {
-        const response = await fetch(`${REDIS_API_URL}/api/driver/status/${driverId}`);
-        if (!response.ok) {
-            console.warn('⚠️ Gagal ambil status dari Redis (HTTP ' + response.status + '), fallback ke localStorage');
-            return null;
-        }
-        const result = await response.json();
-        if (result.success && result.data) {
-            return result.data; // { tracking_enabled, autobid_enabled, fcmToken, ... }
-        }
-        return null;
+        const snap = await database.ref(`driver_locations/${driverId}`).once('value');
+        const data = snap.val();
+        if (!data) return null;
+        return {
+            tracking_enabled: data.tracking_enabled ?? false,
+            autobid_enabled: data.autobid_enabled ?? false,
+            fcmToken: data.fcmToken || null
+        };
     } catch (error) {
-        console.warn('⚠️ Error ambil status dari Redis:', error.message);
+        console.warn('⚠️ Gagal ambil status dari Firebase:', error.message);
         return null;
     }
 }
 
-async function syncDriverStatusToRedis() {
+async function syncDriverStatusToFirebase() {
+    if (!globalCurrentUid) return;
     try {
         const token = localStorage.getItem('fcmToken') || null;
-        const response = await fetch(`${REDIS_API_URL}/api/driver/status`, {
-            method: 'POST',
-            headers: { 
-                'Content-Type': 'application/json',
-                'Accept': 'application/json'
-            },
-            body: JSON.stringify({
-                driverId: globalCurrentUid,
-                tracking_enabled: locationTrackingEnabled,
-                autobid_enabled: autobidEnabled,
-                fcmToken: token
-            })
+        const playerId = localStorage.getItem('onesignal_player_id')
+                      || localStorage.getItem('playerId')
+                      || '';
+        await database.ref(`driver_locations/${globalCurrentUid}`).update({
+            uid: globalCurrentUid,
+            tracking_enabled: locationTrackingEnabled,
+            autobid_enabled: autobidEnabled,
+            fcmToken: token,
+            playerId: playerId,
+            subscriptionId: playerId,
+            last_update: new Date().toISOString()
         });
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
-        const result = await response.json();
-        console.log('✅ Status lengkap terkirim ke Redis:', result);
-        return result;
+        console.log('✅ Status terkirim ke Firebase:', {
+            tracking_enabled: locationTrackingEnabled,
+            autobid_enabled: autobidEnabled
+        });
     } catch (error) {
-        console.error('❌ Gagal sinkron status ke Redis:', error.message);
+        console.error('❌ Gagal sinkron status ke Firebase:', error.message);
     }
 }
 
-async function sendLocationToRedis(lat, lng) {
+async function sendLocationToFirebase(lat, lng) {
+    if (!globalCurrentUid) return;
     try {
-        const response = await fetch(`${REDIS_API_URL}/api/driver/location`, {
-            method: 'POST',
-            headers: { 
-                'Content-Type': 'application/json',
-                'Accept': 'application/json'
-            },
-            body: JSON.stringify({
-                driverId: globalCurrentUid,
-                latitude: lat,
-                longitude: lng,
-                tracking_enabled: locationTrackingEnabled,
-                autobid_enabled: autobidEnabled
-            })
+        const playerId = localStorage.getItem('onesignal_player_id')
+                      || localStorage.getItem('playerId')
+                      || '';
+        await database.ref(`driver_locations/${globalCurrentUid}`).update({
+            uid: globalCurrentUid,
+            latitude: lat,
+            longitude: lng,
+            tracking_enabled: locationTrackingEnabled,
+            autobid_enabled: autobidEnabled,
+            playerId: playerId,
+            subscriptionId: playerId,
+            last_update: new Date().toISOString()
         });
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
-        const result = await response.json();
-        console.log('✅ Lokasi terkirim ke Redis:', result);
-        return result;
+        console.log('✅ Lokasi terkirim ke Firebase:', lat, lng);
     } catch (error) {
-        console.error('❌ Gagal kirim lokasi ke Redis:', error.message);
+        console.error('❌ Gagal kirim lokasi ke Firebase:', error.message);
     }
 }
 
@@ -1584,22 +1572,22 @@ function stopRadarMessages() {
 
 // ==================== SETTINGS ====================
 async function loadStoredSettings() {
-    // Prioritas: Redis -> localStorage -> default
+    // Prioritas: Firebase -> localStorage -> default
     if (globalCurrentUid) {
-        const redisStatus = await getDriverStatusFromRedis(globalCurrentUid);
-        if (redisStatus) {
-            if (redisStatus.tracking_enabled !== undefined) {
-                locationTrackingEnabled = redisStatus.tracking_enabled;
+        const fbStatus = await getDriverStatusFromFirebase(globalCurrentUid);
+        if (fbStatus) {
+            if (fbStatus.tracking_enabled !== undefined) {
+                locationTrackingEnabled = fbStatus.tracking_enabled;
                 localStorage.setItem(STORAGE_TRACKING, locationTrackingEnabled);
             }
-            if (redisStatus.autobid_enabled !== undefined) {
-                autobidEnabled = redisStatus.autobid_enabled;
+            if (fbStatus.autobid_enabled !== undefined) {
+                autobidEnabled = fbStatus.autobid_enabled;
                 localStorage.setItem(STORAGE_AUTOBID, autobidEnabled);
             }
-            if (redisStatus.fcmToken) {
-                localStorage.setItem('fcmToken', redisStatus.fcmToken);
+            if (fbStatus.fcmToken) {
+                localStorage.setItem('fcmToken', fbStatus.fcmToken);
             }
-            console.log('✅ Status dari Redis:', { locationTrackingEnabled, autobidEnabled });
+            console.log('✅ Status dari Firebase:', { locationTrackingEnabled, autobidEnabled });
         } else {
             // fallback ke localStorage
             locationTrackingEnabled = localStorage.getItem(STORAGE_TRACKING) === 'true';
@@ -1698,9 +1686,9 @@ function toggleLocationTracking() {
         }
     }
 
-    // Kirim status ke Redis
+    // Kirim status ke Firebase
     if (globalCurrentUid) {
-        syncDriverStatusToRedis();
+        syncDriverStatusToFirebase();
     }
 }
 
@@ -1711,7 +1699,7 @@ function toggleAutobid() {
   updateAutobidButton();
 
   if (globalCurrentUid) {
-    syncDriverStatusToRedis();
+    syncDriverStatusToFirebase();
   }
 }
 
@@ -1780,7 +1768,7 @@ async function initFCM() {
         }
         localStorage.setItem('fcmToken', token);
         console.log('✅ FCM Token:', token);
-        if (globalCurrentUid) await syncDriverStatusToRedis();
+        if (globalCurrentUid) await syncDriverStatusToFirebase();
 
         median.firebaseMessaging.notificationReceived.addListener((data) => {
             console.log('📩 Notifikasi FCM diterima (foreground):', data);
@@ -1873,11 +1861,11 @@ function updateDriverLocation(position) {
   }
 
   if (shouldUpdate && locationTrackingEnabled && currentDriverData && globalCurrentUid) {
-    // Kirim ke Redis
-    sendLocationToRedis(lat, lng);
+    // Kirim ke Firebase
+    sendLocationToFirebase(lat, lng);
     lastSentLat = lat;
     lastSentLng = lng;
-    console.log(`📍 Kirim lokasi ke Redis: ${lat}, ${lng}`);
+    console.log(`📍 Kirim lokasi ke Firebase: ${lat}, ${lng}`);
   } else {
     refreshDisplay();
   }
@@ -2226,8 +2214,8 @@ function loadOrders() {
                     driverLocation.longitude = loc.lng;
 
                     if (globalCurrentUid) {
-                        // Kirim ke Redis
-                        sendLocationToRedis(loc.lat, loc.lng);
+                        // Kirim ke Firebase
+                        sendLocationToFirebase(loc.lat, loc.lng);
                     }
 
                     const dist = calculateDistance(
@@ -3140,7 +3128,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         showToast('Gagal memuat Google Maps', 'error');
       }
 
-      // 🔥 PRIORITASKAN AMBIL STATUS DARI REDIS
+      // 🔥 PRIORITASKAN AMBIL STATUS DARI FIREBASE
       await loadStoredSettings();
 
       // 🔥 Inisialisasi FCM (Median.co) — hanya fallback timer
