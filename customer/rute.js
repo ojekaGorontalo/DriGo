@@ -81,6 +81,32 @@ let searchCache = {};
 let placeDetailsCache = {};
 let searchAbortController = null;
 
+// ==================== NEARBY DRIVERS LISTENER (GEOHASH) ====================
+let nearbyDriversRefs = []; // array of refs untuk 9 grid
+let nearbyDriversListeners = []; // array of listeners
+
+// ==================== GEOHASH GRID (sama dengan index.js) ====================
+const GRID_PRECISION = 100;
+const MAX_AGE_MS = 5 * 60 * 1000;
+
+function getGridKey(lat, lng) {
+    const gridLat = Math.round(lat * GRID_PRECISION);
+    const gridLng = Math.round(lng * GRID_PRECISION);
+    return `${gridLat}_${gridLng}`;
+}
+
+function getNeighborGrids(lat, lng) {
+    const baseLat = Math.round(lat * GRID_PRECISION);
+    const baseLng = Math.round(lng * GRID_PRECISION);
+    const grids = [];
+    for (let dLat = -1; dLat <= 1; dLat++) {
+        for (let dLng = -1; dLng <= 1; dLng++) {
+            grids.push(`${baseLat + dLat}_${baseLng + dLng}`);
+        }
+    }
+    return grids;
+}
+
 // ==================== DARK MAP STYLE ====================
 const darkMapStyle = [
     { elementType: "geometry", stylers: [{ color: "#242f3e" }] },
@@ -106,16 +132,13 @@ const darkMapStyle = [
 // ==================== LOAD GOOGLE MAPS DYNAMICALLY ====================
 function loadGoogleMaps(apiKey) {
     return new Promise((resolve, reject) => {
-        // Cek apakah sudah termuat
         if (typeof google !== 'undefined' && google.maps) {
             console.log('✅ Google Maps sudah termuat sebelumnya');
             resolve();
             return;
         }
-        // Definisikan callback global yang dipanggil oleh script
         window.initMap = function() {
             console.log('✅ Google Maps callback initMap dipanggil');
-            // Panggil fungsi inisialisasi peta yang sebenarnya
             initializeMap();
             resolve();
         };
@@ -133,7 +156,6 @@ function loadGoogleMaps(apiKey) {
 
 // ==================== INISIALISASI PETA ====================
 function initializeMap() {
-    // Cegah inisialisasi ganda
     if (window.initMapDone) {
         console.log('⚠️ Peta sudah diinisialisasi, lewati.');
         return;
@@ -266,6 +288,164 @@ function showToast(message, type = 'info') {
     }
     document.body.appendChild(toast);
     setTimeout(() => toast.remove(), 2500);
+}
+
+function getVehicleEmoji(vehicleType) {
+    const t = (vehicleType || '').toLowerCase();
+    if (t.includes('mobil')) return '🚗';
+    if (t.includes('bentor')) return '🛺';
+    if (t.includes('kurir')) return '📦';
+    return '🏍️';
+}
+
+function getDistanceKm(lat1, lon1, lat2, lon2) {
+    const R = 6371;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat/2)**2 + Math.cos(lat1 * Math.PI/180) * Math.cos(lat2 * Math.PI/180) * Math.sin(dLon/2)**2;
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
+}
+
+// ==================== NEARBY DRIVERS (VIA GEOHASH) ====================
+function startShowingNearbyDrivers(pickupLat, pickupLng, radiusKm = 3) {
+    console.log(`📡 [NearbyDrivers] Mulai memantau via geohash, radius ${radiusKm}km`);
+    stopShowingNearbyDrivers();
+
+    const grids = getNeighborGrids(pickupLat, pickupLng);
+    console.log(`📡 [NearbyDrivers] Query ${grids.length} grid:`, grids);
+
+    // Map untuk menyimpan UIDs dari semua grid
+    const allUids = new Set();
+
+    // Setup listener untuk setiap grid
+    grids.forEach(gridKey => {
+        const ref = database.ref(`driver_geohash/${gridKey}`);
+        const listener = ref.on('value', (snapshot) => {
+            const gridData = snapshot.val() || {};
+            // Reset & bangun ulang semua UIDs dari grid ini
+            // Karena listener terpisah per grid, kita rebuild allUids dari semua grid
+            // Tapi cara paling mudah: panggil renderNearbyDrivers setelah ambil data lengkap
+            renderNearbyDriversFromGeohash(pickupLat, pickupLng, radiusKm);
+        });
+        nearbyDriversRefs.push(ref);
+        nearbyDriversListeners.push(listener);
+    });
+}
+
+async function renderNearbyDriversFromGeohash(pickupLat, pickupLng, radiusKm) {
+    try {
+        // 1. Baca semua grid, kumpulkan UIDs
+        const allUids = new Set();
+        for (const gridKey of getNeighborGrids(pickupLat, pickupLng)) {
+            const snap = await database.ref(`driver_geohash/${gridKey}`).once('value');
+            const ids = Object.keys(snap.val() || {});
+            ids.forEach(id => allUids.add(id));
+        }
+
+        console.log(`📡 [NearbyDrivers] ${allUids.size} UID di 9 grid`);
+
+        if (allUids.size === 0) {
+            renderNearbyDrivers([]);
+            return;
+        }
+
+        // 2. Ambil data lengkap untuk setiap UID
+        const now = Date.now();
+        const drivers = [];
+
+        // Batch read
+        const snapshots = await Promise.all(
+            Array.from(allUids).map(uid => database.ref(`driver_locations/${uid}`).once('value'))
+        );
+
+        for (const snap of snapshots) {
+            const uid = snap.ref.key;
+            const d = snap.val();
+            if (!d) continue;
+            if (d.tracking_enabled !== true) continue;
+            if (!d.latitude || !d.longitude) continue;
+
+            // Filter token notifikasi
+            const hasFcm = !!d.fcmToken;
+            const hasOneSignal = !!(d.playerId || d.subscriptionId);
+            if (!hasFcm && !hasOneSignal) continue;
+
+            // Filter fresh
+            const lastUpdate = d.last_update ? new Date(d.last_update).getTime() : 0;
+            if (now - lastUpdate > MAX_AGE_MS) continue;
+
+            // Filter radius presisi
+            const dist = getDistanceKm(pickupLat, pickupLng, d.latitude, d.longitude);
+            if (dist > radiusKm) continue;
+
+            drivers.push({
+                uid,
+                distance: dist,
+                vehicleType: d.vehicleType || d.vehicle_type || 'motor'
+            });
+        }
+
+        drivers.sort((a, b) => a.distance - b.distance);
+        console.log(`📡 [NearbyDrivers] ${drivers.length} driver SIAP (punya token + fresh + dalam radius)`);
+        renderNearbyDrivers(drivers);
+    } catch (err) {
+        console.error('❌ [NearbyDrivers] Error:', err.message);
+    }
+}
+
+function renderNearbyDrivers(drivers) {
+    const countEl = document.getElementById('nearbyDriverCount');
+    const iconsRow = document.getElementById('nearbyDriverIcons');
+    if (!iconsRow || !countEl) return;
+
+    countEl.textContent = drivers.length;
+
+    if (drivers.length === 0) {
+        iconsRow.innerHTML = '<div class="nearby-empty">🚫 Belum ada pengemudi</div>';
+        return;
+    }
+
+    const MAX_ICONS = 5;
+    const shown = drivers.slice(0, MAX_ICONS);
+    const remaining = drivers.length - shown.length;
+
+    let html = shown.map((d, idx) => {
+        const emoji = getVehicleEmoji(d.vehicleType);
+        const animationDelay = (idx * 0.08).toFixed(2);
+        return `
+            <div class="nearby-driver-icon" 
+                 style="animation-delay: ${animationDelay}s"
+                 title="Pengemudi ${idx + 1}">
+                ${emoji}
+            </div>
+        `;
+    }).join('');
+
+    if (remaining > 0) {
+        html += `
+            <div class="nearby-driver-icon more-indicator" title="${remaining} pengemudi lainnya">
+                +${remaining}
+            </div>
+        `;
+    }
+
+    iconsRow.innerHTML = html;
+}
+
+function stopShowingNearbyDrivers() {
+    // Bersihkan semua listener dari 9 grid
+    if (nearbyDriversRefs.length && nearbyDriversListeners.length) {
+        nearbyDriversRefs.forEach((ref, idx) => {
+            const listener = nearbyDriversListeners[idx];
+            if (ref && listener) {
+                ref.off('value', listener);
+            }
+        });
+        console.log('📡 [NearbyDrivers] Semua listener dihentikan');
+    }
+    nearbyDriversRefs = [];
+    nearbyDriversListeners = [];
 }
 
 // ==================== SEARCH HISTORY ====================
@@ -710,7 +890,7 @@ function reverseGeocode(lng, lat) {
                 console.log(`✅ reverseGeocode success: ${address}`);
                 resolve(address);
             } else if (status === 'REQUEST_DENIED') {
-                console.error('❌ API Key tidak memiliki akses ke Geocoding API. Aktifkan di Google Cloud Console.');
+                console.error('❌ API Key tidak memiliki akses ke Geocoding API.');
                 showToast('⚠️ API Geocoding tidak aktif', 'error');
                 resolve(null);
             } else {
@@ -731,7 +911,6 @@ function searchAddress(keyword) {
 
     const trimmedKeyword = keyword.trim();
     if (trimmedKeyword.length < 3) {
-        console.log('⚠️ Minimal 3 karakter');
         document.getElementById('searchResultList').style.display = 'none';
         document.getElementById('searchDefaultOptions').style.display = 'block';
         document.getElementById('searchLoading').style.display = 'none';
@@ -761,12 +940,7 @@ function searchAddress(keyword) {
             input: trimmedKeyword,
             language: 'id',
             componentRestrictions: { country: 'id' },
-            locationBias: {
-                east: 123.5,
-                west: 122.5,
-                north: 1.0,
-                south: 0.0
-            }
+            locationBias: { east: 123.5, west: 122.5, north: 1.0, south: 0.0 }
         };
 
         const timeoutId = setTimeout(() => {
@@ -782,28 +956,23 @@ function searchAddress(keyword) {
 
         autocompleteService.getPlacePredictions(request, (predictions, status) => {
             clearTimeout(timeoutId);
-            if (searchAbortController && searchAbortController.signal.aborted) {
-                console.log('⏹️ Pencarian dibatalkan');
-                return;
-            }
+            if (searchAbortController && searchAbortController.signal.aborted) return;
             searchAbortController = null;
             document.getElementById('searchLoading').style.display = 'none';
 
             if (status === 'OK' && predictions && predictions.length > 0) {
-                console.log(`✅ Ditemukan ${predictions.length} prediksi di Gorontalo`);
                 const gorontaloResults = predictions.filter(p =>
                     p.description && p.description.toLowerCase().includes('gorontalo')
                 );
                 if (gorontaloResults.length === 0) {
                     const resultList = document.getElementById('searchResultList');
                     resultList.style.display = 'block';
-                    resultList.innerHTML = '<div style="text-align:center;padding:20px;color:#999;">🔍 Tidak ditemukan di Gorontalo. Coba kata kunci lain.</div>';
+                    resultList.innerHTML = '<div style="text-align:center;padding:20px;color:#999;">🔍 Tidak ditemukan di Gorontalo.</div>';
                     return;
                 }
                 searchCache[cacheKey] = gorontaloResults;
                 renderSearchResults(gorontaloResults);
             } else {
-                console.warn('⚠️ Places Autocomplete gagal, status:', status);
                 searchAddressFallback(trimmedKeyword);
             }
         });
@@ -824,25 +993,18 @@ function renderSearchResults(predictions) {
         const mainText = prediction.structured_formatting?.main_text || prediction.description;
         const secondaryText = prediction.structured_formatting?.secondary_text || '';
         let display = mainText;
-        if (secondaryText && !mainText.includes(secondaryText)) {
-            display = mainText + ', ' + secondaryText;
-        } else if (!mainText) {
-            display = prediction.description;
-        }
+        if (secondaryText && !mainText.includes(secondaryText)) display = mainText + ', ' + secondaryText;
+        else if (!mainText) display = prediction.description;
         const badge = ' <span style="font-size:10px;color:#FF9800;font-weight:bold;">📍 Gorontalo</span>';
 
         item.innerHTML = `<div class="search-option-icon result">📍</div><div class="search-option-text">${escapeHtml(display)}${badge}</div>`;
-        item.addEventListener('click', () => {
-            const placeId = prediction.place_id;
-            getPlaceDetails(placeId);
-        });
+        item.addEventListener('click', () => getPlaceDetails(prediction.place_id));
         resultList.appendChild(item);
     });
 }
 
 function getPlaceDetails(placeId) {
     if (placeDetailsCache[placeId]) {
-        console.log('📦 Pakai cache detail untuk:', placeId);
         const cached = placeDetailsCache[placeId];
         const feature = {
             geometry: { coordinates: [cached.lng, cached.lat] },
@@ -863,12 +1025,7 @@ function getPlaceDetails(placeId) {
             const lng = place.geometry.location.lng();
             let address = place.formatted_address || place.name || '';
             address = address.replace(', Indonesia', '');
-            placeDetailsCache[placeId] = {
-                lat: lat,
-                lng: lng,
-                address: address,
-                name: place.name || address.split(',')[0]
-            };
+            placeDetailsCache[placeId] = { lat, lng, address, name: place.name || address.split(',')[0] };
             const feature = {
                 geometry: { coordinates: [lng, lat] },
                 properties: { full_address: address, name: place.name || address.split(',')[0] }
@@ -881,23 +1038,16 @@ function getPlaceDetails(placeId) {
 }
 
 function searchAddressFallback(keyword) {
-    console.log('📍 searchAddressFallback dipanggil untuk:', keyword);
-    if (!geocoder) {
-        geocoder = new google.maps.Geocoder();
-    }
+    console.log('📍 searchAddressFallback untuk:', keyword);
+    if (!geocoder) geocoder = new google.maps.Geocoder();
 
-    const gorontaloBounds = {
-        east: 123.5,
-        west: 122.5,
-        north: 1.0,
-        south: 0.0
-    };
+    const gorontaloBounds = { east: 123.5, west: 122.5, north: 1.0, south: 0.0 };
 
     const timeoutId = setTimeout(() => {
         document.getElementById('searchLoading').style.display = 'none';
         const resultList = document.getElementById('searchResultList');
         resultList.style.display = 'block';
-        resultList.innerHTML = '<div style="text-align:center;padding:20px;color:#f44336;">⏱️ Pencarian terlalu lama, coba lagi.</div>';
+        resultList.innerHTML = '<div style="text-align:center;padding:20px;color:#f44336;">⏱️ Pencarian terlalu lama.</div>';
     }, 5000);
 
     geocoder.geocode({
@@ -912,21 +1062,14 @@ function searchAddressFallback(keyword) {
         resultList.innerHTML = '';
 
         if (status === 'OK' && results && results.length > 0) {
-            console.log(`✅ Geocoding fallback ditemukan ${results.length} hasil di Gorontalo`);
             resultList.style.display = 'block';
-
-            const gorontaloResults = results.filter(r => {
-                const addr = r.formatted_address.toLowerCase();
-                return addr.includes('gorontalo');
-            });
-
+            const gorontaloResults = results.filter(r => r.formatted_address.toLowerCase().includes('gorontalo'));
             const finalResults = gorontaloResults.length > 0 ? gorontaloResults : results;
             finalResults.slice(0, 8).forEach(result => {
                 const item = document.createElement('div');
                 item.className = 'search-option-item';
                 const display = result.formatted_address.replace(', Indonesia', '');
                 const badge = ' <span style="font-size:10px;color:#FF9800;font-weight:bold;">📍 Gorontalo</span>';
-
                 item.innerHTML = `<div class="search-option-icon result">📍</div><div class="search-option-text">${escapeHtml(display)}${badge}</div>`;
                 item.addEventListener('click', () => {
                     const lat = result.geometry.location.lat();
@@ -941,7 +1084,7 @@ function searchAddressFallback(keyword) {
             });
         } else {
             resultList.style.display = 'block';
-            resultList.innerHTML = '<div style="text-align:center;padding:20px;color:#999;">🔍 Tidak ditemukan di Gorontalo. Coba kata kunci lain.</div>';
+            resultList.innerHTML = '<div style="text-align:center;padding:20px;color:#999;">🔍 Tidak ditemukan di Gorontalo.</div>';
         }
     });
 }
@@ -950,7 +1093,7 @@ function searchAddressFallback(keyword) {
 function selectAddress(feature) {
     const coords = feature.geometry.coordinates;
     const address = getFullAddress(feature);
-    console.log(`📍 selectAddress: ${address} (${coords[0]}, ${coords[1]})`);
+    console.log(`📍 selectAddress: ${address}`);
     addSearchHistory(address, coords[0], coords[1]);
 
     if (searchOverlayMode === 'pickup') {
@@ -990,7 +1133,6 @@ async function autoFillPickupLocation() {
 
     return new Promise((resolve) => {
         if (!navigator.geolocation) {
-            console.warn('⚠️ Geolokasi tidak didukung');
             pickupInput.placeholder = originalPlaceholder;
             pickupInput.style.color = '';
             resolve(false);
@@ -999,8 +1141,6 @@ async function autoFillPickupLocation() {
 
         navigator.geolocation.getCurrentPosition(async (position) => {
             const { latitude, longitude } = position.coords;
-            console.log(`📍 Lokasi pengguna: ${latitude}, ${longitude}`);
-
             pickupInput.placeholder = '⏳ Mengambil alamat...';
 
             let address = await reverseGeocode(longitude, latitude);
@@ -1021,9 +1161,7 @@ async function autoFillPickupLocation() {
 
             showToast('✅ Lokasi Anda digunakan sebagai titik penjemputan', 'success');
             resolve(true);
-
         }, () => {
-            console.warn('⚠️ Gagal mendapatkan lokasi');
             pickupInput.placeholder = originalPlaceholder;
             pickupInput.style.color = '';
             showToast('⚠️ Gagal mendeteksi lokasi, silakan pilih manual', 'error');
@@ -1043,11 +1181,7 @@ function updateMarkers() {
         pickupMarker = new google.maps.Marker({
             position: { lat: pickupCoord[1], lng: pickupCoord[0] },
             map: map,
-            icon: {
-                url: iconUrl,
-                scaledSize: new google.maps.Size(35, 35),
-                anchor: new google.maps.Point(17, 17)
-            },
+            icon: { url: iconUrl, scaledSize: new google.maps.Size(35, 35), anchor: new google.maps.Point(17, 17) },
             title: 'Penjemputan'
         });
     }
@@ -1056,10 +1190,7 @@ function updateMarkers() {
         destMarker = new google.maps.Marker({
             position: { lat: destCoord[1], lng: destCoord[0] },
             map: map,
-            icon: {
-                url: 'https://maps.google.com/mapfiles/ms/icons/red-dot.png',
-                scaledSize: new google.maps.Size(32, 32)
-            },
+            icon: { url: 'https://maps.google.com/mapfiles/ms/icons/red-dot.png', scaledSize: new google.maps.Size(32, 32) },
             title: 'Tujuan'
         });
     }
@@ -1068,10 +1199,7 @@ function updateMarkers() {
         viaMarker = new google.maps.Marker({
             position: { lat: viaCoord[1], lng: viaCoord[0] },
             map: map,
-            icon: {
-                url: 'https://maps.google.com/mapfiles/ms/icons/blue-dot.png',
-                scaledSize: new google.maps.Size(30, 30)
-            },
+            icon: { url: 'https://maps.google.com/mapfiles/ms/icons/blue-dot.png', scaledSize: new google.maps.Size(30, 30) },
             title: 'Titik Singgah'
         });
     }
@@ -1080,10 +1208,7 @@ function updateMarkers() {
 // ==================== UPDATE ROUTE ====================
 async function updateRoute() {
     console.log('🛣️ updateRoute() dipanggil');
-    if (!pickupCoord || !destCoord) {
-        console.warn('⚠️ updateRoute: pickup atau dest belum ada');
-        return;
-    }
+    if (!pickupCoord || !destCoord) return;
 
     if (window.directionsRenderer) {
         window.directionsRenderer.setMap(null);
@@ -1093,15 +1218,10 @@ async function updateRoute() {
     try {
         const waypoints = [];
         if (viaCoord && viaCoord.length === 2) {
-            waypoints.push({
-                location: { lat: viaCoord[1], lng: viaCoord[0] },
-                stopover: true
-            });
+            waypoints.push({ location: { lat: viaCoord[1], lng: viaCoord[0] }, stopover: true });
         }
 
-        if (!directionsService) {
-            directionsService = new google.maps.DirectionsService();
-        }
+        if (!directionsService) directionsService = new google.maps.DirectionsService();
 
         const request = {
             origin: { lat: pickupCoord[1], lng: pickupCoord[0] },
@@ -1111,15 +1231,10 @@ async function updateRoute() {
             language: 'id'
         };
 
-        console.log('📤 Request Directions:', request);
-
         const result = await new Promise((resolve, reject) => {
             directionsService.route(request, (response, status) => {
-                if (status === google.maps.DirectionsStatus.OK) {
-                    resolve(response);
-                } else {
-                    reject(new Error(status));
-                }
+                if (status === google.maps.DirectionsStatus.OK) resolve(response);
+                else reject(new Error(status));
             });
         });
 
@@ -1150,10 +1265,7 @@ async function updateRoute() {
         const directionsRenderer = new google.maps.DirectionsRenderer({
             map: map,
             suppressMarkers: true,
-            polylineOptions: {
-                strokeColor: '#FF9800',
-                strokeWeight: 5
-            }
+            polylineOptions: { strokeColor: '#FF9800', strokeWeight: 5 }
         });
         window.directionsRenderer = directionsRenderer;
         directionsRenderer.setDirections(result);
@@ -1175,7 +1287,6 @@ async function updateRoute() {
 
 // ==================== OVERLAY PENCARIAN ====================
 function openSearchOverlay(type) {
-    console.log(`🔍 openSearchOverlay: ${type}`);
     closeVehicleOverlay();
     searchOverlayMode = type;
     const overlay = document.getElementById('searchOverlay');
@@ -1223,7 +1334,6 @@ function useCurrentLocation() {
 function pickFromMap() {
     closeSearchOverlay();
     closeVehicleOverlay();
-    // Sembunyikan bottom sheet detail rute
     document.getElementById('routeDetails').style.display = 'none';
 
     if (!map) return;
@@ -1280,21 +1390,13 @@ function onMapMoveStart() {
         document.getElementById('pinActions').style.display = 'none';
         return;
     }
-
     document.getElementById('pinActions').style.display = 'none';
-
     const pinAddress = document.getElementById('pinAddress');
     pinAddress.textContent = '⏳ Memuat alamat...';
     pinAddress.classList.add('loading');
-
-    if (mapIdleTimer) {
-        clearTimeout(mapIdleTimer);
-        mapIdleTimer = null;
-    }
-
+    if (mapIdleTimer) { clearTimeout(mapIdleTimer); mapIdleTimer = null; }
     const pinContainer = document.getElementById('mapCenterPin');
     if (pinContainer) pinContainer.classList.add('dragging');
-
     const useBtn = document.getElementById('useMapPickBtn');
     useBtn.textContent = '📍 Memuat...';
 }
@@ -1304,7 +1406,6 @@ function onMapMoveEnd() {
         document.getElementById('pinActions').style.display = 'none';
         return;
     }
-
     const pinContainer = document.getElementById('mapCenterPin');
     if (pinContainer) {
         pinContainer.classList.remove('dragging');
@@ -1313,24 +1414,15 @@ function onMapMoveEnd() {
         void pinContainer.offsetWidth;
         pinContainer.classList.add('active');
     }
-
     const center = map.getCenter();
     mapPickCoords = [center.lng(), center.lat()];
-
-    if (mapIdleTimer) {
-        clearTimeout(mapIdleTimer);
-        mapIdleTimer = null;
-    }
-
+    if (mapIdleTimer) { clearTimeout(mapIdleTimer); mapIdleTimer = null; }
     mapIdleTimer = setTimeout(async () => {
         if (!mapPickActive) return;
-
         const address = await reverseGeocode(mapPickCoords[0], mapPickCoords[1]);
         mapPickAddress = address || '(Alamat tidak ditemukan)';
-
         const pinAddress = document.getElementById('pinAddress');
         const useBtn = document.getElementById('useMapPickBtn');
-
         if (mapPickAddress && mapPickAddress !== '(Alamat tidak ditemukan)') {
             const streetName = mapPickAddress.split(',')[0] || mapPickAddress;
             pinAddress.textContent = `📍 ${streetName}`;
@@ -1343,22 +1435,14 @@ function onMapMoveEnd() {
             useBtn.textContent = '📍 Pilih Lokasi';
             useBtn.className = 'pin-action-btn primary';
         }
-
         document.getElementById('pinActions').style.display = 'flex';
         mapIdleTimer = null;
     }, 3000);
 }
 
 function confirmMapPick() {
-    if (!mapPickActive) {
-        showToast('❌ Mode pilih peta tidak aktif', 'error');
-        return;
-    }
-
-    if (!mapPickCoords) {
-        showToast('❌ Pilih lokasi terlebih dahulu', 'error');
-        return;
-    }
+    if (!mapPickActive) { showToast('❌ Mode pilih peta tidak aktif', 'error'); return; }
+    if (!mapPickCoords) { showToast('❌ Pilih lokasi terlebih dahulu', 'error'); return; }
 
     if (!mapPickAddress || mapPickAddress === '(Alamat tidak ditemukan)') {
         showToast('⏳ Mengambil alamat...', 'info');
@@ -1378,7 +1462,6 @@ function confirmMapPick() {
         });
         return;
     }
-
     const [lng, lat] = mapPickCoords;
     const feature = {
         geometry: { coordinates: [lng, lat] },
@@ -1390,31 +1473,18 @@ function confirmMapPick() {
 
 function cancelMapPick() {
     mapPickActive = false;
-
     const pinContainer = document.getElementById('mapCenterPin');
     pinContainer.classList.remove('active', 'dragging');
-
     document.getElementById('pinActions').style.display = 'none';
-
     const pinAddress = document.getElementById('pinAddress');
     pinAddress.textContent = '📍 Pilih lokasi di peta';
     pinAddress.classList.remove('loading');
-
     google.maps.event.clearListeners(map, 'dragstart');
     google.maps.event.clearListeners(map, 'dragend');
-
-    if (mapPickResolveTimer) {
-        clearTimeout(mapPickResolveTimer);
-        mapPickResolveTimer = null;
-    }
-    if (mapIdleTimer) {
-        clearTimeout(mapIdleTimer);
-        mapIdleTimer = null;
-    }
-
+    if (mapPickResolveTimer) { clearTimeout(mapPickResolveTimer); mapPickResolveTimer = null; }
+    if (mapIdleTimer) { clearTimeout(mapIdleTimer); mapIdleTimer = null; }
     mapPickCoords = null;
     mapPickAddress = '';
-
     const useBtn = document.getElementById('useMapPickBtn');
     useBtn.textContent = '📍 Pilih Lokasi';
     useBtn.className = 'pin-action-btn primary';
@@ -1457,6 +1527,16 @@ function deactivateRadarOnPickup() {
     }
 }
 
+function getDriverIconUrl(vehicleType) {
+    if (!vehicleType) return 'https://cdn-icons-png.flaticon.com/128/5811/5811823.png';
+    const type = vehicleType.toLowerCase();
+    if (type === 'motor') return 'https://cdn-icons-png.flaticon.com/128/5811/5811823.png';
+    if (type === 'bentor') return 'https://cdn-icons-png.flaticon.com/128/7890/7890227.png';
+    if (type === 'mobil') return 'https://cdn-icons-png.flaticon.com/128/12689/12689302.png';
+    if (type === 'kurir_motor') return 'https://cdn-icons-png.flaticon.com/128/9561/9561688.png';
+    if (type === 'kurir_bentor') return 'https://cdn-icons-png.flaticon.com/128/7890/7890227.png';
+    return 'https://cdn-icons-png.flaticon.com/128/5811/5811823.png';
+}
 // ==================== ORDER & OFFERS ====================
 function renderOffers(offers) {
     const container = document.getElementById('driverOfferList');
@@ -1594,56 +1674,29 @@ function isValidCoordinate(lat, lng) {
     return true;
 }
 
-function getDistanceKm(lat1, lon1, lat2, lon2) {
-    const R = 6371;
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLon = (lon2 - lon1) * Math.PI / 180;
-    const a = Math.sin(dLat/2)**2 + Math.cos(lat1 * Math.PI/180) * Math.cos(lat2 * Math.PI/180) * Math.sin(dLon/2)**2;
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-    return R * c;
-}
-
-function getDriverIconUrl(vehicleType) {
-    if (!vehicleType) return 'https://cdn-icons-png.flaticon.com/128/5811/5811823.png';
-    const type = vehicleType.toLowerCase();
-    if (type === 'motor') return 'https://cdn-icons-png.flaticon.com/128/5811/5811823.png';
-    if (type === 'bentor') return 'https://cdn-icons-png.flaticon.com/128/7890/7890227.png';
-    if (type === 'mobil') return 'https://cdn-icons-png.flaticon.com/128/12689/12689302.png';
-    if (type === 'kurir_motor') return 'https://cdn-icons-png.flaticon.com/128/9561/9561688.png';
-    if (type === 'kurir_bentor') return 'https://cdn-icons-png.flaticon.com/128/7890/7890227.png';
-    return 'https://cdn-icons-png.flaticon.com/128/5811/5811823.png';
-}
-
-function startSearchDriversForOrder(centerLatLng, radiusKm = 3) {
-    if (!database || !centerLatLng) return;
-    if (driversListener && driversRef) driversRef.off('value', driversListener);
-    driversRef = database.ref('driver_locations');
-    driversListener = driversRef.on('value', async (snapshot) => {
-        const locations = snapshot.val();
-        if (!locations) return;
-        const [pickupLng, pickupLat] = centerLatLng;
-        const driversInRadius = [];
-        Object.keys(locations).forEach(driverId => {
-            const driverData = locations[driverId];
-            if (driverData && driverData.tracking_enabled === true && driverData.latitude && driverData.longitude) {
-                if (!isValidCoordinate(driverData.latitude, driverData.longitude)) return;
-                const distance = getDistanceKm(pickupLat, pickupLng, driverData.latitude, driverData.longitude);
-                if (distance <= radiusKm) driversInRadius.push(driverId);
-            }
-        });
-        console.log(`📡 Driver dalam radius ${radiusKm}km:`, driversInRadius);
-    });
-}
-
 // ==================== VALIDASI & CREATE ORDER ====================
 async function confirmRoute() {
     console.log('🚀 confirmRoute() dipanggil');
+
+    // ✅ TUTUP SEMUA OVERLAY LAMA
+    closeSearchOverlay();
+    closeVehicleOverlay();
+    const menuDrop = document.getElementById('menuDropdown');
+    if (menuDrop) menuDrop.style.display = 'none';
+    const addrCard = document.getElementById('addressCard');
+    if (addrCard) addrCard.style.display = 'none';
+
     if (currentOrderId) {
         const snap = await database.ref(`orders/${currentOrderId}`).once('value');
         if (snap.val()?.status === 'waiting') {
             isSearching = true;
-            if (pickupCoord) startSearchDriversForOrder(pickupCoord, 3);
             document.getElementById('driverOffers').classList.add('active');
+
+            // ✅ TAMBAHAN BARU: tampilkan driver di sekitar via geohash
+            if (pickupCoord && pickupCoord.length === 2) {
+                startShowingNearbyDrivers(pickupCoord[1], pickupCoord[0], 3);
+            }
+
             if (offerTimerInterval) clearInterval(offerTimerInterval);
             if (cleanupInterval) clearInterval(cleanupInterval);
             offerTimerInterval = setInterval(() => { updateOfferTimers(); }, 1000);
@@ -1745,8 +1798,13 @@ async function confirmRoute() {
     await database.ref(`userOrders/${currentUser.id}/${currentOrderId}`).set(true);
     localStorage.setItem('current_order_id', currentOrderId);
     isSearching = true;
-    if (pickupCoord) startSearchDriversForOrder(pickupCoord, 3);
     document.getElementById('driverOffers').classList.add('active');
+
+    // ✅ TAMBAHAN BARU: tampilkan driver di sekitar via geohash
+    if (pickupCoord && pickupCoord.length === 2) {
+        startShowingNearbyDrivers(pickupCoord[1], pickupCoord[0], 3);
+    }
+
     if (offerTimerInterval) clearInterval(offerTimerInterval);
     if (cleanupInterval) clearInterval(cleanupInterval);
     offerTimerInterval = setInterval(() => { updateOfferTimers(); }, 1000);
@@ -1784,7 +1842,14 @@ function cleanupSearch() {
     document.getElementById('driverOffers').classList.remove('active');
     if (offerTimerInterval) { clearInterval(offerTimerInterval); offerTimerInterval = null; }
     if (cleanupInterval) { clearInterval(cleanupInterval); cleanupInterval = null; }
-    if (driversListener && driversRef) { driversRef.off('value', driversListener); driversListener = null; driversRef = null; }
+
+    // ✅ HENTIKAN LISTENER NEARBY DRIVERS (9 grid)
+    stopShowingNearbyDrivers();
+
+    // ✅ MUNCULKAN KEMBALI ADDRESS CARD
+    const addrCard = document.getElementById('addressCard');
+    if (addrCard) addrCard.style.display = '';
+
     const btn = document.getElementById('confirmBtn');
     btn.removeEventListener('click', cancelSearchHandler);
     btn.addEventListener('click', confirmRoute);
@@ -1823,7 +1888,6 @@ window.onload = async () => {
         showToast('Gagal memuat Google Maps', 'error');
     }
 
-    // Setelah Google Maps termuat, lakukan inisialisasi lainnya
     const orderActive = await cekOrderAktifDanRedirect();
 
     if (orderActive) {
