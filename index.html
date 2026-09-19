@@ -1193,6 +1193,7 @@
 </div>
 
 <!-- ===== NOTIF PROMPT (DIHAPUS KARENA PAKAI FCM) ===== -->
+<!-- Elemen ini tidak digunakan lagi, kita sembunyikan dengan style -->
 <div id="notifPromptModal" class="notif-prompt-modal" style="display:none !important;"></div>
 
 <!-- ===== POPUP ===== -->
@@ -1283,11 +1284,6 @@ const STORAGE_TRACKING = 'jego_location_tracking';
 const STORAGE_AUTOBID = 'jego_autobid_enabled';
 const STORAGE_ACCEPT_KURIR = 'jego_accept_kurir';
 let fcmInitRunning = false;
-
-// ===== ⬅️ BARU: Flag anti-spam alert FCM =====
-let fcmAlertShown = false;      // popup permission ditolak — sekali saja
-let fcmSuccessShown = false;    // toast sukses — sekali saja
-let fcmFailShown = false;       // toast gagal — sekali saja
 
 // ==================== FUNGSI BANTUAN ====================
 function applyTheme() {
@@ -1715,39 +1711,12 @@ function updateAcceptKurirSetting() {
     refreshDisplay();
 }
 
-// ==================== INISIALISASI FCM (ROBUST + ALERT) ====================
-async function waitForFCM() {
-    return new Promise((resolve) => {
-        if (typeof median !== 'undefined' && median.firebaseMessaging
-            && typeof median.firebaseMessaging.requestPermission === 'function') {
-            resolve(true);
-            return;
-        }
-        let attempts = 0;
-        const interval = setInterval(() => {
-            attempts++;
-            if (typeof median !== 'undefined' && median.firebaseMessaging
-                && typeof median.firebaseMessaging.requestPermission === 'function') {
-                clearInterval(interval);
-                resolve(true);
-            } else if (attempts > 30) { // 15 detik
-                clearInterval(interval);
-                resolve(false);
-            }
-        }, 500);
-    });
-}
-
+// ==================== INISIALISASI FCM (ROBUST) ====================
 async function initFCM(retryCount = 0) {
     // ⬅️ Cegah infinite loop, max 3 kali retry
     if (retryCount > 3) {
         console.warn('⚠️ FCM gagal setelah 3x retry, berhenti.');
         fcmInitRunning = false;
-        // ⬅️ BARU: Alert user kalau sudah 3x gagal
-        if (!fcmFailShown) {
-            fcmFailShown = true;
-            showToast('⚠️ Gagal mengaktifkan notifikasi. Silakan buka menu Notifikasi.', 'warning');
-        }
         return;
     }
 
@@ -1781,16 +1750,6 @@ async function initFCM(retryCount = 0) {
             console.log('📱 Izin notifikasi:', permissionResult.granted ? 'GRANTED' : 'DENIED');
 
             if (!permissionResult.granted) {
-                // ⬅️ BARU: Alert user kalau permission ditolak (sekali saja)
-                if (!fcmAlertShown) {
-                    fcmAlertShown = true;
-                    showPopup(
-                        '🔕 Notifikasi Tidak Aktif',
-                        'Agar tidak melewatkan order, aktifkan notifikasi dari pengaturan HP Anda.\n\nBuka: Pengaturan → Aplikasi → JeGo → Notifikasi.',
-                        'warning',
-                        { onConfirm: () => {} }
-                    );
-                }
                 // ⬅️ Reset flag biar bisa dicoba lagi nanti
                 fcmInitRunning = false;
                 // Retry sekali lagi setelah 10 detik (siapa tau user ubah setting)
@@ -1818,11 +1777,6 @@ async function initFCM(retryCount = 0) {
 
         if (!token) {
             console.warn("⚠️ Gagal dapat FCM token setelah retry");
-            // ⬅️ BARU: Alert user kalau token gagal (sekali saja)
-            if (!fcmFailShown) {
-                fcmFailShown = true;
-                showToast('⚠️ Gagal mengaktifkan notifikasi. Coba lagi nanti.', 'warning');
-            }
             // ⬅️ Reset flag biar bisa retry nanti
             fcmInitRunning = false;
             setTimeout(() => initFCM(retryCount + 1), 15000);
@@ -1862,22 +1816,10 @@ async function initFCM(retryCount = 0) {
         }
 
         console.log('✅ FCM siap sepenuhnya');
-
-        // ⬅️ BARU: Alert user kalau notifikasi sukses (sekali saja)
-        if (!fcmSuccessShown) {
-            fcmSuccessShown = true;
-            showToast('✅ Notifikasi berhasil diaktifkan!', 'success');
-        }
-
         fcmInitRunning = false;  // ⬅️ reset sukses
 
     } catch (error) {
         console.warn('⚠️ FCM init gagal:', error.message);
-        // ⬅️ BARU: Alert user kalau ada error tak terduga (sekali saja)
-        if (!fcmFailShown && retryCount >= 2) {
-            fcmFailShown = true;
-            showToast('⚠️ Gagal mengaktifkan notifikasi: ' + error.message, 'warning');
-        }
         // ⬅️ RESET FLAG biar bisa retry!
         fcmInitRunning = false;
         setTimeout(() => initFCM(retryCount + 1), 10000);
@@ -2092,7 +2034,7 @@ function createOrderElement(order) {
     const harga = order.price || 0;
     const isKurir = order.transport_type && order.transport_type.includes('kurir');
 
-    // ===== Badge metode pembayaran =====
+    // ===== BARU: Badge metode pembayaran =====
     const isJePay = order.payment_method === 'jepay';
     const paymentBadge = isJePay 
         ? '<span class="payment-badge jepay">💳 JePay</span>' 
@@ -2614,7 +2556,7 @@ async function showOrderDetail(orderObj, fromAuto = false, isAutoTrigger = false
     }
     currentSelectedOrder = { orderId: orderId, orderData: currentOrder };
 
-    // ===== Badge metode pembayaran untuk modal =====
+    // ===== TAMBAHAN: Badge metode pembayaran untuk modal =====
     const isJePay = currentOrder.payment_method === 'jepay';
     const paymentBadgeDetail = isJePay 
         ? '<span class="payment-badge jepay" style="font-size:0.7rem; padding:2px 8px; border-radius:12px; font-weight:600; background:#e3f2fd; color:#0d47a1; border:1px solid #90caf9; display:inline-block; margin-left:8px;">💳 JePay</span>' 
@@ -3023,6 +2965,9 @@ function navigateToScreen(screen) {
 }
 
 // ==================== NOTIFICATIONS (INTERNAL, BUKAN ONESIGNAL) ====================
+// Bagian ini untuk notifikasi internal dari Firebase (driver_notifications)
+// Tidak ada kode OneSignal sama sekali.
+
 let notifListenerRef = null;
 let notifListener = null;
 
@@ -3133,7 +3078,7 @@ async function checkDriverActiveOrder() {
 
 // ==================== DOM READY ====================
 document.addEventListener('DOMContentLoaded', async () => {
-  console.log('📄 DOM siap, memulai inisialisasi...');
+  console.log('?? DOM siap, memulai inisialisasi...');
 
   // ✅ Listener deviceready dipasang LEBIH AWAL, di luar onAuthStateChanged
   document.addEventListener('deviceready', () => {
@@ -3268,10 +3213,80 @@ document.addEventListener('DOMContentLoaded', async () => {
       window.location.href = 'loginDriver.html';
     }
   });
+      
+      const kompensasiBtn = document.getElementById('kompensasiBtn');
+      if (kompensasiBtn) {
+        kompensasiBtn.addEventListener('click', () => {
+          window.location.href = 'kompensasi.html';
+        });
+      }
 
-  // ============================================================
-  // ✅ Event Listener UI (dipasang SEKALI, di luar onAuthStateChanged)
-  // ============================================================
+      const notifBtn = document.getElementById('notifBtn');
+      if (notifBtn) {
+        notifBtn.addEventListener('click', () => {
+          const sheet = document.getElementById('notifBottomSheet');
+          if (sheet) {
+            sheet.classList.add('open');
+            loadDriverNotifications();
+          }
+        });
+      }
+
+      const closeNotifSheet = document.getElementById('closeNotifSheet');
+      if (closeNotifSheet) {
+        closeNotifSheet.addEventListener('click', () => {
+          document.getElementById('notifBottomSheet').classList.remove('open');
+          document.getElementById('notifListBody').style.display = 'none';
+        });
+      }
+      const notifSheet = document.getElementById('notifBottomSheet');
+      if (notifSheet) {
+        notifSheet.addEventListener('click', function(e) {
+          if (e.target === this) {
+            this.classList.remove('open');
+            document.getElementById('notifListBody').style.display = 'none';
+          }
+        });
+      }
+
+      if (await checkDriverActiveOrder()) return;
+      if (!checkDriverData()) {
+        await auth.signOut();
+        localStorage.removeItem('jego_logged_in_driver');
+        window.location.href = 'loginDriver.html';
+        return;
+      }
+      
+      // 🔥 Ambil API key Google Maps dari Firebase
+      try {
+        const keySnap = await database.ref('data-jego/apikey-google-maps').once('value');
+        const apiKey = keySnap.val();
+        if (apiKey) {
+          await loadGoogleMaps(apiKey);
+          console.log('✅ Google Maps berhasil dimuat dengan API key dari Firebase');
+        } else {
+          console.warn('⚠️ API key Google Maps tidak ditemukan di Firebase. Peta tidak akan berfungsi.');
+          showToast('API key Google Maps tidak ditemukan', 'warning');
+        }
+      } catch (error) {
+        console.error('❌ Gagal mengambil API key dari Firebase:', error);
+        showToast('Gagal memuat Google Maps', 'error');
+      }
+
+      // 🔥 PRIORITASKAN AMBIL STATUS DARI FIREBASE
+      await loadStoredSettings();
+
+      // 🔥 Inisialisasi FCM (Median.co) — hanya fallback timer
+      setTimeout(initFCM, 3000);
+
+      loadOrders();
+      setTimeout(startGPSMonitoring, 1000);
+    } else {
+      console.warn('❌ Driver tidak login, redirect ke loginDriver.html');
+      window.location.href = 'loginDriver.html';
+    }
+  });
+
   const sidebarHeader = document.getElementById('sidebarHeaderProfile');
   if (sidebarHeader) {
     sidebarHeader.addEventListener('click', () => {
