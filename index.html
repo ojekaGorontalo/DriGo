@@ -1193,7 +1193,6 @@
 </div>
 
 <!-- ===== NOTIF PROMPT (DIHAPUS KARENA PAKAI FCM) ===== -->
-<!-- Elemen ini tidak digunakan lagi, kita sembunyikan dengan style -->
 <div id="notifPromptModal" class="notif-prompt-modal" style="display:none !important;"></div>
 
 <!-- ===== POPUP ===== -->
@@ -1284,6 +1283,11 @@ const STORAGE_TRACKING = 'jego_location_tracking';
 const STORAGE_AUTOBID = 'jego_autobid_enabled';
 const STORAGE_ACCEPT_KURIR = 'jego_accept_kurir';
 let fcmInitRunning = false;
+
+// ===== ⬅️ BARU: Flag anti-spam alert FCM =====
+let fcmAlertShown = false;      // popup permission ditolak — sekali saja
+let fcmSuccessShown = false;    // toast sukses — sekali saja
+let fcmFailShown = false;       // toast gagal — sekali saja
 
 // ==================== FUNGSI BANTUAN ====================
 function applyTheme() {
@@ -1711,7 +1715,7 @@ function updateAcceptKurirSetting() {
     refreshDisplay();
 }
 
-// ==================== INISIALISASI FCM ====================
+// ==================== INISIALISASI FCM (ROBUST + ALERT) ====================
 async function waitForFCM() {
     return new Promise((resolve) => {
         if (typeof median !== 'undefined' && median.firebaseMessaging
@@ -1734,54 +1738,149 @@ async function waitForFCM() {
     });
 }
 
-async function initFCM() {
+async function initFCM(retryCount = 0) {
+    // ⬅️ Cegah infinite loop, max 3 kali retry
+    if (retryCount > 3) {
+        console.warn('⚠️ FCM gagal setelah 3x retry, berhenti.');
+        fcmInitRunning = false;
+        // ⬅️ BARU: Alert user kalau sudah 3x gagal
+        if (!fcmFailShown) {
+            fcmFailShown = true;
+            showToast('⚠️ Gagal mengaktifkan notifikasi. Silakan buka menu Notifikasi.', 'warning');
+        }
+        return;
+    }
+
     if (fcmInitRunning) {
         console.log('⏭️ initFCM sudah berjalan, skip');
         return;
     }
     fcmInitRunning = true;
+
     try {
         const ready = await waitForFCM();
         if (!ready) {
-            console.warn("⚠️ Median FCM SDK tidak siap setelah 15 detik");
-            fcmInitRunning = false; // reset biar bisa dicoba lagi nanti
+            console.warn("⚠️ Median FCM SDK tidak siap, coba lagi 5 detik...");
+            fcmInitRunning = false;
+            setTimeout(() => initFCM(retryCount + 1), 5000);
             return;
         }
-        const permissionResult = await median.firebaseMessaging.requestPermission();
-        console.log('📱 Izin notifikasi:', permissionResult.granted ? 'GRANTED' : 'DENIED');
-        if (!permissionResult.granted) return;
 
+        // ===== 1. Cek permission dulu =====
+        let permGranted = false;
+        try {
+            const check = await median.firebaseMessaging.checkPermission();
+            permGranted = check?.granted === true;
+        } catch (e) {
+            console.warn('checkPermission error:', e.message);
+        }
+
+        // ===== 2. Kalau belum granted, request =====
+        if (!permGranted) {
+            const permissionResult = await median.firebaseMessaging.requestPermission();
+            console.log('📱 Izin notifikasi:', permissionResult.granted ? 'GRANTED' : 'DENIED');
+
+            if (!permissionResult.granted) {
+                // ⬅️ BARU: Alert user kalau permission ditolak (sekali saja)
+                if (!fcmAlertShown) {
+                    fcmAlertShown = true;
+                    showPopup(
+                        '🔕 Notifikasi Tidak Aktif',
+                        'Agar tidak melewatkan order, aktifkan notifikasi dari pengaturan HP Anda.\n\nBuka: Pengaturan → Aplikasi → JeGo → Notifikasi.',
+                        'warning',
+                        { onConfirm: () => {} }
+                    );
+                }
+                // ⬅️ Reset flag biar bisa dicoba lagi nanti
+                fcmInitRunning = false;
+                // Retry sekali lagi setelah 10 detik (siapa tau user ubah setting)
+                setTimeout(() => initFCM(retryCount + 1), 10000);
+                return;
+            }
+        }
+
+        // ===== 3. Register & enable banner =====
         await median.firebaseMessaging.register();
         await median.firebaseMessaging.enableForegroundBanners();
 
-        // Retry getToken 5x dengan jeda 2 detik
+        // ===== 4. Ambil token dengan retry agresif =====
         let token = null;
-        for (let i = 0; i < 5; i++) {
-            const t = await median.firebaseMessaging.getToken();
-            token = t?.token;
-            if (token) break;
+        for (let i = 0; i < 8; i++) {  // ⬅️ 8x retry (bukan 5x)
+            try {
+                const t = await median.firebaseMessaging.getToken();
+                token = t?.token;
+                if (token) break;
+            } catch (e) {
+                console.warn(`getToken attempt ${i+1} gagal:`, e.message);
+            }
             await new Promise(r => setTimeout(r, 2000));
         }
+
         if (!token) {
             console.warn("⚠️ Gagal dapat FCM token setelah retry");
+            // ⬅️ BARU: Alert user kalau token gagal (sekali saja)
+            if (!fcmFailShown) {
+                fcmFailShown = true;
+                showToast('⚠️ Gagal mengaktifkan notifikasi. Coba lagi nanti.', 'warning');
+            }
+            // ⬅️ Reset flag biar bisa retry nanti
+            fcmInitRunning = false;
+            setTimeout(() => initFCM(retryCount + 1), 15000);
             return;
         }
-        localStorage.setItem('fcmToken', token);
-        console.log('✅ FCM Token:', token);
-        if (globalCurrentUid) await syncDriverStatusToFirebase();
 
-        median.firebaseMessaging.notificationReceived.addListener((data) => {
-            console.log('📩 Notifikasi FCM diterima (foreground):', data);
-            showToast(data?.notification?.body || 'Notifikasi baru', 'info');
-            refreshDisplay();
-        });
-        median.firebaseMessaging.notificationClicked.addListener((data) => {
-            console.log('👆 Notifikasi FCM diklik:', data);
-        });
+        console.log('✅ FCM Token didapat:', token.substring(0, 20) + '...');
+        localStorage.setItem('fcmToken', token);
+
+        // ===== 5. Simpan ke Firebase (dengan tunggu uid siap) =====
+        if (globalCurrentUid) {
+            await syncDriverStatusToFirebase();
+            console.log('✅ FCM token tersimpan di Firebase');
+        } else {
+            console.warn('⚠️ UID belum siap, token hanya di localStorage');
+            // ⬅️ Coba lagi setelah 3 detik
+            setTimeout(async () => {
+                if (globalCurrentUid) {
+                    await syncDriverStatusToFirebase();
+                    console.log('✅ FCM token tersimpan (delayed)');
+                }
+            }, 3000);
+        }
+
+        // ===== 6. Setup listener (hanya sekali) =====
+        try {
+            median.firebaseMessaging.notificationReceived.addListener((data) => {
+                console.log('📩 Notifikasi FCM diterima (foreground):', data);
+                showToast(data?.notification?.body || 'Notifikasi baru', 'info');
+                refreshDisplay();
+            });
+            median.firebaseMessaging.notificationClicked.addListener((data) => {
+                console.log('👆 Notifikasi FCM diklik:', data);
+            });
+        } catch (e) {
+            console.warn('Setup listener error:', e.message);
+        }
+
         console.log('✅ FCM siap sepenuhnya');
+
+        // ⬅️ BARU: Alert user kalau notifikasi sukses (sekali saja)
+        if (!fcmSuccessShown) {
+            fcmSuccessShown = true;
+            showToast('✅ Notifikasi berhasil diaktifkan!', 'success');
+        }
+
+        fcmInitRunning = false;  // ⬅️ reset sukses
+
     } catch (error) {
-        // ⚠️ HANYA LOG, jangan toast merah saat auto-init
-        console.warn('⚠️ FCM init tertunda:', error.message);
+        console.warn('⚠️ FCM init gagal:', error.message);
+        // ⬅️ BARU: Alert user kalau ada error tak terduga (sekali saja)
+        if (!fcmFailShown && retryCount >= 2) {
+            fcmFailShown = true;
+            showToast('⚠️ Gagal mengaktifkan notifikasi: ' + error.message, 'warning');
+        }
+        // ⬅️ RESET FLAG biar bisa retry!
+        fcmInitRunning = false;
+        setTimeout(() => initFCM(retryCount + 1), 10000);
     }
 }
 
@@ -1993,7 +2092,7 @@ function createOrderElement(order) {
     const harga = order.price || 0;
     const isKurir = order.transport_type && order.transport_type.includes('kurir');
 
-    // ===== BARU: Badge metode pembayaran =====
+    // ===== Badge metode pembayaran =====
     const isJePay = order.payment_method === 'jepay';
     const paymentBadge = isJePay 
         ? '<span class="payment-badge jepay">💳 JePay</span>' 
@@ -2515,7 +2614,7 @@ async function showOrderDetail(orderObj, fromAuto = false, isAutoTrigger = false
     }
     currentSelectedOrder = { orderId: orderId, orderData: currentOrder };
 
-    // ===== TAMBAHAN: Badge metode pembayaran untuk modal =====
+    // ===== Badge metode pembayaran untuk modal =====
     const isJePay = currentOrder.payment_method === 'jepay';
     const paymentBadgeDetail = isJePay 
         ? '<span class="payment-badge jepay" style="font-size:0.7rem; padding:2px 8px; border-radius:12px; font-weight:600; background:#e3f2fd; color:#0d47a1; border:1px solid #90caf9; display:inline-block; margin-left:8px;">💳 JePay</span>' 
@@ -2924,9 +3023,6 @@ function navigateToScreen(screen) {
 }
 
 // ==================== NOTIFICATIONS (INTERNAL, BUKAN ONESIGNAL) ====================
-// Bagian ini untuk notifikasi internal dari Firebase (driver_notifications)
-// Tidak ada kode OneSignal sama sekali.
-
 let notifListenerRef = null;
 let notifListener = null;
 
@@ -3131,6 +3227,37 @@ document.addEventListener('DOMContentLoaded', async () => {
       // 🔥 PRIORITASKAN AMBIL STATUS DARI FIREBASE
       await loadStoredSettings();
 
+      // ============ ⬅️ TAMBAHAN BARU: AUTO-SYNC FCM ============
+      // Cek apakah token lokal beda dengan token di Firebase
+      // Kalau beda → sync ulang (misal setelah reinstall/clear data)
+      setTimeout(async () => {
+          try {
+              const localToken = localStorage.getItem('fcmToken');
+              if (localToken && globalCurrentUid) {
+                  // Ambil token dari Firebase (coba 2 lokasi)
+                  let fbToken = null;
+                  const snap1 = await database.ref(`driver_locations/${globalCurrentUid}/fcmToken`).once('value');
+                  fbToken = snap1.val();
+                  if (!fbToken) {
+                      const snap2 = await database.ref(`drivers/${globalCurrentUid}/fcmToken`).once('value');
+                      fbToken = snap2.val();
+                  }
+                  if (fbToken !== localToken) {
+                      console.log('🔄 Token berbeda, sync ke Firebase...');
+                      await syncDriverStatusToFirebase();
+                      console.log('✅ Auto-sync token selesai');
+                  } else {
+                      console.log('✅ Token FCM sudah sinkron dengan Firebase');
+                  }
+              } else {
+                  console.log('⏭️ Auto-sync dilewati (token lokal kosong atau uid belum siap)');
+              }
+          } catch(e) {
+              console.warn('⚠️ Auto-sync error:', e.message);
+          }
+      }, 5000);  // Delay 5 detik biar semua proses init selesai dulu
+      // ============ END TAMBAHAN BARU ============
+
       // 🔥 Inisialisasi FCM (Median.co) — hanya fallback timer
       setTimeout(initFCM, 3000);
 
@@ -3142,6 +3269,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
 
+  // ============================================================
+  // ✅ Event Listener UI (dipasang SEKALI, di luar onAuthStateChanged)
+  // ============================================================
   const sidebarHeader = document.getElementById('sidebarHeaderProfile');
   if (sidebarHeader) {
     sidebarHeader.addEventListener('click', () => {
