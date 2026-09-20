@@ -1128,6 +1128,12 @@
     let selectedTransport = null;
     let isProcessing = false;
 
+    // ===== ⬅️ BARU: Flag anti-spam alert FCM =====
+    let fcmAlertShown = false;      // popup permission ditolak — sekali saja
+    let fcmSuccessShown = false;    // toast sukses — sekali saja
+    let fcmFailShown = false;       // toast gagal — sekali saja
+    let fcmRegisterRunning = false; // cegah dobel eksekusi
+
     const transportNameMapping = {
         'Motor': 'motor',
         'JeGo Ride': 'motor',
@@ -1265,6 +1271,7 @@
                     }
                     localStorage.removeItem('jego_logged_in_user');
                     localStorage.removeItem('current_order_id');
+                    localStorage.removeItem('customer_fcmToken');
                     window.location.href = 'loginuser.html';
                 }
             });
@@ -1469,6 +1476,188 @@
         window.location.href = 'loginuser.html';
     }
 
+    // ==================== ⬅️ BARU: REGISTRASI FCM UNTUK CUSTOMER ====================
+    async function registerCustomerFCM() {
+        logStep('🔔', '==================== REGISTERFCM MULAI ====================');
+
+        // Cegah dobel eksekusi
+        if (fcmRegisterRunning) {
+            logStep('🔔', '[registerFCM] ⏭️ sudah berjalan, skip');
+            return false;
+        }
+
+        // Cek Median SDK tersedia
+        if (typeof median === 'undefined' || !median.firebaseMessaging) {
+            logStep('🔔', '[registerFCM] ⏭️ Median Firebase Messaging tidak tersedia (mungkin di browser)');
+            return false;
+        }
+
+        if (!currentUser || !currentUser.uid) {
+            logStep('🔔', '[registerFCM] ⚠️ currentUser tidak valid');
+            return false;
+        }
+
+        fcmRegisterRunning = true;
+
+        try {
+            // ===== 1. Cek permission dulu =====
+            let permGranted = false;
+            if (typeof median.firebaseMessaging.checkPermission === 'function') {
+                try {
+                    const check = await median.firebaseMessaging.checkPermission();
+                    permGranted = check?.granted === true;
+                    logStep('🔔', `[registerFCM] cek permission → ${permGranted ? 'GRANTED' : 'BELUM'}`);
+                } catch(e) {
+                    logStep('🔔', `[registerFCM] checkPermission error: ${e.message}`);
+                }
+            }
+
+            // ===== 2. Request permission kalau belum =====
+            if (!permGranted) {
+                const permission = await median.firebaseMessaging.requestPermission();
+                logStep('🔔', `[registerFCM] permission: ${permission.granted ? 'GRANTED' : 'DENIED'}`);
+
+                if (!permission.granted) {
+                    // ⬅️ Alert ke user (sekali saja)
+                    if (!fcmAlertShown) {
+                        fcmAlertShown = true;
+                        showCustomPopup(
+                            '🔔 Aktifkan Notifikasi',
+                            'Agar tidak melewatkan chat dari driver, aktifkan notifikasi di pengaturan HP Anda.\n\nBuka: Pengaturan → Aplikasi → JeGo → Notifikasi.',
+                            'warning',
+                            '🔔'
+                        );
+                    }
+                    fcmRegisterRunning = false;
+                    return false;
+                }
+            }
+
+            // ===== 3. Register FCM =====
+            if (typeof median.firebaseMessaging.register === 'function') {
+                try {
+                    await median.firebaseMessaging.register();
+                    logStep('🔔', '[registerFCM] register() berhasil');
+                } catch(e) {
+                    logStep('🔔', `[registerFCM] register() error (diabaikan): ${e.message}`);
+                }
+            }
+
+            // ===== 4. Enable foreground banners (kalau ada) =====
+            if (typeof median.firebaseMessaging.enableForegroundBanners === 'function') {
+                try {
+                    await median.firebaseMessaging.enableForegroundBanners();
+                    logStep('🔔', '[registerFCM] enableForegroundBanners berhasil');
+                } catch(e) {
+                    logStep('🔔', `[registerFCM] enableForegroundBanners error (diabaikan): ${e.message}`);
+                }
+            } else {
+                logStep('🔔', '[registerFCM] enableForegroundBanners tidak tersedia, skip');
+            }
+
+            // ===== 5. Ambil token (retry 5x) =====
+            let token = null;
+            for (let i = 0; i < 5; i++) {
+                try {
+                    const t = await median.firebaseMessaging.getToken();
+                    token = t?.token;
+                    if (token) break;
+                } catch(e) {
+                    logStep('🔔', `[registerFCM] getToken attempt ${i+1} gagal: ${e.message}`);
+                }
+                await new Promise(r => setTimeout(r, 2000));
+            }
+
+            if (!token) {
+                logStep('🔔', '[registerFCM] ⚠️ Gagal dapat FCM token');
+                if (!fcmFailShown) {
+                    fcmFailShown = true;
+                    showCustomPopup(
+                        '⚠️ Notifikasi Belum Aktif',
+                        'Kami belum dapat mengaktifkan notifikasi. Coba lagi dengan membuka ulang aplikasi.',
+                        'warning',
+                        '⚠️'
+                    );
+                }
+                fcmRegisterRunning = false;
+                return false;
+            }
+
+            logStep('🔔', `[registerFCM] ✅ Token didapat: ${token.substring(0, 20)}...`);
+
+            // ===== 6. Cek token lama — hindari duplikat =====
+            const oldToken = localStorage.getItem('customer_fcmToken');
+            if (oldToken === token) {
+                try {
+                    const snap = await firebaseDatabase.ref(`users/${currentUser.uid}/fcmToken`).once('value');
+                    if (snap.val() === token) {
+                        logStep('🔔', '[registerFCM] ⏭️ Token sudah tersimpan di Firebase (skip)');
+                        if (!fcmSuccessShown) {
+                            fcmSuccessShown = true;
+                            logStep('🔔', '[registerFCM] ✅ Notifikasi sudah aktif sebelumnya');
+                        }
+                        fcmRegisterRunning = false;
+                        return true;
+                    }
+                } catch(e) {}
+            }
+
+            // ===== 7. Simpan ke Firebase =====
+            await firebaseDatabase.ref(`users/${currentUser.uid}/fcmToken`).set(token);
+            await firebaseDatabase.ref(`users/${currentUser.uid}/fcmTokenUpdatedAt`).set(new Date().toISOString());
+
+            // ===== 8. Simpan juga ke fcmTokens (format lama) =====
+            await firebaseDatabase.ref(`users/${currentUser.uid}/fcmTokens/${token}`).set({
+                token: token,
+                platform: 'android',
+                updated_at: new Date().toISOString()
+            });
+
+            localStorage.setItem('customer_fcmToken', token);
+            logStep('🔔', '[registerFCM] ✅ Token berhasil disimpan di Firebase');
+
+            // ===== 9. Setup listener notifikasi foreground =====
+            try {
+                if (median.firebaseMessaging.notificationReceived
+                    && typeof median.firebaseMessaging.notificationReceived.addListener === 'function') {
+                    median.firebaseMessaging.notificationReceived.addListener((data) => {
+                        logStep('📩', `[notif] diterima: ${JSON.stringify(data).substring(0, 100)}`);
+                    });
+                }
+                if (median.firebaseMessaging.notificationClicked
+                    && typeof median.firebaseMessaging.notificationClicked.addListener === 'function') {
+                    median.firebaseMessaging.notificationClicked.addListener((data) => {
+                        logStep('👆', `[notif] diklik: ${JSON.stringify(data).substring(0, 100)}`);
+                        // Optional: auto-redirect ke chat
+                        try {
+                            const orderId = data?.additionalData?.orderId || data?.data?.orderId;
+                            if (orderId) {
+                                window.location.href = 'chatCustomer.html?orderId=' + orderId;
+                            }
+                        } catch(e) {}
+                    });
+                }
+            } catch(e) {
+                logStep('🔔', `[registerFCM] Setup listener error (diabaikan): ${e.message}`);
+            }
+
+            logStep('🔔', '==================== REGISTERFCM SUKSES ✅ ====================');
+
+            // ⬅️ Toast sukses (sekali saja)
+            if (!fcmSuccessShown) {
+                fcmSuccessShown = true;
+                logStep('🔔', '✅ Notifikasi berhasil diaktifkan!');
+            }
+
+            fcmRegisterRunning = false;
+            return true;
+        } catch (error) {
+            logStep('🔔', `[registerFCM] ❌ ERROR: ${error.message}`);
+            fcmRegisterRunning = false;
+            return false;
+        }
+    }
+
     // ========== CHECK LOGIN ==========
     async function checkLogin() {
         logStep('🔐', '==================== CHECKLOGIN MULAI ====================');
@@ -1560,6 +1749,14 @@
 
             logStep('🔐', '[checkLogin] memanggil loadBanner...');
             await loadBanner();
+
+            // ============ ⬅️ BARU: Registrasi FCM otomatis ============
+            // Delay 2 detik biar UI sudah render dulu, baru minta permission
+            logStep('🔔', '[checkLogin] scheduling registerCustomerFCM...');
+            setTimeout(() => {
+                registerCustomerFCM().catch(e => logStep('🔔', `[checkLogin] registerFCM error: ${e.message}`));
+            }, 2000);
+            // ============ END TAMBAHAN BARU ============
 
             const requiredFields = ['name', 'phone', 'address'];
             const missingFields = requiredFields.filter(field => !currentUser[field] || currentUser[field].trim() === '');
@@ -1760,7 +1957,6 @@
         logStep('🎨', `[renderTransportCards] ✅ Rendered ${countTop + countBottom} cards (top: ${countTop}, bottom: ${countBottom})`);
 
         if (countTop + countBottom === 0) {
-            // Tampilkan pesan "kosong" kalau tidak ada data sama sekali
             topGrid.innerHTML = `
                 <div style="grid-column: 1/-1; text-align: center; padding: 40px 20px; color: var(--text-secondary);">
                     <div style="font-size: 48px; margin-bottom: 12px;">🚫</div>
@@ -1892,18 +2088,22 @@
         showCustomPopup('Lengkapi Data', 'Silakan perbarui profil Anda di menu Akun.', 'warning', '⚠️');
     }
 
-    // ========== UPDATE FCM TOKEN ==========
+    // ========== UPDATE FCM TOKEN (legacy — masih dipakai kalau ada Android native) ==========
     function updateFCMToken(token) {
         uiLog('📩 FCM Token diterima dari Android', 'info');
         uiLog('Token: ' + token.substring(0, 20) + '...', 'info');
         if (currentUser && currentUser.uid) {
-            firebaseDatabase.ref(`users/${currentUser.uid}/fcmTokens`).push(token)
-                .then(() => {
-                    uiLog('✅ Token FCM berhasil disimpan di database!', 'success');
-                })
-                .catch(err => {
-                    uiLog('❌ Gagal simpan token: ' + err.message, 'error');
-                });
+            firebaseDatabase.ref(`users/${currentUser.uid}/fcmTokens/${token}`).set({
+                token: token,
+                platform: 'android',
+                updated_at: new Date().toISOString()
+            })
+            .then(() => {
+                uiLog('✅ Token FCM berhasil disimpan di database!', 'success');
+            })
+            .catch(err => {
+                uiLog('❌ Gagal simpan token: ' + err.message, 'error');
+            });
         } else {
             uiLog('⚠️ User belum login, token tidak disimpan.', 'warning');
         }
