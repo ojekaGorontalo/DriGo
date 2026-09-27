@@ -2,25 +2,19 @@
 <html lang="id">
 <head>
     <meta charset="utf-8" />
-    <title>Rute - JeGo (Google Maps) + Via Point</title>
+    <title>Rute - JeGo (Google Maps)</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 
-    <!-- Firebase SDKs — WAJIB DI ATAS rute.js -->
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
 
-    <!-- Google Maps akan dimuat secara dinamis setelah API key diambil dari Firebase -->
-
-    <!-- CSS -->
     <link rel="stylesheet" href="rute.css">
-
-    <!-- JS Utama (akan memuat Google Maps secara dinamis) -->
     <script src="rute.js" defer></script>
 </head>
 <body>
 
-<!-- PIN TENGAH MODE PILIH PETA -->
+<!-- ========== PIN TENGAH PETA ========== -->
 <div id="mapCenterPin">
     <div class="pin-address" id="pinAddress">📍 Geser peta untuk memilih lokasi</div>
     <div class="pin-bounce"></div>
@@ -31,58 +25,47 @@
     </div>
 </div>
 
-<!-- ==================== ADDRESS CARD (SATU-SATUNYA CARD) ==================== -->
-<div class="address-card" id="addressCard">
+<!-- ========== MAP ========== -->
+<div id="map"></div>
 
-    <!-- Baris PICKUP -->
-    <div class="address-row pickup-row" id="pickupRow">
-        <div class="icon-container pickup-icon">
-            <span class="dot pickup-dot"></span>
-        </div>
+<!-- ========== ADDRESS CARD ========== -->
+<div class="address-card" id="addressCard" style="display:none;">
+    <div class="address-row pickup-row">
+        <div class="icon-container"><span class="dot pickup-dot"></span></div>
         <div class="input-wrapper">
             <input type="text" class="search-input-box pickup" id="pickupInput" placeholder="📍 Lokasi penjemputan" readonly />
         </div>
-        <button class="menu-btn" id="menuBtn" aria-label="Menu">⋮</button>
+        <button class="menu-btn" id="menuBtn">⋮</button>
     </div>
-
-    <!-- Separator horizontal -->
     <div class="divider-line"></div>
-
-    <!-- VIA POINT (tersembunyi, muncul via menu) -->
     <div id="via-container" style="display:none;">
-        <div class="via-icon">
-            <span class="dot via-dot"></span>
-        </div>
+        <div class="via-icon"><span class="dot via-dot"></span></div>
         <div class="via-input-wrapper">
-            <input type="text" class="search-input-box via" id="viaInput" placeholder="➕ Lewat mana? (Opsional)" readonly />
-            <button class="clear-via-btn" id="clearViaBtn" title="Hapus titik singgah">✕</button>
+            <input type="text" class="search-input-box via" id="viaInput" placeholder="➕ Lewat mana?" readonly />
+            <button class="clear-via-btn" id="clearViaBtn">✕</button>
         </div>
     </div>
-
-    <!-- Separator horizontal (tampil jika via aktif) -->
     <div class="divider-line via-divider" style="display:none;"></div>
-
-    <!-- Baris DESTINATION -->
-    <div class="address-row destination-row" id="destRow">
-        <div class="icon-container destination-icon">
+    <div class="address-row destination-row">
+        <div class="icon-container">
             <span class="dot destination-dot"></span>
             <span class="dashed-line"></span>
         </div>
         <div class="input-wrapper">
             <input type="text" class="search-input-box destination" id="destInput" placeholder="🏁 Lokasi tujuan" readonly />
         </div>
-        <button class="swap-btn" id="swapBtn" aria-label="Tukar asal dan tujuan">⇅</button>
+        <button class="swap-btn" id="swapBtn">⇅</button>
     </div>
 </div>
 
-<!-- MENU DROPDOWN (⋮) -->
+<!-- MENU DROPDOWN -->
 <div class="menu-dropdown" id="menuDropdown" style="display:none;">
     <div class="menu-item" id="menuAddVia">➕ Tambahkan titik perhentian</div>
     <div class="menu-item" id="menuSwap">⇅ Tukar asal & tujuan</div>
     <div class="menu-item" id="menuClear">🗑️ Bersihkan alamat</div>
 </div>
 
-<!-- ELEMEN TERSEMBUNYI UNTUK KOMPATIBILITAS JS -->
+<!-- HIDDEN COMPAT ELEMENTS -->
 <div style="display:none;">
     <div id="currentVehicleDisplay">
         <span id="currentVehicleName">-</span>
@@ -95,17 +78,20 @@
     <div id="detailCap"></div>
     <div id="detailDesc"></div>
     <div id="detailPrice"></div>
+    <div id="routeVia"></div>
+    <div id="routeFrom"></div>
+    <div id="routeTo"></div>
+    <div id="routeDuration"></div>
+    <div id="labelTawaran"></div>
+    <div id="minErrorVal"></div>
+    <div id="deliveryInfoPanel"></div>
+    <div id="deliveryItemCategory"></div>
+    <div id="deliveryDescription"></div>
+    <div id="deliverySender"></div>
+    <div id="deliveryReceiver"></div>
 </div>
 
-<!-- DELIVERY INFO PANEL -->
-<div class="delivery-info-panel" id="deliveryInfoPanel">
-    <div class="delivery-item"><span class="delivery-label">Jenis Barang:</span><span id="deliveryItemCategory">-</span></div>
-    <div class="delivery-item"><span class="delivery-label">Deskripsi:</span><span id="deliveryDescription">-</span></div>
-    <div class="delivery-item"><span class="delivery-label">Pengirim:</span><span id="deliverySender">-</span></div>
-    <div class="delivery-item"><span class="delivery-label">Penerima:</span><span id="deliveryReceiver">-</span></div>
-</div>
-
-<!-- ==================== OVERLAY PENCARIAN ==================== -->
+<!-- SEARCH OVERLAY -->
 <div class="search-overlay" id="searchOverlay">
     <div class="search-overlay-header">
         <button class="search-overlay-back" id="searchOverlayBack">←</button>
@@ -114,7 +100,7 @@
             <button class="search-overlay-clear" id="searchOverlayClear">✕</button>
         </div>
     </div>
-    <div class="search-overlay-body" id="searchOverlayBody">
+    <div class="search-overlay-body">
         <div id="searchDefaultOptions">
             <div class="search-option-item" id="useCurrentLocationBtn">
                 <div class="search-option-icon gps">📍</div>
@@ -132,7 +118,7 @@
     </div>
 </div>
 
-<!-- OVERLAY PEMILIHAN KENDARAAN -->
+<!-- VEHICLE OVERLAY -->
 <div class="vehicle-overlay" id="vehicleOverlay">
     <div class="vehicle-overlay-inner">
         <div class="vehicle-overlay-header">
@@ -140,92 +126,132 @@
             <button class="vehicle-close-btn" id="vehicleCloseBtn">✕</button>
         </div>
         <div class="vehicle-scroll" id="vehicleScroll"></div>
-        <div class="vehicle-bottom-sheet" id="vehicleBottomSheet">
-            <button class="close-sheet" id="closeSheetBtn">✕</button>
-            <div class="detail-name" id="detailName">-</div>
-            <div class="detail-cap" id="detailCap">-</div>
-            <div class="detail-desc" id="detailDesc">-</div>
-            <div class="detail-price" id="detailPrice">-</div>
-            <button class="btn-pilih" id="pilihBtn">Pilih Kendaraan</button>
-        </div>
     </div>
 </div>
 
-<!-- DRIVER OFFERS -->
-<div id="driverOffers">
-    <div>
-        <div>
-            <strong>🏆 Penawaran Driver</strong>
-            <button id="closeDriverOffers">✕</button>
-        </div>
+<!-- ==================== DRIVER OFFERS (FLOATING DI ATAS MAP) ==================== -->
+<div class="driver-offers-overlay" id="driverOffers">
+    <div class="offers-top-row">
+        <strong>🏆 Penawaran Driver</strong>
+        <button id="closeDriverOffers">✕</button>
+    </div>
+    <div id="driverOfferList" class="offers-list"></div>
+</div>
 
-        <!-- 🆕 SECTION: DRIVER DI SEKITAR (RINGKAS) -->
-        <div id="nearbyDriversSection">
-            <div class="nearby-inline">
-                <span class="nearby-count">
-                    📡 <b id="nearbyDriverCount">0</b> pengemudi melihat
-                </span>
-                <span id="nearbyDriverIcons" class="nearby-icons-row"></span>
+<!-- ==================== BOTTOM SHEET ==================== -->
+<div class="bottom-sheet" id="bottomSheet">
+    <div class="bs-drag-handle" id="bsDragHandle">
+        <div class="bs-handle-bar"></div>
+    </div>
+
+    <!-- ===== VIEW 1: PICKER ===== -->
+    <div class="bs-view bs-view-picker" id="bsViewPicker">
+        <div class="picker-address">
+            <div class="picker-address-row">
+                <span class="picker-dot pickup"></span>
+                <span class="picker-text" id="pickerPickupText">-</span>
+            </div>
+            <div class="picker-address-row" id="pickerViaRow" style="display:none;">
+                <span class="picker-dot via"></span>
+                <span class="picker-text" id="pickerViaText">-</span>
+            </div>
+            <div class="picker-address-row">
+                <span class="picker-dot dest"></span>
+                <span class="picker-text" id="pickerDestText">-</span>
+                <span class="picker-duration" id="pickerDuration"></span>
             </div>
         </div>
-        <!-- END SECTION -->
 
-        <div id="driverOfferList"></div>
-    </div>
-</div>
-
-<!-- MAP -->
-<div id="map"></div>
-
-<!-- ROUTE DETAILS (BOTTOM SHEET) -->
-<div class="route-details" id="routeDetails">
-    <div class="route-address">
-        <span class="label">Penjemputan:</span>
-        <span class="value" id="routeFrom">-</span>
-    </div>
-    <div class="route-address" id="viaAddressRow" style="display:none;">
-        <span class="label">Lewat:</span>
-        <span class="value" id="routeVia">-</span>
-    </div>
-    <div class="route-address">
-        <span class="label">Tujuan:</span>
-        <span class="value" id="routeTo">-</span>
-    </div>
-    <div class="route-stats">
-        <div class="route-stat">
-            <div class="stat-value" id="routeDuration">-</div>
-            <div>Durasi</div>
-        </div>
-        <div class="route-stat">
-            <div class="stat-value price-highlight" id="routePrice">-</div>
-            <div>Biaya</div>
-        </div>
-    </div>
-    <div id="negoSection" style="margin-top:12px; padding-top:8px; border-top:1px solid #eee;">
-        <div style="display:flex; justify-content:space-between; font-size:0.8rem;">
-            <span>💰 Harga rekomendasi:</span>
-            <strong id="labelRekomendasi">Rp 0</strong>
-        </div>
-        <div style="margin:8px 0;">
-            <label style="font-size:0.75rem;">Tawar harga (minimal <span id="minTawarLabel">Rp 0</span>):</label>
-            <input type="number" id="negoInput" step="1000" style="width:100%; padding:8px; border-radius:8px; border:1px solid #ccc; margin:4px 0;">
-            <div style="display:flex; justify-content:space-between;">
-                <span>💰 Harga tawaran:</span>
-                <strong id="labelTawaran">Rp 0</strong>
+        <div class="picker-vehicle-card" id="pickerVehicleCard">
+            <img id="pickerVehicleIcon" src="https://cdn-icons-png.flaticon.com/128/5811/5811823.png" />
+            <div class="picker-vehicle-info">
+                <div class="picker-vehicle-name" id="pickerVehicleName">Motor</div>
+                <div class="picker-vehicle-cap" id="pickerVehicleCap">👤 1 Penumpang</div>
+                <div class="picker-vehicle-desc" id="pickerVehicleDesc">Tanpa macet, harga hemat</div>
             </div>
-            <small style="color:red; display:none;" id="negoError">Harga tawaran tidak valid! Minimal <span id="minErrorVal">0</span></small>
         </div>
+
+        <div class="picker-price-card" id="pickerPriceCard" style="display:none;">
+            <div class="picker-price-main">
+                <span class="picker-price-label">💰 Tarif rekomendasi</span>
+                <span class="picker-price-value" id="pickerPriceValue">Rp 0</span>
+            </div>
+
+            <div class="picker-price-edit">
+                <label class="picker-price-edit-label" for="pickerOfferInput">✏️ Tawaran Anda</label>
+                <div class="picker-offer-wrap">
+                    <span class="picker-offer-prefix">Rp</span>
+                    <input
+                        type="number"
+                        id="pickerOfferInput"
+                        class="picker-offer-input"
+                        placeholder="0"
+                        min="0"
+                        step="1000"
+                        inputmode="numeric"
+                    />
+                </div>
+            </div>
+
+            <div class="picker-price-min">
+                <span>⬇️ Min. tawaran (bisa nego)</span>
+                <strong id="pickerMinPriceValue">Rp 0</strong>
+            </div>
+        </div>
+
+        <!-- ===== ⬅️ DIPINDAH: Toggle auto-accept (dari bidding ke picker) ===== -->
+        <div class="bs-toggle-row">
+            <span class="bs-toggle-icon">📨</span>
+            <span class="bs-toggle-text">Terima mitra perjalanan Anda secara otomatis dengan biaya  <strong id="autoAcceptPrice">Rp 0</strong></span>
+            <label class="toggle-switch">
+                <input type="checkbox" id="autoAcceptToggle" />
+                <span class="toggle-slider"></span>
+            </label>
+        </div>
+
+        <button class="bs-search-btn" id="bsSearchBtn" disabled>Cari tawaran</button>
     </div>
 
-    <!-- TOMBOL CANCEL (DI DALAM BOTTOM SHEET) -->
-    <button class="cancel-btn-inline" id="cancelBtn">❌ Batalkan Perjalanan</button>
+    <!-- ===== VIEW 2: BIDDING ===== -->
+    <div class="bs-view bs-view-bidding" id="bsViewBidding">
+        <div class="nearby-inline" id="nearbySection">
+            <span class="nearby-count">📡 <b id="nearbyDriverCount">0</b> pengemudi melihat</span>
+            <span id="nearbyDriverIcons" class="nearby-icons-row"></span>
+        </div>
+
+        <div class="bs-header-row">
+            <h3 class="bs-title" id="bsTitle">Menawarkan tarif Anda</h3>
+            <span class="bs-timer" id="bsTimer">2:00</span>
+        </div>
+        <div class="bs-subtitle" id="bsSubtitle">Memberi tahu driver terdekat</div>
+        <div class="bs-progress-bar"><div class="bs-progress-fill" id="bsProgressFill"></div></div>
+
+        <div class="nego-row">
+            <button class="nego-btn" id="negoMinus">−</button>
+            <input type="number" id="negoInput" class="nego-input" placeholder="Rp 0" inputmode="numeric" />
+            <button class="nego-btn" id="negoPlus">+</button>
+        </div>
+        <div class="nego-label">Tarif yang direkomendasikan</div>
+        <div class="nego-info">
+            <span>💰 Rekomendasi: <strong id="labelRekomendasi">Rp 0</strong></span>
+            <span>Min: <strong id="minTawarLabel">Rp 0</strong></span>
+        </div>
+        <small class="nego-error" id="negoError" style="display:none;">Minimal <span id="minErrorVal2">0</span></small>
+
+        <button class="bs-confirm-btn" id="confirmBtn">Konfirmasi</button>
+
+        <!-- ⬇️ BARU: Tombol "Cari lagi" (muncul saat timer habis) -->
+        <button class="bs-confirm-btn" id="retryBtn" style="display:none; background:#FF9800;">🔍 Cari lagi</button>
+
+        <!-- Cancel button — muncul saat expanded -->
+        <button class="bs-cancel-btn" id="cancelBtn">Batalkan permintaan</button>
+    </div>
 </div>
 
-<!-- TOMBOL CONFIRM / CARI DRIVER (TETAP DI LUAR) -->
-<button class="confirm-btn" id="confirmBtn" disabled>📍 Konfirmasi Rute</button>
-
+<!-- RADAR -->
 <div class="radar" id="radar"></div>
 
+<!-- POPUP -->
 <div class="popup-overlay" id="popupOverlay">
     <div class="popup">
         <div class="popup-header"><h3 id="popupTitle">Pemberitahuan</h3></div>
@@ -238,11 +264,9 @@
     </div>
 </div>
 
-<!-- ==================== SCRIPT TAMBAHAN UI ==================== -->
+<!-- SCRIPT TAMBAHAN UI -->
 <script>
     (function() {
-        console.log('🔧 UI tambahan: menu, swap, clear, via');
-
         const menuBtn = document.getElementById('menuBtn');
         const menuDropdown = document.getElementById('menuDropdown');
         const swapBtn = document.getElementById('swapBtn');
@@ -253,42 +277,31 @@
         const destInput = document.getElementById('destInput');
         const viaDivider = document.querySelector('.via-divider');
 
-        // Toggle menu
         menuBtn.addEventListener('click', function(e) {
             e.stopPropagation();
-            const isHidden = menuDropdown.style.display === 'none';
-            menuDropdown.style.display = isHidden ? 'block' : 'none';
+            menuDropdown.style.display = menuDropdown.style.display === 'none' ? 'block' : 'none';
         });
+        document.addEventListener('click', function() { menuDropdown.style.display = 'none'; });
 
-        document.addEventListener('click', function() {
-            menuDropdown.style.display = 'none';
-        });
-
-        // Menu: Tambah via
         document.getElementById('menuAddVia').addEventListener('click', function(e) {
             e.stopPropagation();
             menuDropdown.style.display = 'none';
             viaContainer.style.display = 'flex';
             viaContainer.classList.add('visible');
             if (viaDivider) viaDivider.style.display = 'block';
-            setTimeout(function() {
-                viaInput.click();
-            }, 300);
+            setTimeout(function() { viaInput.click(); }, 300);
         });
 
-        // Menu: Swap
         document.getElementById('menuSwap').addEventListener('click', function(e) {
             e.stopPropagation();
             menuDropdown.style.display = 'none';
             swapPickupDestination();
         });
-
         swapBtn.addEventListener('click', function(e) {
             e.stopPropagation();
             swapPickupDestination();
         });
 
-        // Menu: Clear
         document.getElementById('menuClear').addEventListener('click', function(e) {
             e.stopPropagation();
             menuDropdown.style.display = 'none';
@@ -296,32 +309,21 @@
         });
 
         function swapPickupDestination() {
-            const pickupVal = pickupInput.value;
-            const destVal = destInput.value;
+            const pickupVal = pickupInput.value, destVal = destInput.value;
             pickupInput.value = destVal;
             destInput.value = pickupVal;
-
             if (window.pickupCoord && window.destCoord) {
-                const tempCoord = window.pickupCoord;
-                window.pickupCoord = window.destCoord;
-                window.destCoord = tempCoord;
+                const t = window.pickupCoord; window.pickupCoord = window.destCoord; window.destCoord = t;
             }
             if (window.pickupAddress && window.destAddress) {
-                const tempAddr = window.pickupAddress;
-                window.pickupAddress = window.destAddress;
-                window.destAddress = tempAddr;
+                const t = window.pickupAddress; window.pickupAddress = window.destAddress; window.destAddress = t;
             }
-
             if (typeof updateMarkers === 'function') updateMarkers();
             if (typeof updateRoute === 'function') updateRoute();
-            showToast('🔄 Asal & tujuan ditukar', 'info');
+            if (typeof showToast === 'function') showToast('🔄 Asal & tujuan ditukar', 'info');
         }
 
         function clearAllAddresses() {
-            const routeDetails = document.getElementById('routeDetails');
-            const confirmBtn = document.getElementById('confirmBtn');
-            const cancelBtn = document.getElementById('cancelBtn');
-
             pickupInput.value = '';
             destInput.value = '';
             viaInput.value = '';
@@ -329,91 +331,32 @@
             viaContainer.classList.remove('visible');
             if (viaDivider) viaDivider.style.display = 'none';
             clearViaBtn.style.display = 'none';
-
-            if (window.pickupCoord) window.pickupCoord = null;
-            if (window.destCoord) window.destCoord = null;
-            if (window.viaCoord) window.viaCoord = null;
-            if (window.pickupAddress) window.pickupAddress = '';
-            if (window.destAddress) window.destAddress = '';
-            if (window.viaAddress) window.viaAddress = '';
-
+            window.pickupCoord = null;
+            window.destCoord = null;
+            window.viaCoord = null;
             if (window.pickupMarker) { window.pickupMarker.setMap(null); window.pickupMarker = null; }
             if (window.destMarker) { window.destMarker.setMap(null); window.destMarker = null; }
             if (window.viaMarker) { window.viaMarker.setMap(null); window.viaMarker = null; }
-
-            if (window.directionsRenderer) {
-                window.directionsRenderer.setMap(null);
-                window.directionsRenderer = null;
-            }
-            if (window.routePolyline) {
-                window.routePolyline.setMap(null);
-                window.routePolyline = null;
-            }
-
-            if (routeDetails) routeDetails.style.display = 'none';
-            if (confirmBtn) confirmBtn.disabled = true;
-            if (cancelBtn) cancelBtn.classList.remove('show');
-
-            document.getElementById('negoInput').value = '';
-            document.getElementById('labelRekomendasi').innerText = 'Rp 0';
-            document.getElementById('labelTawaran').innerText = 'Rp 0';
-
-            window.currentRoute = null;
-            showToast('🧹 Semua alamat dibersihkan', 'info');
+            if (window.directionsRenderer) { window.directionsRenderer.setMap(null); window.directionsRenderer = null; }
+            const bsBtn = document.getElementById('bsSearchBtn');
+            if (bsBtn) bsBtn.disabled = true;
+            const priceCard = document.getElementById('pickerPriceCard');
+            if (priceCard) priceCard.style.display = 'none';
+            if (typeof showToast === 'function') showToast('🧹 Semua alamat dibersihkan', 'info');
         }
 
-        // Tombol hapus via
         clearViaBtn.addEventListener('click', function(e) {
             e.stopPropagation();
             viaInput.value = '';
             window.viaCoord = null;
-            window.viaAddress = '';
-            if (window.viaMarker) {
-                window.viaMarker.setMap(null);
-                window.viaMarker = null;
-            }
+            if (window.viaMarker) { window.viaMarker.setMap(null); window.viaMarker = null; }
             viaContainer.style.display = 'none';
             viaContainer.classList.remove('visible');
             if (viaDivider) viaDivider.style.display = 'none';
             this.style.display = 'none';
-            if (window.pickupCoord && window.destCoord && typeof updateRoute === 'function') {
-                updateRoute();
-            }
-            showToast('🗑️ Titik perhentian dihapus', 'info');
+            if (window.pickupCoord && window.destCoord && typeof updateRoute === 'function') updateRoute();
+            if (typeof updatePickerAddresses === 'function') updatePickerAddresses();
         });
-
-        // Observer via untuk toggle divider & clear button
-        const viaObserver = new MutationObserver(function() {
-            const val = viaInput.value.trim();
-            if (val !== '') {
-                viaContainer.style.display = 'flex';
-                viaContainer.classList.add('visible');
-                if (viaDivider) viaDivider.style.display = 'block';
-                clearViaBtn.style.display = 'block';
-            } else {
-                clearViaBtn.style.display = 'none';
-            }
-        });
-        viaObserver.observe(viaInput, { attributes: true, attributeFilter: ['value'] });
-
-        // Observer routeDetails untuk vehicle overlay
-        const routeDetails = document.getElementById('routeDetails');
-        const routeObserver = new MutationObserver(function() {
-            if (routeDetails.style.display === 'block' || routeDetails.style.display === '') {
-                if (!window._vehicleShown) {
-                    if (typeof openVehicleOverlay === 'function') {
-                        const vehicleName = document.getElementById('currentVehicleName');
-                        if (vehicleName && (vehicleName.innerText === '-' || vehicleName.innerText === '')) {
-                            openVehicleOverlay();
-                            window._vehicleShown = true;
-                        }
-                    }
-                }
-            }
-        });
-        routeObserver.observe(routeDetails, { attributes: true, attributeFilter: ['style'] });
-
-        console.log('✅ UI menu dan fungsi tambahan siap');
     })();
 </script>
 
