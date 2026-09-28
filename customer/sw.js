@@ -13,13 +13,38 @@ const RUNTIME_CACHE = 'jego-runtime-v1';
 
 // File yang WAJIB ada supaya app bisa jalan offline
 const APP_SHELL = [
+    // Root & halaman utama
     './',
-    './rute.html',
-    './rute.css',
-    './rute.js'
-   './jenis_kenderaan.html'
-'./loginuser.html'
+    './loginuser.html',
+    './registrasi_jego.html',
+    './jenis_kenderaan.html',
 
+    // Rute penumpang
+    './rute1.html',
+    './rute1.css',
+    './rute1.js',
+
+    // Rute kurir
+    './rute_kurir.html',
+    './rute_kurir.css',
+    './rute_kurir.js',
+
+    // Tracking & akun
+    './tracking_customer.html',
+    './userAccount.html',
+    './riwayatUser.html',
+
+    // Promo & informasi
+    './bannerPromo.html',
+    './programReferral.html',
+    './perlindungancustomer.html',
+
+    // Pembayaran & dukungan
+    './jepay.html',
+    './customer_refund.html',
+    './cs_jego.html',
+    './live_chat.html',
+    './chat_bot.html'
 ];
 
 // ============================================================
