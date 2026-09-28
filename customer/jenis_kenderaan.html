@@ -1217,7 +1217,7 @@
             navHome.classList.remove('active');
         }
         navHome.addEventListener('click', () => {
-            if (currentPath !== 'jenis_kenderaan.html' && currentPath !== '') {
+    if (currentPath !== 'jenis_kenderaan.html' && currentPath !== '') {
                 window.location.href = 'jenis_kenderaan.html';
             }
         });
@@ -1257,8 +1257,8 @@
                 } else if (link === 'referral') {
                     window.location.href = 'programReferral.html';
                 } else if (link === 'help') {
-                    window.location.href = 'cs_jego.html';
-                } else if (link === 'about') {
+    window.location.href = 'cs_jego.html';
+} else if (link === 'about') {
                     showCustomPopup(
                         'Tentang JeGo',
                         'JeGo v1.0 - Aplikasi transportasi & ekspedisi.',
@@ -2146,8 +2146,47 @@
         logStep('🚀', '[INIT] memanggil initDarkMode()...');
         initDarkMode();
 
-        logStep('🚀', '==================== INIT SELESAI ====================');
+                logStep('🚀', '==================== INIT SELESAI ====================');
     };
+</script>
+
+<!-- ==================== SERVICE WORKER REGISTRATION ==================== -->
+<script>
+(function() {
+    if (!('serviceWorker' in navigator)) {
+        console.log('⚠️ Service Worker tidak didukung browser ini');
+        return;
+    }
+
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js')
+            .then((reg) => {
+                console.log('✅ Service Worker terdaftar:', reg.scope);
+
+                reg.addEventListener('updatefound', () => {
+                    const newWorker = reg.installing;
+                    if (!newWorker) return;
+                    newWorker.addEventListener('statechange', () => {
+                        if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                            console.log('🔄 Update tersedia, aktifkan...');
+                            newWorker.postMessage({ type: 'SKIP_WAITING' });
+                        }
+                    });
+                });
+            })
+            .catch((err) => {
+                console.error('❌ Service Worker gagal:', err);
+            });
+
+        let refreshing = false;
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+            if (refreshing) return;
+            refreshing = true;
+            console.log('🔃 Reload karena SW baru aktif');
+            window.location.reload();
+        });
+    });
+})();
 </script>
 </body>
 </html>
