@@ -8,7 +8,7 @@
      - Google Maps API calls          → Network-only
    ============================================================ */
 
-const CACHE_NAME = 'jego-shell-v1';   // ⬅️ Naikkan versi saat update
+const CACHE_NAME = 'jego-shell-v2';   // ⬅️ Naikkan versi saat update
 const RUNTIME_CACHE = 'jego-runtime-v1';
 
 // File yang WAJIB ada supaya app bisa jalan offline
