@@ -13,38 +13,59 @@ const RUNTIME_CACHE = 'jego-runtime-v1';
 
 // File yang WAJIB ada supaya app bisa jalan offline
 const APP_SHELL = [
-    // Root & halaman utama
+    // Root & entry
     './',
-    './loginuser.html',
-    './registrasi_jego.html',
-    './jenis_kenderaan.html',
+    './index.html',
+    './loginDriver.html',
+    './PendaftaranDriver.html',
+    './Status_pending.html',
+    './verifikasi_driver.html',
+    './pilih_peran.html',
+    './peran.html',
+    './lengkapiData.html',
 
-    // Rute penumpang
-    './rute1.html',
-    './rute1.css',
-    './rute1.js',
+    // Halaman utama driver
+    './orderaccepted.html',
+    './GantiLayanan.html',
+    './documents.html',
+    './payment.html',
+    './pendapatan.html',
+    './historydeposit.html',
 
-    // Rute kurir
-    './rute_kurir.html',
-    './rute_kurir.css',
-    './rute_kurir.js',
+    // Akun & pengaturan
+    './akun.html',
+    './pengaturandr.html',
+    './notifikasi.html',
+    './editorLegal.html',
 
-    // Tracking & akun
-    './tracking_customer.html',
-    './userAccount.html',
-    './riwayatUser.html',
+    // Riwayat & statistik
+    './riwayat.html',
+    './statistik.html',
+    './penilaianLayanan.html',
+    './feedback.html',
+    './sanski_driver.html',
+    './kompensasi.html',
+    './penjelasan_prioritas.html',
 
-    // Promo & informasi
-    './bannerPromo.html',
-    './programReferral.html',
-    './perlindungancustomer.html',
+    // Hapus akun
+    './hapus_akun.html',
+    './delete_account.html',
+    './delete_driver_account.html',
 
-    // Pembayaran & dukungan
-    './jepay.html',
-    './customer_refund.html',
-    './cs_jego.html',
-    './live_chat.html',
-    './chat_bot.html'
+    // Perlindungan & kebijakan
+    './perlindunganDriver.html',
+    './ketentuan.html',
+    './privasi.html',
+    './lisensi.html',
+    './kebijakanUlasan.html',
+
+    // Syarat & ketentuan per layanan
+    './terms-umum.html',
+    './terms-motor.html',
+    './terms-mobil.html',
+    './terms-bentor.html',
+    './terms-kurir-motor.html',
+    './terms-kurir-bentor.html'
 ];
 
 // ============================================================
