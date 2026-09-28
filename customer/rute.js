@@ -49,45 +49,16 @@ let pickFromMapActive = false;
 let searchTimeout = null;
 let minAllowedNego = 0;
 let mapIdleTimer = null;
-let negoBaselinePrice = 0;
 
 // Timer bidding (2 menit)
 let bsTimerInterval = null;
 let bsTimerSecondsLeft = 120;
-const BS_TIMER_DURATION = 120;
-
-// Rotating title (tidak dipakai — judul statis)
-let bsTitleRotationInterval = null;
-let bsTitleIndex = 0;
-const BS_TITLE_MESSAGES = [
-    'Menawarkan tarif Anda',
-    'Mencari Driver terdekat',
-    'Menunggu respons driver',
-    'Menghubungi driver terdekat',
-    'Sedang mencari pengemudi',
-    'Menunggu driver menerima pesanan'
-];
-const BS_SUBTITLE_MESSAGES = [
-    'Memberi tahu driver terdekat',
-    'Menghubungi pengemudi sekitar',
-    'Mengirim permintaan ke driver',
-    'Menunggu konfirmasi driver',
-    'Mencari pengemudi terbaik',
-    'Menunggu driver menerima pesanan'
-];
-
-// Hash untuk skip re-render offers list
-let _lastOffersHash = '';
-
-// Cache card per driver agar update in-place (anti kedip)
-let _offerCardMap = {};
-
-// RAF handler untuk batch update label nego (legacy — tidak dipakai lagi)
-let _negoLabelRAF = null;
+const BS_TIMER_DURATION = 120;  // 2 menit = 120 detik
 
 // Data kendaraan
 let transportData = {};
 let tariffRates = {};
+// ⬇️ HANYA 3 KENDARAAN (kurir dihilangkan)
 const transportNameMapping = {
     'Motor': 'motor',
     'JeGo Ride': 'motor',
@@ -158,14 +129,6 @@ const darkMapStyle = [
     { featureType: "water", elementType: "labels.text.fill", stylers: [{ color: "#515c6d" }] },
     { featureType: "water", elementType: "labels.text.stroke", stylers: [{ color: "#17263c" }] }
 ];
-
-// ==================== HELPER: SET TEXT HANYA KALAU BERUBAH ====================
-function setTextIfChanged(el, text) {
-    if (el && el.textContent !== text) el.textContent = text;
-}
-function setInnerTextIfChanged(el, text) {
-    if (el && el.textContent !== text) el.textContent = text;
-}
 
 // ==================== LOAD GOOGLE MAPS ====================
 function loadGoogleMaps(apiKey) {
@@ -333,20 +296,11 @@ function hitungMinTawaran(hargaAsli) {
 // ==================== TAMPILKAN ADDRESS CARD ====================
 function showAddressCard() {
     const card = document.getElementById('addressCard');
-    if (card && card.style.display === 'none') card.style.display = '';
+    if (card) card.style.display = '';
 }
 
 // ==================== TIMER BIDDING (2 MENIT) ====================
 function startBiddingTimer() {
-    if (bsTimerInterval) {
-        const confirmBtn = document.getElementById('confirmBtn');
-        const retryBtn = document.getElementById('retryBtn');
-        if (confirmBtn && confirmBtn.style.display === 'none') confirmBtn.style.display = '';
-        if (retryBtn && retryBtn.style.display !== 'none') retryBtn.style.display = 'none';
-        console.log('⏱️ Timer sudah berjalan, skip restart');
-        return;
-    }
-
     clearBiddingTimer();
     bsTimerSecondsLeft = BS_TIMER_DURATION;
 
@@ -355,15 +309,15 @@ function startBiddingTimer() {
     const confirmBtn = document.getElementById('confirmBtn');
     const retryBtn = document.getElementById('retryBtn');
 
-    if (confirmBtn && confirmBtn.style.display === 'none') confirmBtn.style.display = '';
-    if (retryBtn && retryBtn.style.display !== 'none') retryBtn.style.display = 'none';
+    // Pastikan tombol konfirmasi terlihat & retry tersembunyi
+    if (confirmBtn) confirmBtn.style.display = '';
+    if (retryBtn) retryBtn.style.display = 'none';
 
     function updateDisplay() {
-        setTextIfChanged(timerEl, formatTimer(bsTimerSecondsLeft));
+        if (timerEl) timerEl.textContent = formatTimer(bsTimerSecondsLeft);
         if (progressEl) {
             const pct = (bsTimerSecondsLeft / BS_TIMER_DURATION) * 100;
-            const newWidth = pct + '%';
-            if (progressEl.style.width !== newWidth) progressEl.style.width = newWidth;
+            progressEl.style.width = pct + '%';
         }
     }
 
@@ -390,12 +344,12 @@ function clearBiddingTimer() {
         bsTimerInterval = null;
         console.log('⏱️ Timer bidding dihentikan');
     }
-    stopTitleRotation();
 }
 
 async function onBiddingTimeout() {
     console.log('⏰ Waktu bidding habis');
 
+    // Tandai order sebagai timeout (supaya driver berhenti mencari)
     if (currentOrderId) {
         try {
             await database.ref(`orders/${currentOrderId}`).update({
@@ -407,10 +361,11 @@ async function onBiddingTimeout() {
         }
     }
 
+    // Sembunyikan tombol konfirmasi, tampilkan tombol "Cari lagi"
     const confirmBtn = document.getElementById('confirmBtn');
     const retryBtn = document.getElementById('retryBtn');
-    if (confirmBtn && confirmBtn.style.display !== 'none') confirmBtn.style.display = 'none';
-    if (retryBtn && retryBtn.style.display !== 'block') retryBtn.style.display = 'block';
+    if (confirmBtn) confirmBtn.style.display = 'none';
+    if (retryBtn) retryBtn.style.display = 'block';
 
     showToast('⏰ Waktu habis. Klik "Cari lagi" untuk mencari driver.', 'error');
 }
@@ -420,60 +375,11 @@ function resetBiddingUI() {
     const progressEl = document.getElementById('bsProgressFill');
     const confirmBtn = document.getElementById('confirmBtn');
     const retryBtn = document.getElementById('retryBtn');
-    setTextIfChanged(timerEl, formatTimer(BS_TIMER_DURATION));
-    if (progressEl && progressEl.style.width !== '100%') progressEl.style.width = '100%';
-    if (confirmBtn && confirmBtn.style.display === 'none') confirmBtn.style.display = '';
-    if (retryBtn && retryBtn.style.display !== 'none') retryBtn.style.display = 'none';
+    if (timerEl) timerEl.textContent = formatTimer(BS_TIMER_DURATION);
+    if (progressEl) progressEl.style.width = '100%';
+    if (confirmBtn) confirmBtn.style.display = '';
+    if (retryBtn) retryBtn.style.display = 'none';
     bsTimerSecondsLeft = BS_TIMER_DURATION;
-}
-
-// ==================== ROTATING TITLE (tidak dipakai) ====================
-function startTitleRotation() {
-    stopTitleRotation();
-    bsTitleIndex = 0;
-
-    const titleEl = document.getElementById('bsTitle');
-    const subtitleEl = document.getElementById('bsSubtitle');
-
-    if (titleEl) {
-        titleEl.style.transition = 'opacity 0.3s ease';
-        titleEl.style.opacity = '1';
-    }
-
-    function showFirst() {
-        const idx = bsTitleIndex % BS_TITLE_MESSAGES.length;
-        if (titleEl) {
-            titleEl.style.opacity = '1';
-            titleEl.textContent = BS_TITLE_MESSAGES[idx];
-        }
-        if (subtitleEl) subtitleEl.textContent = BS_SUBTITLE_MESSAGES[idx];
-        bsTitleIndex++;
-    }
-
-    function rotate() {
-        const idx = bsTitleIndex % BS_TITLE_MESSAGES.length;
-        if (titleEl) {
-            titleEl.style.opacity = '0';
-            setTimeout(() => {
-                titleEl.textContent = BS_TITLE_MESSAGES[idx];
-                titleEl.style.opacity = '1';
-            }, 300);
-        }
-        if (subtitleEl) subtitleEl.textContent = BS_SUBTITLE_MESSAGES[idx];
-        bsTitleIndex++;
-    }
-
-    showFirst();
-    bsTitleRotationInterval = setInterval(rotate, 4000);
-    console.log('🔄 Rotating title dimulai');
-}
-
-function stopTitleRotation() {
-    if (bsTitleRotationInterval) {
-        clearInterval(bsTitleRotationInterval);
-        bsTitleRotationInterval = null;
-    }
-    bsTitleIndex = 0;
 }
 
 // ==================== BOTTOM SHEET DRAG ====================
@@ -581,7 +487,8 @@ function switchToPickerMode() {
     sheet.classList.remove('mode-bidding');
     document.body.classList.remove('mode-bidding');
     const addrCard = document.getElementById('addressCard');
-    if (addrCard && addrCard.style.display === 'none') addrCard.style.display = '';
+    if (addrCard) addrCard.style.display = '';
+    // Reset tampilan bidding
     resetBiddingUI();
 }
 
@@ -589,29 +496,25 @@ function switchToBiddingMode() {
     const sheet = document.getElementById('bottomSheet');
     if (!sheet) return;
 
+    // Cek apakah SEBELUMNYA sudah dalam mode bidding
     const wasBidding = sheet.classList.contains('mode-bidding');
 
-    if (!wasBidding) {
-        sheet.classList.remove('expanded');
-    }
-
+    sheet.classList.remove('expanded');
     sheet.classList.add('mode-bidding');
     document.body.classList.add('mode-bidding');
     const addrCard = document.getElementById('addressCard');
-    if (addrCard && addrCard.style.display !== 'none') addrCard.style.display = 'none';
+    if (addrCard) addrCard.style.display = 'none';
 
+    // Sync harga dari picker → negoInput HANYA saat transisi picker → bidding
+    // (kalau sudah bidding, JANGAN sync, agar harga yang diubah user via +/− tidak ke-reset)
     if (!wasBidding) {
         const pickerOffer = document.getElementById('pickerOfferInput');
         const negoInput   = document.getElementById('negoInput');
         if (pickerOffer && negoInput && pickerOffer.value) {
-            if (negoInput.value !== pickerOffer.value) {
-                negoInput.value = pickerOffer.value;
-            }
+            negoInput.value = pickerOffer.value;
             negoInput.dispatchEvent(new Event('input'));
         }
     }
-
-    updateBiddingAddresses();
 }
 
 function updatePickerVehicleCard() {
@@ -620,16 +523,10 @@ function updatePickerVehicleCard() {
     const nameEl = document.getElementById('pickerVehicleName');
     const capEl = document.getElementById('pickerVehicleCap');
     const descEl = document.getElementById('pickerVehicleDesc');
-
-    const newIcon = t.icon || 'https://cdn-icons-png.flaticon.com/128/5811/5811823.png';
-    const newName = t.name || 'Motor';
-    const newCap  = '👤 ' + (t.capacity || '1 Penumpang');
-    const newDesc = t.description || 'Tanpa macet, harga hemat';
-
-    if (iconEl && iconEl.getAttribute('src') !== newIcon) iconEl.src = newIcon;
-    setTextIfChanged(nameEl, newName);
-    setTextIfChanged(capEl, newCap);
-    setTextIfChanged(descEl, newDesc);
+    if (iconEl) iconEl.src = t.icon || 'https://cdn-icons-png.flaticon.com/128/5811/5811823.png';
+    if (nameEl) nameEl.textContent = t.name || 'Motor';
+    if (capEl) capEl.textContent = '👤 ' + (t.capacity || '1 Penumpang');
+    if (descEl) descEl.textContent = t.description || 'Tanpa macet, harga hemat';
 }
 
 // ==================== UPDATE PICKER PRICE ====================
@@ -638,30 +535,29 @@ function updatePickerPrice() {
     const priceVal   = document.getElementById('pickerPriceValue');
     const minVal     = document.getElementById('pickerMinPriceValue');
     const offerInput = document.getElementById('pickerOfferInput');
-    const autoAcceptPrice  = document.getElementById('autoAcceptPrice');
-    const autoAcceptPrice2 = document.getElementById('autoAcceptPrice2');
+    const autoAcceptPrice = document.getElementById('autoAcceptPrice');
     if (!card || !priceVal || !minVal) return;
 
     if (currentRoute && currentRoute.price > 0) {
-        if (card.style.display !== 'block') card.style.display = 'block';
+        card.style.display = 'block';
+        priceVal.textContent = formatRupiah(currentRoute.price);
 
-        setTextIfChanged(priceVal, formatRupiah(currentRoute.price));
-        setInnerTextIfChanged(autoAcceptPrice,  formatRupiah(currentRoute.price));
-        setInnerTextIfChanged(autoAcceptPrice2, formatRupiah(currentRoute.price));
+        // ⬇️ Update label harga auto-accept juga
+        if (autoAcceptPrice) autoAcceptPrice.innerText = formatRupiah(currentRoute.price);
 
         const minAllowed = hitungMinTawaran(currentRoute.price);
         minAllowedNego = minAllowed;
-        setTextIfChanged(minVal, formatRupiah(minAllowed));
+        minVal.textContent = formatRupiah(minAllowed);
 
         if (offerInput) {
             if (!offerInput.value || parseInt(offerInput.value) <= 0) {
                 offerInput.value = currentRoute.price;
                 currentPrice = currentRoute.price;
             }
-            if (offerInput.min !== String(minAllowed)) offerInput.min = minAllowed;
+            offerInput.min = minAllowed;
         }
     } else {
-        if (card.style.display !== 'none') card.style.display = 'none';
+        card.style.display = 'none';
     }
 }
 
@@ -672,82 +568,26 @@ function updatePickerAddresses() {
     const vRow  = document.getElementById('pickerViaRow');
     const durEl = document.getElementById('pickerDuration');
 
-    setTextIfChanged(pText, pickupAddress || '-');
-    setTextIfChanged(dText, destAddress || '-');
+    if (pText) pText.textContent = pickupAddress || '-';
+    if (dText) dText.textContent = destAddress || '-';
 
     if (vRow && vText) {
         if (viaAddress && viaCoord) {
-            setTextIfChanged(vText, viaAddress);
-            if (vRow.style.display !== 'flex') vRow.style.display = 'flex';
+            vText.textContent = viaAddress;
+            vRow.style.display = 'flex';
         } else {
-            setTextIfChanged(vText, '-');
-            if (vRow.style.display !== 'none') vRow.style.display = 'none';
+            vText.textContent = '-';
+            vRow.style.display = 'none';
         }
     }
 
     if (durEl && currentRoute) {
-        setTextIfChanged(durEl, '~ ' + Math.round(currentRoute.duration / 60) + ' mnt');
+        durEl.textContent = '~ ' + Math.round(currentRoute.duration / 60) + ' mnt';
     }
     updatePickerPrice();
-    updateBiddingAddresses();
 }
 
-// ==================== UPDATE BIDDING ADDRESSES ====================
-function updateBiddingAddresses() {
-    const pText = document.getElementById('biddingPickupText');
-    const dText = document.getElementById('biddingDestText');
-    const vText = document.getElementById('biddingViaText');
-    const vRow  = document.getElementById('biddingViaRow');
-
-    setTextIfChanged(pText, pickupAddress || '-');
-    setTextIfChanged(dText, destAddress || '-');
-
-    if (vRow && vText) {
-        if (viaAddress && viaCoord) {
-            setTextIfChanged(vText, viaAddress);
-            if (vRow.style.display !== 'flex') vRow.style.display = 'flex';
-        } else {
-            setTextIfChanged(vText, '-');
-            if (vRow.style.display !== 'none') vRow.style.display = 'none';
-        }
-    }
-}
-
-// ==================== AUTO-ACCEPT TOGGLE SYNC ====================
-function getAutoAcceptState() {
-    const t1 = document.getElementById('autoAcceptToggle');
-    const t2 = document.getElementById('autoAcceptToggle2');
-    return (t1 && t1.checked) || (t2 && t2.checked) || false;
-}
-
-function setAutoAcceptState(value) {
-    const t1 = document.getElementById('autoAcceptToggle');
-    const t2 = document.getElementById('autoAcceptToggle2');
-    if (t1) t1.checked = value;
-    if (t2) t2.checked = value;
-}
-
-function bindAutoAcceptToggles() {
-    const t1 = document.getElementById('autoAcceptToggle');
-    const t2 = document.getElementById('autoAcceptToggle2');
-
-    if (t1) {
-        t1.addEventListener('change', () => {
-            setAutoAcceptState(t1.checked);
-            showToast(t1.checked ? '✅ Terima driver otomatis: ON' : '❌ Terima driver otomatis: OFF',
-                      t1.checked ? 'success' : 'info');
-        });
-    }
-    if (t2) {
-        t2.addEventListener('change', () => {
-            setAutoAcceptState(t2.checked);
-            showToast(t2.checked ? '✅ Terima driver otomatis: ON' : '❌ Terima driver otomatis: OFF',
-                      t2.checked ? 'success' : 'info');
-        });
-    }
-}
-
-// ==================== NEARBY DRIVERS (dimatikan) ====================
+// ==================== NEARBY DRIVERS ====================
 function startShowingNearbyDrivers(pickupLat, pickupLng, radiusKm = 3) {
     console.log(`📡 [NearbyDrivers] Mulai memantau via geohash, radius ${radiusKm}km`);
     stopShowingNearbyDrivers();
@@ -821,23 +661,16 @@ async function renderNearbyDriversFromGeohash(pickupLat, pickupLng, radiusKm) {
 }
 
 function renderNearbyDrivers(drivers) {
-    const section = document.getElementById('nearbySection');
     const countEl = document.getElementById('nearbyDriverCount');
     const iconsRow = document.getElementById('nearbyDriverIcons');
     if (!iconsRow || !countEl) return;
 
-    const shouldHide = drivers.length === 0;
-    const isCurrentlyHidden = section && section.style.display === 'none';
+    countEl.textContent = drivers.length;
 
-    if (shouldHide) {
-        if (section && !isCurrentlyHidden) section.style.display = 'none';
-        setTextIfChanged(countEl, '0');
-        if (iconsRow.innerHTML !== '') iconsRow.innerHTML = '';
+    if (drivers.length === 0) {
+        iconsRow.innerHTML = '<div class="nearby-empty">🚫 Belum ada pengemudi</div>';
         return;
     }
-
-    if (section && isCurrentlyHidden) section.style.display = 'flex';
-    setTextIfChanged(countEl, String(drivers.length));
 
     const MAX_ICONS = 5;
     const shown = drivers.slice(0, MAX_ICONS);
@@ -852,9 +685,7 @@ function renderNearbyDrivers(drivers) {
         html += `<div class="nearby-driver-icon more-indicator" title="${remaining} lainnya">+${remaining}</div>`;
     }
 
-    if (iconsRow.innerHTML !== html) {
-        iconsRow.innerHTML = html;
-    }
+    iconsRow.innerHTML = html;
 }
 
 function stopShowingNearbyDrivers() {
@@ -876,37 +707,28 @@ function smoothZoomTo(targetLat, targetLng, targetZoom, duration = 1000, callbac
         return;
     }
 
+    // Pindahkan pusat peta dulu (instant)
     map.setCenter({ lat: targetLat, lng: targetLng });
 
     const startZoom = map.getZoom();
-    const zoomDelta = targetZoom - startZoom;
-
-    if (Math.abs(zoomDelta) < 0.01) {
+    if (startZoom === targetZoom) {
         if (callback) callback();
         return;
     }
 
-    const startTime = performance.now();
+    const totalSteps = Math.abs(targetZoom - startZoom);
+    const stepDuration = Math.max(50, duration / totalSteps);
+    const direction = targetZoom > startZoom ? 1 : -1;
+    let current = startZoom;
 
-    function step(now) {
-        const elapsed = now - startTime;
-        const t = Math.min(elapsed / duration, 1);
-
-        const eased = t < 0.5
-            ? 4 * t * t * t
-            : 1 - Math.pow(-2 * t + 2, 3) / 2;
-
-        const currentZoom = startZoom + zoomDelta * eased;
-        map.setZoom(currentZoom);
-
-        if (t < 1) {
-            requestAnimationFrame(step);
-        } else {
+    const interval = setInterval(() => {
+        current += direction;
+        map.setZoom(current);
+        if (current === targetZoom) {
+            clearInterval(interval);
             if (callback) callback();
         }
-    }
-
-    requestAnimationFrame(step);
+    }, stepDuration);
 }
 
 // ==================== SEARCH HISTORY ====================
@@ -963,20 +785,17 @@ function selectAddressFromHistory(address, lng, lat) {
 function initNegosiasi(originalPriceVal) {
     const minAllowed = hitungMinTawaran(originalPriceVal);
     minAllowedNego = minAllowed;
-    negoBaselinePrice = originalPriceVal;
 
     const input = document.getElementById('negoInput');
     const minTawarLabel = document.getElementById('minTawarLabel');
     const minErrorVal = document.getElementById('minErrorVal2');
     const labelRekomendasi = document.getElementById('labelRekomendasi');
-    const autoAcceptPrice  = document.getElementById('autoAcceptPrice');
-    const autoAcceptPrice2 = document.getElementById('autoAcceptPrice2');
+    const autoAcceptPrice = document.getElementById('autoAcceptPrice');
 
-    setInnerTextIfChanged(minTawarLabel,    formatRupiah(minAllowed));
-    setInnerTextIfChanged(minErrorVal,      formatRupiah(minAllowed));
-    setInnerTextIfChanged(labelRekomendasi, formatRupiah(originalPriceVal));
-    setInnerTextIfChanged(autoAcceptPrice,  formatRupiah(originalPriceVal));
-    setInnerTextIfChanged(autoAcceptPrice2, formatRupiah(originalPriceVal));
+    if (minTawarLabel) minTawarLabel.innerText = formatRupiah(minAllowed);
+    if (minErrorVal) minErrorVal.innerText = formatRupiah(minAllowed);
+    if (labelRekomendasi) labelRekomendasi.innerText = formatRupiah(originalPriceVal);
+    if (autoAcceptPrice) autoAcceptPrice.innerText = formatRupiah(originalPriceVal);
 
     if (input) {
         if (!input.value || parseInt(input.value) <= 0) {
@@ -996,62 +815,25 @@ function handleNegoInput() {
     const val = input.value.trim();
     const confirmBtn = document.getElementById('confirmBtn');
     const negoError = document.getElementById('negoError');
-    const negoMinus = document.getElementById('negoMinus');
-    const negoPlus  = document.getElementById('negoPlus');
 
-    // ===== Nilai kosong / invalid =====
     if (val === '' || isNaN(parseInt(val)) || parseInt(val) <= 0) {
         currentPrice = 0;
-        if (confirmBtn && !confirmBtn.disabled) confirmBtn.disabled = true;
-        if (negoMinus && !negoMinus.disabled) negoMinus.disabled = true;
-        if (negoError && negoError.classList.contains('visible')) {
-            negoError.classList.remove('visible');
-        }
+        if (confirmBtn) confirmBtn.disabled = true;
+        if (negoError) negoError.style.display = 'none';
         return;
     }
 
     const numVal = parseInt(val);
-
-    // ===== Error tampil =====
     if (numVal < minAllowedNego) {
-        if (negoError && !negoError.classList.contains('visible')) {
-            const minErrorVal = document.getElementById('minErrorVal2');
-            setInnerTextIfChanged(minErrorVal, formatRupiah(minAllowedNego));
-            negoError.classList.add('visible');
-        }
+        if (negoError) negoError.style.display = 'block';
+        const minErrorVal = document.getElementById('minErrorVal2');
+        if (minErrorVal) minErrorVal.innerText = formatRupiah(minAllowedNego);
     } else {
-        if (negoError && negoError.classList.contains('visible')) {
-            negoError.classList.remove('visible');
-        }
+        if (negoError) negoError.style.display = 'none';
     }
 
     currentPrice = numVal;
-
-    // Konfirmasi: enable HANYA jika harga BERUBAH dari baseline & valid
-    const isChanged = (numVal !== negoBaselinePrice);
-    const isValid   = (numVal >= minAllowedNego);
-    if (confirmBtn) {
-        const shouldDisable = !(isChanged && isValid);
-        if (confirmBtn.disabled !== shouldDisable) confirmBtn.disabled = shouldDisable;
-    }
-
-    // Tombol −: disable jika sudah di minimum
-    if (negoMinus) {
-        const shouldDisable = (numVal <= minAllowedNego);
-        if (negoMinus.disabled !== shouldDisable) negoMinus.disabled = shouldDisable;
-    }
-    // Tombol + selalu enabled
-    if (negoPlus && negoPlus.disabled) negoPlus.disabled = false;
-
-    // ⬇️ Update label autoAccept via RAF (label di bawah input)
-    if (_negoLabelRAF) cancelAnimationFrame(_negoLabelRAF);
-    _negoLabelRAF = requestAnimationFrame(() => {
-        _negoLabelRAF = null;
-        const autoAcceptPrice  = document.getElementById('autoAcceptPrice');
-        const autoAcceptPrice2 = document.getElementById('autoAcceptPrice2');
-        setInnerTextIfChanged(autoAcceptPrice,  formatRupiah(numVal));
-        setInnerTextIfChanged(autoAcceptPrice2, formatRupiah(numVal));
-    });
+    if (confirmBtn) confirmBtn.disabled = false;
 }
 
 // ==================== DARK MODE ====================
@@ -1113,7 +895,11 @@ async function loadWaitingOrderData() {
         transportIconUrl = getDriverIconUrl(transportType);
         initNegosiasi(currentPrice);
 
-        setAutoAcceptState(order.auto_accept === true);
+        // ⬇️ BARU: Restore status toggle auto-accept dari order
+        const autoAcceptToggle = document.getElementById('autoAcceptToggle');
+        if (autoAcceptToggle) {
+            autoAcceptToggle.checked = order.auto_accept === true;
+        }
 
         updatePickerAddresses();
         updatePickerVehicleCard();
@@ -1134,6 +920,7 @@ async function loadWaitingOrderData() {
             }
             await updateRoute();
         }
+        // Mulai timer
         startBiddingTimer();
         return true;
     } catch(err) { return false; }
@@ -1171,6 +958,7 @@ async function fetchTransportData() {
 }
 
 function loadFallbackData() {
+    // ⬇️ HANYA 3 KENDARAAN
     transportData = {
         motor: { name: "Motor", capacity: "1 Penumpang", description: "Tanpa macet, harga hemat", icon: "https://cdn-icons-png.flaticon.com/128/5811/5811823.png", minimalDistance: 4, minimalPrice: 10000 },
         bentor: { name: "Bentor", capacity: "2 Penumpang", description: "Khas Gorontalo", icon: "https://cdn-icons-png.flaticon.com/128/7890/7890227.png", minimalDistance: 4, minimalPrice: 11000 },
@@ -1184,6 +972,7 @@ function renderVehicleCards() {
     const container = document.getElementById('vehicleScroll');
     if (!container) return;
     container.innerHTML = '';
+    // ⬇️ HANYA 3 KENDARAAN
     const order = ['motor', 'bentor', 'mobil'];
     order.forEach(type => {
         const t = transportData[type];
@@ -1677,15 +1466,15 @@ async function updateRoute() {
 
         const price = calculatePrice(distanceMeters);
         currentPrice = price;
+        initNegosiasi(price);
 
         currentRoute = { distance: distanceMeters, duration: durationSeconds, price: price };
 
-        initNegosiasi(price);
         updatePickerAddresses();
         updatePickerVehicleCard();
 
         const bsBtn = document.getElementById('bsSearchBtn');
-        if (bsBtn && bsBtn.disabled) bsBtn.disabled = false;
+        if (bsBtn) bsBtn.disabled = false;
 
         const directionsRenderer = new google.maps.DirectionsRenderer({
             map: map,
@@ -1953,61 +1742,23 @@ function getDriverIconUrl(vehicleType) {
     return 'https://cdn-icons-png.flaticon.com/128/5811/5811823.png';
 }
 
-// ============================================================
-// ➕ getLatestOfferTimestamp() — UTILITY (BARU, opsional dipakai)
-// ============================================================
-// Mengembalikan timestamp (ms) penawaran terbaru yang sedang tampil.
-// Bergantung pada field `createdAt` di _offerCardMap (diisi di renderOffers).
-function getLatestOfferTimestamp() {
-    if (!_offerCardMap) return 0;
-    let latest = 0;
-    Object.values(_offerCardMap).forEach(card => {
-        if (card && card.createdAt && card.createdAt > latest) {
-            latest = card.createdAt;
-        }
-    });
-    return latest;
-}
-
 // ==================== ORDER & OFFERS ====================
 function renderOffers(offers) {
     const container = document.getElementById('driverOfferList');
     const offersOverlay = document.getElementById('driverOffers');
     if (!container) return;
-
+    
     const hasOffers = offers && Object.keys(offers).length > 0;
-
-    if (offersOverlay) {
-        if (hasOffers) {
-            if (!offersOverlay.classList.contains('active')) {
-                offersOverlay.classList.add('active');
-            }
-        } else {
-            if (offersOverlay.classList.contains('active')) {
-                offersOverlay.classList.remove('active');
-            }
-        }
-    }
-
+    
     if (!hasOffers) {
-        if (container.innerHTML !== '') container.innerHTML = '';
-        _offerCardMap = {};
-        _lastOffersHash = 'empty';
+        if (offersOverlay) offersOverlay.classList.remove('active');
+        container.innerHTML = '';
         return;
     }
-
-    const seen = new Set();
-
+    
+    if (offersOverlay) offersOverlay.classList.add('active');
+    container.innerHTML = '';
     Object.entries(offers).forEach(([driverId, offer]) => {
-        seen.add(driverId);
-
-        const cardHash = `${offer.status}|${offer.bid_price || 0}|${offer.driver_name || ''}|${offer.driver_photo || ''}|${offer.driver_type || ''}|${offer.driver_rating || ''}|${offer.driver_trips || ''}`;
-
-        const existing = _offerCardMap[driverId];
-        if (existing && existing.hash === cardHash && existing.el && existing.el.parentNode === container) {
-            return;
-        }
-
         const isProcessed = offer.status === 'accepted' || offer.status === 'rejected';
         let bidPriceText = '';
         if (offer.bid_price && offer.bid_price > 0 && offer.bid_requested === true) {
@@ -2018,7 +1769,9 @@ function renderOffers(offers) {
             ? offer.driver_photo
             : 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png';
 
-        const html = `
+        const card = document.createElement('div');
+        card.className = 'driver-offer-card';
+        card.innerHTML = `
             <div class="driver-info">
                 <img class="driver-photo" src="${photoUrl}">
                 <div class="driver-details">
@@ -2032,106 +1785,35 @@ function renderOffers(offers) {
                 ${!isProcessed ? `<button class="accept-btn" data-driver="${driverId}">✅ Terima</button><button class="reject-btn" data-driver="${driverId}">❌ Tolak</button>` : `<span style="font-size:0.8rem;">${offer.status === 'accepted' ? '✓ Diterima' : '✗ Ditolak'}</span>`}
             </div>
         `;
-
-        if (existing && existing.el && existing.el.parentNode === container) {
-            if (existing.el.innerHTML !== html) existing.el.innerHTML = html;
-            _offerCardMap[driverId] = {
-                el: existing.el,
-                hash: cardHash,
-                createdAt: existing.createdAt || Date.now(),
-                price: offer.bid_price
-            };
-        } else {
-            const cardEl = document.createElement('div');
-            cardEl.className = 'driver-offer-card';
-            cardEl.dataset.driverId = driverId;
-            cardEl.innerHTML = html;
-            container.appendChild(cardEl);
-            // ➕ Simpan createdAt untuk getLatestOfferTimestamp()
-            _offerCardMap[driverId] = {
-                el: cardEl,
-                hash: cardHash,
-                createdAt: Date.now(),
-                price: offer.bid_price
-            };
-        }
+        container.appendChild(card);
     });
+    document.querySelectorAll('.accept-btn').forEach(btn => btn.addEventListener('click', () => acceptOffer(btn.getAttribute('data-driver'))));
+    document.querySelectorAll('.reject-btn').forEach(btn => btn.addEventListener('click', () => rejectOffer(btn.getAttribute('data-driver'))));
 
-    Object.keys(_offerCardMap).forEach(driverId => {
-        if (!seen.has(driverId)) {
-            const entry = _offerCardMap[driverId];
-            if (entry && entry.el && entry.el.parentNode) {
-                entry.el.parentNode.removeChild(entry.el);
-            }
-            delete _offerCardMap[driverId];
-        }
-    });
+    // ⬇️ BARU: Auto-accept driver pertama jika toggle ON
+    const autoAcceptToggle = document.getElementById('autoAcceptToggle');
+    if (!autoAcceptToggle || !autoAcceptToggle.checked) return;
+    if (!offers || !currentOrderId) return;
 
-    container.querySelectorAll('.accept-btn').forEach(btn => {
-        if (btn.dataset.bound === '1') return;
-        btn.dataset.bound = '1';
-        btn.addEventListener('click', () => acceptOffer(btn.getAttribute('data-driver')));
-    });
-    container.querySelectorAll('.reject-btn').forEach(btn => {
-        if (btn.dataset.bound === '1') return;
-        btn.dataset.bound = '1';
-        btn.addEventListener('click', () => rejectOffer(btn.getAttribute('data-driver')));
-    });
-
-    if (!getAutoAcceptState()) return;
-    if (!currentOrderId) return;
-
+    // Cari driver pertama yang statusnya 'offered' dan belum dalam proses auto-accept
     const candidate = Object.entries(offers).find(([driverId, offer]) => {
         return offer.status === 'offered' && offer.auto_accepting !== true;
     });
 
     if (!candidate) return;
 
-    const [driverId] = candidate;
+    const [driverId, offer] = candidate;
 
-    setTimeout(() => {
-        database.ref(`orders/${currentOrderId}/driver_offers/${driverId}/auto_accepting`).set(true)
-            .then(() => {
-                console.log('🤖 Auto-accept driver:', driverId, '- harga:', currentPrice);
-                showToast('🤖 Menerima driver terdekat otomatis...', 'success');
-                return acceptOffer(driverId);
-            })
-            .catch(err => {
-                console.error('❌ Auto-accept gagal:', err);
-            });
-    }, 500);
-}
-
-// ============================================================
-// ➕ listenDriverOffers() — WRAPPER LISTENER (BARU)
-// ============================================================
-// Menggantikan pola inline di confirmRoute():
-//   offersRef = database.ref(`orders/${currentOrderId}/driver_offers`);
-//   offersCallback = (snap) => renderOffers(snap.val());
-//   offersRef.on('value', offersCallback);
-//
-// Keunggulan:
-//   - Cleanup listener lama secara eksplisit (hindari memory leak)
-//   - Reset state anti-kedip sebelum listen ulang
-function listenDriverOffers(orderId) {
-    if (!orderId) return;
-
-    // Cleanup listener lama secara surgical (hanya callback kita)
-    if (offersRef && offersCallback) {
-        try { offersRef.off('value', offersCallback); } catch(e) {}
-        offersRef = null;
-        offersCallback = null;
-    }
-
-    // Reset state anti-kedip agar render berikutnya fresh
-    _lastOffersHash = '';
-    _offerCardMap = {};
-
-    offersRef = database.ref(`orders/${orderId}/driver_offers`);
-    offersCallback = (snap) => renderOffers(snap.val());
-    offersRef.on('value', offersCallback);
-
-    console.log('👂 listenDriverOffers aktif untuk order:', orderId);
+    // Lock dulu supaya tidak double-accept
+    database.ref(`orders/${currentOrderId}/driver_offers/${driverId}/auto_accepting`).set(true)
+        .then(() => {
+            console.log('🤖 Auto-accept driver:', driverId, '- harga:', currentPrice);
+            showToast('🤖 Menerima driver terdekat otomatis...', 'success');
+            return acceptOffer(driverId);
+        })
+        .catch(err => {
+            console.error('❌ Auto-accept gagal:', err);
+        });
 }
 
 async function cleanupExpiredOffersCustomer() {
@@ -2200,6 +1882,7 @@ async function confirmRoute() {
     const pickerOffer   = document.getElementById('pickerOfferInput');
     const negoInput     = document.getElementById('negoInput');
 
+    // FIX: Pilih sumber berdasarkan mode
     let offerPrice = 0;
     if (isBiddingMode) {
         offerPrice = parseInt(negoInput.value) || 0;
@@ -2207,6 +1890,7 @@ async function confirmRoute() {
         offerPrice = parseInt(pickerOffer.value) || 0;
     }
 
+    // Fallback
     if (!offerPrice || isNaN(offerPrice) || offerPrice <= 0) {
         offerPrice = parseInt(negoInput.value) || parseInt(pickerOffer.value) || 0;
     }
@@ -2220,13 +1904,13 @@ async function confirmRoute() {
         return;
     }
     currentPrice = offerPrice;
+    if (negoInput) negoInput.value = offerPrice;
 
-    if (negoInput && negoInput.value !== String(offerPrice)) {
-        negoInput.value = offerPrice;
-    }
+    // Baca status auto-accept
+    const autoAcceptToggle = document.getElementById('autoAcceptToggle');
+    const autoAcceptEnabled = autoAcceptToggle ? autoAcceptToggle.checked : false;
 
-    const autoAcceptEnabled = getAutoAcceptState();
-
+    // Cek apakah sudah ada order aktif
     let isUpdate = false;
     if (currentOrderId) {
         try {
@@ -2239,41 +1923,47 @@ async function confirmRoute() {
         } catch(e) { console.warn('Gagal cek order existing:', e); }
     }
 
-    if (!isUpdate) {
-        switchToBiddingMode();
+    switchToBiddingMode();
 
-        document.getElementById('radar').style.display = 'block';
-        setTimeout(() => document.getElementById('radar').classList.add('expanding'), 100);
-        activateRadarOnPickup();
+    // Animasi radar & peta hanya untuk order BARU (update tidak perlu diulang)
+if (!isUpdate) {
+    document.getElementById('radar').style.display = 'block';
+    setTimeout(() => document.getElementById('radar').classList.add('expanding'), 100);
+    activateRadarOnPickup();
 
-        if (map && pickupCoord && destCoord) {
-            const bounds = new google.maps.LatLngBounds();
-            bounds.extend(new google.maps.LatLng(pickupCoord[1], pickupCoord[0]));
-            bounds.extend(new google.maps.LatLng(destCoord[1], destCoord[0]));
-            if (viaCoord) bounds.extend(new google.maps.LatLng(viaCoord[1], viaCoord[0]));
+    if (map && pickupCoord && destCoord) {
+        // ⬇️ STEP 1: Naikkan tampilan rute agar tidak tertutup bottom sheet
+        const bounds = new google.maps.LatLngBounds();
+        bounds.extend(new google.maps.LatLng(pickupCoord[1], pickupCoord[0]));
+        bounds.extend(new google.maps.LatLng(destCoord[1], destCoord[0]));
+        if (viaCoord) bounds.extend(new google.maps.LatLng(viaCoord[1], viaCoord[0]));
 
-            const bsEl = document.getElementById('bottomSheet');
-            const bsHeight = bsEl ? bsEl.offsetHeight : 340;
+        const bsEl = document.getElementById('bottomSheet');
+        const bsHeight = bsEl ? bsEl.offsetHeight : 340;
 
-            map.fitBounds(bounds, {
-                top: 100,
-                bottom: bsHeight + 80,
-                left: 50,
-                right: 50
+        map.fitBounds(bounds, {
+            top: 100,
+            bottom: bsHeight + 80,  // ⬅️ Padding dinamis sesuai tinggi bottom sheet
+            left: 50,
+            right: 50
+        });
+
+        // ⬇️ STEP 2: Setelah jeda biar user lihat rute dulu, zoom in ke pickup
+        setTimeout(() => {
+            smoothZoomTo(pickupCoord[1], pickupCoord[0], 16, 900, () => {
+                // ⬇️ STEP 3: Setelah sampai pickup, zoom out pelan-pelan
+                setTimeout(() => {
+                    smoothZoomTo(pickupCoord[1], pickupCoord[0], 13, 4500);
+                }, 1500);
             });
-
-            setTimeout(() => {
-                smoothZoomTo(pickupCoord[1], pickupCoord[0], 16, 900, () => {
-                    setTimeout(() => {
-                        smoothZoomTo(pickupCoord[1], pickupCoord[0], 13, 4500);
-                    }, 1500);
-                });
-            }, 1500);
-        }
+        }, 1500);
     }
+}
 
+    // Restart timer setiap kali konfirmasi (user baru saja "re-bid")
     startBiddingTimer();
 
+    // ===== JALUR A: UPDATE ORDER YANG SUDAH ADA =====
     if (isUpdate) {
         try {
             await database.ref(`orders/${currentOrderId}`).update({
@@ -2286,16 +1976,8 @@ async function confirmRoute() {
                 status: 'waiting'
             });
 
-            // JANGAN hapus driver_offers — biar overlay tidak hide/show (kedip).
-
-            negoBaselinePrice = currentPrice;
-            const confirmBtnEl = document.getElementById('confirmBtn');
-            if (confirmBtnEl) confirmBtnEl.disabled = true;
-
-            const autoAcceptPriceEl  = document.getElementById('autoAcceptPrice');
-            const autoAcceptPriceEl2 = document.getElementById('autoAcceptPrice2');
-            setInnerTextIfChanged(autoAcceptPriceEl,  formatRupiah(currentPrice));
-            setInnerTextIfChanged(autoAcceptPriceEl2, formatRupiah(currentPrice));
+            // Hapus driver_offers lama supaya driver lihat harga BARU
+            await database.ref(`orders/${currentOrderId}/driver_offers`).remove();
 
             showToast('✅ Tawaran diperbarui: ' + formatRupiah(currentPrice), 'success');
             console.log('✅ Order updated:', currentOrderId);
@@ -2307,6 +1989,7 @@ async function confirmRoute() {
         }
     }
 
+    // ===== JALUR B: BUAT ORDER BARU =====
     const newOrderRef = database.ref('orders').push();
     currentOrderId = newOrderRef.key;
 
@@ -2360,20 +2043,14 @@ async function confirmRoute() {
     localStorage.setItem('current_order_id', currentOrderId);
     isSearching = true;
 
-    negoBaselinePrice = currentPrice;
-    const confirmBtnEl2 = document.getElementById('confirmBtn');
-    if (confirmBtnEl2) confirmBtnEl2.disabled = true;
+    if (pickupCoord && pickupCoord.length === 2) {
+        startShowingNearbyDrivers(pickupCoord[1], pickupCoord[0], 3);
+    }
 
-    // Cleanup listener order lama (jika ada)
-    if (orderRef && orderStatusCallback) orderRef.off('value', orderStatusCallback);
-
-    // Timer cleanup offer expired
     if (offerTimerInterval) clearInterval(offerTimerInterval);
     if (cleanupInterval) clearInterval(cleanupInterval);
     offerTimerInterval = setInterval(() => { cleanupExpiredOffersCustomer(); }, 10000);
     cleanupInterval = offerTimerInterval;
-
-    // Listener status order
     orderRef = database.ref(`orders/${currentOrderId}/status`);
     orderStatusCallback = (snap) => {
         const status = snap.val();
@@ -2386,9 +2063,9 @@ async function confirmRoute() {
         }
     };
     orderRef.on('value', orderStatusCallback);
-
-    // ➕ Pakai listenDriverOffers() sebagai wrapper
-    listenDriverOffers(currentOrderId);
+    offersRef = database.ref(`orders/${currentOrderId}/driver_offers`);
+    offersCallback = (snap) => renderOffers(snap.val());
+    offersRef.on('value', offersCallback);
 }
 
 async function cancelSearch() {
@@ -2406,8 +2083,6 @@ function cancelSearchHandler() { cancelSearch(); }
 function cleanupSearch() {
     if (orderRef && orderStatusCallback) orderRef.off('value', orderStatusCallback);
     if (offersRef && offersCallback) offersRef.off('value', offersCallback);
-    _lastOffersHash = '';
-    _offerCardMap = {};
     isSearching = false;
     document.getElementById('radar').style.display = 'none';
     document.getElementById('radar').classList.remove('expanding');
@@ -2415,6 +2090,7 @@ function cleanupSearch() {
     if (offerTimerInterval) { clearInterval(offerTimerInterval); offerTimerInterval = null; }
     if (cleanupInterval) { clearInterval(cleanupInterval); cleanupInterval = null; }
 
+    // ⬇️ Stop timer
     clearBiddingTimer();
 
     stopShowingNearbyDrivers();
@@ -2465,7 +2141,6 @@ window.onload = async () => {
     }
 
     initBottomSheetDrag();
-    bindAutoAcceptToggles();
 
     const bsSearchBtn = document.getElementById('bsSearchBtn');
     if (bsSearchBtn) {
@@ -2483,9 +2158,11 @@ window.onload = async () => {
         confirmBtn.addEventListener('click', confirmRoute);
     }
 
+    // ⬇️ BARU: Tombol "Cari lagi" saat timer habis
     const retryBtn = document.getElementById('retryBtn');
     if (retryBtn) {
         retryBtn.addEventListener('click', () => {
+            // Bersihkan state & kembali ke picker
             cleanupSearch();
             localStorage.removeItem('current_order_id');
             resetBiddingUI();
@@ -2508,27 +2185,20 @@ window.onload = async () => {
     const negoMinus = document.getElementById('negoMinus');
     const negoPlus = document.getElementById('negoPlus');
     const negoInput = document.getElementById('negoInput');
-
-    function bumpNego(delta) {
-        let val = parseInt(negoInput.value) || 0;
-        val = Math.max(0, val + delta);
-        if (negoInput.value !== String(val)) {
+    if (negoMinus && negoInput) {
+        negoMinus.addEventListener('click', () => {
+            let val = parseInt(negoInput.value) || 0;
+            val = Math.max(0, val - 1000);
             negoInput.value = val;
-            negoInput.dispatchEvent(new Event('input', { bubbles: true }));
-        }
-    }
-
-    if (negoMinus) {
-        negoMinus.addEventListener('click', (e) => {
-            e.preventDefault();
-            if (negoMinus.disabled) return;
-            bumpNego(-1000);
+            negoInput.dispatchEvent(new Event('input'));
         });
     }
-    if (negoPlus) {
-        negoPlus.addEventListener('click', (e) => {
-            e.preventDefault();
-            bumpNego(+1000);
+    if (negoPlus && negoInput) {
+        negoPlus.addEventListener('click', () => {
+            let val = parseInt(negoInput.value) || 0;
+            val = val + 1000;
+            negoInput.value = val;
+            negoInput.dispatchEvent(new Event('input'));
         });
     }
 
@@ -2537,6 +2207,7 @@ window.onload = async () => {
         pickerCard.addEventListener('click', openVehicleOverlay);
     }
 
+    // Event listener picker offer input
     const pickerOfferInput = document.getElementById('pickerOfferInput');
     if (pickerOfferInput) {
         pickerOfferInput.addEventListener('input', () => {
@@ -2556,10 +2227,21 @@ window.onload = async () => {
             }
             currentPrice = val;
 
-            const autoAcceptPriceEl  = document.getElementById('autoAcceptPrice');
-            const autoAcceptPriceEl2 = document.getElementById('autoAcceptPrice2');
-            setInnerTextIfChanged(autoAcceptPriceEl,  formatRupiah(val));
-            setInnerTextIfChanged(autoAcceptPriceEl2, formatRupiah(val));
+            // Update harga di label auto-accept juga
+            const autoAcceptPriceEl = document.getElementById('autoAcceptPrice');
+            if (autoAcceptPriceEl) autoAcceptPriceEl.innerText = formatRupiah(val);
+        });
+    }
+
+    // ⬇️ BARU: Toggle auto-accept handler (notifikasi saat ON/OFF)
+    const autoAcceptToggle = document.getElementById('autoAcceptToggle');
+    if (autoAcceptToggle) {
+        autoAcceptToggle.addEventListener('change', () => {
+            if (autoAcceptToggle.checked) {
+                showToast('✅ Terima driver otomatis: ON', 'success');
+            } else {
+                showToast('❌ Terima driver otomatis: OFF', 'info');
+            }
         });
     }
 
