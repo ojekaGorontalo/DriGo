@@ -8,37 +8,31 @@
      - Google Maps API calls          → Network-only
    ============================================================ */
 
-const CACHE_NAME = 'jego-shell-v1';   // ⬅️ Naikkan versi saat update
-const RUNTIME_CACHE = 'jego-runtime-v1';
-
 // File yang WAJIB ada supaya app bisa jalan offline
+const CACHE_NAME = 'jego-shell-v2';      // ⬅️ NAIKKAN versi!
+const RUNTIME_CACHE = 'jego-runtime-v2';
+
 const APP_SHELL = [
-    // Root & entry
+    // ===== ROOT =====
     './',
+    './pilih_peran.html',
+    './peran.html',
     './index.html',
     './loginDriver.html',
     './PendaftaranDriver.html',
     './Status_pending.html',
     './verifikasi_driver.html',
-    './pilih_peran.html',
-    './peran.html',
     './lengkapiData.html',
-
-    // Halaman utama driver
     './orderaccepted.html',
     './GantiLayanan.html',
     './documents.html',
     './payment.html',
     './pendapatan.html',
     './historydeposit.html',
-
-    // Akun & pengaturan
     './akun.html',
     './pengaturandr.html',
     './notifikasi.html',
     './editorLegal.html',
-
-    // Riwayat & statistik
     './riwayat.html',
     './statistik.html',
     './penilaianLayanan.html',
@@ -46,26 +40,42 @@ const APP_SHELL = [
     './sanski_driver.html',
     './kompensasi.html',
     './penjelasan_prioritas.html',
-
-    // Hapus akun
     './hapus_akun.html',
     './delete_account.html',
     './delete_driver_account.html',
-
-    // Perlindungan & kebijakan
     './perlindunganDriver.html',
     './ketentuan.html',
     './privasi.html',
     './lisensi.html',
     './kebijakanUlasan.html',
-
-    // Syarat & ketentuan per layanan
     './terms-umum.html',
     './terms-motor.html',
     './terms-mobil.html',
     './terms-bentor.html',
     './terms-kurir-motor.html',
-    './terms-kurir-bentor.html'
+    './terms-kurir-bentor.html',
+
+    // ===== CUSTOMER (nama HARUS sama persis!) =====
+    './customer/loginuser.html',              // ⚠️ huruf u kecil
+    './customer/jenis_kenderaan.html',
+    './customer/registrasi_jego.html',
+    './customer/userAccount.html',
+    './customer/riwayatUser.html',
+    './customer/bannerPromo.html',
+    './customer/chat_bot.html',
+    './customer/cs_jego.html',
+    './customer/customer_refund.html',
+    './customer/jepay.html',
+    './customer/live_chat.html',
+    './customer/perlindungancustomer.html',
+    './customer/programReferral.html',
+    './customer/tracking_customer.html',
+    './customer/rute.html',
+    './customer/rute_kurir.html',
+    './customer/rute.css',
+    './customer/rute.js',
+    './customer/rute_kurir.css',
+    './customer/rute_kurir.js'
 ];
 
 // ============================================================
