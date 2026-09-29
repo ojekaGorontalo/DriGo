@@ -1284,6 +1284,30 @@ const STORAGE_AUTOBID = 'jego_autobid_enabled';
 const STORAGE_ACCEPT_KURIR = 'jego_accept_kurir';
 let fcmInitRunning = false;
 
+// ============ ⚡ INSTANT LOAD DARI CACHE ============
+// Baca status toggle langsung dari localStorage (sync, tanpa tunggu Firebase)
+locationTrackingEnabled = localStorage.getItem(STORAGE_TRACKING) === 'true';
+autobidEnabled          = localStorage.getItem(STORAGE_AUTOBID) === 'true';
+acceptKurirEnabled      = localStorage.getItem(STORAGE_ACCEPT_KURIR) === 'true';
+
+// Baca lokasi GPS terakhir dari cache (sync, instant)
+try {
+    const _cachedLoc = localStorage.getItem('jego_last_driver_location');
+    if (_cachedLoc) {
+        const _loc = JSON.parse(_cachedLoc);
+        if (_loc && _loc.lat && _loc.lng) {
+            driverLocation = { latitude: _loc.lat, longitude: _loc.lng };
+            gpsReady = true;
+            lastSentLat = _loc.lat;
+            lastSentLng = _loc.lng;
+            console.log('⚡ [Instant] Pakai lokasi cache:', _loc.lat, _loc.lng);
+        }
+    }
+} catch (e) {
+    console.warn('⚠️ Gagal baca cache lokasi:', e);
+}
+// ============ END INSTANT LOAD ============
+
 // ===== ⬅️ BARU: Flag anti-spam alert FCM =====
 let fcmAlertShown = false;      // popup permission ditolak — sekali saja
 let fcmSuccessShown = false;    // toast sukses — sekali saja
@@ -2049,7 +2073,13 @@ function updateDriverLocation(position) {
       clearInterval(gpsLoadingInterval);
       gpsLoadingInterval = null;
     }
-    loadOrders();
+    // ⚡ Refresh saja kalau orders listener sudah jalan
+    //    (fallback loadOrders kalau belum pernah)
+    if (ordersRef) {
+        refreshDisplay();
+    } else {
+        loadOrders();
+    }
     lastSentLat = lat;
     lastSentLng = lng;
     return;
@@ -2345,16 +2375,11 @@ function loadOrders() {
     if (!checkDriverData()) return;
 
     if (!gpsReady || !driverLocation.latitude || !driverLocation.longitude) {
-        const messages = ["Mencari sinyal GPS...", "Menunggu sinyal stabil...", "Memastikan akurasi lokasi..."];
-        let msgIndex = 0;
-        if (gpsLoadingInterval) clearInterval(gpsLoadingInterval);
-        ordersList.innerHTML = `<div class="loading"><div class="spinner"></div><p id="gpsLoadingMessage">${messages[0]}</p></div>`;
-        gpsLoadingInterval = setInterval(() => {
-            msgIndex = (msgIndex + 1) % messages.length;
-            const msgElement = document.getElementById('gpsLoadingMessage');
-            if (msgElement) msgElement.textContent = messages[msgIndex];
-        }, 3000);
-        return;
+        // ⚡ Tampilkan radar, BUKAN loading — biarkan listener Firebase tetap ter-attach
+        document.getElementById('radarContainer').style.display = 'flex';
+        document.querySelector('.container').style.display = 'none';
+        startRadarMessages();
+        // ⬅️ TIDAK return — listener Firebase di bawah tetap dijalankan
     }
 
     if (!currentDriverData?.vehicleType) {
@@ -3231,6 +3256,12 @@ async function checkDriverActiveOrder() {
 document.addEventListener('DOMContentLoaded', async () => {
   console.log('📄 DOM siap, memulai inisialisasi...');
 
+  // ⚡ Update toggle INSTAN dari cache (sebelum tunggu Firebase)
+  updateTrackingButton();
+  updateAutobidButton();
+  const _kurirToggle = document.getElementById('acceptKurirToggle');
+  if (_kurirToggle) _kurirToggle.checked = acceptKurirEnabled;
+
   // ✅ Listener deviceready dipasang LEBIH AWAL, di luar onAuthStateChanged
   document.addEventListener('deviceready', () => {
       console.log('📱 deviceready fired, init FCM...');
@@ -3429,6 +3460,44 @@ document.addEventListener("backbutton", function () {
         history.back();
     }
 }, false);
+</script>
+<!-- ==================== SERVICE WORKER REGISTRATION ==================== -->
+<script>
+(function() {
+    if (!('serviceWorker' in navigator)) {
+        console.log('⚠️ Service Worker tidak didukung browser ini');
+        return;
+    }
+
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js')
+            .then((reg) => {
+                console.log('✅ Service Worker terdaftar:', reg.scope);
+
+                reg.addEventListener('updatefound', () => {
+                    const newWorker = reg.installing;
+                    if (!newWorker) return;
+                    newWorker.addEventListener('statechange', () => {
+                        if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                            console.log('🔄 Update tersedia, aktifkan...');
+                            newWorker.postMessage({ type: 'SKIP_WAITING' });
+                        }
+                    });
+                });
+            })
+            .catch((err) => {
+                console.error('❌ Service Worker gagal:', err);
+            });
+
+        let refreshing = false;
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+            if (refreshing) return;
+            refreshing = true;
+            console.log('🔃 Reload karena SW baru aktif');
+            window.location.reload();
+        });
+    });
+})();
 </script>
 </body>
 </html>
