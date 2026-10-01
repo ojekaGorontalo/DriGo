@@ -1,7 +1,3 @@
-<!-- ============================================================ -->
-<!--              FILE: merchant_dashboard.html                     -->
-<!--       (Dengan perbaikan merchantLat/Lng di markOrderReady)    -->
-<!-- ============================================================ -->
 <!DOCTYPE html>
 <html lang="id">
 <head>
@@ -136,6 +132,26 @@
         .badge-closed {
             background: #f8d7da;
             color: #721c24;
+        }
+        .badge-warning {
+            background: #fff3cd;
+            color: #856404;
+        }
+        .badge-info {
+            background: #cce5ff;
+            color: #004085;
+        }
+        .badge-success {
+            background: #d4edda;
+            color: #155724;
+        }
+        .badge-danger {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        .badge-secondary {
+            background: #e9ecef;
+            color: #495057;
         }
 
         .btn-toggle {
@@ -1347,12 +1363,11 @@
                 });
         }
 
-        // ==================== MARK ORDER READY (DIPERBAIKI) ====================
+        // ==================== MARK ORDER READY (COPY KE orders/ FORMAT KURIR) ====================
         function markOrderReady(orderId) {
-            if (!confirm('Pesanan sudah siap?')) return;
+            if (!confirm('Pesanan sudah siap? Driver akan segera mencari pesanan ini.')) return;
             showGlobalLoading(true);
 
-            // Ambil data order terlebih dahulu
             firebaseDatabase.ref(`foodOrders/${orderId}`).once('value')
                 .then((snap) => {
                     const order = snap.val();
@@ -1362,58 +1377,25 @@
                         return;
                     }
 
-                    // Siapkan update dasar
-                    let updates = {
-                        [`foodOrders/${orderId}/status`]: 'looking_for_driver',
-                        [`foodOrders/${orderId}/readyAt`]: new Date().toISOString()
-                    };
-
-                    // Jika merchantLat/Lng belum ada di order, ambil dari data merchant
+                    // Pastikan koordinat merchant ada
                     if (!order.merchantLat || !order.merchantLng) {
-                        const merchantId = order.merchantId;
-                        firebaseDatabase.ref(`merchants/${merchantId}`).once('value')
-                            .then((merchantSnap) => {
-                                const merchant = merchantSnap.val();
+                        firebaseDatabase.ref(`merchants/${order.merchantId}`).once('value')
+                            .then((mSnap) => {
+                                const merchant = mSnap.val();
                                 if (merchant) {
-                                    // Konversi ke number jika perlu
-                                    const lat = merchant.storeLat ? parseFloat(merchant.storeLat) : null;
-                                    const lng = merchant.storeLng ? parseFloat(merchant.storeLng) : null;
-                                    if (lat && lng) {
-                                        updates[`foodOrders/${orderId}/merchantLat`] = lat;
-                                        updates[`foodOrders/${orderId}/merchantLng`] = lng;
-                                    }
-                                    if (merchant.storeAddress) {
-                                        updates[`foodOrders/${orderId}/merchantAddress`] = merchant.storeAddress;
-                                    }
+                                    order.merchantLat = merchant.storeLat ? parseFloat(merchant.storeLat) : null;
+                                    order.merchantLng = merchant.storeLng ? parseFloat(merchant.storeLng) : null;
+                                    order.merchantAddress = merchant.storeAddress || order.merchantAddress || merchant.storeName;
+                                    order.merchantName = order.merchantName || merchant.storeName;
                                 }
-                                // Update Firebase
-                                firebaseDatabase.ref().update(updates)
-                                    .then(() => {
-                                        showGlobalLoading(false);
-                                        showAlert('👨‍🍳 Pesanan siap! Mencari driver...', 'success');
-                                        findNearestDriver(orderId);
-                                    })
-                                    .catch((err) => {
-                                        showGlobalLoading(false);
-                                        showAlert('❌ Gagal: ' + err.message, 'error');
-                                    });
+                                return createDriverOrder(orderId, order);
                             })
                             .catch((err) => {
                                 showGlobalLoading(false);
                                 showAlert('❌ Gagal ambil data merchant: ' + err.message, 'error');
                             });
                     } else {
-                        // Sudah ada, langsung update
-                        firebaseDatabase.ref().update(updates)
-                            .then(() => {
-                                showGlobalLoading(false);
-                                showAlert('👨‍🍳 Pesanan siap! Mencari driver...', 'success');
-                                findNearestDriver(orderId);
-                            })
-                            .catch((err) => {
-                                showGlobalLoading(false);
-                                showAlert('❌ Gagal: ' + err.message, 'error');
-                            });
+                        return createDriverOrder(orderId, order);
                     }
                 })
                 .catch((err) => {
@@ -1422,77 +1404,272 @@
                 });
         }
 
-        // ==================== CARI DRIVER ====================
-        function findNearestDriver(orderId) {
-            firebaseDatabase.ref(`foodOrders/${orderId}`).once('value')
-                .then((snap) => {
-                    const order = snap.val();
-                    if (!order) return;
-                    const merchantLat = order.merchantLat ? parseFloat(order.merchantLat) : null;
-                    const merchantLng = order.merchantLng ? parseFloat(order.merchantLng) : null;
-                    if (merchantLat && merchantLng) {
-                        searchDriversNearby(orderId, merchantLat, merchantLng);
-                    } else {
-                        showAlert('⚠️ Lokasi toko tidak ditemukan, driver tidak bisa diarahkan', 'error');
-                    }
+        // ==================== HELPER: COPY FOOD ORDER → ORDERS (FORMAT KURIR) ====================
+        async function createDriverOrder(orderId, order) {
+            try {
+                // Update status foodOrders
+                await firebaseDatabase.ref(`foodOrders/${orderId}`).update({
+                    status: 'looking_for_driver',
+                    readyAt: new Date().toISOString()
                 });
+
+                const pickupLat = parseFloat(order.merchantLat) || null;
+                const pickupLng = parseFloat(order.merchantLng) || null;
+                const destLat   = parseFloat(order.deliveryLat) || null;
+                const destLng   = parseFloat(order.deliveryLng) || null;
+
+                // Hitung jarak & durasi via Google Directions (fallback: Haversine)
+                let distance = 0;
+                let duration = 0;
+                if (pickupLat && pickupLng && destLat && destLng) {
+                    const result = await calculateRouteDistance(pickupLat, pickupLng, destLat, destLng);
+                    if (result) {
+                        distance = result.distance;
+                        duration = result.duration;
+                    }
+                }
+
+                // Hitung harga pakai tarif kurir_motor dari Firebase
+                const rate = await getKurirRate();
+                let price = 0;
+                const distanceKm = distance / 1000;
+                if (distanceKm <= rate.minimal_distance) {
+                    price = rate.minimal_price;
+                } else {
+                    price = rate.minimal_price + (distanceKm - rate.minimal_distance) * rate.price_per_km;
+                }
+                price = Math.round(price / 1000) * 1000;
+
+                // Ambil data customer (foto, rating, perjalanan)
+                let userData = {};
+                if (order.customerId) {
+                    try {
+                        const uSnap = await firebaseDatabase.ref(`users/${order.customerId}`).once('value');
+                        userData = uSnap.val() || {};
+                    } catch (e) {}
+                }
+
+                // Format item description
+                const itemsDesc = (order.items || []).map(i => `${i.name} x${i.quantity}`).join(', ');
+
+                // ===== DATA ORDER UNTUK DRIVER (FORMAT SAMA DENGAN KURIR) =====
+                const driverOrderData = {
+                    // Status & tipe
+                    status: 'waiting',
+                    transport_type: 'kurir_motor',
+
+                    // Pickup = lokasi merchant
+                    pickup_address: order.merchantAddress || order.merchantName || 'Toko',
+                    pickup_lat: pickupLat,
+                    pickup_lng: pickupLng,
+
+                    // Destination = alamat customer
+                    destination_address: order.deliveryAddress || '',
+                    dest_lat: destLat,
+                    dest_lng: destLng,
+
+                    // Rute & harga
+                    price: price,
+                    distance_meters: distance,
+                    duration_seconds: duration,
+
+                    // Info customer (sama seperti kurir)
+                    user_id: order.customerId || '',
+                    customer_name: order.customerName || 'Customer',
+                    customer_phone: order.customerPhone || '',
+                    photoURL: userData.photoURL || '',
+                    passenger_rating: userData.rating || 5,
+                    perjalanan: userData.perjalanan || 0,
+
+                    // Info barang (pakai format kurir)
+                    item_category: 'Makanan',
+                    item_description: itemsDesc,
+                    sender_phone: order.merchantName || '',
+                    receiver_phone: order.customerPhone || '',
+
+                    // Metadata JeGo Food
+                    source: 'jego_food',
+                    food_order_id: orderId,
+                    merchant_id: order.merchantId || '',
+                    merchant_name: order.merchantName || '',
+                    merchant_address: order.merchantAddress || '',
+                    food_items: order.items || [],
+                    food_total: order.totalPrice || 0,
+                    order_note: order.orderNote || '',
+
+                    // Pembayaran
+                    payment_method: order.paymentMethod || 'cash',
+
+                    // Timestamps
+                    created_at: order.createdAt || new Date().toISOString(),
+
+                    // Waypoints kosong
+                    waypoints: []
+                };
+
+                // Simpan ke orders/{orderId}
+                await firebaseDatabase.ref(`orders/${orderId}`).set(driverOrderData);
+
+                showGlobalLoading(false);
+                showAlert('👨‍🍳 Pesanan siap! Driver akan segera mencari...', 'success');
+
+                // Setup sinkronisasi status balik: orders → foodOrders
+                setupOrderStatusSync(orderId);
+
+                // Setup auto-accept penawaran driver pertama
+                setupAutoAcceptDriverOffer(orderId);
+
+            } catch (err) {
+                console.error('Error create driver order:', err);
+                showGlobalLoading(false);
+                showAlert('❌ Gagal: ' + err.message, 'error');
+            }
         }
 
-        function searchDriversNearby(orderId, merchantLat, merchantLng) {
-            const driversRef = firebaseDatabase.ref('drivers');
-            driversRef.orderByChild('isFoodDelivery').equalTo(true).once('value')
-                .then((snapshot) => {
-                    const nearbyDrivers = [];
-                    snapshot.forEach((child) => {
-                        const driver = child.val();
-                        const driverId = child.key;
-                        if (driver.status === 'available' && driver.currentLocation) {
-                            const distance = calculateDistance(
-                                merchantLat, merchantLng,
-                                driver.currentLocation.lat,
-                                driver.currentLocation.lng
-                            );
-                            if (distance <= 10) {
-                                nearbyDrivers.push({ id: driverId, name: driver.name, distance: distance });
-                            }
+        // ==================== HELPER: HITUNG RUTE ====================
+        function calculateRouteDistance(lat1, lng1, lat2, lng2) {
+            return new Promise((resolve) => {
+                try {
+                    if (typeof google === 'undefined' || !google.maps) {
+                        resolve(fallbackHaversine(lat1, lng1, lat2, lng2));
+                        return;
+                    }
+                    const directionsService = new google.maps.DirectionsService();
+                    directionsService.route({
+                        origin: { lat: lat1, lng: lng1 },
+                        destination: { lat: lat2, lng: lng2 },
+                        travelMode: google.maps.TravelMode.DRIVING
+                    }, (result, status) => {
+                        if (status === 'OK' && result.routes[0]) {
+                            const leg = result.routes[0].legs[0];
+                            resolve({
+                                distance: leg.distance.value,
+                                duration: leg.duration.value
+                            });
+                        } else {
+                            resolve(fallbackHaversine(lat1, lng1, lat2, lng2));
                         }
                     });
-                    nearbyDrivers.sort((a, b) => a.distance - b.distance);
-                    if (nearbyDrivers.length > 0) {
-                        const topDrivers = nearbyDrivers.slice(0, 10);
-                        broadcastToDrivers(orderId, topDrivers);
-                    } else {
-                        firebaseDatabase.ref(`foodOrders/${orderId}/status`).set('no_driver_available');
-                        showAlert('⚠️ Tidak ada driver tersedia', 'error');
-                    }
-                });
-        }
-
-        function broadcastToDrivers(orderId, drivers) {
-            const updates = {
-                [`foodOrders/${orderId}/driverBids`]: {}
-            };
-            drivers.forEach(driver => {
-                updates[`foodOrders/${orderId}/driverBids/${driver.id}`] = {
-                    driverName: driver.name,
-                    distance: driver.distance,
-                    timestamp: new Date().toISOString(),
-                    status: 'pending'
-                };
+                } catch (e) {
+                    resolve(fallbackHaversine(lat1, lng1, lat2, lng2));
+                }
             });
-            firebaseDatabase.ref().update(updates);
-            showAlert('📢 Broadcast ke ' + drivers.length + ' driver terdekat', 'success');
         }
 
-        function calculateDistance(lat1, lng1, lat2, lng2) {
-            const R = 6371;
+        function fallbackHaversine(lat1, lng1, lat2, lng2) {
+            const R = 6371000; // meter
             const dLat = (lat2 - lat1) * Math.PI / 180;
             const dLng = (lng2 - lng1) * Math.PI / 180;
-            const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-                Math.sin(dLng / 2) * Math.sin(dLng / 2);
-            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-            return R * c;
+            const a = Math.sin(dLat/2)**2 + Math.cos(lat1 * Math.PI/180) * Math.cos(lat2 * Math.PI/180) * Math.sin(dLng/2)**2;
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            const straightDist = R * c;
+            // Faktor 1.3 untuk estimasi jalan (bukan garis lurus)
+            const dist = Math.round(straightDist * 1.3);
+            return {
+                distance: dist,
+                duration: Math.round(dist / 8)  // ~8 m/s = 28.8 km/jam
+            };
+        }
+
+        // ==================== HELPER: AMBIL TARIF KURIR MOTOR ====================
+        async function getKurirRate() {
+            try {
+                const snap = await firebaseDatabase.ref('data-jego/tarif').once('value');
+                let rate = { minimal_distance: 4, minimal_price: 10000, price_per_km: 2100 };
+                snap.forEach(child => {
+                    const data = child.val();
+                    const name = (data.nama || '').toLowerCase();
+                    if (name.includes('kurir') && name.includes('motor')) {
+                        rate = {
+                            minimal_distance: data.minimal_distance || 4,
+                            minimal_price: data.minimal_price || 10000,
+                            price_per_km: data.price_per_km || 2100
+                        };
+                    }
+                });
+                return rate;
+            } catch (e) {
+                return { minimal_distance: 4, minimal_price: 10000, price_per_km: 2100 };
+            }
+        }
+
+        // ==================== SINKRONISASI STATUS: orders → foodOrders ====================
+        function setupOrderStatusSync(orderId) {
+            const ref = firebaseDatabase.ref(`orders/${orderId}`);
+            ref.on('value', (snap) => {
+                const driverOrder = snap.val();
+                if (!driverOrder) return;
+
+                const updates = {};
+
+                // Map status orders → foodOrders
+                if (driverOrder.status === 'accepted' && driverOrder.driver_id) {
+                    updates.status = 'driver_assigned';
+                    updates.driver_id = driverOrder.driver_id;
+                    updates.driver_name = driverOrder.driver_name || '';
+                    updates.driver_phone = driverOrder.driver_phone || '';
+                    updates.driver_plate = driverOrder.driver_plate || '';
+                    updates.accepted_at = new Date().toISOString();
+                } else if (driverOrder.status === 'on_the_way') {
+                    updates.status = 'on_way_to_merchant';
+                } else if (driverOrder.status === 'on_trip') {
+                    updates.status = 'picked_up';
+                } else if (driverOrder.status === 'completed') {
+                    updates.status = 'delivered';
+                    updates.deliveredAt = new Date().toISOString();
+                } else if (driverOrder.status === 'cancelled' || driverOrder.status === 'cancelled_by_user') {
+                    updates.status = 'cancelled';
+                }
+
+                if (Object.keys(updates).length > 0) {
+                    firebaseDatabase.ref(`foodOrders/${orderId}`).update(updates)
+                        .catch(e => console.warn('Sync status error:', e));
+                }
+            });
+        }
+
+        // ==================== AUTO-ACCEPT PENAWARAN DRIVER PERTAMA ====================
+        function setupAutoAcceptDriverOffer(orderId) {
+            const offersRef = firebaseDatabase.ref(`orders/${orderId}/driver_offers`);
+            let accepted = false;
+
+            const listener = offersRef.on('value', (snap) => {
+                if (accepted) return;
+                const offers = snap.val();
+                if (!offers) return;
+
+                // Cari offer pertama dengan status 'offered'
+                const entries = Object.entries(offers);
+                for (const [driverId, offer] of entries) {
+                    if (offer.status === 'offered') {
+                        accepted = true;
+
+                        // Auto-accept
+                        firebaseDatabase.ref(`orders/${orderId}/driver_offers/${driverId}/status`).set('accepted');
+
+                        // Ambil detail driver dari offers data
+                        firebaseDatabase.ref(`orders/${orderId}`).update({
+                            status: 'accepted',
+                            driver_id: driverId,
+                            driver_name: offer.driver_name || '',
+                            driver_plate: offer.driver_plate || '',
+                            driver_photo: offer.driver_photo || '',
+                            driver_rating: offer.driver_rating || 5,
+                            driver_trips: offer.driver_trips || 0,
+                            accepted_at: new Date().toISOString()
+                        }).then(() => {
+                            showAlert('✅ Driver ditemukan: ' + (offer.driver_name || 'Driver'), 'success');
+                            // Hentikan listener
+                            offersRef.off('value', listener);
+                        }).catch((err) => {
+                            console.error('Gagal auto-accept:', err);
+                            accepted = false;  // biar bisa retry
+                        });
+
+                        break;
+                    }
+                }
+            });
         }
 
         // ==================== GOOGLE PLACES AUTOCOMPLETE ====================
