@@ -10,8 +10,6 @@
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
 
-    <!-- Google Maps akan diload secara dinamis oleh JavaScript -->
-
     <!-- CSS -->
     <link rel="stylesheet" href="rute_kurir.css">
 
@@ -20,15 +18,12 @@
 </head>
 <body>
 
-    <!-- Map -->
     <div id="map"></div>
 
-    <!-- Loading -->
     <div class="loading-overlay" id="loadingOverlay">
         <div class="spinner"></div>
     </div>
 
-    <!-- Popup -->
     <div class="popup-overlay" id="popupOverlay">
         <div class="popup">
             <div class="popup-header"><h3 id="popupTitle">Pemberitahuan</h3></div>
@@ -51,7 +46,6 @@
         <div class="body" id="mainSheetBody">
             <div id="addressList"></div>
 
-            <!-- Card Tawarkan ongkos -->
             <div class="offer-card" id="offerCard" style="display:none;">
                 <div class="price-row">
                     <span class="label">💰 Harga rekomendasi</span>
@@ -73,7 +67,6 @@
             <input type="text" id="searchInput" placeholder="Cari alamat..." autocomplete="off" />
         </div>
         <div class="body" id="searchBody">
-            <!-- Lokasi terdekat -->
             <div id="searchDefault">
                 <div style="padding:12px 16px; font-size:13px; color:#999; font-weight:600;">Lokasi terdekat</div>
                 <div class="result-item" id="useGpsBtn">
@@ -86,7 +79,6 @@
                 </div>
             </div>
 
-            <!-- Riwayat Pencarian -->
             <div id="historyContainer" class="history-section"></div>
 
             <div id="searchResults" style="display:none;"></div>
@@ -102,18 +94,15 @@
             <button class="close-btn" id="closeDetailSheet">✕</button>
         </div>
         <div class="body" id="detailBody">
-            <!-- Card Penjemputan -->
             <div class="address-card">
                 <div class="label">📍 Penjemputan</div>
                 <div class="address" id="detailPickup">-</div>
             </div>
-            <!-- Card Tujuan -->
             <div class="address-card">
                 <div class="label">🏁 Tujuan</div>
                 <div class="address" id="detailDest">-</div>
             </div>
 
-            <!-- Daftar Perhentian -->
             <div style="margin-top:12px;">
                 <div style="font-weight:600; font-size:0.9rem; color:#666; margin-bottom:8px;">🔄 Perhentian</div>
                 <div id="waypointList"></div>
@@ -122,7 +111,6 @@
                 </div>
             </div>
 
-            <!-- Form Detail Order -->
             <div class="order-detail-form">
                 <div style="font-weight:600; font-size:0.9rem; color:#666; margin-bottom:12px;">📝 Detail Order</div>
                 <div class="form-group">
@@ -155,7 +143,6 @@
                 </div>
             </div>
 
-            <!-- Harga tawaran di detail -->
             <div class="detail-offer-price" id="detailOfferPrice" style="margin-top: 16px;">
                 <div class="label">💰 Harga tawaran Anda</div>
                 <div class="value" id="detailOfferValue">Rp 0</div>
@@ -167,7 +154,7 @@
         </div>
     </div>
 
-    <!-- ===== MODAL WAYPOINT (Edit/Hapus) ===== -->
+    <!-- ===== MODAL WAYPOINT ===== -->
     <div class="wp-modal" id="wpModal">
         <div class="handle"></div>
         <div class="wp-header" id="wpModalTitle">Edit Perhentian</div>
@@ -188,52 +175,78 @@
                 <strong>🏆 Penawaran Driver</strong>
                 <button class="close-btn" id="closeDriverOffers">✕</button>
             </div>
+
+            <!-- ===== PANEL RE-BID ===== -->
+            <div class="offers-rebid-panel" id="offersRebidPanel">
+                <div class="offers-rebid-header">
+                    <h3 class="offers-rebid-title" id="offersRebidTitle">Menawarkan tarif Anda</h3>
+                    <span class="offers-rebid-timer" id="offersTimer">2:00</span>
+                </div>
+                <div class="offers-rebid-subtitle" id="offersRebidSubtitle">Memberi tahu driver terdekat</div>
+                <div class="offers-rebid-progress">
+                    <div class="offers-rebid-progress-fill" id="offersProgressFill"></div>
+                </div>
+
+                <div class="offers-rebid-nego">
+                    <button class="offers-rebid-btn" id="offersNegoMinus">−</button>
+                    <input type="number" id="offersNegoInput" class="offers-rebid-input" placeholder="0" inputmode="numeric" />
+                    <button class="offers-rebid-btn" id="offersNegoPlus">+</button>
+                </div>
+                <div class="offers-rebid-label">Tarif yang direkomendasikan</div>
+                <div class="offers-rebid-info">
+                    <span>💰 Rekomendasi: <strong id="offersLabelRekomendasi">Rp 0</strong></span>
+                    <span>Min: <strong id="offersMinTawarLabel">Rp 0</strong></span>
+                </div>
+
+                <button class="offers-rebid-confirm" id="offersConfirmBtn" disabled>Konfirmasi</button>
+            </div>
+
             <div id="driverOfferList"></div>
             <div class="offers-footer">
                 <button class="btn" id="cancelSearchBtn">Batalkan Pencarian</button>
             </div>
         </div>
     </div>
-    
+
     <!-- ==================== SERVICE WORKER REGISTRATION ==================== -->
-<script>
-(function() {
-    if (!('serviceWorker' in navigator)) {
-        console.log('⚠️ Service Worker tidak didukung browser ini');
-        return;
-    }
+    <script>
+    (function() {
+        if (!('serviceWorker' in navigator)) return;
 
-    window.addEventListener('load', () => {
-        // ✅ BENAR — pakai absolute path dari root domain
-navigator.serviceWorker.register('/sw.js')
-            .then((reg) => {
-                console.log('✅ Service Worker terdaftar:', reg.scope);
+        const isLocalhost = location.hostname === 'localhost' ||
+                            location.hostname === '127.0.0.1' ||
+                            location.hostname === '';
 
-                reg.addEventListener('updatefound', () => {
-                    const newWorker = reg.installing;
-                    if (!newWorker) return;
-                    newWorker.addEventListener('statechange', () => {
-                        if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                            console.log('🔄 Update tersedia, aktifkan...');
-                            newWorker.postMessage({ type: 'SKIP_WAITING' });
-                        }
+        if (isLocalhost) {
+            console.log('ℹ️ Service Worker dilewati (mode development).');
+            return;
+        }
+
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('/sw.js')
+                .then((reg) => {
+                    console.log('✅ Service Worker terdaftar:', reg.scope);
+                    reg.addEventListener('updatefound', () => {
+                        const newWorker = reg.installing;
+                        if (!newWorker) return;
+                        newWorker.addEventListener('statechange', () => {
+                            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                newWorker.postMessage({ type: 'SKIP_WAITING' });
+                            }
+                        });
                     });
-                });
-            })
-            .catch((err) => {
-                console.error('❌ Service Worker gagal:', err);
-            });
+                })
+                .catch((err) => console.error('❌ Service Worker gagal:', err));
 
-        let refreshing = false;
-        navigator.serviceWorker.addEventListener('controllerchange', () => {
-            if (refreshing) return;
-            refreshing = true;
-            console.log('🔃 Reload karena SW baru aktif');
-            window.location.reload();
+            let refreshing = false;
+            navigator.serviceWorker.addEventListener('controllerchange', () => {
+                if (refreshing) return;
+                refreshing = true;
+                window.location.reload();
+            });
         });
-    });
-})();
-</script>
+    })();
+    </script>
 
 </body>
 </html>
