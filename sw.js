@@ -9,8 +9,8 @@
    ============================================================ */
 
 // File yang WAJIB ada supaya app bisa jalan offline
-const CACHE_NAME = 'jego-shell-v6';      // ⬅️ NAIKKAN versi!
-const RUNTIME_CACHE = 'jego-runtime-v6';
+const CACHE_NAME = 'jego-shell-v7';      // ⬅️ NAIKKAN versi!
+const RUNTIME_CACHE = 'jego-runtime-v7';
 
 const APP_SHELL = [
     // ===== ROOT =====
