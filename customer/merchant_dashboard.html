@@ -1406,125 +1406,122 @@
 
         // ==================== HELPER: COPY FOOD ORDER → ORDERS (FORMAT KURIR) ====================
         async function createDriverOrder(orderId, order) {
-            try {
-                // Update status foodOrders
-                await firebaseDatabase.ref(`foodOrders/${orderId}`).update({
-                    status: 'looking_for_driver',
-                    readyAt: new Date().toISOString()
-                });
+    try {
+        const pickupLat = parseFloat(order.merchantLat) || null;
+        const pickupLng = parseFloat(order.merchantLng) || null;
+        const destLat   = parseFloat(order.deliveryLat) || null;
+        const destLng   = parseFloat(order.deliveryLng) || null;
 
-                const pickupLat = parseFloat(order.merchantLat) || null;
-                const pickupLng = parseFloat(order.merchantLng) || null;
-                const destLat   = parseFloat(order.deliveryLat) || null;
-                const destLng   = parseFloat(order.deliveryLng) || null;
+        console.log('🔍 [createDriverOrder] Koordinat:', {
+            pickupLat, pickupLng, destLat, destLng
+        });
 
-                // Hitung jarak & durasi via Google Directions (fallback: Haversine)
-                let distance = 0;
-                let duration = 0;
-                if (pickupLat && pickupLng && destLat && destLng) {
-                    const result = await calculateRouteDistance(pickupLat, pickupLng, destLat, destLng);
-                    if (result) {
-                        distance = result.distance;
-                        duration = result.duration;
-                    }
-                }
-
-                // Hitung harga pakai tarif kurir_motor dari Firebase
-                const rate = await getKurirRate();
-                let price = 0;
-                const distanceKm = distance / 1000;
-                if (distanceKm <= rate.minimal_distance) {
-                    price = rate.minimal_price;
-                } else {
-                    price = rate.minimal_price + (distanceKm - rate.minimal_distance) * rate.price_per_km;
-                }
-                price = Math.round(price / 1000) * 1000;
-
-                // Ambil data customer (foto, rating, perjalanan)
-                let userData = {};
-                if (order.customerId) {
-                    try {
-                        const uSnap = await firebaseDatabase.ref(`users/${order.customerId}`).once('value');
-                        userData = uSnap.val() || {};
-                    } catch (e) {}
-                }
-
-                // Format item description
-                const itemsDesc = (order.items || []).map(i => `${i.name} x${i.quantity}`).join(', ');
-
-                // ===== DATA ORDER UNTUK DRIVER (FORMAT SAMA DENGAN KURIR) =====
-                const driverOrderData = {
-                    // Status & tipe
-                    status: 'waiting',
-                    transport_type: 'kurir_motor',
-
-                    // Pickup = lokasi merchant
-                    pickup_address: order.merchantAddress || order.merchantName || 'Toko',
-                    pickup_lat: pickupLat,
-                    pickup_lng: pickupLng,
-
-                    // Destination = alamat customer
-                    destination_address: order.deliveryAddress || '',
-                    dest_lat: destLat,
-                    dest_lng: destLng,
-
-                    // Rute & harga
-                    price: price,
-                    distance_meters: distance,
-                    duration_seconds: duration,
-
-                    // Info customer (sama seperti kurir)
-                    user_id: order.customerId || '',
-                    customer_name: order.customerName || 'Customer',
-                    customer_phone: order.customerPhone || '',
-                    photoURL: userData.photoURL || '',
-                    passenger_rating: userData.rating || 5,
-                    perjalanan: userData.perjalanan || 0,
-
-                    // Info barang (pakai format kurir)
-                    item_category: 'Makanan',
-                    item_description: itemsDesc,
-                    sender_phone: order.merchantName || '',
-                    receiver_phone: order.customerPhone || '',
-
-                    // Metadata JeGo Food
-                    source: 'jego_food',
-                    food_order_id: orderId,
-                    merchant_id: order.merchantId || '',
-                    merchant_name: order.merchantName || '',
-                    merchant_address: order.merchantAddress || '',
-                    food_items: order.items || [],
-                    food_total: order.totalPrice || 0,
-                    order_note: order.orderNote || '',
-
-                    // Pembayaran
-                    payment_method: order.paymentMethod || 'cash',
-
-                    // Timestamps
-                    created_at: order.createdAt || new Date().toISOString(),
-
-                    // Waypoints kosong
-                    waypoints: []
-                };
-
-                // Simpan ke orders/{orderId}
-                await firebaseDatabase.ref(`orders/${orderId}`).set(driverOrderData);
-
-                showGlobalLoading(false);
-                showAlert('👨‍🍳 Pesanan siap! Driver akan segera mencari...', 'success');
-
-                // Setup sinkronisasi status balik: orders → foodOrders
-                setupOrderStatusSync(orderId);
-
-                // Setup auto-accept penawaran driver pertama
-                setupAutoAcceptDriverOffer(orderId);
-
-            } catch (err) {
-                console.error('Error create driver order:', err);
-                showGlobalLoading(false);
-                showAlert('❌ Gagal: ' + err.message, 'error');
-            }
+        // Validasi koordinat wajib ada
+        if (!pickupLat || !pickupLng) {
+            showGlobalLoading(false);
+            showAlert('❌ Koordinat toko belum diisi. Buka tab "Profil Toko" → isi alamat → Simpan.', 'error');
+            return;
         }
+        if (!destLat || !destLng) {
+            showGlobalLoading(false);
+            showAlert('❌ Customer tidak isi lokasi GPS. Order tidak bisa dikirim ke driver.', 'error');
+            return;
+        }
+
+        // Hitung jarak & durasi
+        let distance = 0;
+        let duration = 0;
+        const result = await calculateRouteDistance(pickupLat, pickupLng, destLat, destLng);
+        if (result) {
+            distance = result.distance;
+            duration = result.duration;
+        }
+        console.log('🔍 [createDriverOrder] Jarak:', distance, 'm, Durasi:', duration, 's');
+
+        // Hitung harga
+        const rate = await getKurirRate();
+        let price = 0;
+        const distanceKm = distance / 1000;
+        if (distanceKm <= rate.minimal_distance) {
+            price = rate.minimal_price;
+        } else {
+            price = rate.minimal_price + (distanceKm - rate.minimal_distance) * rate.price_per_km;
+        }
+        price = Math.round(price / 1000) * 1000;
+        console.log('🔍 [createDriverOrder] Harga:', price);
+
+        // Ambil data customer
+        let userData = {};
+        if (order.customerId) {
+            try {
+                const uSnap = await firebaseDatabase.ref(`users/${order.customerId}`).once('value');
+                userData = uSnap.val() || {};
+            } catch (e) {}
+        }
+
+        const itemsDesc = (order.items || []).map(i => `${i.name} x${i.quantity}`).join(', ');
+
+        // Data order untuk driver
+        const driverOrderData = {
+            status: 'waiting',
+            transport_type: 'kurir_motor',
+            pickup_address: order.merchantAddress || order.merchantName || 'Toko',
+            pickup_lat: pickupLat,
+            pickup_lng: pickupLng,
+            destination_address: order.deliveryAddress || '',
+            dest_lat: destLat,
+            dest_lng: destLng,
+            price: price,
+            distance_meters: distance,
+            duration_seconds: duration,
+            user_id: order.customerId || '',
+            customer_name: order.customerName || 'Customer',
+            customer_phone: order.customerPhone || '',
+            photoURL: userData.photoURL || '',
+            passenger_rating: userData.rating || 5,
+            perjalanan: userData.perjalanan || 0,
+            item_category: 'Makanan',
+            item_description: itemsDesc,
+            sender_phone: order.merchantName || '',
+            receiver_phone: order.customerPhone || '',
+            source: 'jego_food',
+            food_order_id: orderId,
+            merchant_id: order.merchantId || '',
+            merchant_name: order.merchantName || '',
+            merchant_address: order.merchantAddress || '',
+            food_items: order.items || [],
+            food_total: order.totalPrice || 0,
+            order_note: order.orderNote || '',
+            payment_method: order.paymentMethod || 'cash',
+            created_at: order.createdAt || new Date().toISOString(),
+            waypoints: []
+        };
+
+        console.log('🔍 [createDriverOrder] Menyimpan ke orders/' + orderId + '...');
+
+        // ✅ SIMPAN KE orders/ DULU
+        await firebaseDatabase.ref(`orders/${orderId}`).set(driverOrderData);
+
+        console.log('✅ [createDriverOrder] orders/' + orderId + ' BERHASIL dibuat');
+
+        // ✅ BARU update status foodOrders
+        await firebaseDatabase.ref(`foodOrders/${orderId}`).update({
+            status: 'looking_for_driver',
+            readyAt: new Date().toISOString()
+        });
+
+        showGlobalLoading(false);
+        showAlert('👨‍🍳 Pesanan siap! Driver akan segera mencari...', 'success');
+
+        setupOrderStatusSync(orderId);
+        setupAutoAcceptDriverOffer(orderId);
+
+    } catch (err) {
+        console.error('❌ Error create driver order:', err);
+        showGlobalLoading(false);
+        showAlert('❌ Gagal: ' + err.message, 'error');
+    }
+}
 
         // ==================== HELPER: HITUNG RUTE ====================
         function calculateRouteDistance(lat1, lng1, lat2, lng2) {
