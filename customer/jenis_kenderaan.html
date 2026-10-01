@@ -1075,6 +1075,7 @@
             <h2>📦 Pilih Layanan</h2>
         </div>
         <div class="modal-body">
+            <!-- ✅ Opsi 1: Jego Kurir -->
             <div class="modal-option" id="chooseKurir">
                 <div class="icon">📦</div>
                 <div class="info">
@@ -1083,6 +1084,17 @@
                 </div>
                 <div style="font-size:1.5rem; color:var(--primary);">→</div>
             </div>
+
+            <!-- ✅ Opsi 2: JeGo Food (BARU) -->
+            <div class="modal-option" id="chooseFood">
+                <div class="icon">🍔</div>
+                <div class="info">
+                    <div class="title">JeGo Food</div>
+                    <div class="desc">Pesan makanan &amp; minuman</div>
+                </div>
+                <div style="font-size:1.5rem; color:var(--primary);">→</div>
+            </div>
+
             <button class="modal-close" id="closeChoiceModal">Batal</button>
         </div>
     </div>
@@ -1128,11 +1140,11 @@
     let selectedTransport = null;
     let isProcessing = false;
 
-    // ===== ⬅️ BARU: Flag anti-spam alert FCM =====
-    let fcmAlertShown = false;      // popup permission ditolak — sekali saja
-    let fcmSuccessShown = false;    // toast sukses — sekali saja
-    let fcmFailShown = false;       // toast gagal — sekali saja
-    let fcmRegisterRunning = false; // cegah dobel eksekusi
+    // ===== Flag anti-spam alert FCM =====
+    let fcmAlertShown = false;
+    let fcmSuccessShown = false;
+    let fcmFailShown = false;
+    let fcmRegisterRunning = false;
 
     const transportNameMapping = {
         'Motor': 'motor',
@@ -1217,7 +1229,7 @@
             navHome.classList.remove('active');
         }
         navHome.addEventListener('click', () => {
-    if (currentPath !== 'jenis_kenderaan.html' && currentPath !== '') {
+            if (currentPath !== 'jenis_kenderaan.html' && currentPath !== '') {
                 window.location.href = 'jenis_kenderaan.html';
             }
         });
@@ -1257,8 +1269,8 @@
                 } else if (link === 'referral') {
                     window.location.href = 'programReferral.html';
                 } else if (link === 'help') {
-    window.location.href = 'cs_jego.html';
-} else if (link === 'about') {
+                    window.location.href = 'cs_jego.html';
+                } else if (link === 'about') {
                     showCustomPopup(
                         'Tentang JeGo',
                         'JeGo v1.0 - Aplikasi transportasi & ekspedisi.',
@@ -1342,7 +1354,7 @@
             error: '❌',
             info: 'ℹ️'
         };
-        
+
         iconEl.textContent = icon || iconMap[type] || '🔔';
         titleEl.textContent = title || 'Notifikasi';
         msgEl.textContent = message || '';
@@ -1476,17 +1488,15 @@
         window.location.href = 'loginuser.html';
     }
 
-    // ==================== ⬅️ BARU: REGISTRASI FCM UNTUK CUSTOMER ====================
+    // ==================== REGISTRASI FCM UNTUK CUSTOMER ====================
     async function registerCustomerFCM() {
         logStep('🔔', '==================== REGISTERFCM MULAI ====================');
 
-        // Cegah dobel eksekusi
         if (fcmRegisterRunning) {
             logStep('🔔', '[registerFCM] ⏭️ sudah berjalan, skip');
             return false;
         }
 
-        // Cek Median SDK tersedia
         if (typeof median === 'undefined' || !median.firebaseMessaging) {
             logStep('🔔', '[registerFCM] ⏭️ Median Firebase Messaging tidak tersedia (mungkin di browser)');
             return false;
@@ -1500,7 +1510,6 @@
         fcmRegisterRunning = true;
 
         try {
-            // ===== 1. Cek permission dulu =====
             let permGranted = false;
             if (typeof median.firebaseMessaging.checkPermission === 'function') {
                 try {
@@ -1512,13 +1521,11 @@
                 }
             }
 
-            // ===== 2. Request permission kalau belum =====
             if (!permGranted) {
                 const permission = await median.firebaseMessaging.requestPermission();
                 logStep('🔔', `[registerFCM] permission: ${permission.granted ? 'GRANTED' : 'DENIED'}`);
 
                 if (!permission.granted) {
-                    // ⬅️ Alert ke user (sekali saja)
                     if (!fcmAlertShown) {
                         fcmAlertShown = true;
                         showCustomPopup(
@@ -1533,7 +1540,6 @@
                 }
             }
 
-            // ===== 3. Register FCM =====
             if (typeof median.firebaseMessaging.register === 'function') {
                 try {
                     await median.firebaseMessaging.register();
@@ -1543,7 +1549,6 @@
                 }
             }
 
-            // ===== 4. Enable foreground banners (kalau ada) =====
             if (typeof median.firebaseMessaging.enableForegroundBanners === 'function') {
                 try {
                     await median.firebaseMessaging.enableForegroundBanners();
@@ -1555,7 +1560,6 @@
                 logStep('🔔', '[registerFCM] enableForegroundBanners tidak tersedia, skip');
             }
 
-            // ===== 5. Ambil token (retry 5x) =====
             let token = null;
             for (let i = 0; i < 5; i++) {
                 try {
@@ -1585,7 +1589,6 @@
 
             logStep('🔔', `[registerFCM] ✅ Token didapat: ${token.substring(0, 20)}...`);
 
-            // ===== 6. Cek token lama — hindari duplikat =====
             const oldToken = localStorage.getItem('customer_fcmToken');
             if (oldToken === token) {
                 try {
@@ -1602,11 +1605,9 @@
                 } catch(e) {}
             }
 
-            // ===== 7. Simpan ke Firebase =====
             await firebaseDatabase.ref(`users/${currentUser.uid}/fcmToken`).set(token);
             await firebaseDatabase.ref(`users/${currentUser.uid}/fcmTokenUpdatedAt`).set(new Date().toISOString());
 
-            // ===== 8. Simpan juga ke fcmTokens (format lama) =====
             await firebaseDatabase.ref(`users/${currentUser.uid}/fcmTokens/${token}`).set({
                 token: token,
                 platform: 'android',
@@ -1616,7 +1617,6 @@
             localStorage.setItem('customer_fcmToken', token);
             logStep('🔔', '[registerFCM] ✅ Token berhasil disimpan di Firebase');
 
-            // ===== 9. Setup listener notifikasi foreground =====
             try {
                 if (median.firebaseMessaging.notificationReceived
                     && typeof median.firebaseMessaging.notificationReceived.addListener === 'function') {
@@ -1628,7 +1628,6 @@
                     && typeof median.firebaseMessaging.notificationClicked.addListener === 'function') {
                     median.firebaseMessaging.notificationClicked.addListener((data) => {
                         logStep('👆', `[notif] diklik: ${JSON.stringify(data).substring(0, 100)}`);
-                        // Optional: auto-redirect ke chat
                         try {
                             const orderId = data?.additionalData?.orderId || data?.data?.orderId;
                             if (orderId) {
@@ -1643,7 +1642,6 @@
 
             logStep('🔔', '==================== REGISTERFCM SUKSES ✅ ====================');
 
-            // ⬅️ Toast sukses (sekali saja)
             if (!fcmSuccessShown) {
                 fcmSuccessShown = true;
                 logStep('🔔', '✅ Notifikasi berhasil diaktifkan!');
@@ -1664,7 +1662,6 @@
         const loggedInUser = localStorage.getItem('jego_logged_in_user');
         logStep('🔐', `[checkLogin] jeho_logged_in_user ada? ${loggedInUser ? '✅ YA' : '❌ TIDAK'}`);
 
-        // Jika belum login → langsung redirect ke loginuser.html
         if (!loggedInUser) {
             redirectToLogin();
             return false;
@@ -1682,10 +1679,8 @@
 
             document.getElementById('mainContent').style.display = 'block';
 
-            // Tampilkan saldo JePay
             await loadWalletBalance(currentUser.uid);
 
-            // Sembunyikan / tampilkan foto profile alert
             if (!currentUser.photoURL || currentUser.photoURL === '') {
                 const photoAlert = document.getElementById('photoProfileAlert');
                 if (photoAlert) {
@@ -1750,13 +1745,10 @@
             logStep('🔐', '[checkLogin] memanggil loadBanner...');
             await loadBanner();
 
-            // ============ ⬅️ BARU: Registrasi FCM otomatis ============
-            // Delay 2 detik biar UI sudah render dulu, baru minta permission
             logStep('🔔', '[checkLogin] scheduling registerCustomerFCM...');
             setTimeout(() => {
                 registerCustomerFCM().catch(e => logStep('🔔', `[checkLogin] registerFCM error: ${e.message}`));
             }, 2000);
-            // ============ END TAMBAHAN BARU ============
 
             const requiredFields = ['name', 'phone', 'address'];
             const missingFields = requiredFields.filter(field => !currentUser[field] || currentUser[field].trim() === '');
@@ -2015,12 +2007,24 @@
         isProcessing = false;
     }
 
+    // ✅ Handler: Jego Kurir
     document.getElementById('chooseKurir').addEventListener('click', () => {
         if (selectedTransport) {
             document.getElementById('kurirChoiceModal').classList.remove('active');
             showGlobalLoading(true);
             setTimeout(() => processTransportSelection(selectedTransport, 'rute_kurir.html'), 400);
         }
+    });
+
+    // ✅ Handler: JeGo Food (BARU)
+    document.getElementById('chooseFood').addEventListener('click', () => {
+        logStep('🍔', '[chooseFood] buka JeGo Food');
+        document.getElementById('kurirChoiceModal').classList.remove('active');
+        showGlobalLoading(true);
+        isProcessing = true;
+        setTimeout(() => {
+            window.location.href = 'jego_food.html';
+        }, 400);
     });
 
     document.getElementById('closeChoiceModal').addEventListener('click', closeKurirChoiceModal);
@@ -2115,13 +2119,11 @@
         logStep('🚀', '==================== WINDOW ONLOAD ====================');
         logStep('🚀', '============================================================');
 
-        // Cek elemen penting
         logStep('🚀', `[DOM] transportGridTop: ${document.getElementById('transportGridTop') ? '✅' : '❌'}`);
         logStep('🚀', `[DOM] transportGridBottom: ${document.getElementById('transportGridBottom') ? '✅' : '❌'}`);
         logStep('🚀', `[DOM] loadingSpinner: ${document.getElementById('loadingSpinner') ? '✅' : '❌'}`);
         logStep('🚀', `[DOM] mainContent: ${document.getElementById('mainContent') ? '✅' : '❌'}`);
 
-        // Event listener top up
         const topupBtn = document.getElementById('topupNowBtn');
         if (topupBtn) topupBtn.addEventListener('click', goToTopUp);
 
@@ -2146,7 +2148,7 @@
         logStep('🚀', '[INIT] memanggil initDarkMode()...');
         initDarkMode();
 
-                logStep('🚀', '==================== INIT SELESAI ====================');
+        logStep('🚀', '==================== INIT SELESAI ====================');
     };
 </script>
 
@@ -2159,7 +2161,7 @@
     }
 
     window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js')
+        navigator.serviceWorker.register('/sw.js')
             .then((reg) => {
                 console.log('✅ Service Worker terdaftar:', reg.scope);
 
