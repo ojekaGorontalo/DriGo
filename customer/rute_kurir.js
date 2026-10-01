@@ -557,11 +557,26 @@ function initMap() {
     ] : [];
 
     map = new google.maps.Map(document.getElementById('map'), {
-        center: center,
-        zoom: 12,
-        mapTypeId: 'roadmap',
-        styles: styles
-    });
+    center: center,
+    zoom: 12,
+    mapTypeId: 'roadmap',
+    styles: styles,
+
+    // ===== HILANGKAN SEMUA TOMBOL DEFAULT =====
+    disableDefaultUI: true,        // matikan semua kontrol default
+
+    // ===== KALAU MAU CUSTOM (pilih satu-satu) =====
+    mapTypeControl: false,         // ❌ hilangkan tombol Peta / Satelit
+    fullscreenControl: false,      // ❌ hilangkan tombol Fullscreen
+    streetViewControl: false,      // ❌ hilangkan pegman Street View
+    zoomControl: false,            // ❌ hilangkan tombol +/- zoom
+    scaleControl: false,           // ❌ hilangkan scale bar
+    rotateControl: false,          // ❌ hilangkan tombol rotasi
+    panControl: false,             // ❌ hilangkan pan control (jadul)
+
+    // ===== HILANGKAN POPUP "Klik alamat" PADA POI =====
+    clickableIcons: false          // ❌ POI (restoran, toko, dll) tidak bisa diklik
+});
 
     geocoder = new google.maps.Geocoder();
     directionsService = new google.maps.DirectionsService();
