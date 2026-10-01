@@ -42,13 +42,44 @@ let orderStatusListener = null;
 let offerTimerInterval = null;
 let cleanupInterval = null;
 
+// Timer panel offers rebid (2 menit)
+let offersTimerInterval = null;
+let offersTimerSecondsLeft = 120;
+const OFFERS_TIMER_DURATION = 120;
+
+// Harga terakhir yang sudah dikonfirmasi
+let offersConfirmedPrice = 0;
+
+// Rotating labels
+let rotatingLabelsInterval = null;
+let rotatingLabelsIndex = 0;
+const ROTATING_TITLES = [
+    'Menawarkan tarif Anda',
+    'Mencari driver terdekat',
+    'Menghubungi kurir sekitar',
+    'Menunggu konfirmasi driver',
+    'Mengirim tawaran ke driver'
+];
+const ROTATING_SUBTITLES = [
+    'Memberi tahu driver terdekat',
+    'Driver di sekitar sedang melihat tawaran Anda',
+    'Tawaran Anda tersampaikan ke driver terdekat',
+    'Mohon tunggu, driver sedang mempertimbangkan',
+    'Semoga driver segera menerima tawaran Anda'
+];
+
+// Timer popup saran naikkan tarif (20 detik)
+let tariffSuggestionTimer = null;
+let tariffSuggestionShown = false;
+const TARIFF_SUGGESTION_DELAY = 20000;
+
 // Marker & polylines
 let pickupMarker = null;
 let destMarker = null;
 let waypointMarkers = [];
 let routePolyline = null;
 
-// Cache untuk search
+// Cache
 let searchCache = {};
 let placeDetailsCache = {};
 let searchAbortController = null;
@@ -59,7 +90,7 @@ const detailSheet = document.getElementById('detailSheet');
 const wpModal = document.getElementById('wpModal');
 let wpModalIndex = -1;
 
-// ==================== LOAD GOOGLE MAPS DYNAMICALLY ====================
+// ==================== LOAD GOOGLE MAPS ====================
 let googleMapsLoaded = false;
 let googleMapsLoading = false;
 let mapInitCallbacks = [];
@@ -67,26 +98,20 @@ let mapInitCallbacks = [];
 async function loadGoogleMapsFromFirebase() {
     if (googleMapsLoaded) return true;
     if (googleMapsLoading) {
-        return new Promise((resolve) => {
-            mapInitCallbacks.push(resolve);
-        });
+        return new Promise((resolve) => { mapInitCallbacks.push(resolve); });
     }
-    
     googleMapsLoading = true;
-    
+
     try {
         const snapshot = await database.ref('data-jego/apikey-google-maps').once('value');
         let apiKey = snapshot.val();
-        
         if (!apiKey) {
-            console.error('❌ API Key Google Maps tidak ditemukan di Firebase');
             showPopup('Error', 'API Key Google Maps tidak ditemukan. Hubungi administrator.');
             googleMapsLoading = false;
             return false;
         }
-        
         console.log('✅ API Key Google Maps berhasil diambil dari Firebase');
-        
+
         return new Promise((resolve, reject) => {
             const script = document.createElement('script');
             script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places,geometry&language=id&region=ID&loading=async`;
@@ -101,7 +126,6 @@ async function loadGoogleMapsFromFirebase() {
                 resolve(true);
             };
             script.onerror = (err) => {
-                console.error('❌ Gagal load Google Maps:', err);
                 googleMapsLoading = false;
                 mapInitCallbacks.forEach(cb => cb(false));
                 mapInitCallbacks = [];
@@ -110,7 +134,6 @@ async function loadGoogleMapsFromFirebase() {
             document.head.appendChild(script);
         });
     } catch (error) {
-        console.error('❌ Gagal mengambil API Key dari Firebase:', error);
         googleMapsLoading = false;
         showPopup('Error', 'Gagal mengambil konfigurasi Google Maps.');
         return false;
@@ -137,8 +160,7 @@ function showConfirmPopup(title, message, onConfirm, onCancel) {
     const overlay = document.getElementById('popupOverlay');
     document.getElementById('popupTitle').innerText = title;
     document.getElementById('popupMessage').innerHTML = message;
-    const btnContainer = document.getElementById('popupButtons');
-    btnContainer.innerHTML = `
+    document.getElementById('popupButtons').innerHTML = `
         <button class="popup-button popup-button-primary" id="confirmYesBtn">Ya</button>
         <button class="popup-button popup-button-secondary" id="confirmNoBtn">Batal</button>
     `;
@@ -225,7 +247,7 @@ function renderHistory() {
                  data-lng="${item.lng || ''}"
                  data-place-id="${item.place_id || ''}"
                  data-name="${escapeHtml(item.name || '')}">
-                <div class="icon"></div>
+                <div class="icon">🕘</div>
                 <div class="text">${escapeHtml(item.address)}</div>
                 <div class="time">${timeStr}</div>
             </div>
@@ -398,7 +420,7 @@ function renderMainSheet() {
 
     html += `
         <div class="address-item" data-mode="pickup">
-            <div class="icon pickup"></div>
+            <div class="icon pickup">📍</div>
             <div class="content">
                 <div class="label">Penjemputan</div>
                 <div class="address ${pickup ? '' : 'placeholder'}">${pickup ? escapeHtml(pickup.address) : 'Klik untuk pilih lokasi'}</div>
@@ -409,7 +431,7 @@ function renderMainSheet() {
     waypoints.forEach((wp, index) => {
         html += `
             <div class="address-item" data-mode="waypoint" data-index="${index}">
-                <div class="icon waypoint"></div>
+                <div class="icon waypoint">🔄</div>
                 <div class="content">
                     <div class="label">Perhentian ${index+1}</div>
                     <div class="address ${wp.address ? '' : 'placeholder'}">${wp.address ? escapeHtml(wp.address) : 'Klik untuk pilih lokasi'}</div>
@@ -420,7 +442,7 @@ function renderMainSheet() {
 
     html += `
         <div class="address-item" data-mode="destination">
-            <div class="icon destination"></div>
+            <div class="icon destination">🏁</div>
             <div class="content">
                 <div class="label">Tujuan</div>
                 <div class="address ${destination ? '' : 'placeholder'}">${destination ? escapeHtml(destination.address) : 'Klik untuk pilih lokasi'}</div>
@@ -557,26 +579,20 @@ function initMap() {
     ] : [];
 
     map = new google.maps.Map(document.getElementById('map'), {
-    center: center,
-    zoom: 12,
-    mapTypeId: 'roadmap',
-    styles: styles,
-
-    // ===== HILANGKAN SEMUA TOMBOL DEFAULT =====
-    disableDefaultUI: true,        // matikan semua kontrol default
-
-    // ===== KALAU MAU CUSTOM (pilih satu-satu) =====
-    mapTypeControl: false,         // ❌ hilangkan tombol Peta / Satelit
-    fullscreenControl: false,      // ❌ hilangkan tombol Fullscreen
-    streetViewControl: false,      // ❌ hilangkan pegman Street View
-    zoomControl: false,            // ❌ hilangkan tombol +/- zoom
-    scaleControl: false,           // ❌ hilangkan scale bar
-    rotateControl: false,          // ❌ hilangkan tombol rotasi
-    panControl: false,             // ❌ hilangkan pan control (jadul)
-
-    // ===== HILANGKAN POPUP "Klik alamat" PADA POI =====
-    clickableIcons: false          // ❌ POI (restoran, toko, dll) tidak bisa diklik
-});
+        center: center,
+        zoom: 12,
+        mapTypeId: 'roadmap',
+        styles: styles,
+        disableDefaultUI: true,
+        mapTypeControl: false,
+        fullscreenControl: false,
+        streetViewControl: false,
+        zoomControl: false,
+        scaleControl: false,
+        rotateControl: false,
+        panControl: false,
+        clickableIcons: false
+    });
 
     geocoder = new google.maps.Geocoder();
     directionsService = new google.maps.DirectionsService();
@@ -606,18 +622,15 @@ function initAutocompleteService() {
     if (!autocompleteService && google.maps && google.maps.places) {
         try {
             autocompleteService = new google.maps.places.AutocompleteService();
-            console.log(' AutocompleteService initialized');
+            console.log('🔍 AutocompleteService initialized');
         } catch (e) {
-            console.warn(' Gagal init AutocompleteService:', e);
             autocompleteService = null;
         }
     }
 }
 
-// ==================== SEARCH PLACES (seperti rute_jego.html) ====================
+// ==================== SEARCH PLACES ====================
 function searchPlaces(keyword) {
-    console.log(` searchPlaces() dipanggil dengan keyword: "${keyword}"`);
-    
     if (searchAbortController) {
         searchAbortController.abort();
         searchAbortController = null;
@@ -639,29 +652,20 @@ function searchPlaces(keyword) {
 
     const cacheKey = trimmedKeyword.toLowerCase();
     if (searchCache[cacheKey]) {
-        console.log(' Pakai cache untuk:', trimmedKeyword);
-        const cached = searchCache[cacheKey];
-        renderSearchResults(cached);
+        renderSearchResults(searchCache[cacheKey]);
         return;
     }
 
     searchAbortController = new AbortController();
 
-    if (!autocompleteService) {
-        initAutocompleteService();
-    }
+    if (!autocompleteService) initAutocompleteService();
 
     if (autocompleteService && typeof autocompleteService.getPlacePredictions === 'function') {
         const request = {
             input: trimmedKeyword,
             language: 'id',
             componentRestrictions: { country: 'id' },
-            locationBias: {
-                east: 123.5,
-                west: 122.5,
-                north: 1.0,
-                south: 0.0
-            }
+            locationBias: { east: 123.5, west: 122.5, north: 1.0, south: 0.0 }
         };
 
         const timeoutId = setTimeout(() => {
@@ -672,33 +676,28 @@ function searchPlaces(keyword) {
             document.getElementById('searchLoading').style.display = 'none';
             document.getElementById('searchResults').style.display = 'block';
             document.getElementById('searchNoResult').style.display = 'block';
-            document.getElementById('searchNoResult').textContent = ' Pencarian terlalu lama, coba kata kunci lain.';
+            document.getElementById('searchNoResult').textContent = '⏱️ Pencarian terlalu lama, coba kata kunci lain.';
         }, 5000);
 
         autocompleteService.getPlacePredictions(request, (predictions, status) => {
             clearTimeout(timeoutId);
-            if (searchAbortController && searchAbortController.signal.aborted) {
-                console.log(' Pencarian dibatalkan');
-                return;
-            }
+            if (searchAbortController && searchAbortController.signal.aborted) return;
             searchAbortController = null;
             document.getElementById('searchLoading').style.display = 'none';
 
             if (status === 'OK' && predictions && predictions.length > 0) {
-                console.log(` Ditemukan ${predictions.length} prediksi`);
                 const gorontaloResults = predictions.filter(p =>
                     p.description && p.description.toLowerCase().includes('gorontalo')
                 );
                 if (gorontaloResults.length === 0) {
                     document.getElementById('searchResults').style.display = 'block';
                     document.getElementById('searchNoResult').style.display = 'block';
-                    document.getElementById('searchNoResult').textContent = ' Tidak ditemukan di Gorontalo. Coba kata kunci lain.';
+                    document.getElementById('searchNoResult').textContent = '⚠️ Tidak ditemukan di Gorontalo. Coba kata kunci lain.';
                     return;
                 }
                 searchCache[cacheKey] = gorontaloResults;
                 renderSearchResults(gorontaloResults);
             } else {
-                console.warn(' Places Autocomplete gagal, status:', status);
                 searchPlacesFallback(trimmedKeyword);
             }
         });
@@ -713,8 +712,7 @@ function renderSearchResults(predictions) {
     container.style.display = 'block';
     document.getElementById('searchNoResult').style.display = 'none';
 
-    const topResults = predictions.slice(0, 8);
-    topResults.forEach(prediction => {
+    predictions.slice(0, 8).forEach(prediction => {
         const item = document.createElement('div');
         item.className = 'result-item';
         const mainText = prediction.structured_formatting?.main_text || prediction.description;
@@ -725,20 +723,16 @@ function renderSearchResults(predictions) {
         } else if (!mainText) {
             display = prediction.description;
         }
-        const badge = ' <span style="font-size:10px;color:#FF9800;font-weight:bold;"> Gorontalo</span>';
+        const badge = ' <span style="font-size:10px;color:#FF9800;font-weight:bold;">📍 Gorontalo</span>';
 
-        item.innerHTML = `<div class="icon"></div><div class="text">${escapeHtml(display)}${badge}</div>`;
-        item.addEventListener('click', () => {
-            const placeId = prediction.place_id;
-            getPlaceDetails(placeId);
-        });
+        item.innerHTML = `<div class="icon">📍</div><div class="text">${escapeHtml(display)}${badge}</div>`;
+        item.addEventListener('click', () => getPlaceDetails(prediction.place_id));
         container.appendChild(item);
     });
 }
 
 function getPlaceDetails(placeId) {
     if (placeDetailsCache[placeId]) {
-        console.log(' Pakai cache detail untuk:', placeId);
         const cached = placeDetailsCache[placeId];
         selectAddress({ lat: cached.lat, lng: cached.lng, address: cached.address, place_id: cached.place_id, name: cached.name });
         closeSearchSheet();
@@ -758,9 +752,7 @@ function getPlaceDetails(placeId) {
             let address = place.formatted_address || place.name || '';
             address = address.replace(', Indonesia', '');
             placeDetailsCache[placeId] = {
-                lat: lat,
-                lng: lng,
-                address: address,
+                lat, lng, address,
                 place_id: place.place_id,
                 name: place.name || address.split(',')[0]
             };
@@ -773,23 +765,15 @@ function getPlaceDetails(placeId) {
 }
 
 function searchPlacesFallback(keyword) {
-    console.log(' searchPlacesFallback dipanggil untuk:', keyword);
-    if (!geocoder) {
-        geocoder = new google.maps.Geocoder();
-    }
+    if (!geocoder) geocoder = new google.maps.Geocoder();
 
-    const gorontaloBounds = {
-        east: 123.5,
-        west: 122.5,
-        north: 1.0,
-        south: 0.0
-    };
+    const gorontaloBounds = { east: 123.5, west: 122.5, north: 1.0, south: 0.0 };
 
     const timeoutId = setTimeout(() => {
         document.getElementById('searchLoading').style.display = 'none';
         document.getElementById('searchResults').style.display = 'block';
         document.getElementById('searchNoResult').style.display = 'block';
-        document.getElementById('searchNoResult').textContent = ' Pencarian terlalu lama, coba lagi.';
+        document.getElementById('searchNoResult').textContent = '⏱️ Pencarian terlalu lama, coba lagi.';
     }, 5000);
 
     geocoder.geocode({
@@ -805,22 +789,15 @@ function searchPlacesFallback(keyword) {
         document.getElementById('searchNoResult').style.display = 'none';
 
         if (status === 'OK' && results && results.length > 0) {
-            console.log(` Geocoding fallback ditemukan ${results.length} hasil di Gorontalo`);
             container.style.display = 'block';
-
-            const gorontaloResults = results.filter(r => {
-                const addr = r.formatted_address.toLowerCase();
-                return addr.includes('gorontalo');
-            });
-
+            const gorontaloResults = results.filter(r => r.formatted_address.toLowerCase().includes('gorontalo'));
             const finalResults = gorontaloResults.length > 0 ? gorontaloResults : results;
             finalResults.slice(0, 8).forEach(result => {
                 const item = document.createElement('div');
                 item.className = 'result-item';
                 const display = result.formatted_address.replace(', Indonesia', '');
-                const badge = ' <span style="font-size:10px;color:#FF9800;font-weight:bold;"> Gorontalo</span>';
-
-                item.innerHTML = `<div class="icon"></div><div class="text">${escapeHtml(display)}${badge}</div>`;
+                const badge = ' <span style="font-size:10px;color:#FF9800;font-weight:bold;">📍 Gorontalo</span>';
+                item.innerHTML = `<div class="icon">📍</div><div class="text">${escapeHtml(display)}${badge}</div>`;
                 item.addEventListener('click', () => {
                     const lat = result.geometry.location.lat();
                     const lng = result.geometry.location.lng();
@@ -833,7 +810,7 @@ function searchPlacesFallback(keyword) {
         } else {
             container.style.display = 'block';
             document.getElementById('searchNoResult').style.display = 'block';
-            document.getElementById('searchNoResult').textContent = ' Tidak ditemukan di Gorontalo. Coba kata kunci lain.';
+            document.getElementById('searchNoResult').textContent = '⚠️ Tidak ditemukan di Gorontalo. Coba kata kunci lain.';
         }
     });
 }
@@ -841,16 +818,15 @@ function searchPlacesFallback(keyword) {
 // ==================== SELECT ADDRESS ====================
 function selectAddress(data) {
     const { lat, lng, address, place_id, name } = data;
-    
+
     let finalAddress = address;
     if (name && name.trim() && !address.includes(name)) {
         finalAddress = name + ', ' + address;
     }
 
-    const addressData = { 
-        address: finalAddress, 
-        lat, 
-        lng,
+    const addressData = {
+        address: finalAddress,
+        lat, lng,
         place_id: place_id || null,
         name: name || null
     };
@@ -868,9 +844,7 @@ function selectAddress(data) {
         }
     }
 
-    if (finalAddress && finalAddress.trim()) {
-        saveHistory(addressData);
-    }
+    if (finalAddress && finalAddress.trim()) saveHistory(addressData);
 
     closeSearchSheet();
     renderMainSheet();
@@ -930,7 +904,7 @@ function showPickMapPin(lat, lng) {
 
     const confirmBtn = document.createElement('button');
     confirmBtn.id = 'mapPickConfirmBtn';
-    confirmBtn.innerText = ' OK - Gunakan lokasi ini';
+    confirmBtn.innerText = '✅ OK - Gunakan lokasi ini';
     confirmBtn.style.position = 'fixed';
     confirmBtn.style.bottom = '120px';
     confirmBtn.style.left = '50%';
@@ -970,14 +944,8 @@ async function confirmMapPick() {
     }
 
     mapPickMode = false;
-    if (mapPickMarker) {
-        mapPickMarker.setMap(null);
-        mapPickMarker = null;
-    }
-    if (mapPickListener) {
-        google.maps.event.removeListener(mapPickListener);
-        mapPickListener = null;
-    }
+    if (mapPickMarker) { mapPickMarker.setMap(null); mapPickMarker = null; }
+    if (mapPickListener) { google.maps.event.removeListener(mapPickListener); mapPickListener = null; }
     const btn = document.getElementById('mapPickConfirmBtn');
     if (btn) btn.remove();
     mainSheet.classList.remove('closed');
@@ -1187,9 +1155,9 @@ function renderDetailWaypoints() {
     }
     container.innerHTML = waypoints.map((wp, i) => `
         <div class="waypoint-item" data-index="${i}">
-            <span class="wp-label"> ${i+1}</span>
+            <span class="wp-label">🔄 ${i+1}</span>
             <span class="wp-addr">${wp.address || '(Kosong)'}</span>
-            <span class="wp-edit"></span>
+            <span class="wp-edit">✎</span>
         </div>
     `).join('');
     container.querySelectorAll('.waypoint-item').forEach(el => {
@@ -1270,52 +1238,272 @@ document.getElementById('offerInput').addEventListener('input', function() {
 function renderOffers(offers) {
     const container = document.getElementById('driverOfferList');
     if (!container) return;
-    if (!offers || Object.keys(offers).length === 0) {
-        container.innerHTML = '<div style="text-align:center; padding:16px;"> Driver akan tampil disini, sedang mencari driver terdekat. Mohon tunggu...</div>';
+
+    const hasOffers = offers && Object.keys(offers).length > 0;
+
+    if (!hasOffers) {
+        container.innerHTML = '<div style="text-align:center; padding:10px 16px; color:#999; font-size:0.8rem; font-style:italic;">Belum ada driver yang menawar. Coba naikkan tawaran Anda.</div>';
         return;
     }
+
+    // ✅ Ada driver menawar → hentikan timer popup saran
+    clearTariffSuggestionTimer();
+    tariffSuggestionShown = true;
+
     container.innerHTML = '';
     Object.entries(offers).forEach(([driverId, offer]) => {
         const isProcessed = offer.status === 'accepted' || offer.status === 'rejected';
         let bidPriceText = '';
         if (offer.bid_price && offer.bid_price > 0 && offer.bid_requested === true) {
-            bidPriceText = `<div class="bid-price-text"> Menawar: ${formatRupiah(offer.bid_price)}</div>`;
-        }
-
-        let timerHtml = '';
-        if (!isProcessed && offer.expired_at) {
-            const remaining = Math.max(0, offer.expired_at - Date.now());
-            const total = 30000;
-            const percent = (remaining / total) * 100;
-            timerHtml = `
-                <div class="offer-progress-wrapper">
-                    <div class="offer-progress-bar" data-expired="${offer.expired_at}" style="transform: scaleX(${Math.min(1, Math.max(0, percent/100))});"></div>
-                </div>
-            `;
+            bidPriceText = `<div class="bid-price-text">💰 Menawar: ${formatRupiah(offer.bid_price)}</div>`;
         }
 
         const card = document.createElement('div');
         card.className = 'driver-offer-card';
-        if (offer.expired_at) card.setAttribute('data-expired', offer.expired_at);
         card.innerHTML = `
             <div class="driver-info">
                 <img class="driver-photo" src="${offer.driver_photo || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png'}">
                 <div class="driver-details">
                     <div class="driver-name">${escapeHtml(offer.driver_name)}</div>
                     <div class="driver-vehicle">${offer.driver_type || selectedTransport?.type || 'Kurir Motor'}</div>
-                    <div> ${offer.driver_rating ? parseFloat(offer.driver_rating).toFixed(1) : 5} (${offer.driver_trips || 0} trip)</div>
+                    <div>⭐ ${offer.driver_rating ? parseFloat(offer.driver_rating).toFixed(1) : 5} (${offer.driver_trips || 0} trip)</div>
                     ${bidPriceText}
-                    ${timerHtml}
+                    ${!isProcessed && offer.expired_at ? `<div class="offer-progress-wrapper"><div class="offer-progress-bar" data-expired="${offer.expired_at}" style="transform: scaleX(${Math.min(1, Math.max(0, (Math.max(0, offer.expired_at - Date.now()) / 30000)))});"></div></div>` : ''}
                 </div>
             </div>
             <div class="driver-action-buttons">
-                ${!isProcessed ? `<button class="accept-btn" data-driver="${driverId}"> Terima</button><button class="reject-btn" data-driver="${driverId}"> Tolak</button>` : `<span>${offer.status === 'accepted' ? ' Diterima' : ' Ditolak'}</span>`}
+                ${!isProcessed ? `<button class="accept-btn" data-driver="${driverId}">✅ Terima</button><button class="reject-btn" data-driver="${driverId}">❌ Tolak</button>` : `<span>${offer.status === 'accepted' ? '✅ Diterima' : '❌ Ditolak'}</span>`}
             </div>
         `;
         container.appendChild(card);
     });
     document.querySelectorAll('.accept-btn').forEach(btn => btn.addEventListener('click', () => acceptOffer(btn.getAttribute('data-driver'))));
     document.querySelectorAll('.reject-btn').forEach(btn => btn.addEventListener('click', () => rejectOffer(btn.getAttribute('data-driver'))));
+}
+
+// ==================== OFFERS RE-BID TIMER ====================
+function startOffersTimer() {
+    clearOffersTimer();
+    offersTimerSecondsLeft = OFFERS_TIMER_DURATION;
+    updateOffersTimerDisplay();
+
+    offersTimerInterval = setInterval(() => {
+        offersTimerSecondsLeft--;
+        if (offersTimerSecondsLeft <= 0) {
+            offersTimerSecondsLeft = 0;
+            updateOffersTimerDisplay();
+            clearOffersTimer();
+            return;
+        }
+        updateOffersTimerDisplay();
+    }, 1000);
+}
+
+function clearOffersTimer() {
+    if (offersTimerInterval) {
+        clearInterval(offersTimerInterval);
+        offersTimerInterval = null;
+    }
+}
+
+function updateOffersTimerDisplay() {
+    const timerEl = document.getElementById('offersTimer');
+    const progEl  = document.getElementById('offersProgressFill');
+    if (timerEl) {
+        const m = Math.floor(offersTimerSecondsLeft / 60);
+        const s = offersTimerSecondsLeft % 60;
+        timerEl.textContent = `${m}:${s.toString().padStart(2, '0')}`;
+    }
+    if (progEl) {
+        progEl.style.width = (offersTimerSecondsLeft / OFFERS_TIMER_DURATION) * 100 + '%';
+    }
+}
+
+function updateOffersConfirmState() {
+    const negoInput = document.getElementById('offersNegoInput');
+    const confirmBtn = document.getElementById('offersConfirmBtn');
+    if (!negoInput || !confirmBtn) return;
+
+    const currentVal = parseInt(negoInput.value) || 0;
+
+    if (currentVal > 0 && currentVal >= minOffer && currentVal !== offersConfirmedPrice) {
+        confirmBtn.disabled = false;
+    } else {
+        confirmBtn.disabled = true;
+    }
+}
+
+// ==================== ROTATING LABELS ====================
+function startRotatingLabels() {
+    stopRotatingLabels();
+    rotatingLabelsIndex = 0;
+    updateRotatingLabels();
+
+    rotatingLabelsInterval = setInterval(() => {
+        rotatingLabelsIndex = (rotatingLabelsIndex + 1) % ROTATING_TITLES.length;
+        updateRotatingLabels();
+    }, 2000);
+    console.log('🔄 Rotating labels dimulai — total label:', ROTATING_TITLES.length);
+}
+
+function stopRotatingLabels() {
+    if (rotatingLabelsInterval) {
+        clearInterval(rotatingLabelsInterval);
+        rotatingLabelsInterval = null;
+    }
+}
+
+function updateRotatingLabels() {
+    // ✅ Pakai getElementById (lebih pasti ketemu)
+    const titleEl = document.getElementById('offersRebidTitle');
+    const subEl   = document.getElementById('offersRebidSubtitle');
+
+    if (titleEl) {
+        titleEl.textContent = ROTATING_TITLES[rotatingLabelsIndex];
+    } else {
+        console.warn('⚠️ #offersRebidTitle tidak ditemukan di DOM');
+    }
+    if (subEl) {
+        subEl.textContent = ROTATING_SUBTITLES[rotatingLabelsIndex];
+    } else {
+        console.warn('⚠️ #offersRebidSubtitle tidak ditemukan di DOM');
+    }
+}
+
+// ==================== TARIFF SUGGESTION POPUP ====================
+function startTariffSuggestionTimer() {
+    clearTariffSuggestionTimer();
+    tariffSuggestionShown = false;
+    tariffSuggestionTimer = setTimeout(() => {
+        if (tariffSuggestionShown) return;
+        checkAndShowTariffSuggestion();
+    }, TARIFF_SUGGESTION_DELAY);
+}
+
+function clearTariffSuggestionTimer() {
+    if (tariffSuggestionTimer) {
+        clearTimeout(tariffSuggestionTimer);
+        tariffSuggestionTimer = null;
+    }
+}
+
+async function checkAndShowTariffSuggestion() {
+    if (!currentOrderId) return;
+    try {
+        const snap = await database.ref(`orders/${currentOrderId}`).once('value');
+        const order = snap.val();
+        if (!order || order.status !== 'waiting') return;
+
+        const offers = order.driver_offers || {};
+        if (Object.keys(offers).length > 0) {
+            tariffSuggestionShown = true;
+            return;
+        }
+
+        tariffSuggestionShown = true;
+        showTariffSuggestionPopup();
+    } catch (err) {
+        console.error('❌ Error check tariff suggestion:', err);
+    }
+}
+
+function showTariffSuggestionPopup() {
+    const overlay = document.getElementById('popupOverlay');
+    document.getElementById('popupTitle').innerText = '💡 Saran untuk Anda';
+    document.getElementById('popupMessage').innerHTML = `
+        Belum ada driver yang menerima tawaran Anda.<br><br>
+        Coba naikkan tarif sedikit lagi — tawaran yang lebih kompetitif umumnya lebih cepat diambil oleh driver terdekat.
+    `;
+    document.getElementById('popupButtons').innerHTML = `
+        <button class="popup-button popup-button-primary" id="popupUpgradeBtn">💵 Naikkan Tarif</button>
+        <button class="popup-button popup-button-secondary" id="popupLaterBtn">Nanti Saja</button>
+    `;
+    overlay.classList.add('active');
+
+    document.getElementById('popupUpgradeBtn').addEventListener('click', () => {
+        overlay.classList.remove('active');
+        const negoInput = document.getElementById('offersNegoInput');
+        if (negoInput) {
+            const val = parseInt(negoInput.value) || 0;
+            negoInput.value = val + 2000;
+            updateOffersConfirmState();
+        }
+    });
+
+    document.getElementById('popupLaterBtn').addEventListener('click', () => {
+        overlay.classList.remove('active');
+    });
+}
+
+// ==================== INIT PANEL REBID ====================
+function initOffersRebidPanel() {
+    const negoInput  = document.getElementById('offersNegoInput');
+    const rekomLabel = document.getElementById('offersLabelRekomendasi');
+    const minLabel   = document.getElementById('offersMinTawarLabel');
+    const confirmBtn = document.getElementById('offersConfirmBtn');
+
+    const rekomHarga = (recommendedPrice && recommendedPrice > 0) ? recommendedPrice : offerPrice;
+    const minHarga   = minOffer || Math.round(rekomHarga * 0.9 / 1000) * 1000;
+
+    if (negoInput) {
+        negoInput.value = offerPrice || rekomHarga;
+        negoInput.min = minHarga;
+    }
+    if (rekomLabel) rekomLabel.innerText = formatRupiah(rekomHarga);
+    if (minLabel)   minLabel.innerText   = formatRupiah(minHarga);
+
+    offersConfirmedPrice = offerPrice || rekomHarga;
+    if (confirmBtn) confirmBtn.disabled = true;
+
+    startOffersTimer();
+    startRotatingLabels();
+    startTariffSuggestionTimer();
+}
+
+async function handleOffersRebidConfirm() {
+    const negoInput = document.getElementById('offersNegoInput');
+    const confirmBtn = document.getElementById('offersConfirmBtn');
+    if (!negoInput) return;
+
+    const newPrice = parseInt(negoInput.value) || 0;
+
+    if (newPrice < minOffer) {
+        showPopup('Tawaran Tidak Valid', `Minimal tawaran ${formatRupiah(minOffer)}`);
+        return;
+    }
+    if (!currentOrderId) {
+        showPopup('Error', 'Order tidak ditemukan');
+        return;
+    }
+    if (newPrice === offersConfirmedPrice) return;
+
+    if (confirmBtn) confirmBtn.disabled = true;
+
+    try {
+        await database.ref(`orders/${currentOrderId}`).update({
+            price: newPrice,
+            auto_accept_price: newPrice,
+            updated_at: new Date().toISOString(),
+            status: 'waiting'
+        });
+
+        await database.ref(`orders/${currentOrderId}/driver_offers`).remove();
+
+        offerPrice = newPrice;
+        offersConfirmedPrice = newPrice;
+
+        // ✅ Popup "Berhasil" DIHAPUS — tidak ada popup lagi
+
+        startOffersTimer();
+        startTariffSuggestionTimer();  // reset timer 20 detik
+
+        if (confirmBtn) confirmBtn.disabled = true;
+        console.log('✅ Rebid sukses. Harga baru:', newPrice);
+    } catch (err) {
+        console.error('❌ Gagal update tawaran:', err);
+        showPopup('Error', 'Gagal update tawaran: ' + err.message);
+        if (confirmBtn) confirmBtn.disabled = false;
+    }
 }
 
 function updateOfferTimers() {
@@ -1378,8 +1566,6 @@ async function acceptOffer(driverId) {
     showPopup('Berhasil', 'Driver dipilih, mengalihkan ke halaman tracking...');
     if (orderIdToUse && orderIdToUse !== 'null') {
         setTimeout(() => { window.location.href = `tracking_customer.html?order_id=${orderIdToUse}`; }, 1500);
-    } else {
-        showPopup('Error', 'ID order tidak valid, tidak bisa redirect ke tracking');
     }
 }
 
@@ -1400,6 +1586,9 @@ function cleanupDriverOffers(showDetail = true) {
     }
     if (offerTimerInterval) { clearInterval(offerTimerInterval); offerTimerInterval = null; }
     if (cleanupInterval) { clearInterval(cleanupInterval); cleanupInterval = null; }
+    clearOffersTimer();
+    stopRotatingLabels();
+    clearTariffSuggestionTimer();
 
     document.getElementById('driverOffers').classList.remove('active');
     currentOrderId = null;
@@ -1437,10 +1626,7 @@ document.getElementById('saveOrderBtn').addEventListener('click', async function
             closeDetailSheet();
             setTimeout(function() {
                 const input = document.getElementById('offerInput');
-                if (input) {
-                    input.focus();
-                    input.select();
-                }
+                if (input) { input.focus(); input.select(); }
             }, 400);
         });
         return;
@@ -1450,18 +1636,9 @@ document.getElementById('saveOrderBtn').addEventListener('click', async function
     const senderPhone = document.getElementById('senderPhone').value.trim();
     const receiverPhone = document.getElementById('receiverPhone').value.trim();
     const category = document.getElementById('itemCategory').value;
-    if (!senderPhone) {
-        showPopup('Perhatian', 'Masukkan nomor ponsel pengirim.');
-        return;
-    }
-    if (!receiverPhone) {
-        showPopup('Perhatian', 'Masukkan nomor ponsel penerima.');
-        return;
-    }
-    if (!category) {
-        showPopup('Perhatian', 'Pilih kategori barang.');
-        return;
-    }
+    if (!senderPhone) { showPopup('Perhatian', 'Masukkan nomor ponsel pengirim.'); return; }
+    if (!receiverPhone) { showPopup('Perhatian', 'Masukkan nomor ponsel penerima.'); return; }
+    if (!category) { showPopup('Perhatian', 'Pilih kategori barang.'); return; }
 
     showLoading(true);
     const route = await calculateRouteDetails();
@@ -1519,7 +1696,7 @@ document.getElementById('saveOrderBtn').addEventListener('click', async function
 
         detailSheet.classList.remove('open');
         document.getElementById('driverOffers').classList.add('active');
-        document.getElementById('driverOfferList').innerHTML = '<div style="text-align:center; padding:16px;"> Menunggu penawaran driver...</div>';
+        document.getElementById('driverOfferList').innerHTML = '<div style="text-align:center; padding:10px 16px; color:#999; font-size:0.8rem; font-style:italic;">Belum ada driver yang menawar. Coba naikkan tawaran Anda.</div>';
 
         const offersRef = database.ref(`orders/${currentOrderId}/driver_offers`);
         offersListener = offersRef.on('value', (snap) => {
@@ -1541,7 +1718,7 @@ document.getElementById('saveOrderBtn').addEventListener('click', async function
             }
         });
 
-        showPopup('Pesanan Dibuat', 'Menunggu kurir memberikan tawaran...', null);
+        initOffersRebidPanel();
     } catch (err) {
         showLoading(false);
         showPopup('Error', 'Gagal menyimpan pesanan: ' + err.message);
@@ -1588,23 +1765,52 @@ window.onload = async () => {
 
     await fetchTransportData();
 
-    // ===== LOAD GOOGLE MAPS DARI FIREBASE =====
     const mapsLoaded = await loadGoogleMapsFromFirebase();
     if (!mapsLoaded) {
         showPopup('Error', 'Gagal memuat Google Maps. Periksa koneksi internet.');
         return;
     }
 
-    // Tunggu sebentar agar Google Maps benar-benar siap
     await new Promise(r => setTimeout(r, 500));
 
-    // Cek apakah Google Maps sudah tersedia
     if (typeof google === 'undefined' || !google.maps) {
         showPopup('Error', 'Google Maps tidak dapat dimuat. Periksa koneksi internet.');
         return;
     }
 
-    // Inisialisasi map
     initMap();
     renderMainSheet();
+
+    // ===== Listener panel rebid =====
+    const offersNegoMinus  = document.getElementById('offersNegoMinus');
+    const offersNegoPlus   = document.getElementById('offersNegoPlus');
+    const offersNegoInput  = document.getElementById('offersNegoInput');
+    const offersConfirmBtn = document.getElementById('offersConfirmBtn');
+
+    if (offersNegoMinus && offersNegoInput) {
+        offersNegoMinus.addEventListener('click', () => {
+            let val = parseInt(offersNegoInput.value) || 0;
+            val = Math.max(minOffer, val - 1000);
+            offersNegoInput.value = val;
+            updateOffersConfirmState();
+        });
+    }
+    if (offersNegoPlus && offersNegoInput) {
+        offersNegoPlus.addEventListener('click', () => {
+            let val = parseInt(offersNegoInput.value) || 0;
+            val += 1000;
+            offersNegoInput.value = val;
+            updateOffersConfirmState();
+        });
+    }
+    if (offersNegoInput) {
+        offersNegoInput.addEventListener('input', () => {
+            const val = parseInt(offersNegoInput.value) || 0;
+            offersNegoInput.style.color = (val > 0 && val < minOffer) ? '#f44336' : '';
+            updateOffersConfirmState();
+        });
+    }
+    if (offersConfirmBtn) {
+        offersConfirmBtn.addEventListener('click', handleOffersRebidConfirm);
+    }
 };
