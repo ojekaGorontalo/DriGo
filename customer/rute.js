@@ -55,6 +55,9 @@ let bsTimerInterval = null;
 let bsTimerSecondsLeft = 120;
 const BS_TIMER_DURATION = 120;  // 2 menit = 120 detik
 
+// ⬇️ BARU: State tombol konfirmasi — user harus mengubah tarif dulu
+let tariffChanged = false;
+
 // Data kendaraan
 let transportData = {};
 let tariffRates = {};
@@ -293,6 +296,26 @@ function hitungMinTawaran(hargaAsli) {
     return Math.round(minAllowed / 1000) * 1000;
 }
 
+// ==================== BARU: STATE TOMBOL KONFIRMASI ====================
+function updateConfirmButtonState() {
+    const confirmBtn = document.getElementById('confirmBtn');
+    const negoInput = document.getElementById('negoInput');
+    if (!confirmBtn) return;
+    if (!negoInput) { confirmBtn.disabled = true; return; }
+    const val = parseInt(negoInput.value) || 0;
+    const isValid = val > 0 && val >= minAllowedNego;
+    // Tombol hanya aktif kalau user SUDAH mengubah tarif DAN tawarannya valid
+    confirmBtn.disabled = !(tariffChanged && isValid);
+}
+
+function updateAutoAcceptPriceLabels(price) {
+    const fmt = formatRupiah(price || 0);
+    const el1 = document.getElementById('autoAcceptPrice');
+    const el2 = document.getElementById('autoAcceptPriceBidding');
+    if (el1) el1.innerText = fmt;
+    if (el2) el2.innerText = fmt;
+}
+
 // ==================== TAMPILKAN ADDRESS CARD ====================
 function showAddressCard() {
     const card = document.getElementById('addressCard');
@@ -380,6 +403,10 @@ function resetBiddingUI() {
     if (confirmBtn) confirmBtn.style.display = '';
     if (retryBtn) retryBtn.style.display = 'none';
     bsTimerSecondsLeft = BS_TIMER_DURATION;
+
+    // ⬇️ BARU: reset state tombol konfirmasi
+    tariffChanged = false;
+    updateConfirmButtonState();
 }
 
 // ==================== BOTTOM SHEET DRAG ====================
@@ -515,6 +542,9 @@ function switchToBiddingMode() {
             negoInput.dispatchEvent(new Event('input'));
         }
     }
+
+    // ⬇️ BARU: pastikan tombol konfirmasi dalam state yang benar
+    updateConfirmButtonState();
 }
 
 function updatePickerVehicleCard() {
@@ -542,8 +572,8 @@ function updatePickerPrice() {
         card.style.display = 'block';
         priceVal.textContent = formatRupiah(currentRoute.price);
 
-        // ⬇️ Update label harga auto-accept juga
-        if (autoAcceptPrice) autoAcceptPrice.innerText = formatRupiah(currentRoute.price);
+        // ⬇️ Update label harga auto-accept juga (2 tempat)
+        updateAutoAcceptPriceLabels(currentRoute.price);
 
         const minAllowed = hitungMinTawaran(currentRoute.price);
         minAllowedNego = minAllowed;
@@ -786,6 +816,9 @@ function initNegosiasi(originalPriceVal) {
     const minAllowed = hitungMinTawaran(originalPriceVal);
     minAllowedNego = minAllowed;
 
+    // ⬇️ BARU: reset dirty state saat harga baru dihitung
+    tariffChanged = false;
+
     const input = document.getElementById('negoInput');
     const minTawarLabel = document.getElementById('minTawarLabel');
     const minErrorVal = document.getElementById('minErrorVal2');
@@ -795,7 +828,9 @@ function initNegosiasi(originalPriceVal) {
     if (minTawarLabel) minTawarLabel.innerText = formatRupiah(minAllowed);
     if (minErrorVal) minErrorVal.innerText = formatRupiah(minAllowed);
     if (labelRekomendasi) labelRekomendasi.innerText = formatRupiah(originalPriceVal);
-    if (autoAcceptPrice) autoAcceptPrice.innerText = formatRupiah(originalPriceVal);
+
+    // ⬇️ BARU: update label harga auto-accept di kedua tempat
+    updateAutoAcceptPriceLabels(originalPriceVal);
 
     if (input) {
         if (!input.value || parseInt(input.value) <= 0) {
@@ -808,18 +843,20 @@ function initNegosiasi(originalPriceVal) {
     }
 
     updatePickerPrice();
+
+    // ⬇️ BARU: tombol konfirmasi disabled sampai user ubah tarif
+    updateConfirmButtonState();
 }
 
 function handleNegoInput() {
     const input = document.getElementById('negoInput');
     const val = input.value.trim();
-    const confirmBtn = document.getElementById('confirmBtn');
     const negoError = document.getElementById('negoError');
 
     if (val === '' || isNaN(parseInt(val)) || parseInt(val) <= 0) {
         currentPrice = 0;
-        if (confirmBtn) confirmBtn.disabled = true;
         if (negoError) negoError.style.display = 'none';
+        updateConfirmButtonState();
         return;
     }
 
@@ -833,7 +870,10 @@ function handleNegoInput() {
     }
 
     currentPrice = numVal;
-    if (confirmBtn) confirmBtn.disabled = false;
+
+    // ⬇️ BARU: update label auto-accept + state tombol
+    updateAutoAcceptPriceLabels(numVal);
+    updateConfirmButtonState();
 }
 
 // ==================== DARK MODE ====================
@@ -895,11 +935,12 @@ async function loadWaitingOrderData() {
         transportIconUrl = getDriverIconUrl(transportType);
         initNegosiasi(currentPrice);
 
-        // ⬇️ BARU: Restore status toggle auto-accept dari order
+        // ⬇️ Restore status toggle auto-accept dari order (2 tempat)
         const autoAcceptToggle = document.getElementById('autoAcceptToggle');
-        if (autoAcceptToggle) {
-            autoAcceptToggle.checked = order.auto_accept === true;
-        }
+        const autoAcceptToggleBidding = document.getElementById('autoAcceptToggleBidding');
+        const isAutoAccept = order.auto_accept === true;
+        if (autoAcceptToggle) autoAcceptToggle.checked = isAutoAccept;
+        if (autoAcceptToggleBidding) autoAcceptToggleBidding.checked = isAutoAccept;
 
         updatePickerAddresses();
         updatePickerVehicleCard();
@@ -1790,9 +1831,12 @@ function renderOffers(offers) {
     document.querySelectorAll('.accept-btn').forEach(btn => btn.addEventListener('click', () => acceptOffer(btn.getAttribute('data-driver'))));
     document.querySelectorAll('.reject-btn').forEach(btn => btn.addEventListener('click', () => rejectOffer(btn.getAttribute('data-driver'))));
 
-    // ⬇️ BARU: Auto-accept driver pertama jika toggle ON
+    // ⬇️ Auto-accept driver pertama jika toggle ON (dari kedua toggle)
     const autoAcceptToggle = document.getElementById('autoAcceptToggle');
-    if (!autoAcceptToggle || !autoAcceptToggle.checked) return;
+    const autoAcceptToggleBidding = document.getElementById('autoAcceptToggleBidding');
+    const isAutoAcceptOn = (autoAcceptToggle && autoAcceptToggle.checked)
+                        || (autoAcceptToggleBidding && autoAcceptToggleBidding.checked);
+    if (!isAutoAcceptOn) return;
     if (!offers || !currentOrderId) return;
 
     // Cari driver pertama yang statusnya 'offered' dan belum dalam proses auto-accept
@@ -1906,9 +1950,11 @@ async function confirmRoute() {
     currentPrice = offerPrice;
     if (negoInput) negoInput.value = offerPrice;
 
-    // Baca status auto-accept
+    // Baca status auto-accept (dari kedua toggle)
     const autoAcceptToggle = document.getElementById('autoAcceptToggle');
-    const autoAcceptEnabled = autoAcceptToggle ? autoAcceptToggle.checked : false;
+    const autoAcceptToggleBidding = document.getElementById('autoAcceptToggleBidding');
+    const autoAcceptEnabled = (autoAcceptToggle && autoAcceptToggle.checked)
+                            || (autoAcceptToggleBidding && autoAcceptToggleBidding.checked);
 
     // Cek apakah sudah ada order aktif
     let isUpdate = false;
@@ -1979,6 +2025,10 @@ if (!isUpdate) {
             // Hapus driver_offers lama supaya driver lihat harga BARU
             await database.ref(`orders/${currentOrderId}/driver_offers`).remove();
 
+            // ⬇️ BARU: reset dirty state setelah submit sukses
+            tariffChanged = false;
+            updateConfirmButtonState();
+
             showToast('✅ Tawaran diperbarui: ' + formatRupiah(currentPrice), 'success');
             console.log('✅ Order updated:', currentOrderId);
             return;
@@ -2042,6 +2092,10 @@ if (!isUpdate) {
     await database.ref(`userOrders/${currentUser.id}/${currentOrderId}`).set(true);
     localStorage.setItem('current_order_id', currentOrderId);
     isSearching = true;
+
+    // ⬇️ BARU: reset dirty state setelah submit sukses
+    tariffChanged = false;
+    updateConfirmButtonState();
 
     if (pickupCoord && pickupCoord.length === 2) {
         startShowingNearbyDrivers(pickupCoord[1], pickupCoord[0], 3);
@@ -2158,7 +2212,7 @@ window.onload = async () => {
         confirmBtn.addEventListener('click', confirmRoute);
     }
 
-    // ⬇️ BARU: Tombol "Cari lagi" saat timer habis
+    // ⬇️ Tombol "Cari lagi" saat timer habis
     const retryBtn = document.getElementById('retryBtn');
     if (retryBtn) {
         retryBtn.addEventListener('click', () => {
@@ -2185,11 +2239,13 @@ window.onload = async () => {
     const negoMinus = document.getElementById('negoMinus');
     const negoPlus = document.getElementById('negoPlus');
     const negoInput = document.getElementById('negoInput');
+
     if (negoMinus && negoInput) {
         negoMinus.addEventListener('click', () => {
             let val = parseInt(negoInput.value) || 0;
             val = Math.max(0, val - 1000);
             negoInput.value = val;
+            tariffChanged = true;    // ⬅️ user sudah mengubah tarif
             negoInput.dispatchEvent(new Event('input'));
         });
     }
@@ -2198,7 +2254,18 @@ window.onload = async () => {
             let val = parseInt(negoInput.value) || 0;
             val = val + 1000;
             negoInput.value = val;
+            tariffChanged = true;    // ⬅️ user sudah mengubah tarif
             negoInput.dispatchEvent(new Event('input'));
+        });
+    }
+
+    // ⬇️ BARU: deteksi user mengetik manual di input nego
+    if (negoInput) {
+        negoInput.addEventListener('input', (e) => {
+            if (e.isTrusted) {       // hanya event asli dari user
+                tariffChanged = true;
+                updateConfirmButtonState();
+            }
         });
     }
 
@@ -2227,22 +2294,32 @@ window.onload = async () => {
             }
             currentPrice = val;
 
-            // Update harga di label auto-accept juga
-            const autoAcceptPriceEl = document.getElementById('autoAcceptPrice');
-            if (autoAcceptPriceEl) autoAcceptPriceEl.innerText = formatRupiah(val);
+            // Update harga di label auto-accept juga (2 tempat)
+            updateAutoAcceptPriceLabels(val);
         });
     }
 
-    // ⬇️ BARU: Toggle auto-accept handler (notifikasi saat ON/OFF)
+    // ⬇️ Toggle auto-accept handler — sinkron 2 toggle
     const autoAcceptToggle = document.getElementById('autoAcceptToggle');
+    const autoAcceptToggleBidding = document.getElementById('autoAcceptToggleBidding');
+
+    function syncAutoAcceptToggles(source) {
+        const checked = source.checked;
+        if (autoAcceptToggle) autoAcceptToggle.checked = checked;
+        if (autoAcceptToggleBidding) autoAcceptToggleBidding.checked = checked;
+
+        if (checked) {
+            showToast('✅ Terima driver otomatis: ON', 'success');
+        } else {
+            showToast('❌ Terima driver otomatis: OFF', 'info');
+        }
+    }
+
     if (autoAcceptToggle) {
-        autoAcceptToggle.addEventListener('change', () => {
-            if (autoAcceptToggle.checked) {
-                showToast('✅ Terima driver otomatis: ON', 'success');
-            } else {
-                showToast('❌ Terima driver otomatis: OFF', 'info');
-            }
-        });
+        autoAcceptToggle.addEventListener('change', () => syncAutoAcceptToggles(autoAcceptToggle));
+    }
+    if (autoAcceptToggleBidding) {
+        autoAcceptToggleBidding.addEventListener('change', () => syncAutoAcceptToggles(autoAcceptToggleBidding));
     }
 
     document.getElementById('useMapPickBtn').addEventListener('click', confirmMapPick);
