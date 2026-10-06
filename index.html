@@ -2708,7 +2708,11 @@ async function checkDriverActiveOrder() {
     }
   }
   if (!globalCurrentUid) return false;
-  const ordersSnap = await database.ref('orders').orderByChild('driver_id').equalTo(globalCurrentUid).once('value');
+  const ordersSnap = await database.ref('orders')
+    .orderByChild('driver_id')
+    .equalTo(globalCurrentUid)
+    .limitToLast(10)
+    .once('value');
   const orders = ordersSnap.val();
   if (orders) {
     for (const [orderId, order] of Object.entries(orders)) {
@@ -2797,18 +2801,18 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
       
       try {
-        const keySnap = await database.ref('data-jego/apikey-google-maps').once('value');
-        const apiKey = keySnap.val();
-        if (apiKey) {
-          await loadGoogleMaps(apiKey);
-        } else {
-          console.warn('⚠️ API key Google Maps tidak ditemukan di Firebase.');
-          showToast('API key Google Maps tidak ditemukan', 'warning');
-        }
-      } catch (error) {
-        console.error('❌ Gagal mengambil API key dari Firebase:', error);
-        showToast('Gagal memuat Google Maps', 'error');
-      }
+    const keySnap = await database.ref('data-jego/apikey-google-maps').once('value');
+    const apiKey = keySnap.val();
+    if (apiKey) {
+        // ⚡ Fire-and-forget: biarkan Maps dimuat di background
+        //    Tidak block pemuatan order list
+        loadGoogleMaps(apiKey).catch((e) => console.warn('Maps load error:', e));
+    } else {
+        console.warn('⚠️ API key Google Maps tidak ditemukan di Firebase.');
+    }
+} catch (error) {
+    console.error('❌ Gagal mengambil API key dari Firebase:', error);
+}
 
       await loadStoredSettings();
 
