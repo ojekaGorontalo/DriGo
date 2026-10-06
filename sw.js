@@ -18,7 +18,7 @@ const APP_SHELL = [
     './pilih_peran.html',
     './peran.html',
     './index.html',
-    './loginDriver.html',
+    './logindriver.html',
     './PendaftaranDriver.html',
     './Status_pending.html',
     './verifikasi_driver.html',
