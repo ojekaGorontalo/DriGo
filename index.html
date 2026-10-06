@@ -1005,6 +1005,11 @@ try {
             gpsReady = true;
             lastSentLat = _loc.lat;
             lastSentLng = _loc.lng;
+
+            // ⚡ FIX: LED langsung hijau dari cache (sebelum satelit balik)
+            const _dot = document.getElementById('gpsDot');
+            if (_dot) _dot.className = 'gps-dot gps-active';
+
             console.log('⚡ [Instant] Pakai lokasi cache:', _loc.lat, _loc.lng);
         }
     }
@@ -1521,11 +1526,12 @@ function startGPSMonitoring() {
   const lastLocation = localStorage.getItem('jego_last_driver_location');
   if (lastLocation) {
     try {
-      const loc = JSON.parse(lastLocation);
-      driverLocation = { latitude: loc.lat, longitude: loc.lng };
-      document.getElementById('gpsDot').className = 'gps-dot gps-inactive';
-      document.getElementById('gpsText').textContent = 'GPS';
-      gpsReady = true;
+        const loc = JSON.parse(lastLocation);
+        driverLocation = { latitude: loc.lat, longitude: loc.lng };
+        // ⚡ INSTANT: langsung hijau dari cache — jangan tunggu satelit
+        document.getElementById('gpsDot').className = 'gps-dot gps-active';
+        document.getElementById('gpsText').textContent = 'GPS';
+        gpsReady = true;
       if (gpsLoadingInterval) { clearInterval(gpsLoadingInterval); gpsLoadingInterval = null; }
       loadOrders();
     } catch(e) {}
@@ -2873,7 +2879,26 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 function refreshData() { refreshDisplay(); }
 
-window.addEventListener('beforeunload', () => { if (locationWatchId) navigator.geolocation.clearWatch(locationWatchId); });
+// ✅ BFCache-friendly: JANGAN pakai beforeunload (memblokir BFCache).
+// Pakai pagehide + cek e.persisted — kalau masuk BFCache, jangan cleanup.
+window.addEventListener('pagehide', (e) => {
+    if (e.persisted) {
+        // Halaman disimpan di BFCache — biarkan GPS watch & listener tetap hidup.
+        console.log('💤 [BFCache] Page di-cache, biarkan state tetap hidup');
+        return;
+    }
+    // Benar-benar unload — baru cleanup
+    if (locationWatchId) navigator.geolocation.clearWatch(locationWatchId);
+});
+
+// ✅ Saat di-restore dari BFCache, segarkan tampilan (opsional tapi aman)
+window.addEventListener('pageshow', (e) => {
+    if (e.persisted) {
+        console.log('⚡ [BFCache] Page di-restore — state utuh, GPS masih hijau');
+        if (typeof refreshDisplay === 'function') refreshDisplay();
+    }
+});
+
 if (gpsLoadingInterval) clearInterval(gpsLoadingInterval);
 
 document.addEventListener("backbutton", function () {
