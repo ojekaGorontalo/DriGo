@@ -2,39 +2,43 @@
    SERVICE WORKER — JeGo
    ============================================================
    Strategi:
-     - App shell (HTML/CSS/JS lokal)  → Cache-first
+     - App shell (HTML/CSS/JS lokal)  → Stale-while-revalidate
      - Firebase CDN + icon eksternal  → Cache-first
      - Firebase Realtime DB + Auth    → Network-only (WAJIB!)
      - Google Maps API calls          → Network-only
    ============================================================ */
 
-// File yang WAJIB ada supaya app bisa jalan offline
-const CACHE_NAME = 'jego-shell-v8';      // ⬅️ NAIKKAN versi!
-const RUNTIME_CACHE = 'jego-runtime-v8';
+// ⬅️ NAIKKAN versi supaya SW lama otomatis terbuang
+const CACHE_NAME    = 'jego-shell-v3';
+const RUNTIME_CACHE = 'jego-runtime-v3';
 
+// File yang dipre-cache saat install.
+// Satu file boleh gagal — yang lain tetap masuk cache.
 const APP_SHELL = [
     // ===== ROOT =====
     './',
     './pilih_peran.html',
     './peran.html',
     './index.html',
-    './logindriver.html',
+    './loginDriver.html',
     './PendaftaranDriver.html',
     './Status_pending.html',
     './verifikasi_driver.html',
     './lengkapiData.html',
-    './orderaccepted.html',
+    './orderAccepted.html',        // ⬅️ FIX: huruf A besar (sesuai redirect di index.html)
+    './orderaccepted.html',        // ⬅️ Alias jaga-jaga kalau ada yang pakai lowercase
     './GantiLayanan.html',
     './documents.html',
     './payment.html',
     './pendapatan.html',
     './historydeposit.html',
     './akun.html',
-    './pengaturandr.html',
+    './pengaturanDr.html',         // ⬅️ FIX: huruf D besar (sesuai sidebar index.html)
+    './pengaturandr.html',         // ⬅️ Alias jaga-jaga
     './notifikasi.html',
     './editorLegal.html',
     './riwayat.html',
-    './statistik.html',
+    './statistik.html',            // ⬅️ INI YANG PENTING untuk instant navigation
     './penilaianLayanan.html',
     './feedback.html',
     './sanski_driver.html',
@@ -56,7 +60,7 @@ const APP_SHELL = [
     './terms-kurir-bentor.html',
 
     // ===== CUSTOMER (nama HARUS sama persis!) =====
-    './customer/loginuser.html',              // ⚠️ huruf u kecil
+    './customer/loginuser.html',
     './customer/jenis_kenderaan.html',
     './customer/registrasi_jego.html',
     './customer/userAccount.html',
@@ -82,13 +86,18 @@ const APP_SHELL = [
 // INSTALL — Precaching app shell
 // ============================================================
 self.addEventListener('install', (event) => {
-    console.log('🔧 [SW] Install — cache app shell');
+    console.log('🔧 [SW] Install — precache app shell (tolerant mode)');
     event.waitUntil(
         caches.open(CACHE_NAME).then((cache) => {
-            return cache.addAll(APP_SHELL).catch((err) => {
-                console.warn('⚠️ [SW] Gagal pre-cache beberapa file:', err);
-                // Tetap lanjut, tidak gagalkan install
-            });
+            // ✅ FIX: cache.add() per URL, bukan addAll().
+            //    Kalau satu 404, yang lain tetap ter-cache.
+            return Promise.allSettled(
+                APP_SHELL.map((url) =>
+                    cache.add(url).catch((err) => {
+                        console.warn('⚠️ [SW] Skip (gagal cache):', url);
+                    })
+                )
+            );
         }).then(() => self.skipWaiting())
     );
 });
@@ -123,27 +132,23 @@ self.addEventListener('fetch', (event) => {
     if (request.method !== 'GET') return;
 
     // --- 2. JANGAN cache Firebase Realtime DB + Auth ---
-    // Domain: *.firebasedatabase.app, *.firebaseio.com, identitytoolkit
     if (
         url.hostname.includes('firebasedatabase.app') ||
         url.hostname.includes('firebaseio.com') ||
         url.hostname.includes('identitytoolkit') ||
-        url.hostname.includes('securetoken') ||
-        url.pathname.includes('/api/')
+        url.hostname.includes('securetoken')
     ) {
         // Network-only — biarkan lewat
         return;
     }
 
     // --- 3. JANGAN cache Google Maps API calls ---
-    // (tile, geocode, directions, places harus realtime)
     if (
         url.hostname.includes('maps.googleapis.com') ||
         url.hostname.includes('maps.gstatic.com') ||
-        url.hostname.includes('khms') || // tile satelit
-        url.hostname.includes('mt') && url.hostname.includes('google')
+        url.hostname.includes('khms') ||
+        (url.hostname.includes('mt') && url.hostname.includes('google'))
     ) {
-        // Network-only, tapi tetap fallback kalau gagal
         event.respondWith(
             fetch(request).catch(() => caches.match(request))
         );
@@ -160,13 +165,14 @@ self.addEventListener('fetch', (event) => {
     if (
         url.hostname.includes('flaticon.com') ||
         url.hostname.includes('cdn-icons') ||
-        url.hostname.includes('maps.google.com')
+        url.hostname.includes('maps.google.com') ||
+        url.hostname.includes('cdnjs.cloudflare.com')   // ⬅️ Bonus: Font Awesome
     ) {
         event.respondWith(cacheFirst(request, RUNTIME_CACHE));
         return;
     }
 
-    // --- 6. App shell (same-origin: HTML/CSS/JS) → Cache-first dengan network update ---
+    // --- 6. App shell (same-origin: HTML/CSS/JS) → Stale-while-revalidate ---
     if (url.origin === self.location.origin) {
         event.respondWith(staleWhileRevalidate(request, CACHE_NAME));
         return;
