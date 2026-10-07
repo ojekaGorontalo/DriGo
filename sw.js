@@ -9,8 +9,8 @@
    ============================================================ */
 
 // ⬅️ NAIKKAN versi supaya SW lama otomatis terbuang
-const CACHE_NAME    = 'jego-shell-v6';
-const RUNTIME_CACHE = 'jego-runtime-v6';
+const CACHE_NAME    = 'jego-shell-v7';
+const RUNTIME_CACHE = 'jego-runtime-v7';
 
 // File yang dipre-cache saat install.
 // Satu file boleh gagal — yang lain tetap masuk cache.
