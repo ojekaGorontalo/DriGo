@@ -1769,8 +1769,12 @@ function stopSlowZoomOut() {}
 
 function activateRadarOnPickup() {
     if (pickupMarker) {
+        // ⚡ FIX: Pakai icon sesuai kendaraan yang dipilih, bukan hardcode motor
+        const iconUrl = transportIconUrl
+            || getDriverIconUrl(transportType)
+            || 'https://cdn-icons-png.flaticon.com/128/5811/5811823.png';
         pickupMarker.setIcon({
-            url: 'https://cdn-icons-png.flaticon.com/128/5811/5811823.png',
+            url: iconUrl,
             scaledSize: new google.maps.Size(45, 45),
             anchor: new google.maps.Point(22, 22)
         });
