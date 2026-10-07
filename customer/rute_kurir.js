@@ -197,12 +197,10 @@ function escapeHtml(str) {
 function switchOrderType(type) {
     currentOrderType = type;
 
-    // Update tab UI
     document.querySelectorAll('.order-type-tab').forEach(t => {
         t.classList.toggle('active', t.dataset.type === type);
     });
 
-    // Toggle form fields
     const titipFields = document.getElementById('titipBeliFields');
     const kirimFields = document.getElementById('kirimFields');
     const headerTitle = document.querySelector('#mainSheet .header span');
@@ -226,7 +224,6 @@ function switchOrderType(type) {
         if (priceCardLabel) priceCardLabel.innerText = '💰 Harga rekomendasi';
     }
 
-    // Recalculate kalau pickup & destination sudah ada
     if (pickup && destination) {
         renderMainSheet();
         updateDetailPriceDisplay();
@@ -468,6 +465,160 @@ function getDriverIconUrl(type) {
     if (type === 'kurir_bentor') return 'https://cdn-icons-png.flaticon.com/128/7890/7890227.png';
     return 'https://cdn-icons-png.flaticon.com/128/9561/9561688.png';
 }
+
+// ==================== NEARBY DRIVERS VIA GEOHASH (BARU) ====================
+const GEOHASH_GRID_PRECISION = 100;
+let nearbyDriversRefs = [];
+let nearbyDriversListeners = [];
+
+function getNeighborGrids(lat, lng) {
+    const baseLat = Math.round(lat * GEOHASH_GRID_PRECISION);
+    const baseLng = Math.round(lng * GEOHASH_GRID_PRECISION);
+    const grids = [];
+    for (let dLat = -1; dLat <= 1; dLat++) {
+        for (let dLng = -1; dLng <= 1; dLng++) {
+            grids.push(`${baseLat + dLat}_${baseLng + dLng}`);
+        }
+    }
+    return grids;
+}
+
+function getDistanceKm(lat1, lon1, lat2, lon2) {
+    const R = 6371;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat/2)**2 +
+              Math.cos(lat1 * Math.PI/180) * Math.cos(lat2 * Math.PI/180) *
+              Math.sin(dLon/2)**2;
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
+}
+
+// Cek apakah driver cocok dengan tipe order kurir
+// 'kurir_motor' match dengan driver 'motor' atau 'kurir_motor'
+// 'kurir_bentor' match dengan driver 'bentor' atau 'kurir_bentor'
+function isDriverMatchesVehicle(driverType, orderType) {
+    if (!driverType || !orderType) return false;
+    driverType = String(driverType).toLowerCase().trim();
+    orderType = String(orderType).toLowerCase().trim();
+    if (driverType === orderType) return true;
+    if (orderType === 'kurir_motor' && driverType === 'motor') return true;
+    if (orderType === 'kurir_bentor' && driverType === 'bentor') return true;
+    return false;
+}
+
+function getVehicleEmojiKurir(vehicleType) {
+    const t = (vehicleType || '').toLowerCase();
+    if (t.includes('mobil')) return '🚗';
+    if (t.includes('bentor')) return '🛺';
+    if (t.includes('kurir')) return '📦';
+    return '🏍️';
+}
+
+function startShowingNearbyDrivers(pickupLat, pickupLng, radiusKm = 3) {
+    console.log(`📡 [NearbyDrivers Kurir] Mulai, radius ${radiusKm}km`);
+    stopShowingNearbyDrivers();
+    const grids = getNeighborGrids(pickupLat, pickupLng);
+    grids.forEach(gridKey => {
+        const ref = database.ref(`driver_geohash/${gridKey}`);
+        const listener = ref.on('value', () => {
+            renderNearbyDriversFromGeohash(pickupLat, pickupLng, radiusKm);
+        });
+        nearbyDriversRefs.push(ref);
+        nearbyDriversListeners.push(listener);
+    });
+}
+
+function stopShowingNearbyDrivers() {
+    if (nearbyDriversRefs.length && nearbyDriversListeners.length) {
+        nearbyDriversRefs.forEach((ref, idx) => {
+            const listener = nearbyDriversListeners[idx];
+            if (ref && listener) ref.off('value', listener);
+        });
+    }
+    nearbyDriversRefs = [];
+    nearbyDriversListeners = [];
+}
+
+async function renderNearbyDriversFromGeohash(pickupLat, pickupLng, radiusKm) {
+    try {
+        const allUids = new Set();
+        for (const gridKey of getNeighborGrids(pickupLat, pickupLng)) {
+            const snap = await database.ref(`driver_geohash/${gridKey}`).once('value');
+            const ids = Object.keys(snap.val() || {});
+            ids.forEach(id => allUids.add(id));
+        }
+
+        if (allUids.size === 0) {
+            renderNearbyDrivers([]);
+            return;
+        }
+
+        const snapshots = await Promise.all(
+            Array.from(allUids).map(uid =>
+                database.ref(`driver_locations/${uid}`).once('value')
+            )
+        );
+
+        const drivers = [];
+        const orderType = selectedTransport?.type || 'kurir_motor';
+
+        for (const snap of snapshots) {
+            const uid = snap.ref.key;
+            const d = snap.val();
+            if (!d) continue;
+            if (d.tracking_enabled !== true) continue;
+            if (!d.latitude || !d.longitude) continue;
+
+            const dist = getDistanceKm(pickupLat, pickupLng, d.latitude, d.longitude);
+            if (dist > radiusKm) continue;
+
+            const driverVeh = d.vehicleType || d.vehicle_type || 'motor';
+            if (!isDriverMatchesVehicle(driverVeh, orderType)) continue;
+
+            drivers.push({
+                uid,
+                distance: dist,
+                vehicleType: driverVeh
+            });
+        }
+
+        drivers.sort((a, b) => a.distance - b.distance);
+        console.log(`📡 [NearbyDrivers Kurir] ${drivers.length} driver (orderType: ${orderType})`);
+        renderNearbyDrivers(drivers);
+    } catch (err) {
+        console.error('❌ [NearbyDrivers Kurir] Error:', err.message);
+    }
+}
+
+function renderNearbyDrivers(drivers) {
+    const countEl = document.getElementById('nearbyDriverCount');
+    const iconsRow = document.getElementById('nearbyDriverIcons');
+    if (!iconsRow || !countEl) return;
+
+    countEl.textContent = drivers.length;
+
+    if (drivers.length === 0) {
+        iconsRow.innerHTML = '<div class="nearby-empty">🚫 Belum ada pengemudi</div>';
+        return;
+    }
+
+    const MAX_ICONS = 5;
+    const shown = drivers.slice(0, MAX_ICONS);
+    const remaining = drivers.length - shown.length;
+
+    let html = shown.map((d) => {
+        const emoji = getVehicleEmojiKurir(d.vehicleType);
+        return `<div class="nearby-driver-icon">${emoji}</div>`;
+    }).join('');
+
+    if (remaining > 0) {
+        html += `<div class="nearby-driver-icon more-indicator">+${remaining}</div>`;
+    }
+
+    iconsRow.innerHTML = html;
+}
+// ========================================================================
 
 // ==================== RENDER MAIN SHEET ====================
 function renderMainSheet() {
@@ -1620,6 +1771,9 @@ function cleanupDriverOffers(showDetail = true) {
     stopRotatingLabels();
     clearTariffSuggestionTimer();
 
+    // ⬇️ Stop listener pengemudi di sekitar
+    stopShowingNearbyDrivers();
+
     document.getElementById('driverOffers').classList.remove('active');
     currentOrderId = null;
 
@@ -1672,7 +1826,6 @@ document.getElementById('saveOrderBtn').addEventListener('click', async function
     let paymentResponsibility = null;
 
     if (currentOrderType === 'titip_beli') {
-        // Titip Beli — validasi daftar belanjaan
         shoppingList = document.getElementById('shoppingList').value.trim();
         if (!shoppingList) {
             showPopup('Perhatian', 'Isi daftar belanjaan terlebih dahulu.');
@@ -1688,7 +1841,6 @@ document.getElementById('saveOrderBtn').addEventListener('click', async function
         category = 'Titip Beli';
         itemDescription = shoppingList;
     } else {
-        // Kirim Barang — validasi seperti biasa
         senderPhone = document.getElementById('senderPhone').value.trim();
         receiverPhone = document.getElementById('receiverPhone').value.trim();
         category = document.getElementById('itemCategory').value;
@@ -1743,18 +1895,15 @@ document.getElementById('saveOrderBtn').addEventListener('click', async function
         perjalanan: currentUser.perjalanan || 0,
         photoURL: currentUser.photoURL || '',
 
-        // ===== FIELD BARU =====
         order_type: currentOrderType,
         is_titip_beli: currentOrderType === 'titip_beli'
     };
 
-    // Field tambahan khusus titip beli
     if (currentOrderType === 'titip_beli') {
         orderData.shopping_list = shoppingList;
         orderData.food_estimate = foodEstimate;
         orderData.payment_responsibility = paymentResponsibility;
         orderData.source = 'titip_beli';
-        // Total yang customer bayar ke driver (kalau driver talangin)
         if (paymentResponsibility === 'driver_pays') {
             orderData.amount_to_advance = foodEstimate;
             orderData.total_customer_pays = foodEstimate + offerPrice;
@@ -1800,6 +1949,11 @@ document.getElementById('saveOrderBtn').addEventListener('click', async function
         });
 
         initOffersRebidPanel();
+
+        // ⬇️ BARU: Mulai pantau pengemudi di sekitar
+        if (pickup && pickup.lat && pickup.lng) {
+            startShowingNearbyDrivers(pickup.lat, pickup.lng, 3);
+        }
     } catch (err) {
         showLoading(false);
         showPopup('Error', 'Gagal menyimpan pesanan: ' + err.message);
@@ -1862,7 +2016,7 @@ window.onload = async () => {
     initMap();
     renderMainSheet();
 
-    // ===== Tab listener (BARU) =====
+    // ===== Tab listener =====
     document.querySelectorAll('.order-type-tab').forEach(tab => {
         tab.addEventListener('click', () => {
             switchOrderType(tab.dataset.type);
