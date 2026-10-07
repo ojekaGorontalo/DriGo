@@ -659,28 +659,21 @@ async function renderNearbyDriversFromGeohash(pickupLat, pickupLng, radiusKm) {
         );
 
         for (const snap of snapshots) {
-            const uid = snap.ref.key;
-            const d = snap.val();
-            if (!d) continue;
-            if (d.tracking_enabled !== true) continue;
-            if (!d.latitude || !d.longitude) continue;
+    const uid = snap.ref.key;
+    const d = snap.val();
+    if (!d) continue;
+    if (d.tracking_enabled !== true) continue;
+    if (!d.latitude || !d.longitude) continue;
 
-            const hasFcm = !!d.fcmToken;
-            const hasOneSignal = !!(d.playerId || d.subscriptionId);
-            if (!hasFcm && !hasOneSignal) continue;
+    const dist = getDistanceKm(pickupLat, pickupLng, d.latitude, d.longitude);
+    if (dist > radiusKm) continue;
 
-            const lastUpdate = d.last_update ? new Date(d.last_update).getTime() : 0;
-            if (now - lastUpdate > MAX_AGE_MS) continue;
-
-            const dist = getDistanceKm(pickupLat, pickupLng, d.latitude, d.longitude);
-            if (dist > radiusKm) continue;
-
-            drivers.push({
-                uid,
-                distance: dist,
-                vehicleType: d.vehicleType || d.vehicle_type || 'motor'
-            });
-        }
+    drivers.push({
+        uid,
+        distance: dist,
+        vehicleType: d.vehicleType || d.vehicle_type || 'motor'
+    });
+}
 
         drivers.sort((a, b) => a.distance - b.distance);
         console.log(`📡 [NearbyDrivers] ${drivers.length} driver SIAP`);
