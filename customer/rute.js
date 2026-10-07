@@ -635,6 +635,20 @@ function startShowingNearbyDrivers(pickupLat, pickupLng, radiusKm = 3) {
     });
 }
 
+// ==================== FILTER KENDARAAN ====================
+// ⬇️ BARU: Cek apakah driver cocok dengan kendaraan yang dipilih customer
+function isDriverMatchesVehicle(driverType, orderType) {
+    if (!driverType || !orderType) return false;
+    driverType = String(driverType).toLowerCase().trim();
+    orderType = String(orderType).toLowerCase().trim();
+    if (driverType === orderType) return true;
+    // Alias kurir (opsional, jaga-jaga)
+    if (orderType === 'kurir_motor' && driverType === 'motor') return true;
+    if (orderType === 'kurir_bentor' && driverType === 'bentor') return true;
+    return false;
+}
+// ==========================================================
+
 async function renderNearbyDriversFromGeohash(pickupLat, pickupLng, radiusKm) {
     try {
         const allUids = new Set();
@@ -659,24 +673,28 @@ async function renderNearbyDriversFromGeohash(pickupLat, pickupLng, radiusKm) {
         );
 
         for (const snap of snapshots) {
-    const uid = snap.ref.key;
-    const d = snap.val();
-    if (!d) continue;
-    if (d.tracking_enabled !== true) continue;
-    if (!d.latitude || !d.longitude) continue;
+            const uid = snap.ref.key;
+            const d = snap.val();
+            if (!d) continue;
+            if (d.tracking_enabled !== true) continue;
+            if (!d.latitude || !d.longitude) continue;
 
-    const dist = getDistanceKm(pickupLat, pickupLng, d.latitude, d.longitude);
-    if (dist > radiusKm) continue;
+            const dist = getDistanceKm(pickupLat, pickupLng, d.latitude, d.longitude);
+            if (dist > radiusKm) continue;
 
-    drivers.push({
-        uid,
-        distance: dist,
-        vehicleType: d.vehicleType || d.vehicle_type || 'motor'
-    });
-}
+            // ⬇️ BARU: Filter kendaraan sesuai yang dipilih customer
+            const driverVeh = d.vehicleType || d.vehicle_type || 'motor';
+            if (transportType && !isDriverMatchesVehicle(driverVeh, transportType)) continue;
+
+            drivers.push({
+                uid,
+                distance: dist,
+                vehicleType: driverVeh
+            });
+        }
 
         drivers.sort((a, b) => a.distance - b.distance);
-        console.log(`📡 [NearbyDrivers] ${drivers.length} driver SIAP`);
+        console.log(`📡 [NearbyDrivers] ${drivers.length} driver SIAP (kendaraan: ${transportType || 'semua'})`);
         renderNearbyDrivers(drivers);
     } catch (err) {
         console.error('❌ [NearbyDrivers] Error:', err.message);
@@ -1055,6 +1073,11 @@ function selectVehicle(type) {
 
     if (pickupCoord && destCoord) updateRoute();
     showToast(`✅ Kendaraan ${t.name} dipilih`, 'success');
+
+    // ⬇️ BARU: Refresh daftar pengemudi setelah ganti kendaraan
+    if (pickupCoord && pickupCoord.length === 2) {
+        renderNearbyDriversFromGeohash(pickupCoord[1], pickupCoord[0], 3);
+    }
 }
 
 // ==================== OVERLAY KENDARAAN ====================
