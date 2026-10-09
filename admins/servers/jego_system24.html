@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JeGo Auto Offer (Autobid Only)</title>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', monospace; background: #0a0f1e; color: #e0e0e0;
+         padding: 20px; height: 100vh; display: flex; flex-direction: column; }
+  .header { background: #1e293b; padding: 12px 20px; border-radius: 16px;
+            margin-bottom: 20px; display: flex; justify-content: space-between;
+            align-items: center; flex-wrap: wrap; gap: 10px; }
+  .header h1 { font-size: 1.2rem; color: #FF9800; }
+  .status-badge { background: #2d3a4e; padding: 6px 12px; border-radius: 40px; font-size: 0.8rem; }
+  .stats { display: flex; gap: 12px; font-size: 0.75rem; color: #94a3b8; }
+  .stats b { color: #60a5fa; }
+  button { background: #FF9800; border: none; padding: 6px 14px; border-radius: 20px;
+           cursor: pointer; font-weight: bold; color: #0a0f1e; }
+  button:hover { opacity: 0.9; }
+  .log-container { flex: 1; background: #0f1724; border-radius: 20px; padding: 16px;
+                   overflow-y: auto; font-family: monospace; font-size: 0.75rem;
+                   border: 1px solid #2d3a4e; }
+  .log-entry { border-bottom: 1px solid #1e2a3a; padding: 6px 0; color: #b0c4de; }
+  .log-entry.success { color: #86efac; }
+  .log-entry.error { color: #fca5a5; }
+  .log-entry.warning { color: #fcd34d; }
+  .log-entry.info { color: #93c5fd; }
+  .footer { text-align: center; font-size: 0.7rem; margin-top: 12px; color: #5b6e8c; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>⚡ JeGo Auto Offer (Autobid Only)</h1>
+  <div class="stats">
+    <span>Order: <b id="statOrders">0</b></span>
+    <span>Driver notif: <b id="statDrivers">0</b></span>
+    <span>Offer: <b id="statOffers">0</b></span>
+  </div>
+  <div class="status-badge" id="statusBadge">⏳ Menunggu...</div>
+  <button id="logoutBtn">Logout</button>
+</div>
+
+<div class="log-container" id="logContainer">
+  <div class="log-entry">🚀 Memulai sistem autobid-only...</div>
+</div>
+<div class="footer">Hanya untuk driver tracking ON + Autobid ON · Bukan kurir</div>
+
+<script>
+// ==================== FIREBASE CONFIG ====================
+const firebaseConfig = {
+  apiKey: "AIzaSyCD0pgeZio-LdKqYDtWxcdXcZwyL4ngYQI",
+  authDomain: "jego-35a2b.firebaseapp.com",
+  databaseURL: "https://jego-35a2b-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "jego-35a2b",
+  storageBucket: "jego-35a2b.firebasestorage.app",
+  messagingSenderId: "600037007040",
+  appId: "1:600037007040:web:ac3243ad9b472647ffd725"
+};
+if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const database = firebase.database();
+
+// ==================== KONFIG ====================
+const ONESIGNAL_APP_ID = "007d7eba-9cfc-40d1-a92e-f2299f770282";
+const MAX_DISTANCE_KM = 3;
+const MAX_AGE_MS = 6 * 60 * 60 * 1000;  // driver dianggap aktif kalau < 6 jam
+const LOC_CACHE_MS = 60 * 1000;
+const CONFIG_CACHE_MS = 5 * 60 * 1000;  // cache potongan/pajak 5 menit
+const SOUND_AUTOBID = "custom_sound_2";
+const CHANNEL_AUTOBID = "022cc65d-3fb9-4939-85df-07e7cf3df0b8";  // channel valid dari app driver
+const OFFER_TTL_MS = 30 * 1000;         // offer berlaku 30 detik
+
+// halaman baru buka: order lama (sebelum 10 detik yang lalu) diabaikan
+const PAGE_LOAD_TS = Date.now();
+const STALE_BUFFER_MS = 10 * 1000;
+
+// ==================== STATE ====================
+let ONESIGNAL_API_KEY = "";
+let locCache = { data: null, ts: 0 };
+let locFetchPromise = null;
+let configCache = { data: null, ts: 0 };
+let processedOrders = new Set();
+let stats = { orders: 0, driversNotified: 0, offersCreated: 0 };
+let initialized = false;
+
+// ==================== UI ====================
+function addLog(msg, type = "info") {
+  const logDiv = document.getElementById("logContainer");
+  if (!logDiv) return;
+  const entry = document.createElement("div");
+  entry.className = "log-entry " + type;
+  entry.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+  logDiv.prepend(entry);
+  while (logDiv.children.length > 300) logDiv.removeChild(logDiv.lastChild);
+}
+function updateStats() {
+  document.getElementById("statOrders").textContent = stats.orders;
+  document.getElementById("statDrivers").textContent = stats.driversNotified;
+  document.getElementById("statOffers").textContent = stats.offersCreated;
+}
+
+// ==================== UTIL ====================
+function getDistance(lat1, lon1, lat2, lon2) {
+  if (!lat1 || !lon1 || !lat2 || !lon2) return Infinity;
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) * Math.sin(dLon/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+function isVehicleTypeMatch(driverType, orderType) {
+  if (!driverType || !orderType) return false;
+  driverType = driverType.toLowerCase();
+  orderType = orderType.toLowerCase();
+  if (driverType === orderType) return true;
+  if (orderType.includes('kurir')) {
+    if (driverType === 'motor' && orderType === 'kurir_motor') return true;
+    if (driverType === 'bentor' && orderType === 'kurir_bentor') return true;
+  }
+  return false;
+}
+function isKurirOrder(order) {
+  const tipe = (order.transport_type || order.vehicle || '').toLowerCase();
+  return tipe.includes('kurir');
+}
+function parseTs(v) {
+  if (!v) return 0;
+  if (typeof v === 'number') return v;
+  if (typeof v === 'string') return new Date(v).getTime();
+  return 0;
+}
+
+// ==================== CACHE ====================
+async function getDriverLocationsCached() {
+  const now = Date.now();
+  if (locCache.data && (now - locCache.ts) < LOC_CACHE_MS) return locCache.data;
+  if (locFetchPromise) return locFetchPromise;
+  locFetchPromise = (async () => {
+    const snap = await database.ref('driver_locations').once('value');
+    locCache.data = snap.val() || {};
+    locCache.ts = Date.now();
+    locFetchPromise = null;
+    return locCache.data;
+  })();
+  return locFetchPromise;
+}
+
+async function getConfigs() {
+  if (configCache.data && (Date.now() - configCache.ts) < CONFIG_CACHE_MS) return configCache.data;
+  const [pSnap, tSnap] = await Promise.all([
+    database.ref('data-jego/potongan').once('value'),
+    database.ref('data-jego/pajak').once('value')
+  ]);
+  configCache.data = {
+    potongan: parseFloat(pSnap.val()) || 0,
+    pajak: parseFloat(tSnap.val()) || 0
+  };
+  configCache.ts = Date.now();
+  return configCache.data;
+}
+
+// ==================== ONESIGNAL ====================
+async function getOneSignalApiKey() {
+  if (ONESIGNAL_API_KEY) return ONESIGNAL_API_KEY;
+  try {
+    const snap = await database.ref('data-jego/PushKey').once('value');
+    ONESIGNAL_API_KEY = snap.val() || '';
+    if (ONESIGNAL_API_KEY) addLog("🔑 OneSignal API Key loaded", "success");
+    else addLog("⚠️ PushKey kosong di Firebase", "error");
+    return ONESIGNAL_API_KEY;
+  } catch (e) {
+    addLog(`❌ Gagal memuat PushKey: ${e.message}`, "error");
+    return "";
+  }
+}
+
+async function sendNotification(playerId, title, message, data = {}) {
+  if (!playerId || !ONESIGNAL_API_KEY) return false;
+  try {
+    const payload = {
+      app_id: ONESIGNAL_APP_ID,
+      include_player_ids: [playerId],
+      headings: { en: title },
+      contents: { en: message },
+      data: { type: "auto_offer", ...data },
+      priority: 10,
+      android_priority: "high",
+      android_channel_id: CHANNEL_AUTOBID,
+      android_sound: SOUND_AUTOBID,
+      ios_sound: `${SOUND_AUTOBID}.mp3`
+    };
+    const res = await fetch("https://onesignal.com/api/v1/notifications", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Basic ${ONESIGNAL_API_KEY}`
+      },
+      body: JSON.stringify(payload)
+    });
+    const result = await res.json();
+    if (result.errors || !result.id) {
+      const err = result.errors ? JSON.stringify(result.errors) : 'no_id';
+      console.warn('[Notif gagal]', playerId, err);
+      return false;
+    }
+    return true;
+  } catch (e) {
+    console.warn('[Notif error]', e.message);
+    return false;
+  }
+}
+
+// ==================== HANDLE ORDER BARU ====================
+async function handleOrder(orderId, order) {
+  // 1. Skip kalau bukan order baru (order lama saat halaman baru buka)
+  const createdTs = parseTs(order.created_at);
+  if (createdTs && createdTs < (PAGE_LOAD_TS - STALE_BUFFER_MS)) return;
+
+  // 2. Skip kalau status bukan waiting/searching
+  if (order.status !== 'waiting' && order.status !== 'searching') return;
+
+  // 3. Skip KURIR (langsung, sebelum baca driver)
+  if (isKurirOrder(order)) {
+    addLog(`⏭️ Skip kurir: ${orderId.substring(0,10)}`, "info");
+    return;
+  }
+
+  // 4. Skip kalau tidak ada koordinat
+  const lat = order.pickup_lat || order.from_lat;
+  const lng = order.pickup_lng || order.from_lng;
+  if (!lat || !lng) {
+    addLog(`⏭️ Skip ${orderId.substring(0,10)}: tidak ada lat/lng`, "warning");
+    return;
+  }
+
+  stats.orders++;
+  updateStats();
+  addLog(`📦 Order baru: ${orderId.substring(0,10)} | ${order.customer_name || 'Customer'} Rp ${(order.price||0).toLocaleString()}`, "success");
+
+  // 5. Ambil driver_locations (dari cache)
+  let locs;
+  try {
+    locs = await getDriverLocationsCached();
+  } catch (e) {
+    addLog(`❌ Gagal baca driver_locations: ${e.message}`, "error");
+    return;
+  }
+
+  // 6. Filter dari driver_locations: tracking ON + lat/lng + < 3km
+  const now = Date.now();
+  const orderType = order.transport_type || order.vehicle || 'motor';
+  const candidates = [];
+
+  let cNoTracking = 0, cNoLatLng = 0, cStale = 0, cTooFar = 0;
+  const totalLocs = Object.keys(locs).length;
+
+  for (const [uid, d] of Object.entries(locs)) {
+    if (!d) { cNoLatLng++; continue; }
+    if (d.tracking_enabled !== true) { cNoTracking++; continue; }
+    if (!d.latitude || !d.longitude) { cNoLatLng++; continue; }
+
+    const lastUpdate = parseTs(d.last_update);
+    if (now - lastUpdate > MAX_AGE_MS) { cStale++; continue; }
+
+    const dist = getDistance(lat, lng, d.latitude, d.longitude);
+    if (dist >= MAX_DISTANCE_KM) { cTooFar++; continue; }
+
+    candidates.push({ uid, distance: dist });
+  }
+
+  addLog(`📊 Total ${totalLocs} loc | tracking_off=${cNoTracking} | no_latlng=${cNoLatLng} | stale=${cStale} | too_far=${cTooFar} | dalam_radius=${candidates.length}`,
+         candidates.length > 0 ? "info" : "warning");
+
+  if (candidates.length === 0) return;
+
+  // 7. Ambil data drivers/{uid} (autobid, playerId, vehicle_type, balance)
+  const [configs, drvSnaps] = await Promise.all([
+    getConfigs(),
+    Promise.all(candidates.map(c =>
+      database.ref(`drivers/${c.uid}`).once('value').then(s => s.val() || {})
+    ))
+  ]);
+
+  // 8. Filter: autobid ON + vehicle_type cocok. playerId OPSIONAL.
+  let cNoAutobid = 0, cTypeMismatch = 0;
+  let cHasPlayerId = 0, cNoPlayerId = 0;
+  const matched = [];
+
+  candidates.forEach((c, i) => {
+    const dd = drvSnaps[i];
+    const locData = locs[c.uid] || {};
+
+    // Autobid harus ON — cek 2 tempat
+    const autobidOn = (dd.autobid_enabled === true) || (locData.autobid_enabled === true);
+    if (!autobidOn) { cNoAutobid++; return; }
+
+    // Vehicle type harus match
+    const vt = dd.vehicle_type || '';
+    if (!isVehicleTypeMatch(vt, orderType)) { cTypeMismatch++; return; }
+
+    // playerId OPSIONAL — kalau kosong, tetap masuk daftar matched
+    const pid = dd.playerId || locData.playerId || null;
+    if (pid) cHasPlayerId++;
+    else cNoPlayerId++;
+
+    c.vehicle_type = vt;
+    c.playerId = pid;
+    c.driverData = dd;
+    matched.push(c);
+  });
+
+  addLog(`🔍 Filter: autobid_off=${cNoAutobid} | tipe_beda=${cTypeMismatch} | playerId_ada=${cHasPlayerId} | playerId_kosong=${cNoPlayerId} | MATCH=${matched.length}`,
+         matched.length > 0 ? "success" : "warning");
+
+  if (matched.length === 0) return;
+
+  // 9. Hitung potongan sekali (untuk cek saldo semua driver)
+  const harga = order.price || 0;
+  const potonganRupiah = harga * (configs.potongan / 100);
+  const pajakRupiah = potonganRupiah * (configs.pajak / 100);
+  const totalPotongan = potonganRupiah + pajakRupiah;
+
+  let notified = 0;
+  let offered = 0;
+  let offerSkippedSaldo = 0;
+  let notifSkippedNoPid = 0;
+  let notifFailed = 0;
+
+  for (const m of matched) {
+    const dd = m.driverData;
+
+    // ==================== A. NOTIFIKASI (OPSIONAL) ====================
+    // Kirim notif HANYA kalau ada playerId. Kalau tidak ada atau gagal, ABAIKAN.
+    if (m.playerId) {
+      const title = "🚖 Order Baru + Penawaran Otomatis";
+      const msg = `${order.customer_name || 'Customer'} Rp ${harga.toLocaleString()} jarak ${m.distance.toFixed(1)}km\n📨 Penawaran otomatis dikirim`;
+      const ok = await sendNotification(m.playerId, title, msg, { orderId });
+      if (ok) notified++;
+      else notifFailed++;
+    } else {
+      notifSkippedNoPid++;
+    }
+
+    // ==================== B. AUTO OFFER (SELALU JALAN) ====================
+    // Cek saldo
+    const saldo = dd.balance || 0;
+    if (saldo < totalPotongan) {
+      addLog(`⚠️ ${dd.name || m.uid.substring(0,8)} saldo kurang (Rp ${saldo} < ${totalPotongan.toFixed(0)})`, "warning");
+      offerSkippedSaldo++;
+      continue;
+    }
+
+    // Cek sudah ada offer belum
+    const existing = await database.ref(`orders/${orderId}/driver_offers/${m.uid}`).once('value');
+    if (existing.exists()) continue;
+
+    const offerData = {
+      driver_id: m.uid,
+      driver_name: dd.name || "Driver",
+      driver_plate: dd.plate_number || '',
+      driver_type: dd.vehicle_type || '',
+      driver_rating: dd.rating || 5,
+      driver_trips: dd.perjalanan || 0,
+      driver_photo: dd.photoURL || '',
+      offered_at: new Date().toISOString(),
+      status: 'offered',
+      auto_offer_by_admin: true,
+      bid_price: harga,
+      bid_percent: 0,
+      bid_requested: true,
+      expired_at: Date.now() + OFFER_TTL_MS
+    };
+
+    try {
+      await database.ref(`orders/${orderId}/driver_offers/${m.uid}`).set(offerData);
+      offered++;
+      const label = m.playerId ? 'notif+offer' : 'offer-only';
+      addLog(`🤖 Offer [${label}] → ${dd.name || m.uid.substring(0,8)} (${m.distance.toFixed(2)}km)`, "success");
+    } catch (e) {
+      addLog(`❌ Gagal buat offer ke ${m.uid.substring(0,8)}: ${e.message}`, "error");
+    }
+  }
+
+  // Update stats
+  stats.driversNotified += notified;
+  stats.offersCreated += offered;
+  updateStats();
+
+  // Ringkasan
+  const summary = `📊 Selesai ${orderId.substring(0,10)}: ${matched.length} matched | notif_ok=${notified} notif_gagal=${notifFailed} notif_skip_noPid=${notifSkippedNoPid} | offer_ok=${offered} offer_skip_saldo=${offerSkippedSaldo}`;
+  addLog(summary, "success");
+}
+
+// ==================== LISTENER ====================
+async function startListening() {
+  addLog("👂 Listener order aktif (autobid only)...", "info");
+
+  // Ambil 5 order terbaru saat init supaya tidak ambil semua
+  database.ref('orders').limitToLast(5).on('child_added', async (snap) => {
+    const order = snap.val();
+    if (!order) return;
+    if (processedOrders.has(snap.key)) return;
+    processedOrders.add(snap.key);
+
+    try {
+      await handleOrder(snap.key, order);
+    } catch (e) {
+      addLog(`❌ Error handle ${snap.key.substring(0,8)}: ${e.message}`, "error");
+    }
+  }, (err) => {
+    addLog(`❌ Listener error: ${err.code} - ${err.message}`, "error");
+  });
+
+  // Monitor koneksi
+  database.ref('.info/connected').on('value', (snap) => {
+    const ok = snap.val() === true;
+    const badge = document.getElementById("statusBadge");
+    badge.textContent = ok ? '🟢 Aktif' : '🔴 Terputus';
+    if (ok && !initialized) {
+      initialized = true;
+      addLog("✅ Terhubung ke Firebase, sistem siap", "success");
+    }
+  });
+}
+
+// ==================== INIT ====================
+async function init() {
+  const key = await getOneSignalApiKey();
+  if (!key) {
+    addLog("⚠️ Tidak ada API Key OneSignal — notif tidak dikirim, tapi auto offer tetap jalan", "warning");
+  }
+  await startListening();
+  addLog("✅ Sistem auto offer aktif (autobid only, non-kurir)", "success");
+}
+
+// ==================== AUTH ====================
+auth.onAuthStateChanged(async (user) => {
+  if (!user) {
+    addLog("❌ Belum login, redirect ke login_admin.html", "error");
+    setTimeout(() => { window.location.href = 'login_admin.html'; }, 800);
+    return;
+  }
+  const adminSnap = await database.ref(`admins/${user.uid}`).once('value');
+  if (!adminSnap.exists()) {
+    addLog(`❌ ${user.email} bukan admin, logout...`, "error");
+    await auth.signOut();
+    setTimeout(() => { window.location.href = 'login_admin.html'; }, 1200);
+    return;
+  }
+  addLog(`✅ Admin ${user.email} login`, "success");
+  await init();
+});
+
+document.getElementById("logoutBtn").onclick = async () => {
+  await auth.signOut();
+  window.location.href = 'login_admin.html';
+};
+</script>
+</body>
+</html>
